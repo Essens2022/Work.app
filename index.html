@@ -129,6 +129,13 @@
   .client-breakdown-km{font-weight:800;font-size:15px;font-family:'SF Mono',Menlo,monospace;text-align:right;}
   .client-breakdown-sub{display:block;font-size:11px;font-weight:600;color:var(--ink-faint);margin-top:2px;font-family:inherit;}
 
+  /* Guadagno (earnings) card, Home */
+  .earnings-card{padding:16px 20px;}
+  .earnings-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;font-size:13.5px;color:var(--ink-soft);}
+  .earnings-row b{font-family:'SF Mono',Menlo,monospace;font-weight:800;color:var(--ink);font-size:14px;}
+  .earnings-total{border-top:1px solid var(--line);margin-top:4px;padding-top:14px;font-weight:800;color:var(--ink);font-size:14.5px;}
+  .earnings-total b{font-size:19px;color:var(--teal);}
+
   .btn{
     appearance:none;border:none;border-radius:14px;padding:14px 18px;font-size:15px;font-weight:700;
     cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:transform .08s ease;
@@ -183,17 +190,28 @@
 
   .undo-link{display:block;text-align:center;margin:18px auto 4px;font-size:12.5px;color:var(--ink-faint);text-decoration:underline;background:none;border:none;cursor:pointer;font-family:inherit;}
 
-  /* Archivio */
-  .archive-card{display:flex;align-items:center;gap:14px;}
-  .archive-month{flex:1;min-width:0;}
-  .archive-month .m{font-weight:800;font-size:16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  /* Archivio — grouped by month: one card per month, with a row per
+     client-sheet inside it, so it's clear at a glance which sheets
+     belong to the same month. */
+  .archive-group-title{
+    font-weight:800;font-size:15px;padding-bottom:10px;margin-bottom:2px;
+    display:flex;align-items:center;gap:8px;
+  }
+  .archive-group-count{
+    font-size:10.5px;font-weight:700;color:var(--ink-faint);background:var(--surface-2);
+    padding:2px 8px;border-radius:100px;
+  }
+  .archive-row{display:flex;align-items:center;gap:14px;padding:12px 0;}
+  .archive-row-left{flex:1;min-width:0;}
+  .archive-row-name{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
   .client-chip{
     display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.02em;
     background:var(--teal-soft);color:var(--teal);padding:3px 9px;border-radius:100px;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;vertical-align:middle;
   }
-  .archive-month .d{font-size:12.5px;color:var(--ink-soft);margin-top:2px;}
-  .archive-actions{display:flex;flex-direction:column;gap:6px;flex:none;}
+  .active-tag{font-size:10px;font-weight:800;letter-spacing:.06em;color:var(--accent);}
+  .archive-row-sub{font-size:12.5px;color:var(--ink-soft);margin-top:4px;}
+  .archive-row-actions{display:flex;flex-direction:column;gap:6px;flex:none;}
 
   /* empty state */
   .empty-state{text-align:center;padding:40px 16px;color:var(--ink-soft);}
@@ -389,6 +407,9 @@
     </div>
     <div class="settings-driver-note">Questi dati vengono salvati solo su questo telefono e riutilizzati automaticamente per i prossimi fogli. Puoi modificarli in qualsiasi momento.</div>
 
+    <div class="field"><label>Compenso giornaliero (€)</label><input id="in-daily-rate" type="number" inputmode="decimal" placeholder="Es. 80" min="0" step="0.01"></div>
+    <div class="settings-driver-note">Usato solo per calcolare il tuo guadagno nella pagina Home — non appare mai nel PDF. Lascialo vuoto se non vuoi tracciare il guadagno.</div>
+
     <div class="modal-btnrow">
       <button class="btn btn-ghost" id="settings-cancel">Annulla</button>
       <button class="btn btn-accent" id="settings-save">Salva</button>
@@ -427,6 +448,12 @@
       <label>KM totali</label>
       <input id="day-kmtot" type="text" disabled style="background:var(--surface-2);color:var(--ink-soft);font-family:'SF Mono',Menlo,monospace;">
     </div>
+
+    <div class="field" style="margin-top:6px;">
+      <label>Bonus (€) — facoltativo</label>
+      <input id="day-bonus" type="number" inputmode="decimal" placeholder="0" min="0" step="0.01">
+    </div>
+    <div class="settings-driver-note" style="margin-top:-8px;">Visibile solo a te nella pagina Home — non appare mai nel PDF.</div>
 
     <div class="modal-btnrow">
       <button class="btn btn-danger" id="day-clear">Svuota giorno</button>
