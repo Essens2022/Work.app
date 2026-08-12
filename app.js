@@ -550,7 +550,7 @@
   var LOGO_DEV_KEY = 'pk_ahesKvuFQIee19-YaEvfjw';
   function clientLogoUrl(clientName) {
     return 'https://img.logo.dev/name/' + encodeURIComponent(clientName) +
-      '?token=' + LOGO_DEV_KEY + '&size=64&retina=true&fallback=404';
+      '?token=' + LOGO_DEV_KEY + '&size=128&retina=true&fallback=404';
   }
   function clientLogoOrChipHtml(clientName) {
     var safe = escapeHtml(clientName);
