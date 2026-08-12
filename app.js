@@ -536,7 +536,10 @@
       var arrayBuffer = doc.output('arraybuffer');
       return window.pdfjsLib.getDocument({ data: arrayBuffer }).promise.then(function (pdf) {
         return pdf.getPage(1);
-      }).then(renderPageToCanvas);
+      }).then(function (page) {
+        pdfPreviewPage = page;
+        return renderPageAtZoomFactor(page, INITIAL_RENDER_ZOOM_FACTOR);
+      });
     }).catch(function (err) {
       console.error(err);
       toast('Impossibile caricare l\'anteprima — verifica la connessione');
@@ -546,17 +549,24 @@
   // How far the person can pinch-zoom into the PDF preview.
   var PDF_MAX_ZOOM = 6;
   // The canvas always renders at true print quality (400 DPI — well above
-  // the 300 DPI print-shop standard) at minimum, regardless of screen size
-  // or zoom level, so the preview looks exactly as sharp as a printed
-  // page even when magnified. On very high-density screens combined with
-  // deep zoom, the resolution goes higher still, matching whichever of the
-  // two requirements (print quality vs. screen-perfect zoom) is greater.
+  // the 300 DPI print-shop standard) as a baseline, so the initial preview
+  // already looks sharp without any delay. If the person zooms in further
+  // than that baseline supports, the canvas is silently re-drawn at a
+  // higher resolution matching exactly how far they've zoomed — the same
+  // way the downloaded PDF looks perfect at any zoom, because it's true
+  // vector data being re-rendered fresh, not a single fixed-size image
+  // being stretched.
   var PRINT_DPI = 400;
   var PDF_POINTS_PER_INCH = 72;
+  var INITIAL_RENDER_ZOOM_FACTOR = PRINT_DPI / PDF_POINTS_PER_INCH; // ≈5.56, independent of screen/zoom
+  var pdfPreviewPage = null;
+  var currentRenderZoomFactor = 1;
+  var qualityUpgradeTimer = null;
+  var qualityUpgradeInFlight = false;
 
-  function renderPageToCanvas(page) {
+  function renderPageAtZoomFactor(page, zoomFactor) {
     var wrap = document.getElementById('pdf-frame-wrap');
-    if (!wrap) return;
+    if (!wrap || !page) return Promise.resolve();
     if (!document.getElementById('pdf-canvas-stage')) {
       wrap.innerHTML =
         '<div class="pdf-canvas-stage" id="pdf-canvas-stage"><canvas id="pdf-canvas"></canvas></div>' +
@@ -568,11 +578,10 @@
     var wrapRect = wrap.getBoundingClientRect();
     var dpr = window.devicePixelRatio || 1;
     var baseViewport = page.getViewport({ scale: 1 });
-    // "fitScale" = how big the page should LOOK on screen at 1x (unzoomed).
+    // "fitScale" = how big the page LOOKS on screen at 1x (unzoomed) — this
+    // stays constant; only the underlying resolution (sharpness) changes.
     var fitScale = Math.min(wrapRect.width / baseViewport.width, wrapRect.height / baseViewport.height);
-    var printQualityScale = PRINT_DPI / PDF_POINTS_PER_INCH;
-    var screenZoomScale = fitScale * dpr * PDF_MAX_ZOOM;
-    var renderScale = Math.max(printQualityScale, screenZoomScale);
+    var renderScale = fitScale * dpr * zoomFactor;
     var viewport = page.getViewport({ scale: renderScale });
     canvas.width = viewport.width;
     canvas.height = viewport.height;
@@ -580,7 +589,24 @@
     canvas.style.height = (fitScale * baseViewport.height) + 'px';
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
+    currentRenderZoomFactor = zoomFactor;
     return page.render({ canvasContext: ctx, viewport: viewport }).promise;
+  }
+
+  // Called whenever a pinch/double-tap gesture settles — if the person is
+  // now zoomed in further than the canvas' current resolution comfortably
+  // supports, quietly re-draws it sharper in the background, matching the
+  // new zoom level exactly (plus a little headroom for the next step).
+  function scheduleQualityUpgrade(targetZoom) {
+    clearTimeout(qualityUpgradeTimer);
+    qualityUpgradeTimer = setTimeout(function () {
+      if (qualityUpgradeInFlight || !pdfPreviewPage) return;
+      var neededFactor = targetZoom * 1.4;
+      if (neededFactor <= currentRenderZoomFactor * 1.05) return; // already sharp enough
+      qualityUpgradeInFlight = true;
+      renderPageAtZoomFactor(pdfPreviewPage, Math.min(neededFactor, PDF_MAX_ZOOM * (window.devicePixelRatio || 1) * 1.4))
+        .finally(function () { qualityUpgradeInFlight = false; });
+    }, 220);
   }
 
   function downloadCurrentPdf() {
@@ -654,6 +680,7 @@
       zoom.scale = scale;
       clampPan();
       apply();
+      scheduleQualityUpgrade(scale);
     }
 
     wrap.addEventListener('pointerdown', function (e) {
