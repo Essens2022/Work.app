@@ -93,13 +93,15 @@
   }
   function sortKey(sheet) { return sheet.year * 12 + sheet.month; }
   function findSheet(id) { return state.sheets.find(function (s) { return s.id === id; }) || null; }
+  // "Active" always means the sheet created most recently — whichever
+  // client/month that was — not necessarily the one with the highest
+  // month/year number. If a driver creates a September sheet and then
+  // later goes back and creates one more sheet for August (a second
+  // client for that earlier month), the August one just created is the
+  // active one now, not September.
   function latestSheet() {
     if (!state.sheets.length) return null;
     return state.sheets.slice().sort(function (a, b) {
-      var k = sortKey(b) - sortKey(a);
-      if (k !== 0) return k;
-      // Same month+year (e.g. two different clients) — the more recently
-      // created one counts as "latest".
       return (b.createdAt || '').localeCompare(a.createdAt || '');
     })[0];
   }
