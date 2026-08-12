@@ -662,29 +662,43 @@
       html += '</div>';
       grp.sheets.forEach(function (s, idx) {
         var filled = Object.keys(s.giorni).filter(function (d) { return s.giorni[d] && (s.giorni[d].a || s.giorni[d].kmFine !== ""); }).length;
-        html += '<div class="archive-row"' + (idx > 0 ? ' style="border-top:1px solid var(--line);"' : '') + '>';
+        html += '<div class="archive-row" data-open="' + s.id + '"' + (idx > 0 ? ' style="border-top:1px solid var(--line);"' : '') + '>';
         html += '<div class="archive-row-left">';
         html += '<div class="archive-row-name"><span class="client-chip">' + escapeHtml(s.perContoDi || '—') + '</span>';
         html += '</div>';
         html += '<div class="archive-row-sub">' + escapeHtml(s.nome || '—') + ' · ' + escapeHtml(s.targa || '—') + ' · ' + filled + ' viaggi</div>';
         html += '</div>';
         html += '<div class="archive-row-actions">';
-        html += '<button class="btn btn-ghost btn-sm" data-open="' + s.id + '">Apri</button>';
-        html += '<button class="btn btn-outline btn-sm" data-pdf="' + s.id + '">PDF</button>';
+        html += '<button class="btn btn-ghost btn-sm" data-open-btn="' + s.id + '">Apri</button>';
+        html += '<button class="btn btn-ghost btn-sm" data-pdf="' + s.id + '">PDF</button>';
         html += '</div></div>';
       });
       html += '</div>';
     });
     el.innerHTML = html;
-    el.querySelectorAll('[data-open]').forEach(function (b) {
-      b.addEventListener('click', function () {
-        var id = b.getAttribute('data-open');
+    // Tapping anywhere on the row (the client info, not the buttons) does
+    // the same thing as pressing "Apri" — a quicker way in. Both buttons
+    // stay exactly as they were, equally prominent, for anyone who taps
+    // those directly; each one stops the click from also triggering the
+    // row's own tap, so nothing double-fires.
+    el.querySelectorAll('.archive-row[data-open]').forEach(function (row) {
+      row.addEventListener('click', function () {
+        var id = row.getAttribute('data-open');
+        state.currentSheetId = id; setCurrentSheetId(id);
+        showScreen('foglio');
+      });
+    });
+    el.querySelectorAll('[data-open-btn]').forEach(function (b) {
+      b.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var id = b.getAttribute('data-open-btn');
         state.currentSheetId = id; setCurrentSheetId(id);
         showScreen('foglio');
       });
     });
     el.querySelectorAll('[data-pdf]').forEach(function (b) {
-      b.addEventListener('click', function () {
+      b.addEventListener('click', function (e) {
+        e.stopPropagation(); // don't also trigger the row's "open" tap
         var id = b.getAttribute('data-pdf');
         state.currentSheetId = id; setCurrentSheetId(id);
         showScreen('pdf');
