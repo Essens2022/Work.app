@@ -51,7 +51,8 @@
   function loadProfile() {
     return loadJSON(LS_PROFILE, {
       nome: "", targa: "", perContoDi: "BARCELLA",
-      da: "Ponte San Nicolò", provDa: "PD", frequent: {}
+      da: "Ponte San Nicolò", provDa: "PD", frequent: {},
+      dailyRate: ""
     });
   }
   function saveProfile(p) { saveJSON(LS_PROFILE, p); }
@@ -151,6 +152,54 @@
     return { month: month, year: year, totalKm: totalKm, totalViaggi: totalViaggi, byClient: byClient };
   }
 
+  // Today's trips/km, counted across EVERY client sheet for the real
+  // current month — if the driver did two giri today for two different
+  // clients, that's 2 trips today, not 1. Only meaningful when the month
+  // being looked at is the actual current month; returns null otherwise.
+  function todayStats(month, year) {
+    var now = new Date();
+    if (now.getMonth() + 1 !== month || now.getFullYear() !== year) return null;
+    var day = now.getDate();
+    var viaggi = 0, km = 0;
+    sheetsForMonth(month, year).forEach(function (s) {
+      var g = s.giorni[day];
+      if (!g || !(g.a || g.ddt || g.kmFine !== "")) return;
+      viaggi++;
+      if (g.kmInizio !== "" && g.kmFine !== "" && !isNaN(g.kmFine - g.kmInizio)) km += (Number(g.kmFine) - Number(g.kmInizio));
+    });
+    return { viaggi: viaggi, km: km };
+  }
+
+  // The driver's pay is per WORKED DAY, not per giro — a day with trips
+  // for two different clients still only counts once. Bonuses are added
+  // per day (optional, entered in the day editor) and summed on top,
+  // across every client sheet for the month, growing as each day is
+  // filled in — never shown in the PDF, purely a personal reference.
+  function monthEarnings(month, year) {
+    var sheets = sheetsForMonth(month, year);
+    var workedDays = {};
+    var totalBonus = 0;
+    sheets.forEach(function (s) {
+      Object.keys(s.giorni).forEach(function (d) {
+        var g = s.giorni[d];
+        if (!g) return;
+        if (g.a || g.ddt || g.kmFine !== "") workedDays[d] = true;
+        if (g.bonus !== "" && g.bonus !== undefined && g.bonus !== null && !isNaN(g.bonus)) totalBonus += Number(g.bonus);
+      });
+    });
+    var workedDaysCount = Object.keys(workedDays).length;
+    var dailyRate = (state.profile.dailyRate === "" || state.profile.dailyRate === undefined) ? 0 : Number(state.profile.dailyRate);
+    var dailyEarnings = workedDaysCount * dailyRate;
+    return {
+      workedDaysCount: workedDaysCount,
+      dailyRate: dailyRate,
+      dailyEarnings: dailyEarnings,
+      totalBonus: totalBonus,
+      totalEarnings: dailyEarnings + totalBonus,
+      hasRate: state.profile.dailyRate !== "" && state.profile.dailyRate !== undefined
+    };
+  }
+
   function toast(msg) {
     var t = document.getElementById('toast');
     document.getElementById('toast-text').textContent = msg;
@@ -211,7 +260,7 @@
   /* Sheet data model                                                   */
   /* ---------------------------------------------------------------- */
   function emptyGiorno(prefillDa, prefillProvDa) {
-    return { da: prefillDa || "", provDa: prefillProvDa || "", a: "", provA: "", ddt: "", kmInizio: "", kmFine: "" };
+    return { da: prefillDa || "", provDa: prefillProvDa || "", a: "", provA: "", ddt: "", kmInizio: "", kmFine: "", bonus: "" };
   }
 
   function buildGiorni(month, year, da, provDa) {
@@ -362,8 +411,12 @@
     var monthSheets = sheetsForMonth(sheet.month, sheet.year);
     var multiClient = monthSheets.length > 1;
     var summary = monthSummary(sheet.month, sheet.year);
+    var today = todayStats(sheet.month, sheet.year);
+    var earnings = monthEarnings(sheet.month, sheet.year);
 
     var html = '';
+
+    // 1) Which month, which sheet is active, quick actions.
     html += '<div class="card active-card"><div class="route-dashes"></div>';
     html += '<span class="badge ' + (isLatest ? '' : 'muted') + '">' + (isLatest ? 'Foglio attivo' : 'Foglio archiviato') + '</span>';
     html += '<h2>' + MESI[sheet.month - 1] + ' ' + sheet.year;
@@ -385,34 +438,55 @@
       html += '<button class="link-btn" id="home-jump-latest" style="display:block;margin:14px auto 0;">Vai al foglio più recente →</button>';
     }
 
-    html += '<div class="section-title"><h3>Riepilogo mese</h3></div>';
+    // 2) Viaggi totali / KM totali — the whole month, all clients combined.
+    html += '<div class="section-title"><h3>Totale mese</h3></div>';
+    html += '<div class="card" style="display:flex;gap:0;">';
+    html += '<div style="flex:1;text-align:center;"><div style="font-size:22px;font-weight:800;">' + summary.totalViaggi + '</div><div class="eyebrow" style="margin-top:2px;">Viaggi totali</div></div>';
+    html += '<div style="width:1px;background:var(--line);"></div>';
+    html += '<div style="flex:1;text-align:center;"><div style="font-size:22px;font-weight:800;">' + summary.totalKm.toLocaleString('it-IT') + '</div><div class="eyebrow" style="margin-top:2px;">KM totali</div></div>';
+    html += '</div>';
 
-    if (!multiClient) {
-      // Single client this month — keep it simple, just two numbers.
+    // 3) Viaggi/KM di oggi — updates every day, driver-only info. Only
+    // shown when looking at the real current month (otherwise "oggi"
+    // wouldn't mean anything for an archived past month).
+    if (today) {
+      html += '<div class="section-title"><h3>Oggi</h3></div>';
       html += '<div class="card" style="display:flex;gap:0;">';
-      html += '<div style="flex:1;text-align:center;"><div style="font-size:22px;font-weight:800;">' + summary.totalViaggi + '</div><div class="eyebrow" style="margin-top:2px;">Viaggi registrati</div></div>';
+      html += '<div style="flex:1;text-align:center;"><div style="font-size:22px;font-weight:800;">' + today.viaggi + '</div><div class="eyebrow" style="margin-top:2px;">Viaggi oggi</div></div>';
       html += '<div style="width:1px;background:var(--line);"></div>';
-      html += '<div style="flex:1;text-align:center;"><div style="font-size:22px;font-weight:800;">' + summary.totalKm.toLocaleString('it-IT') + '</div><div class="eyebrow" style="margin-top:2px;">KM totali mese</div></div>';
-      html += '</div>';
-    } else {
-      // Multiple clients this month — show a per-client breakdown plus the
-      // combined total, so it's clear at a glance where the kilometers
-      // came from, without the numbers from different clients blending
-      // together into one confusing figure.
-      html += '<div class="card" style="padding:8px 20px;">';
-      summary.byClient.forEach(function (c, idx) {
-        html += '<div class="client-breakdown-row" data-sheet="' + c.sheetId + '"' + (idx > 0 ? ' style="border-top:1px solid var(--line);"' : '') + '>';
-        html += '<div class="client-breakdown-name">' + escapeHtml(c.client) + '<span class="client-breakdown-sub">' + c.viaggi + ' viaggi</span></div>';
-        html += '<div class="client-breakdown-km">' + c.km.toLocaleString('it-IT') + '<span class="client-breakdown-sub">km</span></div>';
-        html += '</div>';
-      });
-      html += '</div>';
-      html += '<div class="card" style="display:flex;gap:0;margin-top:10px;background:var(--ink);border:none;">';
-      html += '<div style="flex:1;text-align:center;"><div style="font-size:22px;font-weight:800;color:#fff;">' + summary.totalViaggi + '</div><div class="eyebrow" style="margin-top:2px;color:rgba(255,255,255,.55);">Viaggi totali</div></div>';
-      html += '<div style="width:1px;background:rgba(255,255,255,.12);"></div>';
-      html += '<div style="flex:1;text-align:center;"><div style="font-size:22px;font-weight:800;color:#fff;">' + summary.totalKm.toLocaleString('it-IT') + '</div><div class="eyebrow" style="margin-top:2px;color:rgba(255,255,255,.55);">KM totale mese</div></div>';
+      html += '<div style="flex:1;text-align:center;"><div style="font-size:22px;font-weight:800;">' + today.km.toLocaleString('it-IT') + '</div><div class="eyebrow" style="margin-top:2px;">KM oggi</div></div>';
       html += '</div>';
     }
+
+    // 4) Guadagno — driver-only, never printed in the PDF. Grows as each
+    // worked day is filled in; bonuses (entered per day) add on top.
+    html += '<div class="section-title"><h3>Guadagno <span class="eyebrow" style="font-weight:600;text-transform:none;letter-spacing:0;">— solo per te, non nel PDF</span></h3></div>';
+    if (!earnings.hasRate) {
+      html += '<div class="card" style="text-align:center;padding:20px;">';
+      html += '<div style="font-size:13px;color:var(--ink-soft);margin-bottom:12px;">Imposta il tuo compenso giornaliero per vedere qui il guadagno del mese.</div>';
+      html += '<button class="btn btn-outline btn-sm" id="home-set-rate">Imposta compenso</button>';
+      html += '</div>';
+    } else {
+      html += '<div class="card earnings-card">';
+      html += '<div class="earnings-row"><span>Giorni lavorati</span><b>' + earnings.workedDaysCount + ' × €' + earnings.dailyRate.toLocaleString('it-IT') + '</b></div>';
+      if (earnings.totalBonus > 0) {
+        html += '<div class="earnings-row"><span>Bonus</span><b>+€' + earnings.totalBonus.toLocaleString('it-IT') + '</b></div>';
+      }
+      html += '<div class="earnings-row earnings-total"><span>Totale</span><b>€' + earnings.totalEarnings.toLocaleString('it-IT') + '</b></div>';
+      html += '</div>';
+    }
+
+    // 5) Riepilogo mese — which clients this month, one line each, always
+    // shown (even for a single client) so it's clear who was worked for.
+    html += '<div class="section-title"><h3>Riepilogo mese</h3></div>';
+    html += '<div class="card" style="padding:8px 20px;">';
+    summary.byClient.forEach(function (c, idx) {
+      html += '<div class="client-breakdown-row" data-sheet="' + c.sheetId + '"' + (idx > 0 ? ' style="border-top:1px solid var(--line);"' : '') + '>';
+      html += '<div class="client-breakdown-name">' + escapeHtml(c.client) + '<span class="client-breakdown-sub">' + c.viaggi + ' viaggi</span></div>';
+      html += '<div class="client-breakdown-km">' + c.km.toLocaleString('it-IT') + '<span class="client-breakdown-sub">km</span></div>';
+      html += '</div>';
+    });
+    html += '</div>';
 
     el.innerHTML = html;
     document.getElementById('home-continua').addEventListener('click', function () { showScreen('foglio'); });
@@ -429,6 +503,8 @@
         showScreen('foglio');
       });
     });
+    var setRateBtn = document.getElementById('home-set-rate');
+    if (setRateBtn) setRateBtn.addEventListener('click', function () { openSettingsModal(null); });
   }
 
   function escapeHtml(s) {
@@ -528,19 +604,46 @@
       el.innerHTML = '<div class="empty-state"><div class="icon">' + svgIcon('route') + '</div><h3>Archivio vuoto</h3><p>I fogli mensili completati appariranno qui.</p></div>';
       return;
     }
-    var html = '';
+    // Group sheets by month, so it's clear at a glance which client-sheets
+    // belong together (same month), instead of a flat list where that
+    // wasn't obvious. The "active" tag now sits right next to the specific
+    // client it applies to, instead of a standalone line that didn't say
+    // which client it meant.
+    var monthsSeen = {};
+    var groups = [];
     sorted.forEach(function (s) {
-      var isLatest = isNewestSheet(s);
-      var filled = Object.keys(s.giorni).filter(function (d) { return s.giorni[d] && (s.giorni[d].a || s.giorni[d].kmFine !== ""); }).length;
-      html += '<div class="card archive-card">';
-      html += '<div class="archive-month"><div class="m">' + MESI[s.month - 1] + ' ' + s.year + ' <span class="client-chip">' + escapeHtml(s.perContoDi || '—') + '</span></div>';
-      html += '<div class="d">' + escapeHtml(s.nome || '—') + ' · ' + escapeHtml(s.targa || '—') + ' · ' + filled + ' viaggi</div>';
-      if (isLatest) html += '<div class="d" style="color:var(--accent);font-weight:800;margin-top:4px;">FOGLIO ATTIVO</div>';
+      var key = s.year + '-' + s.month;
+      var group = monthsSeen[key];
+      if (!group) {
+        group = { month: s.month, year: s.year, sheets: [] };
+        monthsSeen[key] = group;
+        groups.push(group);
+      }
+      group.sheets.push(s);
+    });
+
+    var html = '';
+    groups.forEach(function (grp) {
+      html += '<div class="card archive-group">';
+      html += '<div class="archive-group-title">' + MESI[grp.month - 1] + ' ' + grp.year;
+      if (grp.sheets.length > 1) html += '<span class="archive-group-count">' + grp.sheets.length + ' fogli</span>';
       html += '</div>';
-      html += '<div class="archive-actions">';
-      html += '<button class="btn btn-ghost btn-sm" data-open="' + s.id + '">Apri</button>';
-      html += '<button class="btn btn-outline btn-sm" data-pdf="' + s.id + '">PDF</button>';
-      html += '</div></div>';
+      grp.sheets.forEach(function (s, idx) {
+        var isLatest = isNewestSheet(s);
+        var filled = Object.keys(s.giorni).filter(function (d) { return s.giorni[d] && (s.giorni[d].a || s.giorni[d].kmFine !== ""); }).length;
+        html += '<div class="archive-row"' + (idx > 0 ? ' style="border-top:1px solid var(--line);"' : '') + '>';
+        html += '<div class="archive-row-left">';
+        html += '<div class="archive-row-name"><span class="client-chip">' + escapeHtml(s.perContoDi || '—') + '</span>';
+        if (isLatest) html += '<span class="active-tag">ATTIVO</span>';
+        html += '</div>';
+        html += '<div class="archive-row-sub">' + escapeHtml(s.nome || '—') + ' · ' + escapeHtml(s.targa || '—') + ' · ' + filled + ' viaggi</div>';
+        html += '</div>';
+        html += '<div class="archive-row-actions">';
+        html += '<button class="btn btn-ghost btn-sm" data-open="' + s.id + '">Apri</button>';
+        html += '<button class="btn btn-outline btn-sm" data-pdf="' + s.id + '">PDF</button>';
+        html += '</div></div>';
+      });
+      html += '</div>';
     });
     el.innerHTML = html;
     el.querySelectorAll('[data-open]').forEach(function (b) {
@@ -933,6 +1036,7 @@
     document.getElementById('day-ddt').value = g.ddt || '';
     document.getElementById('day-kminizio').value = kmInizioVal !== undefined ? kmInizioVal : '';
     document.getElementById('day-kmfine').value = g.kmFine || '';
+    document.getElementById('day-bonus').value = g.bonus || '';
     updateKmTot();
     document.getElementById('ac-list').classList.remove('show');
     dayModal.classList.add('open');
@@ -978,7 +1082,8 @@
       provA: provAVal,
       ddt: document.getElementById('day-ddt').value.trim(),
       kmInizio: document.getElementById('day-kminizio').value === '' ? '' : Number(document.getElementById('day-kminizio').value),
-      kmFine: document.getElementById('day-kmfine').value === '' ? '' : Number(document.getElementById('day-kmfine').value)
+      kmFine: document.getElementById('day-kmfine').value === '' ? '' : Number(document.getElementById('day-kmfine').value),
+      bonus: document.getElementById('day-bonus').value === '' ? '' : Math.max(0, Number(document.getElementById('day-bonus').value))
     };
     sheet.giorni[day] = g;
 
@@ -1058,6 +1163,7 @@
     document.getElementById('in-conto').value = src.perContoDi || 'BARCELLA';
     document.getElementById('in-da').value = src.da || 'Ponte San Nicolò';
     document.getElementById('in-prov-da').value = src.provDa || 'PD';
+    document.getElementById('in-daily-rate').value = state.profile.dailyRate || '';
 
     settingsModal.classList.add('open');
   }
@@ -1073,11 +1179,14 @@
     var conto = document.getElementById('in-conto').value.trim().toUpperCase() || 'BARCELLA';
     var da = (document.getElementById('in-da').value.trim() || 'Ponte San Nicolò').toUpperCase();
     var provDa = document.getElementById('in-prov-da').value.trim().toUpperCase() || 'PD';
+    var dailyRateRaw = document.getElementById('in-daily-rate').value.trim();
+    var dailyRate = dailyRateRaw === '' ? '' : Math.max(0, parseFloat(dailyRateRaw) || 0);
 
     if (!nome || !targa) { toast('Inserisci nome e targa'); return; }
 
     state.profile.nome = nome; state.profile.targa = targa; state.profile.perContoDi = conto;
     state.profile.da = da; state.profile.provDa = provDa;
+    state.profile.dailyRate = dailyRate;
     saveProfile(state.profile);
 
     if (settingsTargetSheet) {
