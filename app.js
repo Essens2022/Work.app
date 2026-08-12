@@ -1067,6 +1067,19 @@
     document.getElementById('day-kminizio').value = kmInizioVal !== undefined ? kmInizioVal : '';
     document.getElementById('day-kmfine').value = g.kmFine || '';
     document.getElementById('day-bonus').value = g.bonus || '';
+
+    // For a client that doesn't count toward the daily rate, this field
+    // IS the driver's whole payment for the day, not an extra on top —
+    // label and note change accordingly so it's never confused with a
+    // real bonus.
+    var countsForRate = sheet.countsForDailyRate !== false;
+    document.getElementById('day-bonus-label').textContent = countsForRate
+      ? 'Bonus (€) — facoltativo'
+      : 'Importo per questo cliente (€)';
+    document.getElementById('day-bonus-note').textContent = countsForRate
+      ? 'Visibile solo a te nella pagina Home — non appare mai nel PDF.'
+      : 'Questo cliente non conta per il compenso giornaliero — questo importo è il tuo pagamento per la giornata. Visibile solo a te — non appare mai nel PDF.';
+
     updateKmTot();
     document.getElementById('ac-list').classList.remove('show');
     dayModal.classList.add('open');
