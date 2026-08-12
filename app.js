@@ -853,9 +853,9 @@
       bodyStyles: { minCellHeight: 4.1 },
       columnStyles: {
         0: { cellWidth: colWidths.data, halign: 'center', fontStyle: 'bold' },
-        1: { cellWidth: colWidths.da },
+        1: { cellWidth: colWidths.da, halign: 'center' },
         2: { cellWidth: colWidths.provDa, halign: 'center' },
-        3: { cellWidth: colWidths.a },
+        3: { cellWidth: colWidths.a, halign: 'center' },
         4: { cellWidth: colWidths.provA, halign: 'center' },
         5: { cellWidth: colWidths.ddt, halign: 'center' },
         6: { cellWidth: colWidths.kmI, halign: 'center' },
@@ -1212,7 +1212,29 @@
   /* ---------------------------------------------------------------- */
   /* Init                                                               */
   /* ---------------------------------------------------------------- */
+  // One-time data migration: any locality names saved before the
+  // "uppercase" update (an earlier version of the app) are converted to
+  // uppercase now, so old and new entries look consistent everywhere
+  // (list, PDF) without the person needing to re-type anything.
+  function migrateUppercaseLocalities() {
+    var changed = false;
+    state.sheets.forEach(function (sheet) {
+      Object.keys(sheet.giorni).forEach(function (d) {
+        var g = sheet.giorni[d];
+        if (!g) return;
+        if (g.da && g.da !== g.da.toUpperCase()) { g.da = g.da.toUpperCase(); changed = true; }
+        if (g.a && g.a !== g.a.toUpperCase()) { g.a = g.a.toUpperCase(); changed = true; }
+      });
+    });
+    if (state.profile.da && state.profile.da !== state.profile.da.toUpperCase()) {
+      state.profile.da = state.profile.da.toUpperCase(); changed = true;
+    }
+    if (changed) { saveSheets(state.sheets); saveProfile(state.profile); }
+  }
+
   function init() {
+    migrateUppercaseLocalities();
+
     // hidden logo image used for PDF embedding — the bundled Power Trasporti
     // logo, always available as the fallback.
     var img = new Image();
