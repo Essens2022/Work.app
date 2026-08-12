@@ -462,13 +462,14 @@
   }
 
   /* ---------------------------------------------------------------- */
-  /* Lazy-loading the PDF library (jsPDF + autotable, ~450KB) —         */
-  /* only fetched the first time the person actually opens the PDF     */
-  /* screen, so every other screen opens instantly on first launch.    */
+  /* Lazy-loading the PDF libraries — jsPDF+autotable (builds the file)  */
+  /* and pdf.js (renders it onto our own canvas for the preview, fully  */
+  /* under our control) — only fetched the first time the person opens  */
+  /* the PDF screen, so every other screen opens instantly.             */
   /* ---------------------------------------------------------------- */
   var pdfLibsPromise = null;
   function loadPdfLibs() {
-    if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve();
+    if (window.jspdf && window.jspdf.jsPDF && window.pdfjsLib) return Promise.resolve();
     if (pdfLibsPromise) return pdfLibsPromise;
     function loadScript(src) {
       return new Promise(function (resolve, reject) {
@@ -480,17 +481,13 @@
       });
     }
     pdfLibsPromise = loadScript('vendor/jspdf.umd.min.js')
-      .then(function () { return loadScript('vendor/jspdf.plugin.autotable.min.js'); });
+      .then(function () { return loadScript('vendor/jspdf.plugin.autotable.min.js'); })
+      .then(function () { return loadScript('vendor/pdf.min.js'); })
+      .then(function () {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
+      });
     return pdfLibsPromise;
   }
-
-  function ensurePdfIframe() {
-    var wrap = document.getElementById('pdf-frame-wrap');
-    if (wrap && !document.getElementById('pdf-iframe')) {
-      wrap.innerHTML = '<iframe id="pdf-iframe" title="Anteprima PDF"></iframe>';
-    }
-  }
-
 
   function renderPdfScreen() {
     var el = document.getElementById('screen-pdf');
@@ -526,15 +523,43 @@
 
   function loadPdfPreview() {
     Promise.all([loadPdfLibs(), ensureLogoReady()]).then(function () {
-      ensurePdfIframe();
       var sheet = findSheet(document.getElementById('pdf-sheet-select').value) || currentSheet();
       var doc = buildPdf(sheet);
-      var blobUrl = doc.output('bloburl');
-      document.getElementById('pdf-iframe').src = blobUrl;
-    }).catch(function () {
-      toast('Impossibile caricare il generatore PDF — verifica la connessione');
+      var arrayBuffer = doc.output('arraybuffer');
+      return window.pdfjsLib.getDocument({ data: arrayBuffer }).promise.then(function (pdf) {
+        return pdf.getPage(1);
+      }).then(renderPageToCanvas);
+    }).catch(function (err) {
+      console.error(err);
+      toast('Impossibile caricare l\'anteprima — verifica la connessione');
     });
   }
+
+  function renderPageToCanvas(page) {
+    var wrap = document.getElementById('pdf-frame-wrap');
+    if (!wrap) return;
+    if (!document.getElementById('pdf-canvas-stage')) {
+      wrap.innerHTML =
+        '<div class="pdf-canvas-stage" id="pdf-canvas-stage"><canvas id="pdf-canvas"></canvas></div>' +
+        '<div class="pdf-zoom-hint" id="pdf-zoom-hint">Pizzica per ingrandire</div>';
+      initPdfZoomGestures();
+    }
+    var canvas = document.getElementById('pdf-canvas');
+    var ctx = canvas.getContext('2d');
+    var wrapRect = wrap.getBoundingClientRect();
+    var dpr = window.devicePixelRatio || 1;
+    // Render at a high enough resolution to stay crisp even when zoomed in.
+    var baseViewport = page.getViewport({ scale: 1 });
+    var fitScale = Math.min(wrapRect.width / baseViewport.width, wrapRect.height / baseViewport.height);
+    var renderScale = fitScale * dpr * 2.5; // extra headroom for pinch-zoom sharpness
+    var viewport = page.getViewport({ scale: renderScale });
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    canvas.style.width = (viewport.width / (dpr * 2.5)) + 'px';
+    canvas.style.height = (viewport.height / (dpr * 2.5)) + 'px';
+    return page.render({ canvasContext: ctx, viewport: viewport }).promise;
+  }
+
   function downloadCurrentPdf() {
     Promise.all([loadPdfLibs(), ensureLogoReady()]).then(function () {
       var sheet = findSheet(document.getElementById('pdf-sheet-select').value) || currentSheet();
@@ -547,9 +572,120 @@
         doc.save(filename);
       }
       toast('PDF generato');
-    }).catch(function () {
-      toast('Impossibile caricare il generatore PDF — verifica la connessione');
+    }).catch(function (err) {
+      console.error(err);
+      toast('Impossibile generare il PDF — verifica la connessione');
     });
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Scoped pinch-zoom + pan for the PDF preview canvas — fully under   */
+  /* our own control (a real DOM element, not a native plugin), so it   */
+  /* cannot "leak" to the rest of the page and can always show every    */
+  /* part of the document. Double-tap toggles a quick 2.2x zoom.        */
+  /* ---------------------------------------------------------------- */
+  function initPdfZoomGestures() {
+    var wrap = document.getElementById('pdf-frame-wrap');
+    var stage = document.getElementById('pdf-canvas-stage');
+    var hint = document.getElementById('pdf-zoom-hint');
+    if (!wrap || !stage) return;
+
+    var MIN_SCALE = 1, MAX_SCALE = 4;
+    var zoom = { scale: 1, x: 0, y: 0 };
+    var pointers = {};
+    var pinch = { active: false, startDist: 0, startScale: 1 };
+    var pan = { active: false, startX: 0, startY: 0, originX: 0, originY: 0 };
+    var lastTapTime = 0;
+    var hintHidden = false;
+
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+    function clampPan() {
+      var rect = wrap.getBoundingClientRect();
+      var maxX = Math.max(0, (rect.width * (zoom.scale - 1)) / 2);
+      var maxY = Math.max(0, (rect.height * (zoom.scale - 1)) / 2);
+      zoom.x = clamp(zoom.x, -maxX, maxX);
+      zoom.y = clamp(zoom.y, -maxY, maxY);
+    }
+
+    function apply() {
+      stage.style.transform = 'translate(' + zoom.x + 'px,' + zoom.y + 'px) scale(' + zoom.scale + ')';
+    }
+
+    function dismissHint() {
+      if (hintHidden || !hint) return;
+      hintHidden = true;
+      hint.classList.add('hide');
+    }
+
+    function setZoom(scale, focalX, focalY) {
+      scale = clamp(scale, MIN_SCALE, MAX_SCALE);
+      if (focalX !== undefined) {
+        var rect = wrap.getBoundingClientRect();
+        var fx = focalX - rect.left - rect.width / 2;
+        var fy = focalY - rect.top - rect.height / 2;
+        var ratio = scale / zoom.scale;
+        zoom.x = fx - (fx - zoom.x) * ratio;
+        zoom.y = fy - (fy - zoom.y) * ratio;
+      }
+      zoom.scale = scale;
+      clampPan();
+      apply();
+    }
+
+    wrap.addEventListener('pointerdown', function (e) {
+      dismissHint();
+      try { wrap.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var ids = Object.keys(pointers);
+      if (ids.length === 2) {
+        pan.active = false;
+        var p1 = pointers[ids[0]], p2 = pointers[ids[1]];
+        pinch.active = true;
+        pinch.startDist = Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1;
+        pinch.startScale = zoom.scale;
+      } else if (ids.length === 1) {
+        var now = Date.now();
+        if (now - lastTapTime < 300) {
+          if (zoom.scale > 1) { setZoom(1); } else { setZoom(2.2, e.clientX, e.clientY); }
+          lastTapTime = 0;
+          return;
+        }
+        lastTapTime = now;
+        pan.active = true;
+        pan.startX = e.clientX; pan.startY = e.clientY;
+        pan.originX = zoom.x; pan.originY = zoom.y;
+      }
+    });
+
+    wrap.addEventListener('pointermove', function (e) {
+      if (!(e.pointerId in pointers)) return;
+      pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var ids = Object.keys(pointers);
+      if (ids.length === 2 && pinch.active) {
+        var p1 = pointers[ids[0]], p2 = pointers[ids[1]];
+        var dist = Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1;
+        var midX = (p1.x + p2.x) / 2, midY = (p1.y + p2.y) / 2;
+        setZoom(pinch.startScale * (dist / pinch.startDist), midX, midY);
+      } else if (ids.length === 1 && pan.active && zoom.scale > 1) {
+        zoom.x = pan.originX + (e.clientX - pan.startX);
+        zoom.y = pan.originY + (e.clientY - pan.startY);
+        clampPan();
+        apply();
+      }
+    });
+
+    function endPointer(e) {
+      delete pointers[e.pointerId];
+      var remaining = Object.keys(pointers).length;
+      if (remaining < 2) pinch.active = false;
+      if (remaining === 0) {
+        pan.active = false;
+        if (zoom.scale <= 1.02) { zoom.scale = 1; zoom.x = 0; zoom.y = 0; apply(); }
+      }
+    }
+    wrap.addEventListener('pointerup', endPointer);
+    wrap.addEventListener('pointercancel', endPointer);
   }
 
   /* ---------------------------------------------------------------- */
