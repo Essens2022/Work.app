@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#1C1B1F">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="PT Foglio">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Power Trasporti · Foglio Viaggi</title>
+<style>
+  :root{
+    --bg:#FAFAF8;
+    --surface:#FFFFFF;
+    --surface-2:#F3F1EC;
+    --ink:#1C1B1F;
+    --ink-soft:#6B6B70;
+    --ink-faint:#A9A7A2;
+    --line:#E7E5E0;
+    --accent:#E8542B;
+    --accent-ink:#FFFFFF;
+    --accent-soft:#FDE7DE;
+    --teal:#0F9D8C;
+    --teal-soft:#DFF3F0;
+    --danger:#D64545;
+    --danger-soft:#FBE4E1;
+    --radius-lg:20px;
+    --radius-md:14px;
+    --radius-sm:10px;
+    --shadow-sm:0 1px 2px rgba(28,27,31,.06),0 1px 1px rgba(28,27,31,.04);
+    --shadow-md:0 10px 28px rgba(28,27,31,.10);
+    --safe-bottom:env(safe-area-inset-bottom,0px);
+    --safe-top:env(safe-area-inset-top,0px);
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    overscroll-behavior-y:contain;
+  }
+  h1,h2,h3{margin:0;letter-spacing:-0.02em;}
+  .eyebrow{
+    font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);
+  }
+  #app{max-width:560px;margin:0 auto;min-height:100%;position:relative;padding-bottom:calc(88px + var(--safe-bottom));}
+  .topbar{
+    position:sticky;top:0;z-index:20;background:rgba(250,250,248,.92);backdrop-filter:blur(10px);
+    padding:calc(14px + var(--safe-top)) 20px 12px;display:flex;align-items:center;justify-content:space-between;
+    border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand-mark{width:30px;height:30px;border-radius:9px;background:var(--ink);display:flex;align-items:center;justify-content:center;flex:none;}
+  .brand-mark svg{width:16px;height:16px;}
+  .brand-text{font-weight:800;font-size:15px;letter-spacing:-.01em;line-height:1.1;}
+  .brand-text small{display:block;font-weight:600;font-size:10px;color:var(--ink-faint);letter-spacing:.12em;text-transform:uppercase;}
+  .icon-btn{
+    width:38px;height:38px;border-radius:12px;border:1px solid var(--line);background:var(--surface);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink);
+  }
+  .icon-btn:active{transform:scale(.94);}
+  main{padding:18px 16px 8px;}
+  .screen{display:none;animation:fadein .18s ease;}
+  .screen.active{display:block;}
+  @keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+
+  /* Cards */
+  .card{background:var(--surface);border-radius:var(--radius-lg);padding:20px;box-shadow:var(--shadow-sm);border:1px solid var(--line);}
+  .card + .card{margin-top:14px;}
+  .active-card{
+    background:linear-gradient(160deg,#1C1B1F 0%,#2B2A2F 100%);color:#fff;border:none;
+    position:relative;overflow:hidden;
+  }
+  .active-card .route-dashes{
+    position:absolute;top:0;right:0;bottom:0;width:70px;opacity:.12;
+    background-image:repeating-linear-gradient(-35deg,#fff 0 2px,transparent 2px 14px);
+  }
+  .active-card .badge{
+    display:inline-flex;align-items:center;gap:6px;background:var(--accent);color:#fff;
+    font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:5px 10px;border-radius:100px;
+  }
+  .active-card .badge.muted{background:rgba(255,255,255,.14);}
+  .active-card h2{font-size:26px;margin-top:10px;}
+  .active-card .meta{display:flex;gap:18px;margin-top:14px;font-size:13px;color:rgba(255,255,255,.72);}
+  .active-card .meta b{color:#fff;display:block;font-size:14px;font-weight:700;}
+  .odometer{
+    margin-top:16px;background:rgba(255,255,255,.08);border-radius:14px;padding:12px 14px;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .odometer .lbl{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55);}
+  .odometer .val{font-variant-numeric:tabular-nums;font-weight:800;font-size:20px;letter-spacing:.03em;font-family:'SF Mono',Menlo,monospace;}
+  .card-actions{display:flex;gap:10px;margin-top:16px;}
+
+  .btn{
+    appearance:none;border:none;border-radius:14px;padding:14px 18px;font-size:15px;font-weight:700;
+    cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:transform .08s ease;
+    font-family:inherit;
+  }
+  .btn:active{transform:scale(.97);}
+  .btn-block{width:100%;}
+  .btn-accent{background:var(--accent);color:#fff;}
+  .btn-dark{background:var(--ink);color:#fff;}
+  .btn-light{background:rgba(255,255,255,.14);color:#fff;}
+  .btn-ghost{background:var(--surface-2);color:var(--ink);}
+  .btn-outline{background:transparent;color:var(--ink);border:1px solid var(--line);}
+  .btn-danger{background:var(--danger-soft);color:var(--danger);}
+  .btn-sm{padding:10px 14px;font-size:13px;border-radius:12px;}
+  .btn[disabled]{opacity:.45;pointer-events:none;}
+
+  .section-title{display:flex;align-items:center;justify-content:space-between;margin:22px 2px 10px;}
+  .section-title h3{font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);}
+
+  /* Foglio screen */
+  .sheet-header{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .sheet-header .who{font-size:13px;color:var(--ink-soft);margin-top:2px;}
+  .sheet-header .who b{color:var(--ink);}
+  .pencil{width:30px;height:30px;border-radius:9px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;flex:none;cursor:pointer;}
+
+  .giro-list{position:relative;margin-top:10px;padding-left:26px;}
+  .giro-list::before{
+    content:"";position:absolute;left:11px;top:6px;bottom:6px;width:2px;
+    background-image:repeating-linear-gradient(180deg,var(--line) 0 6px,transparent 6px 12px);
+  }
+  .day-row{
+    position:relative;background:var(--surface);border:1px solid var(--line);border-radius:14px;
+    padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:12px;cursor:pointer;
+  }
+  .day-row:active{transform:scale(.99);}
+  .day-row.filled{border-color:#EFD9CE;background:#FFFCFA;}
+  .day-num{
+    position:absolute;left:-26px;top:50%;transform:translateY(-50%);
+    width:24px;height:24px;border-radius:50%;background:var(--surface);border:2px solid var(--line);
+    display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:var(--ink-faint);
+  }
+  .day-row.filled .day-num{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);}
+  .day-row.disabled{opacity:.35;pointer-events:none;}
+  .day-main{flex:1;min-width:0;}
+  .day-main .dest{font-weight:700;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .day-main .sub{font-size:12px;color:var(--ink-soft);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .day-main .placeholder{color:var(--ink-faint);font-weight:500;}
+  .day-km{text-align:right;flex:none;}
+  .day-km .tot{font-weight:800;font-family:'SF Mono',Menlo,monospace;font-size:14px;}
+  .day-km .lbl{font-size:9px;color:var(--ink-faint);font-weight:700;letter-spacing:.08em;text-transform:uppercase;}
+  .chev{color:var(--ink-faint);flex:none;}
+
+  .undo-link{display:block;text-align:center;margin:18px auto 4px;font-size:12.5px;color:var(--ink-faint);text-decoration:underline;background:none;border:none;cursor:pointer;font-family:inherit;}
+
+  /* Archivio */
+  .archive-card{display:flex;align-items:center;gap:14px;}
+  .archive-month{flex:1;min-width:0;}
+  .archive-month .m{font-weight:800;font-size:16px;}
+  .archive-month .d{font-size:12.5px;color:var(--ink-soft);margin-top:2px;}
+  .archive-actions{display:flex;flex-direction:column;gap:6px;flex:none;}
+
+  /* empty state */
+  .empty-state{text-align:center;padding:40px 16px;color:var(--ink-soft);}
+  .empty-state .icon{width:52px;height:52px;border-radius:16px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;}
+  .empty-state p{font-size:13.5px;line-height:1.5;margin:6px 0 18px;}
+
+  /* PDF screen */
+  .pdf-frame-wrap{background:var(--surface-2);border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--line);margin-top:14px;}
+  .pdf-frame-wrap iframe{width:100%;height:56vh;border:none;display:block;background:#fff;}
+  .field-select{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface);font-size:14px;font-weight:600;font-family:inherit;color:var(--ink);}
+
+  /* bottom nav */
+  .bottomnav{
+    position:fixed;left:0;right:0;bottom:0;z-index:30;
+    display:flex;justify-content:center;
+  }
+  .bottomnav-inner{
+    max-width:560px;width:100%;background:rgba(255,255,255,.96);backdrop-filter:blur(14px);
+    border-top:1px solid var(--line);display:flex;align-items:center;padding:8px 10px calc(8px + var(--safe-bottom));
+    box-shadow:0 -6px 20px rgba(28,27,31,.05);
+  }
+  .navbtn{
+    flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;background:none;border:none;
+    padding:6px 2px;color:var(--ink-faint);font-family:inherit;cursor:pointer;
+  }
+  .navbtn svg{width:21px;height:21px;}
+  .navbtn span{font-size:9.5px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;}
+  .navbtn.active{color:var(--accent);}
+  .navbtn-center{flex:0 0 auto;margin:0 6px;}
+  .navbtn-center .fab{
+    width:52px;height:52px;border-radius:16px;background:var(--accent);display:flex;align-items:center;justify-content:center;
+    box-shadow:0 8px 18px rgba(232,84,43,.38);margin-top:-22px;border:4px solid var(--bg);
+  }
+  .navbtn-center .fab svg{width:22px;height:22px;color:#fff;}
+  .navbtn-center span{margin-top:2px;color:var(--ink-faint);}
+
+  /* modals */
+  .modal-overlay{
+    position:fixed;inset:0;background:rgba(20,19,22,.5);z-index:100;
+    display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .18s ease;
+  }
+  .modal-overlay.open{opacity:1;pointer-events:auto;}
+  .modal-overlay.center{align-items:center;padding:20px;}
+  .sheet-panel{
+    background:var(--surface);width:100%;max-width:560px;border-radius:22px 22px 0 0;
+    padding:10px 20px calc(20px + var(--safe-bottom));max-height:88vh;overflow-y:auto;
+    transform:translateY(16px);transition:transform .2s ease;
+  }
+  .modal-overlay.open .sheet-panel{transform:translateY(0);}
+  .modal-overlay.center .sheet-panel{border-radius:22px;max-height:80vh;}
+  .grabber{width:36px;height:4px;background:var(--line);border-radius:100px;margin:8px auto 14px;}
+  .modal-title{font-size:18px;font-weight:800;margin-bottom:4px;}
+  .modal-sub{font-size:13px;color:var(--ink-soft);margin-bottom:16px;line-height:1.5;}
+
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;}
+  .field input,.field select{
+    width:100%;padding:13px 14px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);
+    font-size:15.5px;font-weight:600;color:var(--ink);font-family:inherit;
+  }
+  .field input:focus,.field select:focus{outline:none;border-color:var(--accent);}
+  .field-row{display:flex;gap:10px;}
+  .field-row .field{flex:1;}
+  .field-row .field.narrow{flex:0 0 78px;}
+  .field .hint{font-size:11.5px;color:var(--ink-faint);margin-top:5px;}
+  .warn-banner{background:var(--danger-soft);color:var(--danger);font-size:12.5px;font-weight:700;padding:10px 12px;border-radius:10px;margin-bottom:14px;display:none;}
+  .warn-banner.show{display:block;}
+
+  .autocomplete-wrap{position:relative;}
+  .ac-list{
+    position:absolute;left:0;right:0;top:calc(100% + 6px);background:var(--surface);border:1px solid var(--line);
+    border-radius:14px;box-shadow:var(--shadow-md);z-index:50;max-height:230px;overflow-y:auto;display:none;
+  }
+  .ac-list.show{display:block;}
+  .ac-item{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;cursor:pointer;border-bottom:1px solid var(--line);}
+  .ac-item:last-child{border-bottom:none;}
+  .ac-item:active{background:var(--surface-2);}
+  .ac-item .name{font-weight:700;font-size:14.5px;}
+  .ac-item .prov{font-size:11px;font-weight:800;color:var(--teal);background:var(--teal-soft);padding:3px 8px;border-radius:100px;}
+  .ac-empty{padding:14px;font-size:13px;color:var(--ink-faint);text-align:center;}
+
+  .modal-btnrow{display:flex;gap:10px;margin-top:6px;}
+  .modal-btnrow .btn{flex:1;}
+
+  .month-stepper{display:flex;align-items:center;justify-content:space-between;background:var(--surface-2);border-radius:14px;padding:10px 8px;margin:6px 0 18px;}
+  .month-stepper .mval{font-weight:800;font-size:16px;}
+  .month-stepper button{width:36px;height:36px;border-radius:10px;border:none;background:var(--surface);box-shadow:var(--shadow-sm);font-size:18px;font-weight:800;cursor:pointer;color:var(--ink);}
+
+  .toast{
+    position:fixed;left:50%;bottom:calc(96px + var(--safe-bottom));transform:translateX(-50%) translateY(10px);
+    background:var(--ink);color:#fff;padding:11px 18px;border-radius:100px;font-size:13px;font-weight:700;
+    z-index:200;opacity:0;pointer-events:none;transition:all .2s ease;box-shadow:var(--shadow-md);
+    display:flex;align-items:center;gap:8px;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  .toast .dot{width:6px;height:6px;border-radius:50%;background:var(--teal);}
+
+  .settings-driver-note{font-size:12px;color:var(--ink-faint);margin-top:-6px;margin-bottom:16px;line-height:1.5;}
+  .link-btn{background:none;border:none;color:var(--accent);font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;padding:0;}
+  .hidden{display:none !important;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M4 16 L12 6 L20 16 M8 16 L12 11 L16 16" stroke="#E8542B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="brand-text">Foglio Viaggi<small>Power Trasporti</small></div>
+    </div>
+    <button class="icon-btn" id="btn-settings" aria-label="Impostazioni">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
+
+  <main>
+    <!-- HOME -->
+    <section id="screen-home" class="screen active"></section>
+    <!-- FOGLIO -->
+    <section id="screen-foglio" class="screen"></section>
+    <!-- ARCHIVIO -->
+    <section id="screen-archivio" class="screen"></section>
+    <!-- PDF -->
+    <section id="screen-pdf" class="screen"></section>
+  </main>
+
+  <nav class="bottomnav">
+    <div class="bottomnav-inner">
+      <button class="navbtn" data-nav="home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>
+        <span>Home</span>
+      </button>
+      <button class="navbtn" data-nav="foglio">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l5 5v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M9 12h6M9 16h6M9 8h2"/></svg>
+        <span>Foglio</span>
+      </button>
+      <div class="navbtn-center">
+        <button class="fab" id="btn-nuovo-foglio" aria-label="Nuovo foglio">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <span>Nuovo</span>
+      </div>
+      <button class="navbtn" data-nav="archivio">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h18M5 7v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7M9 7V4h6v3"/><path d="M10 12h4"/></svg>
+        <span>Archivio</span>
+      </button>
+      <button class="navbtn" data-nav="pdf">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l5 5v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M9 15h6M9 18h4"/></svg>
+        <span>PDF</span>
+      </button>
+    </div>
+  </nav>
+</div>
+
+<!-- Onboarding / Settings modal -->
+<div class="modal-overlay" id="modal-settings">
+  <div class="sheet-panel">
+    <div class="grabber"></div>
+    <div class="modal-title" id="settings-title">Benvenuto</div>
+    <div class="modal-sub" id="settings-sub">Inserisci i dati autista per iniziare a compilare il foglio viaggi.</div>
+    <div class="field"><label>Nome autista</label><input id="in-nome" type="text" placeholder="Es. Ion Bondari"></div>
+    <div class="field-row">
+      <div class="field"><label>Targa veicolo</label><input id="in-targa" type="text" placeholder="Es. GN 542 NM" style="text-transform:uppercase"></div>
+      <div class="field"><label>Per conto di</label><input id="in-conto" type="text" placeholder="Es. BARCELLA" style="text-transform:uppercase"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Partenza predefinita</label><input id="in-da" type="text" placeholder="Es. Ponte San Nicolò"></div>
+      <div class="field narrow"><label>Prov.</label><input id="in-prov-da" type="text" maxlength="2" placeholder="PD" style="text-transform:uppercase"></div>
+    </div>
+    <div class="settings-driver-note">Questi dati vengono salvati solo su questo telefono e riutilizzati automaticamente per i prossimi fogli. Puoi modificarli in qualsiasi momento.</div>
+    <div class="modal-btnrow">
+      <button class="btn btn-ghost" id="settings-cancel">Annulla</button>
+      <button class="btn btn-accent" id="settings-save">Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- Day editor modal -->
+<div class="modal-overlay" id="modal-day">
+  <div class="sheet-panel">
+    <div class="grabber"></div>
+    <div class="modal-title" id="day-title">Giorno</div>
+    <div class="modal-sub" id="day-sub"></div>
+    <div class="warn-banner" id="day-warn">⚠ KM FINE inferiore a KM INIZIO. Controlla i valori.</div>
+
+    <div class="field-row">
+      <div class="field"><label>Da</label><input id="day-da" type="text"></div>
+      <div class="field narrow"><label>Prov.</label><input id="day-provda" type="text" maxlength="2" style="text-transform:uppercase"></div>
+    </div>
+    <div class="field">
+      <label>Località di destinazione (A)</label>
+      <div class="autocomplete-wrap">
+        <input id="day-a" type="text" placeholder="Es. Vittorio Veneto" autocomplete="off">
+        <div class="ac-list" id="ac-list"></div>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field narrow"><label>Prov.</label><input id="day-prova" type="text" maxlength="2" style="text-transform:uppercase"></div>
+      <div class="field"><label>DDT</label><input id="day-ddt" type="text" placeholder="Es. 45/80248"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>KM inizio</label><input id="day-kminizio" type="number" inputmode="numeric" placeholder="0"></div>
+      <div class="field"><label>KM fine</label><input id="day-kmfine" type="number" inputmode="numeric" placeholder="0"></div>
+    </div>
+    <div class="field">
+      <label>KM totali</label>
+      <input id="day-kmtot" type="text" disabled style="background:var(--surface-2);color:var(--ink-soft);font-family:'SF Mono',Menlo,monospace;">
+    </div>
+
+    <div class="modal-btnrow">
+      <button class="btn btn-danger" id="day-clear">Svuota giorno</button>
+      <button class="btn btn-accent" id="day-save">Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- Generic confirm modal -->
+<div class="modal-overlay center" id="modal-confirm">
+  <div class="sheet-panel">
+    <div class="modal-title" id="confirm-title">Conferma</div>
+    <div class="modal-sub" id="confirm-sub">Sei sicuro?</div>
+    <div id="confirm-stepper-slot"></div>
+    <div class="modal-btnrow">
+      <button class="btn btn-ghost" id="confirm-cancel">Annulla</button>
+      <button class="btn btn-accent" id="confirm-ok">Conferma</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><span class="dot"></span><span id="toast-text"></span></div>
+
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="vendor/jspdf.plugin.autotable.min.js"></script>
+<script src="vendor/comuni.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
