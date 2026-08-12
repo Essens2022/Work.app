@@ -548,17 +548,22 @@
 
   // How far the person can pinch-zoom into the PDF preview.
   var PDF_MAX_ZOOM = 6;
-  // The canvas always renders at true print quality (400 DPI — well above
-  // the 300 DPI print-shop standard) as a baseline, so the initial preview
-  // already looks sharp without any delay. If the person zooms in further
-  // than that baseline supports, the canvas is silently re-drawn at a
-  // higher resolution matching exactly how far they've zoomed — the same
-  // way the downloaded PDF looks perfect at any zoom, because it's true
-  // vector data being re-rendered fresh, not a single fixed-size image
-  // being stretched.
+  // Baseline quality target: true print quality (400 DPI — above the
+  // 300 DPI print-shop standard). If the person zooms in further than
+  // this comfortably supports, the canvas is quietly re-drawn sharper,
+  // matching how far they've zoomed.
+  //
+  // MAX_CANVAS_DIMENSION is a hard safety ceiling: phones (especially
+  // iPhones) silently fail or degrade canvases beyond a certain pixel
+  // count, so no matter how much zoom is requested, we never ask for a
+  // canvas bigger than every modern device can reliably render. This is
+  // the actual, real ceiling on quality — not a number we chose lightly,
+  // it's the point past which quality would silently break instead of
+  // improving.
   var PRINT_DPI = 400;
   var PDF_POINTS_PER_INCH = 72;
   var INITIAL_RENDER_ZOOM_FACTOR = PRINT_DPI / PDF_POINTS_PER_INCH; // ≈5.56, independent of screen/zoom
+  var MAX_CANVAS_DIMENSION = 4096;
   var pdfPreviewPage = null;
   var currentRenderZoomFactor = 1;
   var qualityUpgradeTimer = null;
@@ -582,6 +587,14 @@
     // stays constant; only the underlying resolution (sharpness) changes.
     var fitScale = Math.min(wrapRect.width / baseViewport.width, wrapRect.height / baseViewport.height);
     var renderScale = fitScale * dpr * zoomFactor;
+
+    // Never exceed the safe canvas size, on any device.
+    var testViewport = page.getViewport({ scale: renderScale });
+    var maxDim = Math.max(testViewport.width, testViewport.height);
+    if (maxDim > MAX_CANVAS_DIMENSION) {
+      renderScale = renderScale * (MAX_CANVAS_DIMENSION / maxDim);
+    }
+
     var viewport = page.getViewport({ scale: renderScale });
     canvas.width = viewport.width;
     canvas.height = viewport.height;
@@ -590,13 +603,17 @@
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
     currentRenderZoomFactor = zoomFactor;
-    return page.render({ canvasContext: ctx, viewport: viewport }).promise;
+    return page.render({ canvasContext: ctx, viewport: viewport }).promise.catch(function (err) {
+      console.error('Errore nel disegnare il PDF:', err);
+      throw err;
+    });
   }
 
   // Called whenever a pinch/double-tap gesture settles — if the person is
   // now zoomed in further than the canvas' current resolution comfortably
   // supports, quietly re-draws it sharper in the background, matching the
-  // new zoom level exactly (plus a little headroom for the next step).
+  // new zoom level exactly (plus a little headroom for the next step),
+  // always staying within the safe canvas size ceiling above.
   function scheduleQualityUpgrade(targetZoom) {
     clearTimeout(qualityUpgradeTimer);
     qualityUpgradeTimer = setTimeout(function () {
@@ -604,8 +621,9 @@
       var neededFactor = targetZoom * 1.4;
       if (neededFactor <= currentRenderZoomFactor * 1.05) return; // already sharp enough
       qualityUpgradeInFlight = true;
-      renderPageAtZoomFactor(pdfPreviewPage, Math.min(neededFactor, PDF_MAX_ZOOM * (window.devicePixelRatio || 1) * 1.4))
-        .finally(function () { qualityUpgradeInFlight = false; });
+      renderPageAtZoomFactor(pdfPreviewPage, neededFactor)
+        .catch(function () { /* keep showing the last good render */ })
+        .then(function () { qualityUpgradeInFlight = false; });
     }, 220);
   }
 
