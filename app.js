@@ -470,14 +470,14 @@
   }
 
   /* ---------------------------------------------------------------- */
-  /* Lazy-loading the PDF libraries — jsPDF+autotable (builds the file)  */
-  /* and pdf.js (renders it onto our own canvas for the preview, fully  */
-  /* under our control) — only fetched the first time the person opens  */
-  /* the PDF screen, so every other screen opens instantly.             */
+  /* Lazy-loading jsPDF (only needed to actually build the file) — the    */
+  /* preview no longer needs its own renderer: it opens the generated    */
+  /* PDF directly in the phone's own full-screen PDF viewer, which       */
+  /* already has excellent, reliable pinch-zoom and panning built in.    */
   /* ---------------------------------------------------------------- */
   var pdfLibsPromise = null;
   function loadPdfLibs() {
-    if (window.jspdf && window.jspdf.jsPDF && window.pdfjsLib) return Promise.resolve();
+    if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve();
     if (pdfLibsPromise) return pdfLibsPromise;
     function loadScript(src) {
       return new Promise(function (resolve, reject) {
@@ -489,11 +489,7 @@
       });
     }
     pdfLibsPromise = loadScript('vendor/jspdf.umd.min.js')
-      .then(function () { return loadScript('vendor/jspdf.plugin.autotable.min.js'); })
-      .then(function () { return loadScript('vendor/pdf.min.js'); })
-      .then(function () {
-        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
-      });
+      .then(function () { return loadScript('vendor/jspdf.plugin.autotable.min.js'); });
     return pdfLibsPromise;
   }
 
@@ -513,95 +509,65 @@
       html += '<option value="' + s.id + '" ' + (s.id === sheet.id ? 'selected' : '') + '>' + MESI[s.month - 1] + ' ' + s.year + '</option>';
     });
     html += '</select>';
+    html += '</div>';
+
+    html += '<div class="card" style="margin-top:14px;text-align:center;padding:32px 20px;">';
+    html += '<div style="width:56px;height:56px;border-radius:16px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">' + svgIcon('route') + '</div>';
+    html += '<div style="font-weight:800;font-size:15px;margin-bottom:6px;">Anteprima documento</div>';
+    html += '<div style="font-size:13px;color:var(--ink-soft);margin-bottom:20px;line-height:1.5;">Si apre nel visualizzatore del telefono — puoi ingrandire e spostarti liberamente con le dita, come su qualsiasi altro PDF. Usa "indietro" per tornare all\'app.</div>';
+    html += '<button class="btn btn-accent btn-block" id="pdf-open-preview">Apri anteprima a schermo intero</button>';
+    html += '</div>';
+
     html += '<div class="card-actions" style="margin-top:14px;">';
-    html += '<button class="btn btn-outline" style="flex:1" id="pdf-refresh">Aggiorna anteprima</button>';
-    html += '<button class="btn btn-accent" style="flex:1" id="pdf-download">Genera PDF</button>';
-    html += '</div></div>';
-    html += '<div class="pdf-frame-wrap" id="pdf-frame-wrap"><div style="padding:40px;text-align:center;color:var(--ink-faint);font-size:13px;">Preparazione anteprima…</div></div>';
+    html += '<button class="btn btn-outline" style="flex:1" id="pdf-download-outline">Genera PDF</button>';
+    html += '</div>';
     el.innerHTML = html;
+
+    // Start loading what's needed right away, in the background, so that
+    // by the time the person actually taps the button, everything is
+    // already to hand and the tab can open in the very same instant as
+    // the tap — phones only allow opening a new tab as a direct,
+    // uninterrupted response to a touch, not after any waiting.
+    loadPdfLibs().catch(function () { /* will retry on click if needed */ });
 
     document.getElementById('pdf-sheet-select').addEventListener('change', function (e) {
       state.currentSheetId = e.target.value; setCurrentSheetId(e.target.value);
-      loadPdfPreview();
     });
-    document.getElementById('pdf-refresh').addEventListener('click', loadPdfPreview);
-    document.getElementById('pdf-download').addEventListener('click', downloadCurrentPdf);
-    loadPdfPreview();
+    document.getElementById('pdf-open-preview').addEventListener('click', openPdfFullScreen);
+    document.getElementById('pdf-download-outline').addEventListener('click', downloadCurrentPdf);
   }
 
-  function loadPdfPreview() {
-    Promise.all([loadPdfLibs(), ensureLogoReady()]).then(function () {
+  // Opens the generated PDF directly in the phone's own full-screen PDF
+  // viewer (a real, dedicated browser tab, not squeezed into a small
+  // frame inside our app) — the same mature, reliable pinch-zoom-and-pan
+  // experience every phone already provides for any PDF.
+  //
+  // Important: the new tab has to open in the exact same instant as the
+  // tap (no "await" in between) or phones block it as an unwanted popup.
+  // Because loadPdfLibs() was already kicked off when this screen opened,
+  // it's almost always ready by now, so the whole thing runs synchronously.
+  function openPdfFullScreen() {
+    var libsReady = window.jspdf && window.jspdf.jsPDF;
+    if (!libsReady) {
+      toast('Preparazione in corso — riprova tra un istante');
+      loadPdfLibs().catch(function () { toast('Impossibile preparare il PDF — verifica la connessione'); });
+      return;
+    }
+    try {
       var sheet = findSheet(document.getElementById('pdf-sheet-select').value) || currentSheet();
       var doc = buildPdf(sheet);
-      var arrayBuffer = doc.output('arraybuffer');
-      return window.pdfjsLib.getDocument({ data: arrayBuffer }).promise.then(function (pdf) {
-        return pdf.getPage(1);
-      }).then(function (page) {
-        pdfPreviewPage = page;
-        currentZoomLevel = 1;
-        return renderAtZoomLevel(page, 1);
-      });
-    }).catch(function (err) {
+      var blobUrl = doc.output('bloburl');
+      // Navigate this same tab straight to the PDF — the phone's own
+      // viewer takes over from here. No new tab/window involved, so
+      // there's nothing for the browser to block; the person uses the
+      // back button/gesture to return to the app afterwards, and all
+      // their data is still exactly as they left it (nothing is lost —
+      // it's all saved locally as they type, not just on this screen).
+      window.location.href = blobUrl;
+    } catch (err) {
       console.error(err);
-      toast('Impossibile caricare l\'anteprima — verifica la connessione');
-    });
-  }
-
-  // How far the person can pinch-zoom into the PDF preview.
-  var PDF_MAX_ZOOM = 8;
-  // MAX_CANVAS_DIMENSION is a hard safety ceiling: phones (especially
-  // iPhones) silently fail or degrade canvases beyond a certain pixel
-  // count. The canvas's on-screen size and its actual resolution are
-  // always kept in a strict 1:1 match (accounting for screen density) up
-  // to this ceiling, so the preview is never a stretched/blurry image —
-  // it is always displayed at its true native resolution, exactly like
-  // the downloaded file would look.
-  var MAX_CANVAS_DIMENSION = 4096;
-  var pdfPreviewPage = null;
-  var currentZoomLevel = 1;
-
-  function renderAtZoomLevel(page, zoomLevel) {
-    var wrap = document.getElementById('pdf-frame-wrap');
-    if (!wrap || !page) return Promise.resolve();
-    if (!document.getElementById('pdf-canvas-stage')) {
-      wrap.innerHTML =
-        '<div class="pdf-canvas-stage" id="pdf-canvas-stage"><canvas id="pdf-canvas"></canvas></div>' +
-        '<div class="pdf-zoom-hint" id="pdf-zoom-hint">Pizzica per ingrandire</div>';
-      initPdfZoomGestures();
+      toast('Impossibile aprire l\'anteprima');
     }
-    var canvas = document.getElementById('pdf-canvas');
-    var ctx = canvas.getContext('2d');
-    var wrapRect = wrap.getBoundingClientRect();
-    var dpr = window.devicePixelRatio || 1;
-    var baseViewport = page.getViewport({ scale: 1 });
-    // "fitScale" = the size at which the page fills the frame at zoom 1x.
-    var fitScale = Math.min(wrapRect.width / baseViewport.width, wrapRect.height / baseViewport.height);
-
-    var renderScale = fitScale * zoomLevel * dpr;
-    var testViewport = page.getViewport({ scale: renderScale });
-    var maxDim = Math.max(testViewport.width, testViewport.height);
-    var effectiveZoomLevel = zoomLevel;
-    if (maxDim > MAX_CANVAS_DIMENSION) {
-      var capRatio = MAX_CANVAS_DIMENSION / maxDim;
-      renderScale = renderScale * capRatio;
-      effectiveZoomLevel = zoomLevel * capRatio; // keep CSS size matched 1:1 to what we can actually render
-    }
-
-    var viewport = page.getViewport({ scale: renderScale });
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    // The canvas' CSS size grows exactly with zoom — never CSS-upscaled
-    // beyond its native pixels. When zoomed in, the canvas becomes
-    // physically bigger than the frame, and the frame's native scrolling
-    // (see CSS) lets the person drag with one finger to look around.
-    canvas.style.width = (fitScale * baseViewport.width * effectiveZoomLevel) + 'px';
-    canvas.style.height = (fitScale * baseViewport.height * effectiveZoomLevel) + 'px';
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-    return page.render({ canvasContext: ctx, viewport: viewport }).promise.catch(function (err) {
-      console.error('Errore nel disegnare il PDF:', err);
-      throw err;
-    });
   }
 
   function downloadCurrentPdf() {
@@ -620,123 +586,6 @@
       console.error(err);
       toast('Impossibile generare il PDF — verifica la connessione');
     });
-  }
-
-  /* ---------------------------------------------------------------- */
-  /* Scoped pinch-zoom + pan for the PDF preview canvas — fully under   */
-  /* our own control (a real DOM element, not a native plugin), so it   */
-  /* cannot "leak" to the rest of the page and can always show every    */
-  /* part of the document. Double-tap toggles a quick 2.2x zoom.        */
-  /* ---------------------------------------------------------------- */
-  function initPdfZoomGestures() {
-    var wrap = document.getElementById('pdf-frame-wrap');
-    var stage = document.getElementById('pdf-canvas-stage');
-    var hint = document.getElementById('pdf-zoom-hint');
-    if (!wrap || !stage) return;
-
-    var MIN_ZOOM = 1, MAX_ZOOM = PDF_MAX_ZOOM;
-    var pointers = {};
-    var pinch = { active: false, startDist: 0, startZoom: 1, liveZoom: 1 };
-    var lastTapTime = 0;
-    var hintHidden = false;
-    var settleTimer = null;
-
-    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
-
-    function dismissHint() {
-      if (hintHidden || !hint) return;
-      hintHidden = true;
-      hint.classList.add('hide');
-    }
-
-    // While actively pinching, give instant visual feedback with a cheap
-    // CSS scale (briefly not pixel-perfect — expected while fingers are
-    // still moving). The moment the gesture settles, the canvas is
-    // re-drawn at its true native resolution for that zoom level, and the
-    // temporary CSS scale is removed — so the final, still image is
-    // always sharp, never a stretched preview.
-    function applyLiveFeedback(scaleRelativeToCurrent) {
-      var canvas = document.getElementById('pdf-canvas');
-      if (canvas) canvas.style.transform = 'scale(' + scaleRelativeToCurrent + ')';
-    }
-
-    function commitZoom(targetZoom, focalXInWrap, focalYInWrap) {
-      targetZoom = clamp(targetZoom, MIN_ZOOM, MAX_ZOOM);
-      var canvas = document.getElementById('pdf-canvas');
-      if (!canvas || !pdfPreviewPage) return;
-
-      // Remember what content point is currently under the focal point,
-      // as a fraction of the canvas' current CSS size, so we can scroll
-      // back to the same spot after the canvas is resized.
-      var oldCssW = parseFloat(canvas.style.width) || canvas.clientWidth;
-      var oldCssH = parseFloat(canvas.style.height) || canvas.clientHeight;
-      var scrollX = wrap.scrollLeft + focalXInWrap;
-      var scrollY = wrap.scrollTop + focalYInWrap;
-      var fracX = oldCssW ? scrollX / oldCssW : 0.5;
-      var fracY = oldCssH ? scrollY / oldCssH : 0.5;
-
-      canvas.style.transform = '';
-      renderAtZoomLevel(pdfPreviewPage, targetZoom).then(function () {
-        currentZoomLevel = targetZoom;
-        var newCssW = parseFloat(canvas.style.width) || canvas.clientWidth;
-        var newCssH = parseFloat(canvas.style.height) || canvas.clientHeight;
-        wrap.scrollLeft = clamp(fracX * newCssW - focalXInWrap, 0, Math.max(0, newCssW - wrap.clientWidth));
-        wrap.scrollTop = clamp(fracY * newCssH - focalYInWrap, 0, Math.max(0, newCssH - wrap.clientHeight));
-      });
-    }
-
-    wrap.addEventListener('pointerdown', function (e) {
-      dismissHint();
-      try { wrap.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
-      pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
-      var ids = Object.keys(pointers);
-      if (ids.length === 2) {
-        clearTimeout(settleTimer);
-        var p1 = pointers[ids[0]], p2 = pointers[ids[1]];
-        pinch.active = true;
-        pinch.startDist = Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1;
-        pinch.startZoom = currentZoomLevel;
-        pinch.liveZoom = currentZoomLevel;
-      } else if (ids.length === 1) {
-        var now = Date.now();
-        if (now - lastTapTime < 300) {
-          var rect = wrap.getBoundingClientRect();
-          var focalX = e.clientX - rect.left, focalY = e.clientY - rect.top;
-          var target = currentZoomLevel > 1 ? 1 : 2.2;
-          commitZoom(target, focalX, focalY);
-          lastTapTime = 0;
-          return;
-        }
-        lastTapTime = now;
-      }
-    });
-
-    wrap.addEventListener('pointermove', function (e) {
-      if (!(e.pointerId in pointers)) return;
-      pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
-      var ids = Object.keys(pointers);
-      if (ids.length === 2 && pinch.active) {
-        var p1 = pointers[ids[0]], p2 = pointers[ids[1]];
-        var dist = Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1;
-        var candidateZoom = clamp(pinch.startZoom * (dist / pinch.startDist), MIN_ZOOM, MAX_ZOOM);
-        pinch.liveZoom = candidateZoom;
-        applyLiveFeedback(candidateZoom / currentZoomLevel);
-      }
-    });
-
-    function endPointer(e) {
-      delete pointers[e.pointerId];
-      var remaining = Object.keys(pointers).length;
-      if (remaining < 2 && pinch.active) {
-        pinch.active = false;
-        var wrapRect = wrap.getBoundingClientRect();
-        // Settle on the last pinch center, roughly — the middle of the
-        // frame is a reasonable default once fingers have lifted.
-        commitZoom(pinch.liveZoom, wrapRect.width / 2, wrapRect.height / 2);
-      }
-    }
-    wrap.addEventListener('pointerup', endPointer);
-    wrap.addEventListener('pointercancel', endPointer);
   }
 
   /* ---------------------------------------------------------------- */
