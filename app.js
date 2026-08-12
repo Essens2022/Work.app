@@ -231,15 +231,10 @@
   var mainEl = document.querySelector('main');
   var scrollToLastDayPending = false;
 
-  // The app locks pinch-zoom everywhere (so accidental zooming doesn't break
-  // the layout while tapping buttons), except on the PDF screen, where the
-  // person needs to pinch-zoom the document itself to read small text.
-  var viewportMeta = document.getElementById('viewport-meta');
-  var VIEWPORT_LOCKED = 'width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no';
-  var VIEWPORT_ZOOMABLE = 'width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5, user-scalable=yes';
-  function setZoomAllowed(allowed) {
-    if (viewportMeta) viewportMeta.setAttribute('content', allowed ? VIEWPORT_ZOOMABLE : VIEWPORT_LOCKED);
-  }
+  // Pinch-zoom stays locked at the page level everywhere, always — the PDF
+  // screen instead has its own scoped pinch-zoom (see initPdfZoomGestures)
+  // that only enlarges the document inside its own frame, leaving the rest
+  // of the app (buttons, cards) untouched.
 
   function showScreen(name) {
     currentScreen = name;
@@ -249,7 +244,6 @@
     document.querySelectorAll('.navbtn[data-nav]').forEach(function (b) {
       b.classList.toggle('active', b.getAttribute('data-nav') === name);
     });
-    setZoomAllowed(name === 'pdf');
     if (name === 'foglio') {
       scrollToLastDayPending = true;
       render();
@@ -491,6 +485,131 @@
     return pdfLibsPromise;
   }
 
+  function ensurePdfIframe() {
+    var wrap = document.getElementById('pdf-frame-wrap');
+    if (wrap && !document.getElementById('pdf-iframe')) {
+      wrap.innerHTML =
+        '<div class="pdf-zoom-stage" id="pdf-zoom-stage"><iframe id="pdf-iframe" title="Anteprima PDF"></iframe></div>' +
+        '<div class="pdf-zoom-overlay" id="pdf-zoom-overlay"></div>' +
+        '<div class="pdf-zoom-hint" id="pdf-zoom-hint">Pizzica per ingrandire</div>';
+      initPdfZoomGestures();
+    }
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Scoped pinch-zoom for the PDF preview only — enlarges the document */
+  /* inside its own frame (like a photo viewer), without affecting the  */
+  /* rest of the app. Double-tap toggles between fit and 2.2x zoom.     */
+  /* ---------------------------------------------------------------- */
+  function initPdfZoomGestures() {
+    var wrap = document.getElementById('pdf-frame-wrap');
+    var stage = document.getElementById('pdf-zoom-stage');
+    var overlay = document.getElementById('pdf-zoom-overlay');
+    var hint = document.getElementById('pdf-zoom-hint');
+    if (!wrap || !stage || !overlay) return;
+
+    var MIN_SCALE = 1, MAX_SCALE = 4;
+    var zoom = { scale: 1, x: 0, y: 0 };
+    var pointers = {};
+    var pinch = { active: false, startDist: 0, startScale: 1 };
+    var pan = { active: false, startX: 0, startY: 0, originX: 0, originY: 0 };
+    var lastTapTime = 0;
+    var hintHidden = false;
+
+    function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+    function clampPan() {
+      var rect = wrap.getBoundingClientRect();
+      var maxX = Math.max(0, (rect.width * (zoom.scale - 1)) / 2);
+      var maxY = Math.max(0, (rect.height * (zoom.scale - 1)) / 2);
+      zoom.x = clamp(zoom.x, -maxX, maxX);
+      zoom.y = clamp(zoom.y, -maxY, maxY);
+    }
+
+    function apply() {
+      stage.style.transform = 'translate(' + zoom.x + 'px,' + zoom.y + 'px) scale(' + zoom.scale + ')';
+    }
+
+    function dismissHint() {
+      if (hintHidden || !hint) return;
+      hintHidden = true;
+      hint.classList.add('hide');
+    }
+
+    function setZoom(scale, focalX, focalY) {
+      scale = clamp(scale, MIN_SCALE, MAX_SCALE);
+      if (focalX !== undefined) {
+        // keep the point under the fingers/tap stable while scaling
+        var rect = wrap.getBoundingClientRect();
+        var fx = focalX - rect.left - rect.width / 2;
+        var fy = focalY - rect.top - rect.height / 2;
+        var ratio = scale / zoom.scale;
+        zoom.x = fx - (fx - zoom.x) * ratio;
+        zoom.y = fy - (fy - zoom.y) * ratio;
+      }
+      zoom.scale = scale;
+      clampPan();
+      apply();
+    }
+
+    overlay.addEventListener('pointerdown', function (e) {
+      dismissHint();
+      try { overlay.setPointerCapture(e.pointerId); } catch (err) { /* not all browsers/synthetic events support capture; safe to continue */ }
+      pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var ids = Object.keys(pointers);
+      if (ids.length === 2) {
+        pan.active = false;
+        var p1 = pointers[ids[0]], p2 = pointers[ids[1]];
+        pinch.active = true;
+        pinch.startDist = Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1;
+        pinch.startScale = zoom.scale;
+      } else if (ids.length === 1) {
+        var now = Date.now();
+        if (now - lastTapTime < 300) {
+          // double-tap: toggle between fit (1x) and 2.2x, centered on the tap
+          if (zoom.scale > 1) { setZoom(1); } else { setZoom(2.2, e.clientX, e.clientY); }
+          lastTapTime = 0;
+          return;
+        }
+        lastTapTime = now;
+        if (zoom.scale > 1) {
+          pan.active = true;
+          pan.startX = e.clientX; pan.startY = e.clientY;
+          pan.originX = zoom.x; pan.originY = zoom.y;
+        }
+      }
+    });
+
+    overlay.addEventListener('pointermove', function (e) {
+      if (!(e.pointerId in pointers)) return;
+      pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var ids = Object.keys(pointers);
+      if (ids.length === 2 && pinch.active) {
+        var p1 = pointers[ids[0]], p2 = pointers[ids[1]];
+        var dist = Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1;
+        var midX = (p1.x + p2.x) / 2, midY = (p1.y + p2.y) / 2;
+        setZoom(pinch.startScale * (dist / pinch.startDist), midX, midY);
+      } else if (ids.length === 1 && pan.active) {
+        zoom.x = pan.originX + (e.clientX - pan.startX);
+        zoom.y = pan.originY + (e.clientY - pan.startY);
+        clampPan();
+        apply();
+      }
+    });
+
+    function endPointer(e) {
+      delete pointers[e.pointerId];
+      var remaining = Object.keys(pointers).length;
+      if (remaining < 2) pinch.active = false;
+      if (remaining === 0) {
+        pan.active = false;
+        if (zoom.scale <= 1.02) { zoom.scale = 1; zoom.x = 0; zoom.y = 0; apply(); }
+      }
+    }
+    overlay.addEventListener('pointerup', endPointer);
+    overlay.addEventListener('pointercancel', endPointer);
+  }
+
   function renderPdfScreen() {
     var el = document.getElementById('screen-pdf');
     var sheet = currentSheet();
@@ -521,13 +640,6 @@
     document.getElementById('pdf-refresh').addEventListener('click', loadPdfPreview);
     document.getElementById('pdf-download').addEventListener('click', downloadCurrentPdf);
     loadPdfPreview();
-  }
-
-  function ensurePdfIframe() {
-    var wrap = document.getElementById('pdf-frame-wrap');
-    if (wrap && !document.getElementById('pdf-iframe')) {
-      wrap.innerHTML = '<iframe id="pdf-iframe" title="Anteprima PDF"></iframe>';
-    }
   }
 
   function loadPdfPreview() {
