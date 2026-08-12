@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Foglio Viaggi — Autisti</title>
+<style>
+  *{box-sizing:border-box;}
+  body{
+    margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    background:#FAFAF8;color:#1C1B1F;padding:24px 16px;
+  }
+  .wrap{max-width:640px;margin:0 auto;}
+  h1{font-size:20px;margin:0 0 24px;}
+  .card{background:#fff;border:1px solid #E7E5E1;border-radius:16px;padding:20px;margin-bottom:14px;}
+  input{
+    width:100%;padding:12px 14px;border-radius:10px;border:1px solid #E7E5E1;font-size:15px;
+    margin-bottom:12px;font-family:inherit;
+  }
+  button{
+    appearance:none;border:none;border-radius:10px;padding:12px 18px;font-size:15px;font-weight:700;
+    background:#E8542B;color:#fff;cursor:pointer;width:100%;
+  }
+  button:active{opacity:.85;}
+  .driver-name{font-weight:800;font-size:15px;}
+  .driver-meta{font-size:13px;color:#6B6A66;margin-top:4px;line-height:1.6;}
+  .error{color:#C0392B;font-size:13px;margin-top:-4px;margin-bottom:12px;}
+  .empty{text-align:center;color:#6B6A66;padding:30px 0;}
+  #login-screen, #data-screen{display:none;}
+  #login-screen.show, #data-screen.show{display:block;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Foglio Viaggi — Autisti</h1>
+
+  <div id="login-screen" class="card show">
+    <div id="login-error" class="error" style="display:none;">Password errata.</div>
+    <input id="password-input" type="password" placeholder="Password" autocomplete="current-password">
+    <button id="login-btn">Accedi</button>
+  </div>
+
+  <div id="data-screen">
+    <div id="drivers-list"></div>
+  </div>
+</div>
+
+<script>
+  var FUNCTION_URL = 'https://chboalgzigdglygnnist.supabase.co/functions/v1/admin-data';
+
+  function showScreen(id) {
+    document.getElementById('login-screen').classList.toggle('show', id === 'login-screen');
+    document.getElementById('data-screen').classList.toggle('show', id === 'data-screen');
+  }
+
+  function formatDate(iso) {
+    if (!iso) return '—';
+    var d = new Date(iso);
+    return d.toLocaleDateString('it-IT') + ' ' + d.toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit'});
+  }
+
+  var MESI = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
+
+  function renderDrivers(drivers) {
+    var el = document.getElementById('drivers-list');
+    if (!drivers || !drivers.length) {
+      el.innerHTML = '<div class="card empty">Nessun autista ha ancora aperto l\'app.</div>';
+      return;
+    }
+    var html = '';
+    drivers.forEach(function (d) {
+      var monthLabel = (d.active_month && d.active_year) ? (MESI[d.active_month - 1] + ' ' + d.active_year) : '—';
+      html += '<div class="card">';
+      html += '<div class="driver-name">' + (d.nome || '(senza nome)') + '</div>';
+      html += '<div class="driver-meta">';
+      html += 'Targa: ' + (d.targa || '—') + '<br>';
+      html += 'Ultima attività: ' + formatDate(d.last_active) + '<br>';
+      html += 'Giorni lavorati (' + monthLabel + '): ' + (d.worked_days_this_month || 0);
+      html += '</div></div>';
+    });
+    el.innerHTML = html;
+  }
+
+  function login() {
+    var pw = document.getElementById('password-input').value;
+    var errEl = document.getElementById('login-error');
+    errEl.style.display = 'none';
+    fetch(FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw })
+    }).then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+      .then(function (res) {
+        if (!res.ok) { errEl.style.display = 'block'; return; }
+        sessionStorage.setItem('fv_admin_pw', pw); // kept only for this browser tab session
+        renderDrivers(res.data.drivers);
+        showScreen('data-screen');
+      })
+      .catch(function () { errEl.textContent = 'Errore di connessione.'; errEl.style.display = 'block'; });
+  }
+
+  document.getElementById('login-btn').addEventListener('click', login);
+  document.getElementById('password-input').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') login();
+  });
+
+  // If already unlocked earlier in this browser tab session, skip straight in.
+  var savedPw = sessionStorage.getItem('fv_admin_pw');
+  if (savedPw) {
+    document.getElementById('password-input').value = savedPw;
+    login();
+  }
+</script>
+</body>
+</html>

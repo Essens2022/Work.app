@@ -1139,6 +1139,7 @@
     closeDayEditor();
     toast('Giorno ' + day + ' salvato');
     renderFoglio();
+    reportActivity();
   });
 
   document.getElementById('day-clear').addEventListener('click', function () {
@@ -1248,6 +1249,7 @@
     settingsModal.classList.remove('open');
     toast('Dati salvati');
     render();
+    reportActivity();
     reloadIfUpdatePending();
   });
 
@@ -1328,6 +1330,7 @@
       createSheet(m, y, chosenClient, countsForRate);
       toast('Nuovo foglio creato: ' + MESI[m - 1] + ' ' + y + ' — ' + chosenClient);
       showScreen('foglio');
+      reportActivity();
       reloadIfUpdatePending();
     };
   }
@@ -1388,8 +1391,73 @@
     if (bottomnav) document.documentElement.style.setProperty('--bottomnav-h', bottomnav.offsetHeight + 'px');
   }
 
+  /* ---------------------------------------------------------------- */
+  /* Private usage reporting — lets ION (the app's creator) see, on a    */
+  /* password-only page only he has, which drivers have installed the   */
+  /* app and how active they are. The app can only SEND this data, never*/
+  /* read anything back — no driver's phone can ever see this list.     */
+  /* ---------------------------------------------------------------- */
+  var SUPABASE_URL = 'https://chboalgzigdglygnnist.supabase.co';
+  var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoYm9hbGd6aWdkZ2x5Z25uaXN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1NTc4MjMsImV4cCI6MjEwMjEzMzgyM30.vorEiww3SvVAadgnAqFH42M-MjbpXOojAlhNm-cIeMI';
+  var LS_DEVICE_ID = 'pt_device_id_v1';
+
+  function getDeviceId() {
+    var id = localStorage.getItem(LS_DEVICE_ID);
+    if (!id) {
+      id = (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID()
+        : 'dev-' + Date.now() + '-' + Math.random().toString(36).slice(2);
+      localStorage.setItem(LS_DEVICE_ID, id);
+    }
+    return id;
+  }
+
+  function reportActivity() {
+    if (!state.profile.nome) return; // nothing meaningful to report yet
+    var active = latestSheet();
+    var month = active ? active.month : null;
+    var year = active ? active.year : null;
+    var earnings = (month && year) ? monthEarnings(month, year) : { workedDaysCount: 0 };
+    var deviceId = getDeviceId();
+    var payload = {
+      nome: state.profile.nome,
+      targa: state.profile.targa || '',
+      last_active: new Date().toISOString(),
+      worked_days_this_month: earnings.workedDaysCount || 0,
+      active_month: month,
+      active_year: year,
+      updated_at: new Date().toISOString()
+    };
+    var headers = {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+    };
+    // Try updating this device's existing row first; if none exists yet
+    // (first time this phone reports), fall back to inserting a new one.
+    // (Not using a single "upsert" request here — combined with the
+    // privacy rule that phones can never read this table, an INSERT ...
+    // ON CONFLICT DO UPDATE fails Postgres' row-level security check in a
+    // way a plain UPDATE-then-INSERT does not.)
+    fetch(SUPABASE_URL + '/rest/v1/driver_activity?device_id=eq.' + encodeURIComponent(deviceId), {
+      method: 'PATCH',
+      headers: Object.assign({}, headers, { 'Prefer': 'return=representation' }),
+      body: JSON.stringify(payload)
+    }).then(function (res) { return res.json().catch(function () { return []; }); })
+      .then(function (updated) {
+        if (updated && updated.length > 0) return; // row existed, updated — done
+        payload.device_id = deviceId;
+        return fetch(SUPABASE_URL + '/rest/v1/driver_activity', {
+          method: 'POST',
+          headers: Object.assign({}, headers, { 'Prefer': 'return=minimal' }),
+          body: JSON.stringify(payload)
+        });
+      })
+      .catch(function () { /* offline or blocked — silently skip, never blocks the app */ });
+  }
+
   function init() {
     migrateUppercaseLocalities();
+    reportActivity();
     syncBarHeights();
     window.addEventListener('resize', syncBarHeights);
     window.addEventListener('orientationchange', function () { setTimeout(syncBarHeights, 200); });
