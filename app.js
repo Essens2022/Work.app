@@ -3,6 +3,23 @@
 (function () {
   "use strict";
 
+  // Measures the phone's actual visible screen height directly in
+  // JavaScript, rather than trusting the CSS "dvh" unit. This runs before
+  // anything else: iOS has a known unreliability with dvh specifically
+  // for apps installed on the home screen (standalone mode) — it can
+  // report a taller value than what's really visible, leaving a blank
+  // gap at the bottom under the navigation bar. Measuring directly with
+  // window.innerHeight (matching the same technique used by native-feeling
+  // apps) sidesteps that unreliability entirely.
+  function setRealViewportHeight() {
+    var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+    document.documentElement.style.setProperty('--real-vh', h + 'px');
+  }
+  setRealViewportHeight();
+  window.addEventListener('resize', setRealViewportHeight);
+  window.addEventListener('orientationchange', function () { setTimeout(setRealViewportHeight, 250); });
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', setRealViewportHeight);
+
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
