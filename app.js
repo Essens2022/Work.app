@@ -228,6 +228,17 @@
   /* ---------------------------------------------------------------- */
   var currentScreen = 'home';
   var scrollToLastDayPending = false;
+
+  // The app locks pinch-zoom everywhere (so accidental zooming doesn't break
+  // the layout while tapping buttons), except on the PDF screen, where the
+  // person needs to pinch-zoom the document itself to read small text.
+  var viewportMeta = document.getElementById('viewport-meta');
+  var VIEWPORT_LOCKED = 'width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no';
+  var VIEWPORT_ZOOMABLE = 'width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5, user-scalable=yes';
+  function setZoomAllowed(allowed) {
+    if (viewportMeta) viewportMeta.setAttribute('content', allowed ? VIEWPORT_ZOOMABLE : VIEWPORT_LOCKED);
+  }
+
   function showScreen(name) {
     currentScreen = name;
     ['home', 'foglio', 'archivio', 'pdf'].forEach(function (n) {
@@ -236,6 +247,7 @@
     document.querySelectorAll('.navbtn[data-nav]').forEach(function (b) {
       b.classList.toggle('active', b.getAttribute('data-nav') === name);
     });
+    setZoomAllowed(name === 'pdf');
     if (name === 'foglio') {
       scrollToLastDayPending = true;
       render();
@@ -693,6 +705,12 @@
   }
   function closeDayEditor() { dayModal.classList.remove('open'); state.editingDay = null; }
 
+  // Tapping the dark area outside the sheet (not the sheet itself) closes it
+  // without saving — same as tapping "Svuota giorno" is NOT required just to dismiss.
+  dayModal.addEventListener('click', function (e) {
+    if (e.target === dayModal) closeDayEditor();
+  });
+
   function updateKmTot() {
     var ki = document.getElementById('day-kminizio').value;
     var kf = document.getElementById('day-kmfine').value;
@@ -714,12 +732,13 @@
     if (!state.editingDay) return;
     var sheet = findSheet(state.editingDay.sheetId);
     var day = state.editingDay.day;
-    var aVal = document.getElementById('day-a').value.trim();
+    var aVal = document.getElementById('day-a').value.trim().toUpperCase();
+    var daVal = document.getElementById('day-da').value.trim().toUpperCase();
     var provAVal = document.getElementById('day-prova').value.trim().toUpperCase();
     if (aVal && !provAVal) provAVal = lookupProvincia(aVal);
 
     var g = {
-      da: document.getElementById('day-da').value.trim(),
+      da: daVal,
       provDa: document.getElementById('day-provda').value.trim().toUpperCase(),
       a: aVal,
       provA: provAVal,
@@ -731,7 +750,7 @@
 
     if (aVal) {
       state.profile.frequent = state.profile.frequent || {};
-      state.profile.frequent[titleCase(aVal)] = (state.profile.frequent[titleCase(aVal)] || 0) + 1;
+      state.profile.frequent[aVal] = (state.profile.frequent[aVal] || 0) + 1;
       saveProfile(state.profile);
     }
     saveSheets(state.sheets);
@@ -777,7 +796,7 @@
     acList.classList.add('show');
     acList.querySelectorAll('.ac-item').forEach(function (item) {
       item.addEventListener('click', function () {
-        acInput.value = item.getAttribute('data-name');
+        acInput.value = item.getAttribute('data-name').toUpperCase();
         document.getElementById('day-prova').value = item.getAttribute('data-sigla');
         acList.classList.remove('show');
       });
@@ -815,7 +834,7 @@
     var nome = document.getElementById('in-nome').value.trim();
     var targa = document.getElementById('in-targa').value.trim().toUpperCase();
     var conto = document.getElementById('in-conto').value.trim().toUpperCase() || 'BARCELLA';
-    var da = document.getElementById('in-da').value.trim() || 'Ponte San Nicolò';
+    var da = (document.getElementById('in-da').value.trim() || 'Ponte San Nicolò').toUpperCase();
     var provDa = document.getElementById('in-prov-da').value.trim().toUpperCase() || 'PD';
 
     if (!nome || !targa) { toast('Inserisci nome e targa'); return; }
