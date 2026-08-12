@@ -106,6 +106,10 @@
   }
   .active-card .badge.muted{background:rgba(255,255,255,.14);}
   .active-card h2{font-size:26px;margin-top:10px;}
+  .multi-badge{
+    display:inline-block;vertical-align:middle;font-size:11px;font-weight:800;letter-spacing:.04em;
+    background:rgba(255,255,255,.14);color:#fff;padding:3px 10px;border-radius:100px;margin-left:6px;
+  }
   .active-card .meta{display:flex;gap:18px;margin-top:14px;font-size:13px;color:rgba(255,255,255,.72);}
   .active-card .meta b{color:#fff;display:block;font-size:14px;font-weight:700;}
   .odometer{
@@ -115,6 +119,15 @@
   .odometer .lbl{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55);}
   .odometer .val{font-variant-numeric:tabular-nums;font-weight:800;font-size:20px;letter-spacing:.03em;font-family:'SF Mono',Menlo,monospace;}
   .card-actions{display:flex;gap:10px;margin-top:16px;}
+
+  /* Multi-client month breakdown, on Home */
+  .client-breakdown-row{
+    display:flex;align-items:center;justify-content:space-between;padding:14px 0;cursor:pointer;
+  }
+  .client-breakdown-row:active{opacity:.7;}
+  .client-breakdown-name{font-weight:800;font-size:14.5px;}
+  .client-breakdown-km{font-weight:800;font-size:15px;font-family:'SF Mono',Menlo,monospace;text-align:right;}
+  .client-breakdown-sub{display:block;font-size:11px;font-weight:600;color:var(--ink-faint);margin-top:2px;font-family:inherit;}
 
   .btn{
     appearance:none;border:none;border-radius:14px;padding:14px 18px;font-size:15px;font-weight:700;
@@ -173,7 +186,12 @@
   /* Archivio */
   .archive-card{display:flex;align-items:center;gap:14px;}
   .archive-month{flex:1;min-width:0;}
-  .archive-month .m{font-weight:800;font-size:16px;}
+  .archive-month .m{font-weight:800;font-size:16px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;}
+  .client-chip{
+    display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.02em;
+    background:var(--teal-soft);color:var(--teal);padding:3px 9px;border-radius:100px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px;vertical-align:middle;
+  }
   .archive-month .d{font-size:12.5px;color:var(--ink-soft);margin-top:2px;}
   .archive-actions{display:flex;flex-direction:column;gap:6px;flex:none;}
 

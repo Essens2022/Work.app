@@ -125,6 +125,31 @@
   function sheetsForMonth(month, year) {
     return state.sheets.filter(function (s) { return s.month === month && s.year === year; });
   }
+  function sheetKmAndTrips(sheet) {
+    var viaggi = 0, km = 0;
+    Object.keys(sheet.giorni).forEach(function (d) {
+      var g = sheet.giorni[d];
+      if (!g || !(g.a || g.ddt || g.kmFine !== "")) return;
+      viaggi++;
+      if (g.kmInizio !== "" && g.kmFine !== "" && !isNaN(g.kmFine - g.kmInizio)) {
+        km += (Number(g.kmFine) - Number(g.kmInizio));
+      }
+    });
+    return { viaggi: viaggi, km: km };
+  }
+  // Aggregates every client sheet that shares the same month+year — this is
+  // what lets the app show "this month, across all clients" totals, plus a
+  // per-client breakdown, instead of only ever showing one sheet at a time.
+  function monthSummary(month, year) {
+    var sheets = sheetsForMonth(month, year);
+    var totalKm = 0, totalViaggi = 0;
+    var byClient = sheets.map(function (s) {
+      var stats = sheetKmAndTrips(s);
+      totalKm += stats.km; totalViaggi += stats.viaggi;
+      return { sheetId: s.id, client: s.perContoDi || '—', km: stats.km, viaggi: stats.viaggi };
+    }).sort(function (a, b) { return b.km - a.km; });
+    return { month: month, year: year, totalKm: totalKm, totalViaggi: totalViaggi, byClient: byClient };
+  }
 
   function toast(msg) {
     var t = document.getElementById('toast');
@@ -334,10 +359,16 @@
     var lc = lastCompletedDay(sheet);
     var lastKm = lastKmFineOverall(sheet);
     var isLatest = isNewestSheet(sheet);
+    var monthSheets = sheetsForMonth(sheet.month, sheet.year);
+    var multiClient = monthSheets.length > 1;
+    var summary = monthSummary(sheet.month, sheet.year);
+
     var html = '';
     html += '<div class="card active-card"><div class="route-dashes"></div>';
     html += '<span class="badge ' + (isLatest ? '' : 'muted') + '">' + (isLatest ? 'Foglio attivo' : 'Foglio archiviato') + '</span>';
-    html += '<h2>' + MESI[sheet.month - 1] + ' ' + sheet.year + '</h2>';
+    html += '<h2>' + MESI[sheet.month - 1] + ' ' + sheet.year;
+    if (multiClient) html += ' <span class="multi-badge">' + monthSheets.length + ' clienti</span>';
+    html += '</h2>';
     html += '<div style="color:rgba(255,255,255,.6);font-size:13px;margin-top:-6px;margin-bottom:2px;">Per conto di ' + escapeHtml(sheet.perContoDi || '—') + '</div>';
     html += '<div class="meta">';
     html += '<div><b>' + escapeHtml(sheet.nome || '—') + '</b>Autista</div>';
@@ -355,17 +386,33 @@
     }
 
     html += '<div class="section-title"><h3>Riepilogo mese</h3></div>';
-    var filled = Object.keys(sheet.giorni).filter(function (d) { return sheet.giorni[d] && (sheet.giorni[d].a || sheet.giorni[d].kmFine !== ""); });
-    var totKm = 0;
-    filled.forEach(function (d) {
-      var g = sheet.giorni[d];
-      if (g.kmInizio !== "" && g.kmFine !== "" && !isNaN(g.kmFine - g.kmInizio)) totKm += (Number(g.kmFine) - Number(g.kmInizio));
-    });
-    html += '<div class="card" style="display:flex;gap:0;">';
-    html += '<div style="flex:1;text-align:center;"><div style="font-size:22px;font-weight:800;">' + filled.length + '</div><div class="eyebrow" style="margin-top:2px;">Viaggi registrati</div></div>';
-    html += '<div style="width:1px;background:var(--line);"></div>';
-    html += '<div style="flex:1;text-align:center;"><div style="font-size:22px;font-weight:800;">' + totKm.toLocaleString('it-IT') + '</div><div class="eyebrow" style="margin-top:2px;">KM totali mese</div></div>';
-    html += '</div>';
+
+    if (!multiClient) {
+      // Single client this month — keep it simple, just two numbers.
+      html += '<div class="card" style="display:flex;gap:0;">';
+      html += '<div style="flex:1;text-align:center;"><div style="font-size:22px;font-weight:800;">' + summary.totalViaggi + '</div><div class="eyebrow" style="margin-top:2px;">Viaggi registrati</div></div>';
+      html += '<div style="width:1px;background:var(--line);"></div>';
+      html += '<div style="flex:1;text-align:center;"><div style="font-size:22px;font-weight:800;">' + summary.totalKm.toLocaleString('it-IT') + '</div><div class="eyebrow" style="margin-top:2px;">KM totali mese</div></div>';
+      html += '</div>';
+    } else {
+      // Multiple clients this month — show a per-client breakdown plus the
+      // combined total, so it's clear at a glance where the kilometers
+      // came from, without the numbers from different clients blending
+      // together into one confusing figure.
+      html += '<div class="card" style="padding:8px 20px;">';
+      summary.byClient.forEach(function (c, idx) {
+        html += '<div class="client-breakdown-row" data-sheet="' + c.sheetId + '"' + (idx > 0 ? ' style="border-top:1px solid var(--line);"' : '') + '>';
+        html += '<div class="client-breakdown-name">' + escapeHtml(c.client) + '<span class="client-breakdown-sub">' + c.viaggi + ' viaggi</span></div>';
+        html += '<div class="client-breakdown-km">' + c.km.toLocaleString('it-IT') + '<span class="client-breakdown-sub">km</span></div>';
+        html += '</div>';
+      });
+      html += '</div>';
+      html += '<div class="card" style="display:flex;gap:0;margin-top:10px;background:var(--ink);border:none;">';
+      html += '<div style="flex:1;text-align:center;"><div style="font-size:22px;font-weight:800;color:#fff;">' + summary.totalViaggi + '</div><div class="eyebrow" style="margin-top:2px;color:rgba(255,255,255,.55);">Viaggi totali</div></div>';
+      html += '<div style="width:1px;background:rgba(255,255,255,.12);"></div>';
+      html += '<div style="flex:1;text-align:center;"><div style="font-size:22px;font-weight:800;color:#fff;">' + summary.totalKm.toLocaleString('it-IT') + '</div><div class="eyebrow" style="margin-top:2px;color:rgba(255,255,255,.55);">KM totale mese</div></div>';
+      html += '</div>';
+    }
 
     el.innerHTML = html;
     document.getElementById('home-continua').addEventListener('click', function () { showScreen('foglio'); });
@@ -374,6 +421,13 @@
     if (jumpBtn) jumpBtn.addEventListener('click', function () {
       var latest = latestSheet();
       state.currentSheetId = latest.id; setCurrentSheetId(latest.id); renderHome();
+    });
+    el.querySelectorAll('.client-breakdown-row[data-sheet]').forEach(function (row) {
+      row.addEventListener('click', function () {
+        var id = row.getAttribute('data-sheet');
+        state.currentSheetId = id; setCurrentSheetId(id);
+        showScreen('foglio');
+      });
     });
   }
 
@@ -479,7 +533,7 @@
       var isLatest = isNewestSheet(s);
       var filled = Object.keys(s.giorni).filter(function (d) { return s.giorni[d] && (s.giorni[d].a || s.giorni[d].kmFine !== ""); }).length;
       html += '<div class="card archive-card">';
-      html += '<div class="archive-month"><div class="m">' + MESI[s.month - 1] + ' ' + s.year + '<span style="color:var(--ink-faint);font-weight:600;"> · ' + escapeHtml(s.perContoDi || '—') + '</span></div>';
+      html += '<div class="archive-month"><div class="m">' + MESI[s.month - 1] + ' ' + s.year + ' <span class="client-chip">' + escapeHtml(s.perContoDi || '—') + '</span></div>';
       html += '<div class="d">' + escapeHtml(s.nome || '—') + ' · ' + escapeHtml(s.targa || '—') + ' · ' + filled + ' viaggi</div>';
       if (isLatest) html += '<div class="d" style="color:var(--accent);font-weight:800;margin-top:4px;">FOGLIO ATTIVO</div>';
       html += '</div>';
@@ -536,15 +590,29 @@
       el.innerHTML = '<div class="empty-state"><div class="icon">' + svgIcon('route') + '</div><h3>Nessun foglio da esportare</h3><p>Crea un foglio mensile per generare il PDF.</p></div>';
       return;
     }
-    var sorted = state.sheets.slice().sort(function (a, b) { return sortKey(b) - sortKey(a); });
+    // Group by month+year — a single PDF export always covers the whole
+    // month, with one page per client if there is more than one.
+    var monthsSeen = {};
+    var months = [];
+    state.sheets.slice().sort(function (a, b) { return sortKey(b) - sortKey(a); }).forEach(function (s) {
+      var key = s.year + '-' + s.month;
+      if (monthsSeen[key]) return;
+      monthsSeen[key] = true;
+      months.push({ month: s.month, year: s.year, key: key });
+    });
+    var currentKey = sheet.year + '-' + sheet.month;
+
     var html = '';
     html += '<div class="card">';
-    html += '<label class="eyebrow" style="display:block;margin-bottom:8px;">Foglio da esportare</label>';
-    html += '<select class="field-select" id="pdf-sheet-select">';
-    sorted.forEach(function (s) {
-      html += '<option value="' + s.id + '" ' + (s.id === sheet.id ? 'selected' : '') + '>' + MESI[s.month - 1] + ' ' + s.year + ' — ' + escapeHtml(s.perContoDi || '—') + '</option>';
+    html += '<label class="eyebrow" style="display:block;margin-bottom:8px;">Mese da esportare</label>';
+    html += '<select class="field-select" id="pdf-month-select">';
+    months.forEach(function (mo) {
+      var count = sheetsForMonth(mo.month, mo.year).length;
+      var label = MESI[mo.month - 1] + ' ' + mo.year + (count > 1 ? ' (' + count + ' clienti)' : '');
+      html += '<option value="' + mo.key + '" ' + (mo.key === currentKey ? 'selected' : '') + '>' + label + '</option>';
     });
     html += '</select>';
+    html += '<div class="settings-driver-note" id="pdf-month-note" style="margin-top:10px;"></div>';
     html += '</div>';
 
     html += '<div class="card" style="margin-top:14px;text-align:center;padding:32px 20px;">';
@@ -559,6 +627,16 @@
     html += '</div>';
     el.innerHTML = html;
 
+    function updateMonthNote() {
+      var key = document.getElementById('pdf-month-select').value;
+      var parts = key.split('-');
+      var count = sheetsForMonth(parseInt(parts[1], 10), parseInt(parts[0], 10)).length;
+      document.getElementById('pdf-month-note').textContent = count > 1
+        ? 'Questo mese ha ' + count + ' clienti — il PDF conterrà ' + count + ' pagine, una per ciascuno.'
+        : 'Questo mese ha un solo cliente — il PDF conterrà una sola pagina.';
+    }
+    updateMonthNote();
+
     // Start loading what's needed right away, in the background, so that
     // by the time the person actually taps the button, everything is
     // already to hand and the tab can open in the very same instant as
@@ -566,11 +644,21 @@
     // uninterrupted response to a touch, not after any waiting.
     loadPdfLibs().catch(function () { /* will retry on click if needed */ });
 
-    document.getElementById('pdf-sheet-select').addEventListener('change', function (e) {
-      state.currentSheetId = e.target.value; setCurrentSheetId(e.target.value);
+    document.getElementById('pdf-month-select').addEventListener('change', function (e) {
+      var parts = e.target.value.split('-');
+      var y = parseInt(parts[0], 10), m = parseInt(parts[1], 10);
+      var s = sheetsForMonth(m, y)[0];
+      if (s) { state.currentSheetId = s.id; setCurrentSheetId(s.id); }
+      updateMonthNote();
     });
     document.getElementById('pdf-open-preview').addEventListener('click', openPdfFullScreen);
     document.getElementById('pdf-download-outline').addEventListener('click', downloadCurrentPdf);
+  }
+
+  function selectedPdfMonth() {
+    var key = document.getElementById('pdf-month-select').value;
+    var parts = key.split('-');
+    return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10) };
   }
 
   // Opens the generated PDF directly in the phone's own full-screen PDF
@@ -590,8 +678,9 @@
       return;
     }
     try {
-      var sheet = findSheet(document.getElementById('pdf-sheet-select').value) || currentSheet();
-      var doc = buildPdf(sheet);
+      var mo = selectedPdfMonth();
+      var doc = buildPdfForMonth(mo.month, mo.year);
+      if (!doc) { toast('Nessun foglio per questo mese'); return; }
       var blobUrl = doc.output('bloburl');
       // Navigate this same tab straight to the PDF — the phone's own
       // viewer takes over from here. No new tab/window involved, so
@@ -608,9 +697,10 @@
 
   function downloadCurrentPdf() {
     Promise.all([loadPdfLibs(), ensureLogoReady()]).then(function () {
-      var sheet = findSheet(document.getElementById('pdf-sheet-select').value) || currentSheet();
-      var doc = buildPdf(sheet);
-      var filename = 'Foglio_Viaggi_' + MESI[sheet.month - 1] + '_' + sheet.year + '.pdf';
+      var mo = selectedPdfMonth();
+      var doc = buildPdfForMonth(mo.month, mo.year);
+      if (!doc) { toast('Nessun foglio per questo mese'); return; }
+      var filename = 'Foglio_Viaggi_' + MESI[mo.month - 1] + '_' + mo.year + '.pdf';
       var blob = doc.output('blob');
       if (navigator.canShare && navigator.canShare({ files: [new File([blob], filename, { type: 'application/pdf' })] })) {
         navigator.share({ files: [new File([blob], filename, { type: 'application/pdf' })], title: filename }).catch(function () { doc.save(filename); });
@@ -637,9 +727,11 @@
     });
   }
 
-  function buildPdf(sheet) {
-    var jsPDFCtor = window.jspdf.jsPDF;
-    var doc = new jsPDFCtor({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+  // Draws one complete GIRO sheet onto an already-open jsPDF document, at
+  // whatever the current page is — used both for a single-sheet PDF and,
+  // when a month has multiple clients, for each additional page of a
+  // combined multi-page PDF (see buildPdfForMonth below).
+  function buildPdfPage(doc, sheet) {
     var pageW = 297, pageH = 210;
     var margin = 8;
     var contentW = pageW - margin * 2;
@@ -790,7 +882,30 @@
         8: { cellWidth: colWidths.kmT, halign: 'center', fontStyle: 'bold' }
       }
     });
+  }
 
+  function buildPdf(sheet) {
+    var jsPDFCtor = window.jspdf.jsPDF;
+    var doc = new jsPDFCtor({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    buildPdfPage(doc, sheet);
+    return doc;
+  }
+
+  // If a month has more than one client, the downloaded PDF should contain
+  // one full page per client — the same way you'd hand over several
+  // completed paper sheets stapled together, one per client, for that
+  // month — instead of forcing a choice of just one.
+  function buildPdfForMonth(month, year) {
+    var sheets = sheetsForMonth(month, year).slice().sort(function (a, b) {
+      return (a.perContoDi || '').localeCompare(b.perContoDi || '');
+    });
+    if (!sheets.length) return null;
+    var jsPDFCtor = window.jspdf.jsPDF;
+    var doc = new jsPDFCtor({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    sheets.forEach(function (s, i) {
+      if (i > 0) doc.addPage();
+      buildPdfPage(doc, s);
+    });
     return doc;
   }
 
