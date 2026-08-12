@@ -535,6 +535,12 @@
     });
   }
 
+  // How far the person can pinch-zoom into the PDF preview. The canvas is
+  // rendered at high enough resolution to stay crisp at this exact zoom
+  // level (no more, no less) — bumping this number automatically renders
+  // a sharper canvas to match, so quality is never lost even at max zoom.
+  var PDF_MAX_ZOOM = 6;
+
   function renderPageToCanvas(page) {
     var wrap = document.getElementById('pdf-frame-wrap');
     if (!wrap) return;
@@ -548,15 +554,19 @@
     var ctx = canvas.getContext('2d');
     var wrapRect = wrap.getBoundingClientRect();
     var dpr = window.devicePixelRatio || 1;
-    // Render at a high enough resolution to stay crisp even when zoomed in.
     var baseViewport = page.getViewport({ scale: 1 });
+    // "fitScale" = how big the page should LOOK on screen at 1x (unzoomed).
     var fitScale = Math.min(wrapRect.width / baseViewport.width, wrapRect.height / baseViewport.height);
-    var renderScale = fitScale * dpr * 2.5; // extra headroom for pinch-zoom sharpness
+    // Render enough actual pixels to stay sharp even at PDF_MAX_ZOOM, on
+    // this exact device's pixel density — every native canvas pixel maps
+    // to a real screen pixel all the way up to full zoom, so nothing
+    // blurs or pixelates.
+    var renderScale = fitScale * dpr * PDF_MAX_ZOOM;
     var viewport = page.getViewport({ scale: renderScale });
     canvas.width = viewport.width;
     canvas.height = viewport.height;
-    canvas.style.width = (viewport.width / (dpr * 2.5)) + 'px';
-    canvas.style.height = (viewport.height / (dpr * 2.5)) + 'px';
+    canvas.style.width = (fitScale * baseViewport.width) + 'px';
+    canvas.style.height = (fitScale * baseViewport.height) + 'px';
     return page.render({ canvasContext: ctx, viewport: viewport }).promise;
   }
 
@@ -590,7 +600,7 @@
     var hint = document.getElementById('pdf-zoom-hint');
     if (!wrap || !stage) return;
 
-    var MIN_SCALE = 1, MAX_SCALE = 4;
+    var MIN_SCALE = 1, MAX_SCALE = PDF_MAX_ZOOM;
     var zoom = { scale: 1, x: 0, y: 0 };
     var pointers = {};
     var pinch = { active: false, startDist: 0, startScale: 1 };
