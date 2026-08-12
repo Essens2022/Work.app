@@ -38,7 +38,8 @@
   function loadProfile() {
     return loadJSON(LS_PROFILE, {
       nome: "", targa: "", perContoDi: "BARCELLA",
-      da: "Ponte San Nicolò", provDa: "PD", frequent: {}
+      da: "Ponte San Nicolò", provDa: "PD", frequent: {},
+      companyName: "", companyAddress: "", companyCF: "", companyPiva: "", companyLogo: ""
     });
   }
   function saveProfile(p) { saveJSON(LS_PROFILE, p); }
@@ -530,7 +531,7 @@
   }
 
   function loadPdfPreview() {
-    loadPdfLibs().then(function () {
+    Promise.all([loadPdfLibs(), ensureLogoReady()]).then(function () {
       ensurePdfIframe();
       var sheet = findSheet(document.getElementById('pdf-sheet-select').value) || currentSheet();
       var doc = buildPdf(sheet);
@@ -541,7 +542,7 @@
     });
   }
   function downloadCurrentPdf() {
-    loadPdfLibs().then(function () {
+    Promise.all([loadPdfLibs(), ensureLogoReady()]).then(function () {
       var sheet = findSheet(document.getElementById('pdf-sheet-select').value) || currentSheet();
       var doc = buildPdf(sheet);
       var filename = 'Foglio_Viaggi_' + MESI[sheet.month - 1] + '_' + sheet.year + '.pdf';
@@ -560,6 +561,29 @@
   /* ---------------------------------------------------------------- */
   /* PDF generation — replicates the original Power Trasporti template */
   /* ---------------------------------------------------------------- */
+  /* ---------------------------------------------------------------- */
+  /* Company logo resolution — a custom uploaded logo takes priority    */
+  /* over the bundled Power Trasporti one, when present and loaded.    */
+  /* ---------------------------------------------------------------- */
+  function getActiveLogoImg() {
+    if (state.profile.companyLogo) {
+      var custom = document.getElementById('pt-custom-logo-img');
+      if (custom && custom.complete && custom.naturalWidth > 0) return custom;
+    }
+    var def = document.getElementById('pt-logo-img');
+    if (def && def.complete && def.naturalWidth > 0) return def;
+    return null;
+  }
+  function ensureLogoReady() {
+    return new Promise(function (resolve) {
+      var img = state.profile.companyLogo ? document.getElementById('pt-custom-logo-img') : document.getElementById('pt-logo-img');
+      if (!img || (img.complete && img.naturalWidth > 0)) { resolve(); return; }
+      img.onload = function () { resolve(); };
+      img.onerror = function () { resolve(); };
+      setTimeout(resolve, 1500); // safety net so a slow/broken image never blocks PDF generation
+    });
+  }
+
   function buildPdf(sheet) {
     var jsPDFCtor = window.jspdf.jsPDF;
     var doc = new jsPDFCtor({ orientation: 'landscape', unit: 'mm', format: 'a4' });
@@ -579,20 +603,36 @@
     doc.line(margin, margin + headerH, margin + contentW, margin + headerH);
 
     try {
-      var img = document.getElementById('pt-logo-img');
-      var ratio = img.naturalWidth / img.naturalHeight;
-      var imgH = headerH * 0.6;
-      var imgW = imgH * ratio;
-      if (imgW > logoW - 8) { imgW = logoW - 8; imgH = imgW / ratio; }
-      doc.addImage(img, 'PNG', margin + (logoW - imgW) / 2, margin + (headerH - imgH) / 2, imgW, imgH);
+      var img = getActiveLogoImg();
+      if (img) {
+        var ratio = img.naturalWidth / img.naturalHeight;
+        var imgH = headerH * 0.6;
+        var imgW = imgH * ratio;
+        if (imgW > logoW - 8) { imgW = logoW - 8; imgH = imgW / ratio; }
+        doc.addImage(img, 'PNG', margin + (logoW - imgW) / 2, margin + (headerH - imgH) / 2, imgW, imgH);
+      } else if (state.profile.companyName) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(14);
+        doc.setTextColor(20, 20, 20);
+        doc.text(state.profile.companyName.toUpperCase(), margin + logoW / 2, margin + headerH / 2 + 2, { align: 'center' });
+      }
     } catch (e) { /* logo unavailable */ }
+
+    var effAddress = state.profile.companyAddress || COMPANY.indirizzo;
+    var effCF = state.profile.companyCF || '';
+    var effPiva = state.profile.companyPiva || '';
+    var usingDefaultCompany = !state.profile.companyCF && !state.profile.companyPiva && !state.profile.companyAddress;
+    if (usingDefaultCompany) { effCF = COMPANY.cf; effPiva = COMPANY.piva; }
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(20, 20, 20);
-    doc.text(COMPANY.indirizzo, margin + logoW + contentW * (1 - 0.34) / 2, margin + 6.5, { align: 'center' });
-    doc.setFontSize(9);
-    doc.text('CF: ' + COMPANY.cf + '   P.IVA: ' + COMPANY.piva, margin + logoW + contentW * (1 - 0.34) / 2, margin + 11.5, { align: 'center' });
+    doc.text(effAddress, margin + logoW + contentW * (1 - 0.34) / 2, margin + 6.5, { align: 'center' });
+    if (effCF || effPiva) {
+      doc.setFontSize(9);
+      var cfPivaLine = [effCF ? 'CF: ' + effCF : '', effPiva ? 'P.IVA: ' + effPiva : ''].filter(Boolean).join('   ');
+      doc.text(cfPivaLine, margin + logoW + contentW * (1 - 0.34) / 2, margin + 11.5, { align: 'center' });
+    }
 
     // Fields row
     var fieldsH = 12.5;
@@ -848,6 +888,58 @@
   /* ---------------------------------------------------------------- */
   var settingsModal = document.getElementById('modal-settings');
   var settingsTargetSheet = null;
+  var pendingLogoDataUrl; // undefined = untouched this session, null = explicitly removed, string = new upload
+  function updateLogoPreview(dataUrl) {
+    var img = document.getElementById('logo-preview');
+    var placeholder = document.getElementById('logo-preview-placeholder');
+    if (dataUrl) {
+      img.src = dataUrl; img.style.display = 'block'; placeholder.style.display = 'none';
+    } else {
+      img.src = ''; img.style.display = 'none'; placeholder.style.display = 'block';
+    }
+  }
+  function resizeImageFile(file) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = function () {
+        var img = new Image();
+        img.onerror = reject;
+        img.onload = function () {
+          var maxDim = 480;
+          var scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+          var w = Math.round(img.naturalWidth * scale), h = Math.round(img.naturalHeight * scale);
+          var canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/png'));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  document.getElementById('toggle-company-section').addEventListener('click', function () {
+    var section = document.getElementById('company-section');
+    var nowHidden = section.classList.toggle('hidden');
+    this.textContent = 'Dati azienda per il PDF (facoltativo) ' + (nowHidden ? '▾' : '▴');
+  });
+  document.getElementById('btn-choose-logo').addEventListener('click', function () {
+    document.getElementById('in-logo').click();
+  });
+  document.getElementById('in-logo').addEventListener('change', function (e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    resizeImageFile(file).then(function (dataUrl) {
+      pendingLogoDataUrl = dataUrl;
+      updateLogoPreview(dataUrl);
+    }).catch(function () { toast('Impossibile leggere l\'immagine'); });
+  });
+  document.getElementById('btn-remove-logo').addEventListener('click', function () {
+    pendingLogoDataUrl = null;
+    updateLogoPreview(null);
+  });
+
   function openSettingsModal(sheetOverride) {
     settingsTargetSheet = sheetOverride || null;
     var src = settingsTargetSheet ? {
@@ -863,6 +955,15 @@
     document.getElementById('in-conto').value = src.perContoDi || 'BARCELLA';
     document.getElementById('in-da').value = src.da || 'Ponte San Nicolò';
     document.getElementById('in-prov-da').value = src.provDa || 'PD';
+
+    // Company fields are global (not per-sheet) — always shown from the saved profile.
+    document.getElementById('in-company-name').value = state.profile.companyName || '';
+    document.getElementById('in-company-address').value = state.profile.companyAddress || '';
+    document.getElementById('in-company-cf').value = state.profile.companyCF || '';
+    document.getElementById('in-company-piva').value = state.profile.companyPiva || '';
+    pendingLogoDataUrl = undefined;
+    updateLogoPreview(state.profile.companyLogo || null);
+
     settingsModal.classList.add('open');
   }
   document.getElementById('btn-settings').addEventListener('click', function () { openSettingsModal(null); });
@@ -881,6 +982,17 @@
 
     state.profile.nome = nome; state.profile.targa = targa; state.profile.perContoDi = conto;
     state.profile.da = da; state.profile.provDa = provDa;
+
+    // Optional company fields — left blank means "use the Power Trasporti defaults".
+    state.profile.companyName = document.getElementById('in-company-name').value.trim();
+    state.profile.companyAddress = document.getElementById('in-company-address').value.trim();
+    state.profile.companyCF = document.getElementById('in-company-cf').value.trim();
+    state.profile.companyPiva = document.getElementById('in-company-piva').value.trim();
+    if (pendingLogoDataUrl !== undefined) {
+      state.profile.companyLogo = pendingLogoDataUrl || '';
+      var customImg = document.getElementById('pt-custom-logo-img');
+      if (customImg) customImg.src = state.profile.companyLogo || '';
+    }
     saveProfile(state.profile);
 
     if (settingsTargetSheet) {
@@ -989,12 +1101,22 @@
   /* Init                                                               */
   /* ---------------------------------------------------------------- */
   function init() {
-    // hidden logo image used for PDF embedding
+    // hidden logo image used for PDF embedding — the bundled Power Trasporti
+    // logo, always available as the fallback.
     var img = new Image();
     img.id = 'pt-logo-img';
     img.src = 'vendor/logo.png';
     img.style.display = 'none';
     document.body.appendChild(img);
+
+    // A second hidden image for a company's own uploaded logo, if any was
+    // saved previously — loaded eagerly at startup so it's ready in time
+    // for PDF generation, without the person needing to wait.
+    var customImg = new Image();
+    customImg.id = 'pt-custom-logo-img';
+    customImg.style.display = 'none';
+    document.body.appendChild(customImg);
+    if (state.profile.companyLogo) customImg.src = state.profile.companyLogo;
 
     if (!state.profile.nome || !state.profile.targa) {
       openSettingsModal(null);
