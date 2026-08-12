@@ -3,6 +3,19 @@
 (function () {
   "use strict";
 
+  // Marks the page as running in the installed app (not a regular Safari
+  // tab) as early as possible, using TWO checks together for reliability:
+  // the modern standard (matchMedia display-mode) and the older,
+  // iOS-specific navigator.standalone property that Safari has supported
+  // for this exact purpose since early iOS versions. Adding a class in
+  // JS (rather than relying purely on the CSS @media rule) sidesteps any
+  // possible quirk with how a specific iOS/Safari version evaluates that
+  // media query, and lets the CSS use a plain, simple class selector.
+  var isStandaloneApp =
+    (window.navigator && window.navigator.standalone === true) ||
+    (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  if (isStandaloneApp) document.documentElement.classList.add('is-standalone');
+
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */

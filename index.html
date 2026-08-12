@@ -212,12 +212,13 @@
   /* In the installed app (standalone, no Safari chrome at all), the
      buttons can sit closer to the true bottom edge than in a regular
      browser tab — there's no browser toolbar to avoid overlapping.
-     display-mode:standalone is a real, standard way to detect this and
-     apply a smaller reserve just for the installed app, while the
-     website (opened in a normal tab) keeps the current spacing. */
-  @media (display-mode: standalone) {
-    .bottomnav-inner{ padding-bottom:calc(8px + var(--safe-bottom) * 0.4); }
-  }
+  /* In the installed app (standalone, no Safari chrome at all), the
+     buttons can sit closer to the true bottom edge than in a regular
+     browser tab — there's no browser toolbar to avoid overlapping.
+     The 'is-standalone' class is set in JS (see app.js) using two
+     different detection methods together for reliability, rather than
+     relying only on a CSS @media query. */
+  html.is-standalone .bottomnav-inner{ padding-bottom:8px; }
   .navbtn{
     flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;background:none;border:none;
     padding:6px 2px;color:var(--ink-faint);font-family:inherit;cursor:pointer;
