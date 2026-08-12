@@ -20,6 +20,51 @@
   window.addEventListener('orientationchange', function () { setTimeout(setRealViewportHeight, 250); });
   if (window.visualViewport) window.visualViewport.addEventListener('resize', setRealViewportHeight);
 
+  // TEMPORARY DIAGNOSTIC PANEL — helps pin down exactly why the bottom bar
+  // isn't sitting flush on ION's phone, using real numbers from that
+  // specific device instead of guessing. Safe to remove once solved.
+  function showDiagnosticPanel() {
+    function readNumbers() {
+      var nav = document.querySelector('.bottomnav');
+      var navRect = nav ? nav.getBoundingClientRect() : null;
+      var app = document.getElementById('app');
+      var appRect = app ? app.getBoundingClientRect() : null;
+      var realVh = getComputedStyle(document.documentElement).getPropertyValue('--real-vh');
+      return {
+        windowInnerHeight: window.innerHeight,
+        visualViewportHeight: window.visualViewport ? window.visualViewport.height : 'n/a',
+        screenHeight: window.screen ? window.screen.height : 'n/a',
+        realVhVar: realVh,
+        bodyHeight: document.body.getBoundingClientRect().height,
+        appBottom: appRect ? appRect.bottom : 'n/a',
+        navBottom: navRect ? navRect.bottom : 'n/a',
+        safeBottomInset: getComputedStyle(document.documentElement).getPropertyValue('--safe-bottom'),
+        displayMode: window.matchMedia('(display-mode: standalone)').matches ? 'standalone' : 'browser'
+      };
+    }
+    var box = document.createElement('div');
+    box.id = 'debug-panel';
+    box.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#111;color:#0f0;' +
+      'font-family:monospace;font-size:10px;line-height:1.5;padding:8px 10px;white-space:pre-wrap;' +
+      'max-height:40vh;overflow-y:auto;pointer-events:none;';
+    document.body.appendChild(box);
+    function update() {
+      var n = readNumbers();
+      box.textContent = 'DEBUG (temporaneo)\n' +
+        'display-mode: ' + n.displayMode + '\n' +
+        'window.innerHeight: ' + n.windowInnerHeight + '\n' +
+        'visualViewport.height: ' + n.visualViewportHeight + '\n' +
+        'screen.height: ' + n.screenHeight + '\n' +
+        '--real-vh: ' + n.realVhVar + '\n' +
+        'body height: ' + n.bodyHeight + '\n' +
+        '--safe-bottom: ' + n.safeBottomInset + '\n' +
+        '#app bottom edge: ' + n.appBottom + '\n' +
+        '.bottomnav bottom edge: ' + n.navBottom;
+    }
+    update();
+    setInterval(update, 500);
+  }
+
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
@@ -1187,6 +1232,7 @@
     syncBarHeights();
     window.addEventListener('resize', syncBarHeights);
     window.addEventListener('orientationchange', function () { setTimeout(syncBarHeights, 200); });
+    showDiagnosticPanel();
 
     // hidden logo image used for PDF embedding — the bundled Power Trasporti
     // logo, always available as the fallback.
