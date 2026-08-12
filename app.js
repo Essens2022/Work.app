@@ -664,13 +664,14 @@
       grp.sheets.forEach(function (s, idx) {
         var filled = Object.keys(s.giorni).filter(function (d) { return s.giorni[d] && (s.giorni[d].a || s.giorni[d].kmFine !== ""); }).length;
         html += '<div class="archive-row" data-open="' + s.id + '"' + (idx > 0 ? ' style="border-top:1px solid var(--line);"' : '') + '>';
+        html += '<div class="archive-row-left">';
         html += '<span class="client-chip">' + escapeHtml(s.perContoDi || '—') + '</span>';
-        html += '<div class="archive-row-bottom">';
         html += '<div class="archive-row-sub">' + escapeHtml(s.nome || '—') + ' · ' + escapeHtml(s.targa || '—') + ' · ' + filled + ' viaggi</div>';
+        html += '</div>';
         html += '<div class="archive-row-actions">';
         html += '<button class="btn btn-ghost btn-sm" data-open-btn="' + s.id + '">Apri</button>';
         html += '<button class="btn btn-ghost btn-sm" data-pdf="' + s.id + '">PDF</button>';
-        html += '</div></div></div>';
+        html += '</div></div>';
       });
       html += '</div>';
     });
