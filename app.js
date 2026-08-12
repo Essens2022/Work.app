@@ -51,8 +51,7 @@
   function loadProfile() {
     return loadJSON(LS_PROFILE, {
       nome: "", targa: "", perContoDi: "BARCELLA",
-      da: "Ponte San Nicolò", provDa: "PD", frequent: {},
-      companyName: "", companyAddress: "", companyCF: "", companyPiva: "", companyLogo: ""
+      da: "Ponte San Nicolò", provDa: "PD", frequent: {}
     });
   }
   function saveProfile(p) { saveJSON(LS_PROFILE, p); }
@@ -95,7 +94,13 @@
   function findSheet(id) { return state.sheets.find(function (s) { return s.id === id; }) || null; }
   function latestSheet() {
     if (!state.sheets.length) return null;
-    return state.sheets.slice().sort(function (a, b) { return sortKey(b) - sortKey(a); })[0];
+    return state.sheets.slice().sort(function (a, b) {
+      var k = sortKey(b) - sortKey(a);
+      if (k !== 0) return k;
+      // Same month+year (e.g. two different clients) — the more recently
+      // created one counts as "latest".
+      return (b.createdAt || '').localeCompare(a.createdAt || '');
+    })[0];
   }
   function currentSheet() {
     var s = state.currentSheetId ? findSheet(state.currentSheetId) : null;
@@ -105,8 +110,20 @@
     var latest = latestSheet();
     return latest && sheet && latest.id === sheet.id;
   }
-  function sheetForMonth(month, year) {
-    return state.sheets.find(function (s) { return s.month === month && s.year === year; }) || null;
+  // A physical paper sheet has exactly one client written at the top
+  // ("Per conto di: ..."), covering the whole month. If a driver works for
+  // more than one client within the same month, that means more than one
+  // sheet — one per client, each its own separate document, just like on
+  // paper. So a sheet is identified by month + year + client together,
+  // not just month + year.
+  function sheetForMonth(month, year, client) {
+    var normClient = (client || '').trim().toUpperCase();
+    return state.sheets.find(function (s) {
+      return s.month === month && s.year === year && (s.perContoDi || '').trim().toUpperCase() === normClient;
+    }) || null;
+  }
+  function sheetsForMonth(month, year) {
+    return state.sheets.filter(function (s) { return s.month === month && s.year === year; });
   }
 
   function toast(msg) {
@@ -220,13 +237,14 @@
     return null;
   }
 
-  function createSheet(month, year) {
-    var existing = sheetForMonth(month, year);
+  function createSheet(month, year, perContoDi) {
+    var client = (perContoDi || state.profile.perContoDi || 'BARCELLA').trim().toUpperCase();
+    var existing = sheetForMonth(month, year, client);
     if (existing) return existing;
     var s = {
       id: uid(),
       month: month, year: year,
-      nome: state.profile.nome, targa: state.profile.targa, perContoDi: state.profile.perContoDi,
+      nome: state.profile.nome, targa: state.profile.targa, perContoDi: client,
       createdAt: new Date().toISOString(),
       giorni: buildGiorni(month, year, state.profile.da, state.profile.provDa)
     };
@@ -320,6 +338,7 @@
     html += '<div class="card active-card"><div class="route-dashes"></div>';
     html += '<span class="badge ' + (isLatest ? '' : 'muted') + '">' + (isLatest ? 'Foglio attivo' : 'Foglio archiviato') + '</span>';
     html += '<h2>' + MESI[sheet.month - 1] + ' ' + sheet.year + '</h2>';
+    html += '<div style="color:rgba(255,255,255,.6);font-size:13px;margin-top:-6px;margin-bottom:2px;">Per conto di ' + escapeHtml(sheet.perContoDi || '—') + '</div>';
     html += '<div class="meta">';
     html += '<div><b>' + escapeHtml(sheet.nome || '—') + '</b>Autista</div>';
     html += '<div><b>' + escapeHtml(sheet.targa || '—') + '</b>Targa</div>';
@@ -446,7 +465,11 @@
 
   function renderArchivio() {
     var el = document.getElementById('screen-archivio');
-    var sorted = state.sheets.slice().sort(function (a, b) { return sortKey(b) - sortKey(a); });
+    var sorted = state.sheets.slice().sort(function (a, b) {
+      var k = sortKey(b) - sortKey(a);
+      if (k !== 0) return k;
+      return (b.createdAt || '').localeCompare(a.createdAt || '');
+    });
     if (!sorted.length) {
       el.innerHTML = '<div class="empty-state"><div class="icon">' + svgIcon('route') + '</div><h3>Archivio vuoto</h3><p>I fogli mensili completati appariranno qui.</p></div>';
       return;
@@ -456,7 +479,7 @@
       var isLatest = isNewestSheet(s);
       var filled = Object.keys(s.giorni).filter(function (d) { return s.giorni[d] && (s.giorni[d].a || s.giorni[d].kmFine !== ""); }).length;
       html += '<div class="card archive-card">';
-      html += '<div class="archive-month"><div class="m">' + MESI[s.month - 1] + ' ' + s.year + '</div>';
+      html += '<div class="archive-month"><div class="m">' + MESI[s.month - 1] + ' ' + s.year + '<span style="color:var(--ink-faint);font-weight:600;"> · ' + escapeHtml(s.perContoDi || '—') + '</span></div>';
       html += '<div class="d">' + escapeHtml(s.nome || '—') + ' · ' + escapeHtml(s.targa || '—') + ' · ' + filled + ' viaggi</div>';
       if (isLatest) html += '<div class="d" style="color:var(--accent);font-weight:800;margin-top:4px;">FOGLIO ATTIVO</div>';
       html += '</div>';
@@ -519,7 +542,7 @@
     html += '<label class="eyebrow" style="display:block;margin-bottom:8px;">Foglio da esportare</label>';
     html += '<select class="field-select" id="pdf-sheet-select">';
     sorted.forEach(function (s) {
-      html += '<option value="' + s.id + '" ' + (s.id === sheet.id ? 'selected' : '') + '>' + MESI[s.month - 1] + ' ' + s.year + '</option>';
+      html += '<option value="' + s.id + '" ' + (s.id === sheet.id ? 'selected' : '') + '>' + MESI[s.month - 1] + ' ' + s.year + ' — ' + escapeHtml(s.perContoDi || '—') + '</option>';
     });
     html += '</select>';
     html += '</div>';
@@ -604,22 +627,9 @@
   /* ---------------------------------------------------------------- */
   /* PDF generation — replicates the original Power Trasporti template */
   /* ---------------------------------------------------------------- */
-  /* ---------------------------------------------------------------- */
-  /* Company logo resolution — a custom uploaded logo takes priority    */
-  /* over the bundled Power Trasporti one, when present and loaded.    */
-  /* ---------------------------------------------------------------- */
-  function getActiveLogoImg() {
-    if (state.profile.companyLogo) {
-      var custom = document.getElementById('pt-custom-logo-img');
-      if (custom && custom.complete && custom.naturalWidth > 0) return custom;
-    }
-    var def = document.getElementById('pt-logo-img');
-    if (def && def.complete && def.naturalWidth > 0) return def;
-    return null;
-  }
   function ensureLogoReady() {
     return new Promise(function (resolve) {
-      var img = state.profile.companyLogo ? document.getElementById('pt-custom-logo-img') : document.getElementById('pt-logo-img');
+      var img = document.getElementById('pt-logo-img');
       if (!img || (img.complete && img.naturalWidth > 0)) { resolve(); return; }
       img.onload = function () { resolve(); };
       img.onerror = function () { resolve(); };
@@ -646,36 +656,22 @@
     doc.line(margin, margin + headerH, margin + contentW, margin + headerH);
 
     try {
-      var img = getActiveLogoImg();
-      if (img) {
+      var img = document.getElementById('pt-logo-img');
+      if (img && img.complete && img.naturalWidth > 0) {
         var ratio = img.naturalWidth / img.naturalHeight;
         var imgH = headerH * 0.6;
         var imgW = imgH * ratio;
         if (imgW > logoW - 8) { imgW = logoW - 8; imgH = imgW / ratio; }
         doc.addImage(img, 'PNG', margin + (logoW - imgW) / 2, margin + (headerH - imgH) / 2, imgW, imgH);
-      } else if (state.profile.companyName) {
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(14);
-        doc.setTextColor(20, 20, 20);
-        doc.text(state.profile.companyName.toUpperCase(), margin + logoW / 2, margin + headerH / 2 + 2, { align: 'center' });
       }
     } catch (e) { /* logo unavailable */ }
-
-    var effAddress = state.profile.companyAddress || COMPANY.indirizzo;
-    var effCF = state.profile.companyCF || '';
-    var effPiva = state.profile.companyPiva || '';
-    var usingDefaultCompany = !state.profile.companyCF && !state.profile.companyPiva && !state.profile.companyAddress;
-    if (usingDefaultCompany) { effCF = COMPANY.cf; effPiva = COMPANY.piva; }
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(20, 20, 20);
-    doc.text(effAddress, margin + logoW + contentW * (1 - 0.34) / 2, margin + 6.5, { align: 'center' });
-    if (effCF || effPiva) {
-      doc.setFontSize(9);
-      var cfPivaLine = [effCF ? 'CF: ' + effCF : '', effPiva ? 'P.IVA: ' + effPiva : ''].filter(Boolean).join('   ');
-      doc.text(cfPivaLine, margin + logoW + contentW * (1 - 0.34) / 2, margin + 11.5, { align: 'center' });
-    }
+    doc.text(COMPANY.indirizzo, margin + logoW + contentW * (1 - 0.34) / 2, margin + 6.5, { align: 'center' });
+    doc.setFontSize(9);
+    doc.text('CF: ' + COMPANY.cf + '   P.IVA: ' + COMPANY.piva, margin + logoW + contentW * (1 - 0.34) / 2, margin + 11.5, { align: 'center' });
 
     // Fields row
     var fieldsH = 12.5;
@@ -931,57 +927,6 @@
   /* ---------------------------------------------------------------- */
   var settingsModal = document.getElementById('modal-settings');
   var settingsTargetSheet = null;
-  var pendingLogoDataUrl; // undefined = untouched this session, null = explicitly removed, string = new upload
-  function updateLogoPreview(dataUrl) {
-    var img = document.getElementById('logo-preview');
-    var placeholder = document.getElementById('logo-preview-placeholder');
-    if (dataUrl) {
-      img.src = dataUrl; img.style.display = 'block'; placeholder.style.display = 'none';
-    } else {
-      img.src = ''; img.style.display = 'none'; placeholder.style.display = 'block';
-    }
-  }
-  function resizeImageFile(file) {
-    return new Promise(function (resolve, reject) {
-      var reader = new FileReader();
-      reader.onerror = reject;
-      reader.onload = function () {
-        var img = new Image();
-        img.onerror = reject;
-        img.onload = function () {
-          var maxDim = 480;
-          var scale = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
-          var w = Math.round(img.naturalWidth * scale), h = Math.round(img.naturalHeight * scale);
-          var canvas = document.createElement('canvas');
-          canvas.width = w; canvas.height = h;
-          canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-          resolve(canvas.toDataURL('image/png'));
-        };
-        img.src = reader.result;
-      };
-      reader.readAsDataURL(file);
-    });
-  }
-  document.getElementById('toggle-company-section').addEventListener('click', function () {
-    var section = document.getElementById('company-section');
-    var nowHidden = section.classList.toggle('hidden');
-    this.textContent = 'Dati azienda per il PDF (facoltativo) ' + (nowHidden ? '▾' : '▴');
-  });
-  document.getElementById('btn-choose-logo').addEventListener('click', function () {
-    document.getElementById('in-logo').click();
-  });
-  document.getElementById('in-logo').addEventListener('change', function (e) {
-    var file = e.target.files && e.target.files[0];
-    if (!file) return;
-    resizeImageFile(file).then(function (dataUrl) {
-      pendingLogoDataUrl = dataUrl;
-      updateLogoPreview(dataUrl);
-    }).catch(function () { toast('Impossibile leggere l\'immagine'); });
-  });
-  document.getElementById('btn-remove-logo').addEventListener('click', function () {
-    pendingLogoDataUrl = null;
-    updateLogoPreview(null);
-  });
 
   function openSettingsModal(sheetOverride) {
     settingsTargetSheet = sheetOverride || null;
@@ -998,14 +943,6 @@
     document.getElementById('in-conto').value = src.perContoDi || 'BARCELLA';
     document.getElementById('in-da').value = src.da || 'Ponte San Nicolò';
     document.getElementById('in-prov-da').value = src.provDa || 'PD';
-
-    // Company fields are global (not per-sheet) — always shown from the saved profile.
-    document.getElementById('in-company-name').value = state.profile.companyName || '';
-    document.getElementById('in-company-address').value = state.profile.companyAddress || '';
-    document.getElementById('in-company-cf').value = state.profile.companyCF || '';
-    document.getElementById('in-company-piva').value = state.profile.companyPiva || '';
-    pendingLogoDataUrl = undefined;
-    updateLogoPreview(state.profile.companyLogo || null);
 
     settingsModal.classList.add('open');
   }
@@ -1026,17 +963,6 @@
 
     state.profile.nome = nome; state.profile.targa = targa; state.profile.perContoDi = conto;
     state.profile.da = da; state.profile.provDa = provDa;
-
-    // Optional company fields — left blank means "use the Power Trasporti defaults".
-    state.profile.companyName = document.getElementById('in-company-name').value.trim();
-    state.profile.companyAddress = document.getElementById('in-company-address').value.trim();
-    state.profile.companyCF = document.getElementById('in-company-cf').value.trim();
-    state.profile.companyPiva = document.getElementById('in-company-piva').value.trim();
-    if (pendingLogoDataUrl !== undefined) {
-      state.profile.companyLogo = pendingLogoDataUrl || '';
-      var customImg = document.getElementById('pt-custom-logo-img');
-      if (customImg) customImg.src = state.profile.companyLogo || '';
-    }
     saveProfile(state.profile);
 
     if (settingsTargetSheet) {
@@ -1083,17 +1009,21 @@
     var m, y;
     if (base) { m = base.month + 1; y = base.year; if (m > 12) { m = 1; y += 1; } }
     else { var now = new Date(); m = now.getMonth() + 1; y = now.getFullYear(); }
-    renderNewSheetConfirm(m, y);
+    var defaultClient = (base ? base.perContoDi : state.profile.perContoDi) || 'BARCELLA';
+    renderNewSheetConfirm(m, y, defaultClient);
   }
-  function renderNewSheetConfirm(m, y) {
-    var stepperHtml = '<div class="month-stepper"><button id="ms-prev">−</button><div class="mval" id="ms-val">' + MESI[m - 1] + ' ' + y + '</div><button id="ms-next">+</button></div>';
+  function renderNewSheetConfirm(m, y, client) {
+    var stepperHtml =
+      '<div class="month-stepper"><button id="ms-prev">−</button><div class="mval" id="ms-val">' + MESI[m - 1] + ' ' + y + '</div><button id="ms-next">+</button></div>' +
+      '<div class="field" style="margin-top:8px;"><label>Per conto di</label><input id="ms-client" type="text" value="' + escapeHtml(client) + '" style="text-transform:uppercase"></div>' +
+      '<div class="settings-driver-note" style="margin-top:-4px;">Se lavori per piu\' clienti nello stesso mese, crea un foglio separato per ciascuno — come su carta, un foglio per cliente.</div>';
     showConfirm({
       title: 'Crea nuovo foglio mensile?',
       message: 'Verrà creato un foglio separato. Il foglio precedente non viene modificato né eliminato.',
       confirmLabel: 'Conferma',
       stepperHtml: stepperHtml
       // onConfirm intentionally omitted: the Conferma button's behavior is
-      // bound below via okBtn.onclick, since m/y change dynamically via the stepper.
+      // bound below via okBtn.onclick, since m/y/client change dynamically.
     });
     document.getElementById('ms-prev').addEventListener('click', function () {
       m -= 1; if (m < 1) { m = 12; y -= 1; }
@@ -1103,20 +1033,21 @@
       m += 1; if (m > 12) { m = 1; y += 1; }
       document.getElementById('ms-val').textContent = MESI[m - 1] + ' ' + y;
     });
-    // re-bind confirm to use latest m/y via closure workaround
+    // re-bind confirm to use latest m/y/client via closure workaround
     var okBtn = document.getElementById('confirm-ok');
     okBtn.onclick = function () {
+      var chosenClient = (document.getElementById('ms-client').value || 'BARCELLA').trim().toUpperCase();
       confirmModal.classList.remove('open');
-      var existing = sheetForMonth(m, y);
+      var existing = sheetForMonth(m, y, chosenClient);
       if (existing) {
         state.currentSheetId = existing.id; setCurrentSheetId(existing.id);
-        toast('Foglio ' + MESI[m - 1] + ' ' + y + ' già esistente — aperto');
+        toast('Foglio ' + MESI[m - 1] + ' ' + y + ' (' + chosenClient + ') già esistente — aperto');
         showScreen('foglio');
         reloadIfUpdatePending();
         return;
       }
-      createSheet(m, y);
-      toast('Nuovo foglio creato: ' + MESI[m - 1] + ' ' + y);
+      createSheet(m, y, chosenClient);
+      toast('Nuovo foglio creato: ' + MESI[m - 1] + ' ' + y + ' — ' + chosenClient);
       showScreen('foglio');
       reloadIfUpdatePending();
     };
@@ -1185,21 +1116,12 @@
     window.addEventListener('orientationchange', function () { setTimeout(syncBarHeights, 200); });
 
     // hidden logo image used for PDF embedding — the bundled Power Trasporti
-    // logo, always available as the fallback.
+    // logo.
     var img = new Image();
     img.id = 'pt-logo-img';
     img.src = 'vendor/logo.png';
     img.style.display = 'none';
     document.body.appendChild(img);
-
-    // A second hidden image for a company's own uploaded logo, if any was
-    // saved previously — loaded eagerly at startup so it's ready in time
-    // for PDF generation, without the person needing to wait.
-    var customImg = new Image();
-    customImg.id = 'pt-custom-logo-img';
-    customImg.style.display = 'none';
-    document.body.appendChild(customImg);
-    if (state.profile.companyLogo) customImg.src = state.profile.companyLogo;
 
     if (!state.profile.nome || !state.profile.targa) {
       openSettingsModal(null);
