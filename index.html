@@ -371,31 +371,6 @@
     </div>
     <div class="settings-driver-note">Questi dati vengono salvati solo su questo telefono e riutilizzati automaticamente per i prossimi fogli. Puoi modificarli in qualsiasi momento.</div>
 
-    <button type="button" class="link-btn" id="toggle-company-section" style="margin-bottom:14px;">Dati azienda per il PDF (facoltativo) ▾</button>
-    <div id="company-section" class="hidden">
-      <div class="settings-driver-note" style="margin-top:-4px;">Campi facoltativi. Se li lasci vuoti, il PDF userà i dati Power Trasporti predefiniti — utile solo se un collega di un'altra azienda usa questa stessa app.</div>
-      <div class="field"><label>Nome azienda</label><input id="in-company-name" type="text" placeholder="Es. POWER TRASPORTI"></div>
-      <div class="field"><label>Indirizzo</label><input id="in-company-address" type="text" placeholder="Es. Via Roma 1, Milano (MI)"></div>
-      <div class="field-row">
-        <div class="field"><label>Codice Fiscale</label><input id="in-company-cf" type="text" placeholder="Facoltativo"></div>
-        <div class="field"><label>P.IVA</label><input id="in-company-piva" type="text" placeholder="Facoltativo"></div>
-      </div>
-      <div class="field">
-        <label>Logo azienda</label>
-        <div style="display:flex;align-items:center;gap:12px;">
-          <div id="logo-preview-wrap" style="width:56px;height:56px;border-radius:12px;border:1.5px solid var(--line);display:flex;align-items:center;justify-content:center;overflow:hidden;flex:none;background:var(--surface-2);">
-            <img id="logo-preview" src="" alt="" style="max-width:100%;max-height:100%;display:none;">
-            <span id="logo-preview-placeholder" style="font-size:9px;color:var(--ink-faint);text-align:center;">nessun<br>logo</span>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:6px;flex:1;">
-            <input type="file" accept="image/*" id="in-logo" style="display:none;">
-            <button type="button" class="btn btn-ghost btn-sm" id="btn-choose-logo">Scegli immagine</button>
-            <button type="button" class="link-btn" id="btn-remove-logo" style="text-align:left;">Rimuovi logo caricato</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <div class="modal-btnrow">
       <button class="btn btn-ghost" id="settings-cancel">Annulla</button>
       <button class="btn btn-accent" id="settings-save">Salva</button>
