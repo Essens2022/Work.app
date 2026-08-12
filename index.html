@@ -37,7 +37,7 @@
     --safe-top:env(safe-area-inset-top,0px);
   }
   *{box-sizing:border-box;}
-  html,body{height:100%;overflow:hidden;overscroll-behavior:none;}
+  html,body{height:100vh;height:100dvh;overflow:hidden;overscroll-behavior:none;}
   body{
     margin:0;
     background:var(--bg);
@@ -53,7 +53,7 @@
      <main> below scrolls. This keeps the top and bottom bars completely
      still and glued in place, with no bounce/rubber-band effect even when
      the person flicks past the very top or bottom of the list. */
-  #app{max-width:560px;margin:0 auto;height:100vh;height:100dvh;position:relative;display:flex;flex-direction:column;overflow:hidden;}
+  #app{max-width:560px;margin:0 auto;height:100%;position:relative;display:flex;flex-direction:column;overflow:hidden;}
   .topbar{
     flex:none;z-index:20;background:rgba(250,250,248,.92);backdrop-filter:blur(10px);
     padding:calc(14px + var(--safe-top)) 20px 12px;display:flex;align-items:center;justify-content:space-between;
