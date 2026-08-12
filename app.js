@@ -227,6 +227,7 @@
   /* Navigation                                                         */
   /* ---------------------------------------------------------------- */
   var currentScreen = 'home';
+  var mainEl = document.querySelector('main');
   var scrollToLastDayPending = false;
 
   // The app locks pinch-zoom everywhere (so accidental zooming doesn't break
@@ -253,7 +254,7 @@
       render();
     } else {
       render();
-      window.scrollTo(0, 0);
+      if (mainEl) mainEl.scrollTop = 0;
     }
   }
 
@@ -423,7 +424,7 @@
           });
         }
       } else {
-        window.scrollTo(0, 0);
+        if (mainEl) mainEl.scrollTop = 0;
       }
     }
   }
@@ -466,6 +467,29 @@
     });
   }
 
+  /* ---------------------------------------------------------------- */
+  /* Lazy-loading the PDF library (jsPDF + autotable, ~450KB) —         */
+  /* only fetched the first time the person actually opens the PDF     */
+  /* screen, so every other screen opens instantly on first launch.    */
+  /* ---------------------------------------------------------------- */
+  var pdfLibsPromise = null;
+  function loadPdfLibs() {
+    if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve();
+    if (pdfLibsPromise) return pdfLibsPromise;
+    function loadScript(src) {
+      return new Promise(function (resolve, reject) {
+        var s = document.createElement('script');
+        s.src = src;
+        s.onload = resolve;
+        s.onerror = reject;
+        document.body.appendChild(s);
+      });
+    }
+    pdfLibsPromise = loadScript('vendor/jspdf.umd.min.js')
+      .then(function () { return loadScript('vendor/jspdf.plugin.autotable.min.js'); });
+    return pdfLibsPromise;
+  }
+
   function renderPdfScreen() {
     var el = document.getElementById('screen-pdf');
     var sheet = currentSheet();
@@ -486,7 +510,7 @@
     html += '<button class="btn btn-outline" style="flex:1" id="pdf-refresh">Aggiorna anteprima</button>';
     html += '<button class="btn btn-accent" style="flex:1" id="pdf-download">Genera PDF</button>';
     html += '</div></div>';
-    html += '<div class="pdf-frame-wrap"><iframe id="pdf-iframe" title="Anteprima PDF"></iframe></div>';
+    html += '<div class="pdf-frame-wrap" id="pdf-frame-wrap"><div style="padding:40px;text-align:center;color:var(--ink-faint);font-size:13px;">Preparazione anteprima…</div></div>';
     el.innerHTML = html;
 
     document.getElementById('pdf-sheet-select').addEventListener('change', function (e) {
@@ -498,23 +522,39 @@
     loadPdfPreview();
   }
 
+  function ensurePdfIframe() {
+    var wrap = document.getElementById('pdf-frame-wrap');
+    if (wrap && !document.getElementById('pdf-iframe')) {
+      wrap.innerHTML = '<iframe id="pdf-iframe" title="Anteprima PDF"></iframe>';
+    }
+  }
+
   function loadPdfPreview() {
-    var sheet = findSheet(document.getElementById('pdf-sheet-select').value) || currentSheet();
-    var doc = buildPdf(sheet);
-    var blobUrl = doc.output('bloburl');
-    document.getElementById('pdf-iframe').src = blobUrl;
+    loadPdfLibs().then(function () {
+      ensurePdfIframe();
+      var sheet = findSheet(document.getElementById('pdf-sheet-select').value) || currentSheet();
+      var doc = buildPdf(sheet);
+      var blobUrl = doc.output('bloburl');
+      document.getElementById('pdf-iframe').src = blobUrl;
+    }).catch(function () {
+      toast('Impossibile caricare il generatore PDF — verifica la connessione');
+    });
   }
   function downloadCurrentPdf() {
-    var sheet = findSheet(document.getElementById('pdf-sheet-select').value) || currentSheet();
-    var doc = buildPdf(sheet);
-    var filename = 'Foglio_Viaggi_' + MESI[sheet.month - 1] + '_' + sheet.year + '.pdf';
-    var blob = doc.output('blob');
-    if (navigator.canShare && navigator.canShare({ files: [new File([blob], filename, { type: 'application/pdf' })] })) {
-      navigator.share({ files: [new File([blob], filename, { type: 'application/pdf' })], title: filename }).catch(function () { doc.save(filename); });
-    } else {
-      doc.save(filename);
-    }
-    toast('PDF generato');
+    loadPdfLibs().then(function () {
+      var sheet = findSheet(document.getElementById('pdf-sheet-select').value) || currentSheet();
+      var doc = buildPdf(sheet);
+      var filename = 'Foglio_Viaggi_' + MESI[sheet.month - 1] + '_' + sheet.year + '.pdf';
+      var blob = doc.output('blob');
+      if (navigator.canShare && navigator.canShare({ files: [new File([blob], filename, { type: 'application/pdf' })] })) {
+        navigator.share({ files: [new File([blob], filename, { type: 'application/pdf' })], title: filename }).catch(function () { doc.save(filename); });
+      } else {
+        doc.save(filename);
+      }
+      toast('PDF generato');
+    }).catch(function () {
+      toast('Impossibile caricare il generatore PDF — verifica la connessione');
+    });
   }
 
   /* ---------------------------------------------------------------- */

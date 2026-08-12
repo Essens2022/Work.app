@@ -37,22 +37,25 @@
     --safe-top:env(safe-area-inset-top,0px);
   }
   *{box-sizing:border-box;}
-  html,body{height:100%;}
+  html,body{height:100%;overflow:hidden;overscroll-behavior:none;}
   body{
     margin:0;
     background:var(--bg);
     color:var(--ink);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased;
-    overscroll-behavior-y:contain;
   }
   h1,h2,h3{margin:0;letter-spacing:-0.02em;}
   .eyebrow{
     font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);
   }
-  #app{max-width:560px;margin:0 auto;min-height:100vh;min-height:100dvh;position:relative;display:flex;flex-direction:column;}
+  /* #app fills the exact viewport height and never scrolls itself; only
+     <main> below scrolls. This keeps the top and bottom bars completely
+     still and glued in place, with no bounce/rubber-band effect even when
+     the person flicks past the very top or bottom of the list. */
+  #app{max-width:560px;margin:0 auto;height:100vh;height:100dvh;position:relative;display:flex;flex-direction:column;overflow:hidden;}
   .topbar{
-    position:sticky;top:0;z-index:20;background:rgba(250,250,248,.92);backdrop-filter:blur(10px);
+    flex:none;z-index:20;background:rgba(250,250,248,.92);backdrop-filter:blur(10px);
     padding:calc(14px + var(--safe-top)) 20px 12px;display:flex;align-items:center;justify-content:space-between;
     border-bottom:1px solid var(--line);
   }
@@ -66,7 +69,7 @@
     display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink);
   }
   .icon-btn:active{transform:scale(.94);}
-  main{padding:18px 16px 24px;flex:1;}
+  main{padding:18px 16px 24px;flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;}
   .screen{display:none;animation:fadein .18s ease;}
   .screen.active{display:block;}
   @keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
@@ -171,7 +174,7 @@
 
   /* bottom nav */
   .bottomnav{
-    position:sticky;bottom:0;z-index:30;flex:none;
+    flex:none;z-index:30;
     display:flex;justify-content:center;
   }
   .bottomnav-inner{
@@ -391,8 +394,6 @@
 
 <div class="toast" id="toast"><span class="dot"></span><span id="toast-text"></span></div>
 
-<script src="vendor/jspdf.umd.min.js"></script>
-<script src="vendor/jspdf.plugin.autotable.min.js"></script>
 <script src="vendor/comuni.js"></script>
 <script src="app.js"></script>
 </body>
