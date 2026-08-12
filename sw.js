@@ -9,7 +9,7 @@
 //  - Large, rarely-changing files (jsPDF, the comuni database, icons, logo)
 //    stay CACHE-FIRST, so they don't get re-downloaded on every load.
 
-const CACHE_VERSION = 'pt-foglio-v8';
+const CACHE_VERSION = 'pt-foglio-v9';
 const CORE_ASSETS = ['./', './index.html', './app.js', './manifest.json'];
 const STATIC_ASSETS = [
   './icon-192.png',
