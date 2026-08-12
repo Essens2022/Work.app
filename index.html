@@ -181,13 +181,20 @@
      reliable control over pinch-zoom and panning, scoped exactly to this
      frame — the native plugin approach could let gestures "leak" to the
      whole page and hid part of the document behind its own UI chrome. */
-  .pdf-frame-wrap{background:var(--surface-2);border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--line);margin-top:14px;position:relative;width:100%;aspect-ratio:297/210;max-height:70vh;touch-action:none;}
-  .pdf-canvas-stage{width:100%;height:100%;transform-origin:center center;will-change:transform;display:flex;align-items:center;justify-content:center;}
-  .pdf-canvas-stage canvas{max-width:100%;max-height:100%;display:block;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.08);}
+  /* The frame is a native-scrolling container: when zoomed in, the canvas
+     becomes physically bigger than the frame (real extra resolution, not
+     a stretched image), and the person drags with one finger to look
+     around — the same reliable scrolling every phone already does
+     perfectly, instead of custom code that could behave inconsistently
+     across devices. Two-finger pinch decides the zoom level, which
+     triggers the canvas to actually be redrawn at that size. */
+  .pdf-frame-wrap{background:var(--surface-2);border-radius:var(--radius-lg);border:1px solid var(--line);margin-top:14px;position:relative;width:100%;aspect-ratio:297/210;max-height:70vh;overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;}
+  .pdf-canvas-stage{min-width:100%;min-height:100%;display:flex;align-items:center;justify-content:center;}
+  .pdf-canvas-stage canvas{display:block;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.08);}
   .pdf-zoom-hint{
-    position:absolute;left:50%;bottom:10px;transform:translateX(-50%);z-index:6;
+    position:sticky;left:50%;bottom:10px;transform:translateX(-50%);z-index:6;
     background:rgba(28,27,31,.72);color:#fff;font-size:11px;font-weight:700;padding:6px 12px;border-radius:100px;
-    pointer-events:none;opacity:1;transition:opacity .4s ease;
+    pointer-events:none;opacity:1;transition:opacity .4s ease;width:fit-content;margin:0 auto;
   }
   .pdf-zoom-hint.hide{opacity:0;}
   .field-select{width:100%;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface);font-size:14px;font-weight:600;font-family:inherit;color:var(--ink);}
