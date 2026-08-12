@@ -417,7 +417,10 @@
 
     <div id="sheet-daily-rate-section" class="hidden">
       <label class="checkbox-row"><input type="checkbox" id="in-sheet-daily-rate"><span>Questo cliente conta per il compenso giornaliero</span></label>
-      <div class="settings-driver-note" style="margin-top:-4px;">Disattivalo se questo cliente paga solo un importo fisso (bonus per giorno) invece dello stipendio giornaliero.</div>
+      <div id="in-sheet-fixed-amount-wrap" class="hidden">
+        <div class="field" style="margin-top:6px;"><label>Importo fisso per giorno lavorato (€)</label><input id="in-sheet-fixed-amount" type="number" inputmode="decimal" placeholder="Es. 5" min="0" step="0.01"></div>
+        <div class="settings-driver-note" style="margin-top:-4px;">Si applica automaticamente a ogni giorno lavorato per questo cliente.</div>
+      </div>
     </div>
 
     <div class="modal-btnrow">
@@ -459,11 +462,13 @@
       <input id="day-kmtot" type="text" disabled style="background:var(--surface-2);color:var(--ink-soft);font-family:'SF Mono',Menlo,monospace;">
     </div>
 
-    <div class="field" style="margin-top:6px;">
-      <label id="day-bonus-label">Bonus (€) — facoltativo</label>
-      <input id="day-bonus" type="number" inputmode="decimal" placeholder="0" min="0" step="0.01">
+    <div id="day-bonus-field">
+      <div class="field" style="margin-top:6px;">
+        <label>Bonus (€) — facoltativo</label>
+        <input id="day-bonus" type="number" inputmode="decimal" placeholder="0" min="0" step="0.01">
+      </div>
+      <div class="settings-driver-note" style="margin-top:-8px;">Visibile solo a te nella pagina Home — non appare mai nel PDF.</div>
     </div>
-    <div class="settings-driver-note" id="day-bonus-note" style="margin-top:-8px;">Visibile solo a te nella pagina Home — non appare mai nel PDF.</div>
 
     <div class="modal-btnrow">
       <button class="btn btn-danger" id="day-clear">Svuota giorno</button>

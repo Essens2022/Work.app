@@ -195,15 +195,24 @@
     var totalBonus = 0;
     sheets.forEach(function (s) {
       var countsForRate = s.countsForDailyRate !== false; // older sheets default to true
+      var fixedAmount = Number(s.fixedDailyAmount) || 0;
       Object.keys(s.giorni).forEach(function (d) {
         var g = s.giorni[d];
         if (!g) return;
-        // A day only counts toward the daily rate if it has a trip on a
-        // client sheet that's marked as counting for it. A client-only-
-        // pays-a-bonus sheet never triggers the daily rate on its own.
-        if (countsForRate && (g.a || g.ddt || g.kmFine !== "")) workedDays[d] = true;
-        // Bonuses always add, regardless of which client's sheet they're on.
-        if (g.bonus !== "" && g.bonus !== undefined && g.bonus !== null && !isNaN(g.bonus)) totalBonus += Number(g.bonus);
+        var hasTrip = g.a || g.ddt || g.kmFine !== "";
+        if (countsForRate) {
+          // A day only counts toward the daily rate if it has a trip on a
+          // client sheet that's marked as counting for it.
+          if (hasTrip) workedDays[d] = true;
+          // Occasional extra bonus on a normal client's day, entered
+          // manually, on top of the daily rate.
+          if (g.bonus !== "" && g.bonus !== undefined && g.bonus !== null && !isNaN(g.bonus)) totalBonus += Number(g.bonus);
+        } else if (hasTrip && fixedAmount > 0) {
+          // A secondary client that doesn't count toward the daily rate —
+          // its fixed per-day amount (set once for the whole sheet)
+          // applies automatically to every day worked, no manual entry.
+          totalBonus += fixedAmount;
+        }
       });
     });
     var workedDaysCount = Object.keys(workedDays).length;
@@ -330,7 +339,7 @@
     return null;
   }
 
-  function createSheet(month, year, perContoDi, countsForDailyRate) {
+  function createSheet(month, year, perContoDi, countsForDailyRate, fixedDailyAmount) {
     var client = (perContoDi || state.profile.perContoDi || 'BARCELLA').trim().toUpperCase();
     var existing = sheetForMonth(month, year, client);
     if (existing) return existing;
@@ -340,10 +349,11 @@
       nome: state.profile.nome, targa: state.profile.targa, perContoDi: client,
       // Whether a worked day on THIS client's sheet counts toward the
       // driver's daily rate (see monthEarnings). Most clients do — but
-      // some drivers have a side client that only pays a small fixed
-      // amount (entered as that day's bonus) instead of the full daily
-      // rate, only earning the daily rate from their "own" main client.
+      // some drivers have a side client that only pays a small FIXED
+      // amount per worked day (set once here, applied automatically to
+      // every day this sheet has a trip), instead of the full daily rate.
       countsForDailyRate: countsForDailyRate !== false,
+      fixedDailyAmount: (countsForDailyRate === false && fixedDailyAmount) ? Math.max(0, Number(fixedDailyAmount)) : 0,
       createdAt: new Date().toISOString(),
       giorni: buildGiorni(month, year, state.profile.da, state.profile.provDa)
     };
@@ -1066,19 +1076,20 @@
     document.getElementById('day-ddt').value = g.ddt || '';
     document.getElementById('day-kminizio').value = kmInizioVal !== undefined ? kmInizioVal : '';
     document.getElementById('day-kmfine').value = g.kmFine || '';
-    document.getElementById('day-bonus').value = g.bonus || '';
 
-    // For a client that doesn't count toward the daily rate, this field
-    // IS the driver's whole payment for the day, not an extra on top —
-    // label and note change accordingly so it's never confused with a
-    // real bonus.
+    // The per-day bonus field only makes sense for a NORMAL client (one
+    // that counts toward the daily rate) — an occasional extra on top.
+    // A secondary client's payment is the fixed amount set once on its
+    // sheet (applied automatically every worked day), so this field is
+    // hidden entirely there — nothing to type each day.
     var countsForRate = sheet.countsForDailyRate !== false;
-    document.getElementById('day-bonus-label').textContent = countsForRate
-      ? 'Bonus (€) — facoltativo'
-      : 'Importo per questo cliente (€)';
-    document.getElementById('day-bonus-note').textContent = countsForRate
-      ? 'Visibile solo a te nella pagina Home — non appare mai nel PDF.'
-      : 'Questo cliente non conta per il compenso giornaliero — questo importo è il tuo pagamento per la giornata. Visibile solo a te — non appare mai nel PDF.';
+    var bonusField = document.getElementById('day-bonus-field');
+    if (countsForRate) {
+      bonusField.classList.remove('hidden');
+      document.getElementById('day-bonus').value = g.bonus || '';
+    } else {
+      bonusField.classList.add('hidden');
+    }
 
     updateKmTot();
     document.getElementById('ac-list').classList.remove('show');
@@ -1209,15 +1220,23 @@
     document.getElementById('in-daily-rate').value = state.profile.dailyRate || '';
 
     var sheetRateSection = document.getElementById('sheet-daily-rate-section');
+    var sheetRateCheckbox = document.getElementById('in-sheet-daily-rate');
+    var sheetFixedAmountWrap = document.getElementById('in-sheet-fixed-amount-wrap');
     if (settingsTargetSheet) {
       sheetRateSection.classList.remove('hidden');
-      document.getElementById('in-sheet-daily-rate').checked = settingsTargetSheet.countsForDailyRate !== false;
+      var counts = settingsTargetSheet.countsForDailyRate !== false;
+      sheetRateCheckbox.checked = counts;
+      sheetFixedAmountWrap.classList.toggle('hidden', counts);
+      document.getElementById('in-sheet-fixed-amount').value = settingsTargetSheet.fixedDailyAmount || '';
     } else {
       sheetRateSection.classList.add('hidden');
     }
 
     settingsModal.classList.add('open');
   }
+  document.getElementById('in-sheet-daily-rate').addEventListener('change', function () {
+    document.getElementById('in-sheet-fixed-amount-wrap').classList.toggle('hidden', this.checked);
+  });
   document.getElementById('btn-settings').addEventListener('click', function () { openSettingsModal(null); });
   document.getElementById('settings-cancel').addEventListener('click', function () {
     if (!state.profile.nome && !settingsTargetSheet) return; // force first-run completion
@@ -1242,7 +1261,10 @@
 
     if (settingsTargetSheet) {
       settingsTargetSheet.nome = nome; settingsTargetSheet.targa = targa; settingsTargetSheet.perContoDi = conto;
-      settingsTargetSheet.countsForDailyRate = document.getElementById('in-sheet-daily-rate').checked;
+      var countsChecked = document.getElementById('in-sheet-daily-rate').checked;
+      settingsTargetSheet.countsForDailyRate = countsChecked;
+      var fixedRaw = document.getElementById('in-sheet-fixed-amount').value.trim();
+      settingsTargetSheet.fixedDailyAmount = (!countsChecked && fixedRaw !== '') ? Math.max(0, parseFloat(fixedRaw) || 0) : 0;
       saveSheets(state.sheets);
     }
     settingsModal.classList.remove('open');
@@ -1294,7 +1316,10 @@
       '<div class="field" style="margin-top:8px;"><label>Per conto di</label><input id="ms-client" type="text" value="' + escapeHtml(client) + '" style="text-transform:uppercase"></div>' +
       '<div class="settings-driver-note" style="margin-top:-4px;">Se lavori per piu\' clienti nello stesso mese, crea un foglio separato per ciascuno — come su carta, un foglio per cliente.</div>' +
       '<label class="checkbox-row"><input type="checkbox" id="ms-daily-rate" checked><span>Questo cliente conta per il compenso giornaliero</span></label>' +
-      '<div class="settings-driver-note" style="margin-top:-4px;">Disattivalo se questo cliente paga solo un importo fisso (inserito come bonus per giorno) invece dello stipendio giornaliero — utile per un secondo cliente occasionale.</div>';
+      '<div id="ms-fixed-amount-wrap" class="hidden">' +
+      '<div class="field" style="margin-top:6px;"><label>Importo fisso per giorno lavorato (€)</label><input id="ms-fixed-amount" type="number" inputmode="decimal" placeholder="Es. 5" min="0" step="0.01"></div>' +
+      '<div class="settings-driver-note" style="margin-top:-4px;">Si applica automaticamente a ogni giorno lavorato per questo cliente — non dovrai inserirlo ogni volta.</div>' +
+      '</div>';
     showConfirm({
       title: 'Crea nuovo foglio mensile?',
       message: 'Verrà creato un foglio separato. Il foglio precedente non viene modificato né eliminato.',
@@ -1311,11 +1336,18 @@
       m += 1; if (m > 12) { m = 1; y += 1; }
       document.getElementById('ms-val').textContent = MESI[m - 1] + ' ' + y;
     });
+    var dailyRateCheckbox = document.getElementById('ms-daily-rate');
+    var fixedAmountWrap = document.getElementById('ms-fixed-amount-wrap');
+    dailyRateCheckbox.addEventListener('change', function () {
+      fixedAmountWrap.classList.toggle('hidden', dailyRateCheckbox.checked);
+    });
     // re-bind confirm to use latest m/y/client via closure workaround
     var okBtn = document.getElementById('confirm-ok');
     okBtn.onclick = function () {
       var chosenClient = (document.getElementById('ms-client').value || 'BARCELLA').trim().toUpperCase();
       var countsForRate = document.getElementById('ms-daily-rate').checked;
+      var fixedAmountRaw = document.getElementById('ms-fixed-amount').value.trim();
+      var fixedAmount = fixedAmountRaw === '' ? 0 : Math.max(0, parseFloat(fixedAmountRaw) || 0);
       confirmModal.classList.remove('open');
       var existing = sheetForMonth(m, y, chosenClient);
       if (existing) {
@@ -1325,7 +1357,7 @@
         reloadIfUpdatePending();
         return;
       }
-      createSheet(m, y, chosenClient, countsForRate);
+      createSheet(m, y, chosenClient, countsForRate, fixedAmount);
       toast('Nuovo foglio creato: ' + MESI[m - 1] + ' ' + y + ' — ' + chosenClient);
       showScreen('foglio');
       reloadIfUpdatePending();
