@@ -37,7 +37,7 @@
     --safe-top:env(safe-area-inset-top,0px);
   }
   *{box-sizing:border-box;}
-  html,body{height:100vh;height:100dvh;overflow:hidden;overscroll-behavior:none;}
+  html,body{height:100vh;height:var(--real-vh,100dvh);overflow:hidden;overscroll-behavior:none;}
   body{
     margin:0;
     background:var(--bg);
