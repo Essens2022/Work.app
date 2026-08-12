@@ -37,7 +37,14 @@
     --safe-top:env(safe-area-inset-top,0px);
   }
   *{box-sizing:border-box;}
-  html,body{height:100vh;height:var(--real-vh,100dvh);overflow:hidden;overscroll-behavior:none;}
+  /* Pinned directly to the actual visual viewport edges (all four sides
+     at once), rather than computed from any height unit (vh/dvh) or a
+     JS-measured value — both of those can end up shorter than the true
+     screen on some iPhones running as an installed app, leaving a gap
+     under the bottom bar. Fixed positioning with inset:0 is guaranteed
+     by the browser to match the real visible area exactly, with no
+     calculation involved at all. */
+  html,body{position:fixed;inset:0;overflow:hidden;overscroll-behavior:none;}
   body{
     margin:0;
     background:var(--bg);
