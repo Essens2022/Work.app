@@ -227,6 +227,7 @@
   /* Navigation                                                         */
   /* ---------------------------------------------------------------- */
   var currentScreen = 'home';
+  var scrollToLastDayPending = false;
   function showScreen(name) {
     currentScreen = name;
     ['home', 'foglio', 'archivio', 'pdf'].forEach(function (n) {
@@ -235,8 +236,13 @@
     document.querySelectorAll('.navbtn[data-nav]').forEach(function (b) {
       b.classList.toggle('active', b.getAttribute('data-nav') === name);
     });
-    render();
-    window.scrollTo(0, 0);
+    if (name === 'foglio') {
+      scrollToLastDayPending = true;
+      render();
+    } else {
+      render();
+      window.scrollTo(0, 0);
+    }
   }
 
   document.querySelectorAll('.navbtn[data-nav]').forEach(function (btn) {
@@ -391,6 +397,23 @@
     if (undoBtn) undoBtn.addEventListener('click', function () { confirmUndoSheet(sheet); });
     var undoSingle = document.getElementById('foglio-undo-single');
     if (undoSingle) undoSingle.addEventListener('click', function () { confirmUndoSheet(sheet); });
+
+    if (scrollToLastDayPending) {
+      scrollToLastDayPending = false;
+      var lc = lastCompletedDay(sheet);
+      var targetDay = lc ? lc.day : null;
+      if (targetDay) {
+        var targetRow = el.querySelector('.day-row[data-day="' + targetDay + '"]');
+        if (targetRow) {
+          // Defer to next frame so the browser has laid out the new content first.
+          requestAnimationFrame(function () {
+            targetRow.scrollIntoView({ behavior: 'auto', block: 'center' });
+          });
+        }
+      } else {
+        window.scrollTo(0, 0);
+      }
+    }
   }
 
   function renderArchivio() {
