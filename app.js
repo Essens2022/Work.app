@@ -541,25 +541,6 @@
     });
   }
 
-  // Client logo lookup (Logo.dev) — used only in Archivio, to make it
-  // easier to recognize a client at a glance for well-known companies.
-  // fallback=404 means: if no logo is found (or there's no internet), the
-  // <img> fails to load and its onerror handler swaps in the plain
-  // colored chip instead — so this never shows a broken image or an
-  // error, it just quietly falls back to what Archivio already had.
-  var LOGO_DEV_KEY = 'pk_ahesKvuFQIee19-YaEvfjw';
-  function clientLogoUrl(clientName) {
-    return 'https://img.logo.dev/name/' + encodeURIComponent(clientName) +
-      '?token=' + LOGO_DEV_KEY + '&size=128&retina=true&fallback=404';
-  }
-  function clientLogoOrChipHtml(clientName) {
-    var safe = escapeHtml(clientName);
-    return '<span class="client-logo-wrap">' +
-      '<img class="client-logo-img" src="' + clientLogoUrl(clientName) + '" alt="' + safe + '" ' +
-      'onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'inline-block\';">' +
-      '<span class="client-chip" style="display:none;">' + safe + '</span>' +
-      '</span>';
-  }
 
   function renderFoglio() {
     var el = document.getElementById('screen-foglio');
@@ -683,7 +664,7 @@
       grp.sheets.forEach(function (s, idx) {
         var filled = Object.keys(s.giorni).filter(function (d) { return s.giorni[d] && (s.giorni[d].a || s.giorni[d].kmFine !== ""); }).length;
         html += '<div class="archive-row" data-open="' + s.id + '"' + (idx > 0 ? ' style="border-top:1px solid var(--line);"' : '') + '>';
-        html += (s.perContoDi ? clientLogoOrChipHtml(s.perContoDi) : '<span class="client-chip">—</span>');
+        html += '<span class="client-chip">' + escapeHtml(s.perContoDi || '—') + '</span>';
         html += '<div class="archive-row-bottom">';
         html += '<div class="archive-row-sub">' + escapeHtml(s.nome || '—') + ' · ' + escapeHtml(s.targa || '—') + ' · ' + filled + ' viaggi</div>';
         html += '<div class="archive-row-actions">';
