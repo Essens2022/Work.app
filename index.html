@@ -37,15 +37,15 @@
     --safe-top:env(safe-area-inset-top,0px);
   }
   *{box-sizing:border-box;}
-  /* Pinned directly to the actual visual viewport edges (all four sides
-     at once), rather than computed from any height unit (vh/dvh) or a
-     JS-measured value — both of those can end up shorter than the true
-     screen on some iPhones running as an installed app, leaving a gap
-     under the bottom bar. Fixed positioning with inset:0 is guaranteed
-     by the browser to match the real visible area exactly, with no
-     calculation involved at all. */
-  html,body{position:fixed;inset:0;overflow:hidden;overscroll-behavior:none;}
+  /* Only body gets pinned to the viewport edges (position:fixed;inset:0)
+     — html itself keeps a normal, standard height:100%. Applying
+     position:fixed to the <html> root element too is unusual and can
+     misbehave in Safari specifically, which is very likely what caused
+     the site to show a blank white page after the previous change. This
+     is the safer, standard pattern used by real production sites. */
+  html{height:100%;overflow:hidden;}
   body{
+    position:fixed;inset:0;overflow:hidden;overscroll-behavior:none;
     margin:0;
     background:var(--bg);
     color:var(--ink);
