@@ -93,17 +93,29 @@
   }
   function sortKey(sheet) { return sheet.year * 12 + sheet.month; }
   function findSheet(id) { return state.sheets.find(function (s) { return s.id === id; }) || null; }
-  // "Active" always means the sheet created most recently — whichever
-  // client/month that was — not necessarily the one with the highest
-  // month/year number. If a driver creates a September sheet and then
-  // later goes back and creates one more sheet for August (a second
-  // client for that earlier month), the August one just created is the
-  // active one now, not September.
+  // The driver works in ONE month at a time — once a month ends, work
+  // moves to the next one; a client from a past month can still be
+  // opened/edited, but it can't be "active" again just because a sheet
+  // for it was touched most recently. So "active" is the MONTH with the
+  // highest month+year among all sheets — not a specific client, and not
+  // simply whichever sheet was created last.
   function latestSheet() {
     if (!state.sheets.length) return null;
     return state.sheets.slice().sort(function (a, b) {
+      var k = sortKey(b) - sortKey(a);
+      if (k !== 0) return k;
+      // Same month+year (e.g. two different clients) — the more recently
+      // created one is what "open the latest sheet" should land on.
       return (b.createdAt || '').localeCompare(a.createdAt || '');
     })[0];
+  }
+  function activeMonthKey() {
+    var latest = latestSheet();
+    return latest ? (latest.year + '-' + latest.month) : null;
+  }
+  function isInActiveMonth(sheet) {
+    if (!sheet) return false;
+    return activeMonthKey() === (sheet.year + '-' + sheet.month);
   }
   function currentSheet() {
     var s = state.currentSheetId ? findSheet(state.currentSheetId) : null;
@@ -409,7 +421,7 @@
     }
     var lc = lastCompletedDay(sheet);
     var lastKm = lastKmFineOverall(sheet);
-    var isLatest = isNewestSheet(sheet);
+    var activeMonth = isInActiveMonth(sheet);
     var monthSheets = sheetsForMonth(sheet.month, sheet.year);
     var multiClient = monthSheets.length > 1;
     var summary = monthSummary(sheet.month, sheet.year);
@@ -418,9 +430,12 @@
 
     var html = '';
 
-    // 1) Which month, which sheet is active, quick actions.
+    // 1) Which month, which sheet is active, quick actions. "Active"
+    // describes the MONTH (the driver works one month at a time), not a
+    // specific client — a past month's client sheet can still be opened
+    // and edited, but it isn't "active" again just because you touched it.
     html += '<div class="card active-card"><div class="route-dashes"></div>';
-    html += '<span class="badge ' + (isLatest ? '' : 'muted') + '">' + (isLatest ? 'Foglio attivo' : 'Foglio archiviato') + '</span>';
+    html += '<span class="badge ' + (activeMonth ? '' : 'muted') + '">' + (activeMonth ? 'Mese attivo' : 'Mese archiviato') + '</span>';
     html += '<h2>' + MESI[sheet.month - 1] + ' ' + sheet.year;
     if (multiClient) html += ' <span class="multi-badge">' + monthSheets.length + ' clienti</span>';
     html += '</h2>';
@@ -436,8 +451,8 @@
     html += '<button class="btn btn-accent" style="flex:1" id="home-pdf">Anteprima PDF</button>';
     html += '</div></div>';
 
-    if (!isLatest) {
-      html += '<button class="link-btn" id="home-jump-latest" style="display:block;margin:14px auto 0;">Vai al foglio più recente →</button>';
+    if (!activeMonth) {
+      html += '<button class="link-btn" id="home-jump-latest" style="display:block;margin:14px auto 0;">Vai al mese attivo →</button>';
     }
 
     // 2) Viaggi totali / KM totali — the whole month, all clients combined.
@@ -608,9 +623,10 @@
     }
     // Group sheets by month, so it's clear at a glance which client-sheets
     // belong together (same month), instead of a flat list where that
-    // wasn't obvious. The "active" tag now sits right next to the specific
-    // client it applies to, instead of a standalone line that didn't say
-    // which client it meant.
+    // wasn't obvious. "Active" describes the whole MONTH group, not any
+    // one client inside it — once a month ends, work moves to the next
+    // one, so a client can't stay "active" just because its sheet was
+    // edited most recently.
     var monthsSeen = {};
     var groups = [];
     sorted.forEach(function (s) {
@@ -623,20 +639,21 @@
       }
       group.sheets.push(s);
     });
+    var activeKey = activeMonthKey();
 
     var html = '';
     groups.forEach(function (grp) {
+      var groupActive = activeKey === (grp.year + '-' + grp.month);
       html += '<div class="card archive-group">';
       html += '<div class="archive-group-title">' + MESI[grp.month - 1] + ' ' + grp.year;
+      if (groupActive) html += '<span class="active-tag">MESE ATTIVO</span>';
       if (grp.sheets.length > 1) html += '<span class="archive-group-count">' + grp.sheets.length + ' fogli</span>';
       html += '</div>';
       grp.sheets.forEach(function (s, idx) {
-        var isLatest = isNewestSheet(s);
         var filled = Object.keys(s.giorni).filter(function (d) { return s.giorni[d] && (s.giorni[d].a || s.giorni[d].kmFine !== ""); }).length;
         html += '<div class="archive-row"' + (idx > 0 ? ' style="border-top:1px solid var(--line);"' : '') + '>';
         html += '<div class="archive-row-left">';
         html += '<div class="archive-row-name"><span class="client-chip">' + escapeHtml(s.perContoDi || '—') + '</span>';
-        if (isLatest) html += '<span class="active-tag">ATTIVO</span>';
         html += '</div>';
         html += '<div class="archive-row-sub">' + escapeHtml(s.nome || '—') + ' · ' + escapeHtml(s.targa || '—') + ' · ' + filled + ' viaggi</div>';
         html += '</div>';
