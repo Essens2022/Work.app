@@ -543,11 +543,16 @@
     });
   }
 
-  // How far the person can pinch-zoom into the PDF preview. The canvas is
-  // rendered at high enough resolution to stay crisp at this exact zoom
-  // level (no more, no less) — bumping this number automatically renders
-  // a sharper canvas to match, so quality is never lost even at max zoom.
+  // How far the person can pinch-zoom into the PDF preview.
   var PDF_MAX_ZOOM = 6;
+  // The canvas always renders at true print quality (400 DPI — well above
+  // the 300 DPI print-shop standard) at minimum, regardless of screen size
+  // or zoom level, so the preview looks exactly as sharp as a printed
+  // page even when magnified. On very high-density screens combined with
+  // deep zoom, the resolution goes higher still, matching whichever of the
+  // two requirements (print quality vs. screen-perfect zoom) is greater.
+  var PRINT_DPI = 400;
+  var PDF_POINTS_PER_INCH = 72;
 
   function renderPageToCanvas(page) {
     var wrap = document.getElementById('pdf-frame-wrap');
@@ -565,16 +570,16 @@
     var baseViewport = page.getViewport({ scale: 1 });
     // "fitScale" = how big the page should LOOK on screen at 1x (unzoomed).
     var fitScale = Math.min(wrapRect.width / baseViewport.width, wrapRect.height / baseViewport.height);
-    // Render enough actual pixels to stay sharp even at PDF_MAX_ZOOM, on
-    // this exact device's pixel density — every native canvas pixel maps
-    // to a real screen pixel all the way up to full zoom, so nothing
-    // blurs or pixelates.
-    var renderScale = fitScale * dpr * PDF_MAX_ZOOM;
+    var printQualityScale = PRINT_DPI / PDF_POINTS_PER_INCH;
+    var screenZoomScale = fitScale * dpr * PDF_MAX_ZOOM;
+    var renderScale = Math.max(printQualityScale, screenZoomScale);
     var viewport = page.getViewport({ scale: renderScale });
     canvas.width = viewport.width;
     canvas.height = viewport.height;
     canvas.style.width = (fitScale * baseViewport.width) + 'px';
     canvas.style.height = (fitScale * baseViewport.height) + 'px';
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     return page.render({ canvasContext: ctx, viewport: viewport }).promise;
   }
 
