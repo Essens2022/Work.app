@@ -195,18 +195,18 @@
     position:fixed;bottom:0;left:0;right:0;z-index:30;
     display:flex;justify-content:center;
   }
-  /* The safe-area calculation (env(safe-area-inset-bottom)) is correctly
-     wired up and does return a real value on ION's phone (confirmed: 34px)
-     — but a visible gap still remains below it in standalone/installed-app
-     mode specifically, for reasons that have proven hard to pin down
-     exactly on that device. Rather than keep guessing at the precise
-     number, the background is extended with a generous fixed buffer
-     (well beyond the calculated safe-area) so it reliably reaches the
-     true bottom edge regardless of the exact device. */
+  /* ION clarified what was actually happening: the bar's own white
+     background box was too tall, with the buttons sitting too high up
+     inside it (a lot of empty white space below them, still within the
+     bar itself) — not a gap between the bar and the true screen edge.
+     The earlier "generous buffer" attempt made this worse by adding
+     extra padding and pushing the buttons up even further. Reverted to
+     the standard, minimal safe-area padding, with the buttons centered
+     in a properly-sized bar. */
   .bottomnav-inner{
     max-width:560px;width:100%;background:rgba(255,255,255,.96);backdrop-filter:blur(14px);
-    border-top:1px solid var(--line);display:flex;align-items:flex-start;
-    padding:8px 10px calc(8px + var(--safe-bottom) + 30px);
+    border-top:1px solid var(--line);display:flex;align-items:center;
+    padding:8px 10px calc(8px + var(--safe-bottom));
     box-shadow:0 -6px 20px rgba(28,27,31,.05);
   }
   .navbtn{
