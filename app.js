@@ -538,7 +538,8 @@
         return pdf.getPage(1);
       }).then(function (page) {
         pdfPreviewPage = page;
-        return renderPageAtZoomFactor(page, INITIAL_RENDER_ZOOM_FACTOR);
+        currentZoomLevel = 1;
+        return renderAtZoomLevel(page, 1);
       });
     }).catch(function (err) {
       console.error(err);
@@ -547,29 +548,19 @@
   }
 
   // How far the person can pinch-zoom into the PDF preview.
-  var PDF_MAX_ZOOM = 6;
-  // Baseline quality target: true print quality (400 DPI — above the
-  // 300 DPI print-shop standard). If the person zooms in further than
-  // this comfortably supports, the canvas is quietly re-drawn sharper,
-  // matching how far they've zoomed.
-  //
+  var PDF_MAX_ZOOM = 8;
   // MAX_CANVAS_DIMENSION is a hard safety ceiling: phones (especially
   // iPhones) silently fail or degrade canvases beyond a certain pixel
-  // count, so no matter how much zoom is requested, we never ask for a
-  // canvas bigger than every modern device can reliably render. This is
-  // the actual, real ceiling on quality — not a number we chose lightly,
-  // it's the point past which quality would silently break instead of
-  // improving.
-  var PRINT_DPI = 400;
-  var PDF_POINTS_PER_INCH = 72;
-  var INITIAL_RENDER_ZOOM_FACTOR = PRINT_DPI / PDF_POINTS_PER_INCH; // ≈5.56, independent of screen/zoom
+  // count. The canvas's on-screen size and its actual resolution are
+  // always kept in a strict 1:1 match (accounting for screen density) up
+  // to this ceiling, so the preview is never a stretched/blurry image —
+  // it is always displayed at its true native resolution, exactly like
+  // the downloaded file would look.
   var MAX_CANVAS_DIMENSION = 4096;
   var pdfPreviewPage = null;
-  var currentRenderZoomFactor = 1;
-  var qualityUpgradeTimer = null;
-  var qualityUpgradeInFlight = false;
+  var currentZoomLevel = 1;
 
-  function renderPageAtZoomFactor(page, zoomFactor) {
+  function renderAtZoomLevel(page, zoomLevel) {
     var wrap = document.getElementById('pdf-frame-wrap');
     if (!wrap || !page) return Promise.resolve();
     if (!document.getElementById('pdf-canvas-stage')) {
@@ -583,48 +574,34 @@
     var wrapRect = wrap.getBoundingClientRect();
     var dpr = window.devicePixelRatio || 1;
     var baseViewport = page.getViewport({ scale: 1 });
-    // "fitScale" = how big the page LOOKS on screen at 1x (unzoomed) — this
-    // stays constant; only the underlying resolution (sharpness) changes.
+    // "fitScale" = the size at which the page fills the frame at zoom 1x.
     var fitScale = Math.min(wrapRect.width / baseViewport.width, wrapRect.height / baseViewport.height);
-    var renderScale = fitScale * dpr * zoomFactor;
 
-    // Never exceed the safe canvas size, on any device.
+    var renderScale = fitScale * zoomLevel * dpr;
     var testViewport = page.getViewport({ scale: renderScale });
     var maxDim = Math.max(testViewport.width, testViewport.height);
+    var effectiveZoomLevel = zoomLevel;
     if (maxDim > MAX_CANVAS_DIMENSION) {
-      renderScale = renderScale * (MAX_CANVAS_DIMENSION / maxDim);
+      var capRatio = MAX_CANVAS_DIMENSION / maxDim;
+      renderScale = renderScale * capRatio;
+      effectiveZoomLevel = zoomLevel * capRatio; // keep CSS size matched 1:1 to what we can actually render
     }
 
     var viewport = page.getViewport({ scale: renderScale });
     canvas.width = viewport.width;
     canvas.height = viewport.height;
-    canvas.style.width = (fitScale * baseViewport.width) + 'px';
-    canvas.style.height = (fitScale * baseViewport.height) + 'px';
+    // The canvas' CSS size grows exactly with zoom — never CSS-upscaled
+    // beyond its native pixels. When zoomed in, the canvas becomes
+    // physically bigger than the frame, and the frame's native scrolling
+    // (see CSS) lets the person drag with one finger to look around.
+    canvas.style.width = (fitScale * baseViewport.width * effectiveZoomLevel) + 'px';
+    canvas.style.height = (fitScale * baseViewport.height * effectiveZoomLevel) + 'px';
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    currentRenderZoomFactor = zoomFactor;
     return page.render({ canvasContext: ctx, viewport: viewport }).promise.catch(function (err) {
       console.error('Errore nel disegnare il PDF:', err);
       throw err;
     });
-  }
-
-  // Called whenever a pinch/double-tap gesture settles — if the person is
-  // now zoomed in further than the canvas' current resolution comfortably
-  // supports, quietly re-draws it sharper in the background, matching the
-  // new zoom level exactly (plus a little headroom for the next step),
-  // always staying within the safe canvas size ceiling above.
-  function scheduleQualityUpgrade(targetZoom) {
-    clearTimeout(qualityUpgradeTimer);
-    qualityUpgradeTimer = setTimeout(function () {
-      if (qualityUpgradeInFlight || !pdfPreviewPage) return;
-      var neededFactor = targetZoom * 1.4;
-      if (neededFactor <= currentRenderZoomFactor * 1.05) return; // already sharp enough
-      qualityUpgradeInFlight = true;
-      renderPageAtZoomFactor(pdfPreviewPage, neededFactor)
-        .catch(function () { /* keep showing the last good render */ })
-        .then(function () { qualityUpgradeInFlight = false; });
-    }, 220);
   }
 
   function downloadCurrentPdf() {
@@ -657,27 +634,14 @@
     var hint = document.getElementById('pdf-zoom-hint');
     if (!wrap || !stage) return;
 
-    var MIN_SCALE = 1, MAX_SCALE = PDF_MAX_ZOOM;
-    var zoom = { scale: 1, x: 0, y: 0 };
+    var MIN_ZOOM = 1, MAX_ZOOM = PDF_MAX_ZOOM;
     var pointers = {};
-    var pinch = { active: false, startDist: 0, startScale: 1 };
-    var pan = { active: false, startX: 0, startY: 0, originX: 0, originY: 0 };
+    var pinch = { active: false, startDist: 0, startZoom: 1, liveZoom: 1 };
     var lastTapTime = 0;
     var hintHidden = false;
+    var settleTimer = null;
 
     function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
-
-    function clampPan() {
-      var rect = wrap.getBoundingClientRect();
-      var maxX = Math.max(0, (rect.width * (zoom.scale - 1)) / 2);
-      var maxY = Math.max(0, (rect.height * (zoom.scale - 1)) / 2);
-      zoom.x = clamp(zoom.x, -maxX, maxX);
-      zoom.y = clamp(zoom.y, -maxY, maxY);
-    }
-
-    function apply() {
-      stage.style.transform = 'translate(' + zoom.x + 'px,' + zoom.y + 'px) scale(' + zoom.scale + ')';
-    }
 
     function dismissHint() {
       if (hintHidden || !hint) return;
@@ -685,20 +649,40 @@
       hint.classList.add('hide');
     }
 
-    function setZoom(scale, focalX, focalY) {
-      scale = clamp(scale, MIN_SCALE, MAX_SCALE);
-      if (focalX !== undefined) {
-        var rect = wrap.getBoundingClientRect();
-        var fx = focalX - rect.left - rect.width / 2;
-        var fy = focalY - rect.top - rect.height / 2;
-        var ratio = scale / zoom.scale;
-        zoom.x = fx - (fx - zoom.x) * ratio;
-        zoom.y = fy - (fy - zoom.y) * ratio;
-      }
-      zoom.scale = scale;
-      clampPan();
-      apply();
-      scheduleQualityUpgrade(scale);
+    // While actively pinching, give instant visual feedback with a cheap
+    // CSS scale (briefly not pixel-perfect — expected while fingers are
+    // still moving). The moment the gesture settles, the canvas is
+    // re-drawn at its true native resolution for that zoom level, and the
+    // temporary CSS scale is removed — so the final, still image is
+    // always sharp, never a stretched preview.
+    function applyLiveFeedback(scaleRelativeToCurrent) {
+      var canvas = document.getElementById('pdf-canvas');
+      if (canvas) canvas.style.transform = 'scale(' + scaleRelativeToCurrent + ')';
+    }
+
+    function commitZoom(targetZoom, focalXInWrap, focalYInWrap) {
+      targetZoom = clamp(targetZoom, MIN_ZOOM, MAX_ZOOM);
+      var canvas = document.getElementById('pdf-canvas');
+      if (!canvas || !pdfPreviewPage) return;
+
+      // Remember what content point is currently under the focal point,
+      // as a fraction of the canvas' current CSS size, so we can scroll
+      // back to the same spot after the canvas is resized.
+      var oldCssW = parseFloat(canvas.style.width) || canvas.clientWidth;
+      var oldCssH = parseFloat(canvas.style.height) || canvas.clientHeight;
+      var scrollX = wrap.scrollLeft + focalXInWrap;
+      var scrollY = wrap.scrollTop + focalYInWrap;
+      var fracX = oldCssW ? scrollX / oldCssW : 0.5;
+      var fracY = oldCssH ? scrollY / oldCssH : 0.5;
+
+      canvas.style.transform = '';
+      renderAtZoomLevel(pdfPreviewPage, targetZoom).then(function () {
+        currentZoomLevel = targetZoom;
+        var newCssW = parseFloat(canvas.style.width) || canvas.clientWidth;
+        var newCssH = parseFloat(canvas.style.height) || canvas.clientHeight;
+        wrap.scrollLeft = clamp(fracX * newCssW - focalXInWrap, 0, Math.max(0, newCssW - wrap.clientWidth));
+        wrap.scrollTop = clamp(fracY * newCssH - focalYInWrap, 0, Math.max(0, newCssH - wrap.clientHeight));
+      });
     }
 
     wrap.addEventListener('pointerdown', function (e) {
@@ -707,22 +691,23 @@
       pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
       var ids = Object.keys(pointers);
       if (ids.length === 2) {
-        pan.active = false;
+        clearTimeout(settleTimer);
         var p1 = pointers[ids[0]], p2 = pointers[ids[1]];
         pinch.active = true;
         pinch.startDist = Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1;
-        pinch.startScale = zoom.scale;
+        pinch.startZoom = currentZoomLevel;
+        pinch.liveZoom = currentZoomLevel;
       } else if (ids.length === 1) {
         var now = Date.now();
         if (now - lastTapTime < 300) {
-          if (zoom.scale > 1) { setZoom(1); } else { setZoom(2.2, e.clientX, e.clientY); }
+          var rect = wrap.getBoundingClientRect();
+          var focalX = e.clientX - rect.left, focalY = e.clientY - rect.top;
+          var target = currentZoomLevel > 1 ? 1 : 2.2;
+          commitZoom(target, focalX, focalY);
           lastTapTime = 0;
           return;
         }
         lastTapTime = now;
-        pan.active = true;
-        pan.startX = e.clientX; pan.startY = e.clientY;
-        pan.originX = zoom.x; pan.originY = zoom.y;
       }
     });
 
@@ -733,23 +718,21 @@
       if (ids.length === 2 && pinch.active) {
         var p1 = pointers[ids[0]], p2 = pointers[ids[1]];
         var dist = Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1;
-        var midX = (p1.x + p2.x) / 2, midY = (p1.y + p2.y) / 2;
-        setZoom(pinch.startScale * (dist / pinch.startDist), midX, midY);
-      } else if (ids.length === 1 && pan.active && zoom.scale > 1) {
-        zoom.x = pan.originX + (e.clientX - pan.startX);
-        zoom.y = pan.originY + (e.clientY - pan.startY);
-        clampPan();
-        apply();
+        var candidateZoom = clamp(pinch.startZoom * (dist / pinch.startDist), MIN_ZOOM, MAX_ZOOM);
+        pinch.liveZoom = candidateZoom;
+        applyLiveFeedback(candidateZoom / currentZoomLevel);
       }
     });
 
     function endPointer(e) {
       delete pointers[e.pointerId];
       var remaining = Object.keys(pointers).length;
-      if (remaining < 2) pinch.active = false;
-      if (remaining === 0) {
-        pan.active = false;
-        if (zoom.scale <= 1.02) { zoom.scale = 1; zoom.x = 0; zoom.y = 0; apply(); }
+      if (remaining < 2 && pinch.active) {
+        pinch.active = false;
+        var wrapRect = wrap.getBoundingClientRect();
+        // Settle on the last pinch center, roughly — the middle of the
+        // frame is a reasonable default once fingers have lifted.
+        commitZoom(pinch.liveZoom, wrapRect.width / 2, wrapRect.height / 2);
       }
     }
     wrap.addEventListener('pointerup', endPointer);
