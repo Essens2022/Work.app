@@ -58,6 +58,14 @@
     acResults: []
   };
 
+  // Set when a new app version is ready but a modal is currently open — the
+  // page reloads to pick it up as soon as that modal closes, so no unsaved
+  // typing is lost, but the update still lands as quickly as possible.
+  var pendingReloadAfterModalClose = false;
+  function reloadIfUpdatePending() {
+    if (pendingReloadAfterModalClose) window.location.reload();
+  }
+
   /* ---------------------------------------------------------------- */
   /* Utilities                                                         */
   /* ---------------------------------------------------------------- */
@@ -923,7 +931,7 @@
     document.getElementById('ac-list').classList.remove('show');
     dayModal.classList.add('open');
   }
-  function closeDayEditor() { dayModal.classList.remove('open'); state.editingDay = null; }
+  function closeDayEditor() { dayModal.classList.remove('open'); state.editingDay = null; reloadIfUpdatePending(); }
 
   // Tapping the dark area outside the sheet (not the sheet itself) closes it
   // without saving — same as tapping "Svuota giorno" is NOT required just to dismiss.
@@ -1110,6 +1118,7 @@
   document.getElementById('settings-cancel').addEventListener('click', function () {
     if (!state.profile.nome && !settingsTargetSheet) return; // force first-run completion
     settingsModal.classList.remove('open');
+    reloadIfUpdatePending();
   });
   document.getElementById('settings-save').addEventListener('click', function () {
     var nome = document.getElementById('in-nome').value.trim();
@@ -1142,6 +1151,7 @@
     settingsModal.classList.remove('open');
     toast('Dati salvati');
     render();
+    reloadIfUpdatePending();
   });
 
   /* ---------------------------------------------------------------- */
@@ -1159,8 +1169,8 @@
     slot.innerHTML = '';
     if (opts.stepperHtml) slot.innerHTML = opts.stepperHtml;
     confirmModal.classList.add('open');
-    var onOk = function () { confirmModal.classList.remove('open'); cleanup(); opts.onConfirm && opts.onConfirm(); };
-    var onCancel = function () { confirmModal.classList.remove('open'); cleanup(); opts.onCancel && opts.onCancel(); };
+    var onOk = function () { confirmModal.classList.remove('open'); cleanup(); opts.onConfirm && opts.onConfirm(); reloadIfUpdatePending(); };
+    var onCancel = function () { confirmModal.classList.remove('open'); cleanup(); opts.onCancel && opts.onCancel(); reloadIfUpdatePending(); };
     function cleanup() {
       okBtn.removeEventListener('click', onOk);
       document.getElementById('confirm-cancel').removeEventListener('click', onCancel);
@@ -1207,11 +1217,13 @@
         state.currentSheetId = existing.id; setCurrentSheetId(existing.id);
         toast('Foglio ' + MESI[m - 1] + ' ' + y + ' già esistente — aperto');
         showScreen('foglio');
+        reloadIfUpdatePending();
         return;
       }
       createSheet(m, y);
       toast('Nuovo foglio creato: ' + MESI[m - 1] + ' ' + y);
       showScreen('foglio');
+      reloadIfUpdatePending();
     };
   }
   document.getElementById('btn-nuovo-foglio').addEventListener('click', openNewSheetFlow);
@@ -1303,9 +1315,39 @@
     }
     showScreen('home');
 
+    // Installed home-screen apps sometimes resume from a suspended state
+    // instead of doing a real page load — meaning the browser never even
+    // checks whether app.js changed. To make the installed app update just
+    // as fast as visiting the website directly, we actively ask the
+    // service worker to check for updates (right away, whenever the app
+    // comes back to the foreground, and periodically while it's open), and
+    // reload automatically the moment a new version takes over — unless
+    // the person has an unsaved form open, in which case we wait so
+    // nothing gets lost.
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('sw.js').catch(function () { /* offline install may fail on first run without https */ });
+        navigator.serviceWorker.register('sw.js').then(function (registration) {
+          function checkForUpdate() { registration.update().catch(function () { /* offline, ignore */ }); }
+
+          checkForUpdate();
+          document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') checkForUpdate();
+          });
+          setInterval(checkForUpdate, 60000);
+        }).catch(function () { /* offline install may fail on first run without https */ });
+      });
+
+      var refreshingAfterUpdate = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (refreshingAfterUpdate) return;
+        var modalOpen = document.querySelector('.modal-overlay.open');
+        if (modalOpen) {
+          pendingReloadAfterModalClose = true;
+          toast('Nuova versione pronta — verrà applicata alla chiusura di questa finestra');
+          return;
+        }
+        refreshingAfterUpdate = true;
+        window.location.reload();
       });
     }
   }
