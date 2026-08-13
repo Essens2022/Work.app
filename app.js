@@ -19,7 +19,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v46"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v47"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2330,6 +2330,40 @@
     // reload automatically the moment a new version takes over — unless
     // the person has an unsaved form open, in which case we wait so
     // nothing gets lost.
+    //
+    // Two independent mechanisms below (the service worker's own update
+    // cycle, and a direct version-file check — the second exists because
+    // iOS is known to delay or skip the first one for installed apps) can
+    // both decide a reload is needed. Without coordination, that risked
+    // exactly the instability a driver reported — the app reloading
+    // itself repeatedly, in a rapid, flashing loop, especially right
+    // after a fresh release goes out and different checks briefly see
+    // slightly different states. A SINGLE shared gate, respected by both,
+    // guarantees at most one reload actually happens, and a real minimum
+    // gap (persisted in sessionStorage, so it survives the reload itself)
+    // stops any chain of reloads from ever forming, not just duplicate
+    // reloads within one page load.
+    var RELOAD_COOLDOWN_MS = 20000;
+    var reloadTriggeredThisLoad = false;
+    function recentlyReloaded() {
+      try {
+        var last = sessionStorage.getItem('pt_last_auto_reload');
+        return !!(last && (Date.now() - parseInt(last, 10)) < RELOAD_COOLDOWN_MS);
+      } catch (e) { return false; } // sessionStorage unavailable — don't block updating over this
+    }
+    function triggerReload() {
+      if (reloadTriggeredThisLoad || recentlyReloaded()) return;
+      var modalOpen = document.querySelector('.modal-overlay.open');
+      if (modalOpen) {
+        pendingReloadAfterModalClose = true;
+        toast('Nuova versione pronta — verrà applicata alla chiusura di questa finestra');
+        return;
+      }
+      reloadTriggeredThisLoad = true;
+      try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
+      window.location.reload();
+    }
+
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
         navigator.serviceWorker.register('sw.js').then(function (registration) {
@@ -2343,18 +2377,7 @@
         }).catch(function () { /* offline install may fail on first run without https */ });
       });
 
-      var refreshingAfterUpdate = false;
-      navigator.serviceWorker.addEventListener('controllerchange', function () {
-        if (refreshingAfterUpdate) return;
-        var modalOpen = document.querySelector('.modal-overlay.open');
-        if (modalOpen) {
-          pendingReloadAfterModalClose = true;
-          toast('Nuova versione pronta — verrà applicata alla chiusura di questa finestra');
-          return;
-        }
-        refreshingAfterUpdate = true;
-        window.location.reload();
-      });
+      navigator.serviceWorker.addEventListener('controllerchange', triggerReload);
     }
 
     // A SECOND, independent way of noticing a new version — iOS in
@@ -2364,19 +2387,15 @@
     // leave a phone showing an old version even with good internet and
     // the app opened normally. This check doesn't rely on the service
     // worker's update machinery at all: it just fetches a tiny version
-    // marker file directly, with caching fully bypassed, and reloads if
-    // it doesn't match what's currently running — a plain network
+    // marker file directly, with caching fully bypassed — a plain network
     // request behaves far more predictably than background service
-    // worker scheduling.
+    // worker scheduling. Any reload it decides to trigger goes through
+    // the same shared gate above.
     function checkVersionDirectly() {
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== APP_VERSION) {
-            var modalOpen = document.querySelector('.modal-overlay.open');
-            if (modalOpen) { pendingReloadAfterModalClose = true; return; }
-            window.location.reload();
-          }
+          if (data && data.v && data.v !== APP_VERSION) triggerReload();
         })
         .catch(function () { /* offline or blocked — silently skip, try again later */ });
     }
