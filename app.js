@@ -19,7 +19,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v42"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v43"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -69,6 +69,17 @@
   function loadFuel() { return loadJSON(LS_FUEL, {}); }
   function saveFuel(obj) { saveJSON(LS_FUEL, obj); }
   function fuelMonthKey(month, year) { return year + '-' + month; }
+
+  // Registry of available PDF layouts. Each client (sheet) can use a
+  // different one — different companies sometimes require a different
+  // document shape for the same driver. New layouts get added here over
+  // time; 'code' is the short label shown when picking one, kept to a
+  // few letters so it stays easy to tell apart and remember at a glance.
+  var PDF_TEMPLATES = {
+    'classic': { code: 'STD', name: 'Standard', desc: 'Un giro al giorno' },
+    'due-giri': { code: '2G', name: 'Due Giri/Giorno', desc: 'Due destinazioni e DDT separati nello stesso giorno' }
+  };
+  var DEFAULT_PDF_TEMPLATE = 'classic';
   // Removes ONE specific receipt photo (by index) from a day — a day can
   // now hold several receipts (e.g. if the pump printed more than one, or
   // something went wrong and it needed retrying), so deleting means
@@ -304,7 +315,15 @@
   /* Sheet data model                                                   */
   /* ---------------------------------------------------------------- */
   function emptyGiorno(prefillDa, prefillProvDa) {
-    return { da: prefillDa || "", provDa: prefillProvDa || "", a: "", provA: "", ddt: "", kmInizio: "", kmFine: "", bonus: "" };
+    return {
+      da: prefillDa || "", provDa: prefillProvDa || "", a: "", provA: "", ddt: "",
+      // Second destination/DDT — only shown and used on sheets using the
+      // 'due-giri' PDF template; present on every giorno regardless, kept
+      // simply empty otherwise, so switching a sheet's template later
+      // doesn't require migrating existing days.
+      a2: "", provA2: "", ddt2: "",
+      kmInizio: "", kmFine: "", bonus: ""
+    };
   }
 
   function buildGiorni(month, year, da, provDa) {
@@ -355,7 +374,7 @@
     return null;
   }
 
-  function createSheet(month, year, perContoDi, countsForDailyRate) {
+  function createSheet(month, year, perContoDi, countsForDailyRate, pdfTemplate) {
     var client = (perContoDi || state.profile.perContoDi || 'BARCELLA').trim().toUpperCase();
     var existing = sheetForMonth(month, year, client);
     if (existing) return existing;
@@ -369,6 +388,10 @@
       // amount (entered as that day's bonus) instead of the full daily
       // rate, only earning the daily rate from their "own" main client.
       countsForDailyRate: countsForDailyRate !== false,
+      // Which PDF layout this client's sheet uses (see PDF_TEMPLATES) —
+      // set once when the sheet is created, since it reflects what
+      // paperwork that specific client requires, not a global preference.
+      pdfTemplate: (pdfTemplate && PDF_TEMPLATES[pdfTemplate]) ? pdfTemplate : DEFAULT_PDF_TEMPLATE,
       createdAt: new Date().toISOString(),
       giorni: buildGiorni(month, year, state.profile.da, state.profile.provDa)
     };
@@ -995,53 +1018,130 @@
 
     // Table
     var tableY = gy + giroH;
-    var colWidths = {
-      data: contentW * 0.035,
-      da: contentW * 0.145,
-      provDa: contentW * 0.045,
-      a: contentW * 0.165,
-      provA: contentW * 0.045,
-      ddt: contentW * 0.125,
-      kmI: contentW * 0.125,
-      kmF: contentW * 0.125,
-      kmT: contentW * 0.14
-    };
+    var isDueGiri = sheet.pdfTemplate === 'due-giri';
+    var colWidths, head, body;
 
-    var head = [
-      [
-        { content: 'Data', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
-        { content: 'Località di destinazione:', colSpan: 4, styles: { halign: 'center' } },
-        { content: 'DDT', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
-        { content: 'KM INIZIO', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
-        { content: 'KM FINE', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
-        { content: 'KM TOT.', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } }
-      ],
-      [
-        { content: 'Da:', styles: { halign: 'center' } },
-        { content: 'Prov.', styles: { halign: 'center' } },
-        { content: 'A:', styles: { halign: 'center' } },
-        { content: 'Prov.', styles: { halign: 'center' } }
-      ]
-    ];
+    if (isDueGiri) {
+      // Two separate trips (each with its own destination + DDT) can
+      // happen on the same day — some clients require that split
+      // explicitly rather than combining it into one row.
+      colWidths = {
+        data: contentW * 0.028, da: contentW * 0.115, provDa: contentW * 0.032,
+        a1: contentW * 0.105, provA1: contentW * 0.032, ddt1: contentW * 0.085,
+        a2: contentW * 0.105, provA2: contentW * 0.032, ddt2: contentW * 0.085,
+        kmI: contentW * 0.12, kmF: contentW * 0.12, kmT: contentW * 0.141
+      };
+      head = [
+        [
+          { content: 'Data', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+          { content: 'Partenza', colSpan: 2, styles: { halign: 'center' } },
+          { content: 'Giro 1', colSpan: 3, styles: { halign: 'center' } },
+          { content: 'Giro 2', colSpan: 3, styles: { halign: 'center' } },
+          { content: 'KM INIZIO', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+          { content: 'KM FINE', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+          { content: 'KM TOT.', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } }
+        ],
+        [
+          { content: 'Da:', styles: { halign: 'center' } },
+          { content: 'Prov.', styles: { halign: 'center' } },
+          { content: 'A:', styles: { halign: 'center' } },
+          { content: 'Prov.', styles: { halign: 'center' } },
+          { content: 'DDT', styles: { halign: 'center' } },
+          { content: 'A:', styles: { halign: 'center' } },
+          { content: 'Prov.', styles: { halign: 'center' } },
+          { content: 'DDT', styles: { halign: 'center' } }
+        ]
+      ];
+      body = [];
+      var n2 = daysInMonth(sheet.month, sheet.year);
+      for (var d2 = 1; d2 <= 31; d2++) {
+        var g2 = d2 <= n2 ? sheet.giorni[d2] : null;
+        if (!g2) { body.push([d2 <= n2 ? d2 : '', '', '', '', '', '', '', '', '', '', '', '']); continue; }
+        var kmTot2 = (g2.kmInizio !== "" && g2.kmFine !== "" && !isNaN(g2.kmFine - g2.kmInizio)) ? (Number(g2.kmFine) - Number(g2.kmInizio)) : '';
+        body.push([
+          d2,
+          g2.da || '', g2.provDa || '',
+          g2.a || '', g2.provA || '', g2.ddt || '',
+          g2.a2 || '', g2.provA2 || '', g2.ddt2 || '',
+          g2.kmInizio !== "" ? g2.kmInizio : '',
+          g2.kmFine !== "" ? g2.kmFine : '',
+          kmTot2 !== '' ? kmTot2 : ''
+        ]);
+      }
+    } else {
+      colWidths = {
+        data: contentW * 0.035,
+        da: contentW * 0.145,
+        provDa: contentW * 0.045,
+        a: contentW * 0.165,
+        provA: contentW * 0.045,
+        ddt: contentW * 0.125,
+        kmI: contentW * 0.125,
+        kmF: contentW * 0.125,
+        kmT: contentW * 0.14
+      };
 
-    var body = [];
-    var n = daysInMonth(sheet.month, sheet.year);
-    for (var d = 1; d <= 31; d++) {
-      var g = d <= n ? sheet.giorni[d] : null;
-      if (!g) { body.push([d <= n ? d : '', '', '', '', '', '', '', '', '']); continue; }
-      var kmTot = (g.kmInizio !== "" && g.kmFine !== "" && !isNaN(g.kmFine - g.kmInizio)) ? (Number(g.kmFine) - Number(g.kmInizio)) : '';
-      body.push([
-        d,
-        g.da || '',
-        g.provDa || '',
-        g.a || '',
-        g.provA || '',
-        g.ddt || '',
-        g.kmInizio !== "" ? g.kmInizio : '',
-        g.kmFine !== "" ? g.kmFine : '',
-        kmTot !== '' ? kmTot : ''
-      ]);
+      head = [
+        [
+          { content: 'Data', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+          { content: 'Località di destinazione:', colSpan: 4, styles: { halign: 'center' } },
+          { content: 'DDT', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+          { content: 'KM INIZIO', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+          { content: 'KM FINE', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+          { content: 'KM TOT.', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } }
+        ],
+        [
+          { content: 'Da:', styles: { halign: 'center' } },
+          { content: 'Prov.', styles: { halign: 'center' } },
+          { content: 'A:', styles: { halign: 'center' } },
+          { content: 'Prov.', styles: { halign: 'center' } }
+        ]
+      ];
+
+      body = [];
+      var n = daysInMonth(sheet.month, sheet.year);
+      for (var d = 1; d <= 31; d++) {
+        var g = d <= n ? sheet.giorni[d] : null;
+        if (!g) { body.push([d <= n ? d : '', '', '', '', '', '', '', '', '']); continue; }
+        var kmTot = (g.kmInizio !== "" && g.kmFine !== "" && !isNaN(g.kmFine - g.kmInizio)) ? (Number(g.kmFine) - Number(g.kmInizio)) : '';
+        body.push([
+          d,
+          g.da || '',
+          g.provDa || '',
+          g.a || '',
+          g.provA || '',
+          g.ddt || '',
+          g.kmInizio !== "" ? g.kmInizio : '',
+          g.kmFine !== "" ? g.kmFine : '',
+          kmTot !== '' ? kmTot : ''
+        ]);
+      }
     }
+
+    var columnStyles = isDueGiri ? {
+      0: { cellWidth: colWidths.data, halign: 'center', fontStyle: 'bold' },
+      1: { cellWidth: colWidths.da, halign: 'center' },
+      2: { cellWidth: colWidths.provDa, halign: 'center' },
+      3: { cellWidth: colWidths.a1, halign: 'center' },
+      4: { cellWidth: colWidths.provA1, halign: 'center' },
+      5: { cellWidth: colWidths.ddt1, halign: 'center' },
+      6: { cellWidth: colWidths.a2, halign: 'center' },
+      7: { cellWidth: colWidths.provA2, halign: 'center' },
+      8: { cellWidth: colWidths.ddt2, halign: 'center' },
+      9: { cellWidth: colWidths.kmI, halign: 'center' },
+      10: { cellWidth: colWidths.kmF, halign: 'center' },
+      11: { cellWidth: colWidths.kmT, halign: 'center', fontStyle: 'bold' }
+    } : {
+      0: { cellWidth: colWidths.data, halign: 'center', fontStyle: 'bold' },
+      1: { cellWidth: colWidths.da, halign: 'center' },
+      2: { cellWidth: colWidths.provDa, halign: 'center' },
+      3: { cellWidth: colWidths.a, halign: 'center' },
+      4: { cellWidth: colWidths.provA, halign: 'center' },
+      5: { cellWidth: colWidths.ddt, halign: 'center' },
+      6: { cellWidth: colWidths.kmI, halign: 'center' },
+      7: { cellWidth: colWidths.kmF, halign: 'center' },
+      8: { cellWidth: colWidths.kmT, halign: 'center', fontStyle: 'bold' }
+    };
 
     doc.autoTable({
       startY: tableY,
@@ -1053,17 +1153,7 @@
       styles: { font: 'helvetica', fontSize: 7.4, cellPadding: { top: 0.7, bottom: 0.7, left: 1.1, right: 1.1 }, lineColor: [20, 20, 20], lineWidth: 0.25, textColor: [20, 20, 20], valign: 'middle' },
       headStyles: { fillColor: [255, 255, 255], textColor: [20, 20, 20], fontStyle: 'bold', fontSize: 7.2, cellPadding: { top: 1, bottom: 1, left: 1.1, right: 1.1 }, lineColor: [20, 20, 20], lineWidth: 0.25 },
       bodyStyles: { minCellHeight: 4.1 },
-      columnStyles: {
-        0: { cellWidth: colWidths.data, halign: 'center', fontStyle: 'bold' },
-        1: { cellWidth: colWidths.da, halign: 'center' },
-        2: { cellWidth: colWidths.provDa, halign: 'center' },
-        3: { cellWidth: colWidths.a, halign: 'center' },
-        4: { cellWidth: colWidths.provA, halign: 'center' },
-        5: { cellWidth: colWidths.ddt, halign: 'center' },
-        6: { cellWidth: colWidths.kmI, halign: 'center' },
-        7: { cellWidth: colWidths.kmF, halign: 'center' },
-        8: { cellWidth: colWidths.kmT, halign: 'center', fontStyle: 'bold' }
-      }
+      columnStyles: columnStyles
     });
   }
 
@@ -1630,6 +1720,18 @@
     document.getElementById('day-a').value = g.a || '';
     document.getElementById('day-prova').value = g.provA || '';
     document.getElementById('day-ddt').value = g.ddt || '';
+
+    // Second giro (destination + DDT) — only for sheets using the
+    // 'due-giri' PDF template, where a single day can have two separate
+    // trips, each needing its own DDT.
+    var isDueGiri = sheet.pdfTemplate === 'due-giri';
+    document.getElementById('day-second-giro-wrap').classList.toggle('hidden', !isDueGiri);
+    document.getElementById('day-a-label').textContent = isDueGiri ? 'Località di destinazione (A: 1)' : 'Località di destinazione (A)';
+    document.getElementById('day-ddt-label').textContent = isDueGiri ? 'DDT - 1' : 'DDT';
+    document.getElementById('day-a2').value = g.a2 || '';
+    document.getElementById('day-prova2').value = g.provA2 || '';
+    document.getElementById('day-ddt2').value = g.ddt2 || '';
+
     document.getElementById('day-kminizio').value = kmInizioVal !== undefined ? kmInizioVal : '';
     document.getElementById('day-kmfine').value = g.kmFine || '';
     document.getElementById('day-bonus').value = g.bonus || '';
@@ -1685,12 +1787,18 @@
     if (aVal && !provAVal) provAVal = lookupProvincia(aVal);
 
     var existingGiorno = sheet.giorni[day];
+    var a2Val = document.getElementById('day-a2').value.trim().toUpperCase();
+    var provA2Val = document.getElementById('day-prova2').value.trim().toUpperCase();
+    if (a2Val && !provA2Val) provA2Val = lookupProvincia(a2Val);
     var g = {
       da: daVal,
       provDa: document.getElementById('day-provda').value.trim().toUpperCase(),
       a: aVal,
       provA: provAVal,
       ddt: document.getElementById('day-ddt').value.trim(),
+      a2: a2Val,
+      provA2: provA2Val,
+      ddt2: document.getElementById('day-ddt2').value.trim(),
       kmInizio: document.getElementById('day-kminizio').value === '' ? '' : Number(document.getElementById('day-kminizio').value),
       kmFine: document.getElementById('day-kmfine').value === '' ? '' : Number(document.getElementById('day-kmfine').value),
       bonus: document.getElementById('day-bonus').value === '' ? '' : Math.max(0, Number(document.getElementById('day-bonus').value))
@@ -1700,6 +1808,11 @@
     if (aVal) {
       state.profile.frequent = state.profile.frequent || {};
       state.profile.frequent[aVal] = (state.profile.frequent[aVal] || 0) + 1;
+      saveProfile(state.profile);
+    }
+    if (a2Val) {
+      state.profile.frequent = state.profile.frequent || {};
+      state.profile.frequent[a2Val] = (state.profile.frequent[a2Val] || 0) + 1;
       saveProfile(state.profile);
     }
     saveSheets(state.sheets);
@@ -1858,10 +1971,17 @@
     renderNewSheetConfirm(m, y, defaultClient);
   }
   function renderNewSheetConfirm(m, y, client) {
+    var templateOptions = Object.keys(PDF_TEMPLATES).map(function (key) {
+      var t = PDF_TEMPLATES[key];
+      var selected = key === DEFAULT_PDF_TEMPLATE ? ' selected' : '';
+      return '<option value="' + key + '"' + selected + '>' + t.code + ' — ' + t.name + '</option>';
+    }).join('');
     var stepperHtml =
       '<div class="month-stepper"><button id="ms-prev">−</button><div class="mval" id="ms-val">' + MESI[m - 1] + ' ' + y + '</div><button id="ms-next">+</button></div>' +
       '<div class="field" style="margin-top:8px;"><label>Per conto di</label><input id="ms-client" type="text" value="' + escapeHtml(client) + '" style="text-transform:uppercase"></div>' +
       '<div class="settings-driver-note" style="margin-top:-4px;">Se lavori per piu\' clienti nello stesso mese, crea un foglio separato per ciascuno — come su carta, un foglio per cliente.</div>' +
+      '<div class="field"><label>Modello PDF per questo cliente</label><select id="ms-template">' + templateOptions + '</select></div>' +
+      '<div class="settings-driver-note" style="margin-top:-4px;" id="ms-template-desc">' + PDF_TEMPLATES[DEFAULT_PDF_TEMPLATE].desc + '</div>' +
       '<label class="checkbox-row"><input type="checkbox" id="ms-daily-rate" checked><span>Questo cliente conta per il compenso giornaliero</span></label>' +
       '<div class="settings-driver-note" style="margin-top:-4px;">Disattivalo se questo cliente paga solo un importo fisso (inserito come bonus per giorno) invece dello stipendio giornaliero — utile per un secondo cliente occasionale.</div>';
     showConfirm({
@@ -1880,10 +2000,14 @@
       m += 1; if (m > 12) { m = 1; y += 1; }
       document.getElementById('ms-val').textContent = MESI[m - 1] + ' ' + y;
     });
+    document.getElementById('ms-template').addEventListener('change', function () {
+      document.getElementById('ms-template-desc').textContent = PDF_TEMPLATES[this.value].desc;
+    });
     // re-bind confirm to use latest m/y/client via closure workaround
     var okBtn = document.getElementById('confirm-ok');
     okBtn.onclick = function () {
       var chosenClient = (document.getElementById('ms-client').value || 'BARCELLA').trim().toUpperCase();
+      var chosenTemplate = document.getElementById('ms-template').value;
       var countsForRate = document.getElementById('ms-daily-rate').checked;
       confirmModal.classList.remove('open');
       var existing = sheetForMonth(m, y, chosenClient);
@@ -1894,7 +2018,7 @@
         reloadIfUpdatePending();
         return;
       }
-      createSheet(m, y, chosenClient, countsForRate);
+      createSheet(m, y, chosenClient, countsForRate, chosenTemplate);
       toast('Nuovo foglio creato: ' + MESI[m - 1] + ' ' + y + ' — ' + chosenClient);
       showScreen('foglio');
       reportActivity();
