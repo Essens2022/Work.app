@@ -19,7 +19,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v43"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v44"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1833,38 +1833,40 @@
     renderFoglio();
   });
 
-  // Autocomplete wiring
-  var acInput = document.getElementById('day-a');
-  var acList = document.getElementById('ac-list');
-  acInput.addEventListener('input', function () {
-    var results = searchComuni(acInput.value, 8);
-    renderAcList(results);
-  });
-  acInput.addEventListener('focus', function () {
-    var results = searchComuni(acInput.value, 8);
-    renderAcList(results);
-  });
-  document.addEventListener('click', function (e) {
-    if (!acList.contains(e.target) && e.target !== acInput) acList.classList.remove('show');
-  });
-  function renderAcList(results) {
-    if (!results.length) {
-      acList.innerHTML = '<div class="ac-empty">Nessun risultato — puoi digitare liberamente</div>';
-      acList.classList.add('show');
-      return;
-    }
-    acList.innerHTML = results.map(function (r) {
-      return '<div class="ac-item" data-name="' + escapeHtml(r.name) + '" data-sigla="' + escapeHtml(r.sigla) + '"><span class="name">' + escapeHtml(r.name) + '</span>' + (r.sigla ? '<span class="prov">' + r.sigla + '</span>' : '') + '</div>';
-    }).join('');
-    acList.classList.add('show');
-    acList.querySelectorAll('.ac-item').forEach(function (item) {
-      item.addEventListener('click', function () {
-        acInput.value = item.getAttribute('data-name').toUpperCase();
-        document.getElementById('day-prova').value = item.getAttribute('data-sigla');
-        acList.classList.remove('show');
+  // Autocomplete wiring — reusable so the exact same behavior (search
+  // suggestions, uppercase on pick, auto-filled province) applies to
+  // every destination field, not just the first one. Each call wires up
+  // one independent input/province/dropdown trio.
+  function wireDestinationAutocomplete(inputId, provInputId, listId) {
+    var input = document.getElementById(inputId);
+    var list = document.getElementById(listId);
+    if (!input || !list) return;
+    function render(results) {
+      if (!results.length) {
+        list.innerHTML = '<div class="ac-empty">Nessun risultato — puoi digitare liberamente</div>';
+        list.classList.add('show');
+        return;
+      }
+      list.innerHTML = results.map(function (r) {
+        return '<div class="ac-item" data-name="' + escapeHtml(r.name) + '" data-sigla="' + escapeHtml(r.sigla) + '"><span class="name">' + escapeHtml(r.name) + '</span>' + (r.sigla ? '<span class="prov">' + r.sigla + '</span>' : '') + '</div>';
+      }).join('');
+      list.classList.add('show');
+      list.querySelectorAll('.ac-item').forEach(function (item) {
+        item.addEventListener('click', function () {
+          input.value = item.getAttribute('data-name').toUpperCase();
+          document.getElementById(provInputId).value = item.getAttribute('data-sigla');
+          list.classList.remove('show');
+        });
       });
+    }
+    input.addEventListener('input', function () { render(searchComuni(input.value, 8)); });
+    input.addEventListener('focus', function () { render(searchComuni(input.value, 8)); });
+    document.addEventListener('click', function (e) {
+      if (!list.contains(e.target) && e.target !== input) list.classList.remove('show');
     });
   }
+  wireDestinationAutocomplete('day-a', 'day-prova', 'ac-list');
+  wireDestinationAutocomplete('day-a2', 'day-prova2', 'ac-list2');
 
   /* ---------------------------------------------------------------- */
   /* Settings / onboarding modal                                       */
