@@ -92,6 +92,17 @@
   /* Cards */
   .card{background:var(--surface);border-radius:var(--radius-lg);padding:20px;box-shadow:var(--shadow-sm);border:1px solid var(--line);}
   .card + .card{margin-top:14px;}
+  .fuel-tile{
+    display:flex;align-items:center;gap:14px;width:100%;text-align:left;cursor:pointer;
+    font-family:inherit;background:var(--surface);
+  }
+  .fuel-tile:active{opacity:.7;}
+  .fuel-tile-icon{
+    flex:none;width:48px;height:48px;border-radius:14px;background:var(--accent-soft);color:var(--accent);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .fuel-tile-label{font-weight:800;font-size:15px;letter-spacing:.04em;display:block;}
+  .fuel-tile-sub{font-size:12.5px;color:var(--ink-soft);display:block;margin-top:2px;}
   .active-card{
     background:linear-gradient(160deg,#1C1B1F 0%,#2B2A2F 100%);color:#fff;border:none;
     position:relative;overflow:hidden;
@@ -187,6 +198,19 @@
   .day-km .tot{font-weight:800;font-family:'SF Mono',Menlo,monospace;font-size:14px;}
   .day-km .lbl{font-size:9px;color:var(--ink-faint);font-weight:700;letter-spacing:.08em;text-transform:uppercase;}
   .chev{color:var(--ink-faint);flex:none;}
+
+  .fuel-thumb{width:44px;height:44px;border-radius:10px;object-fit:cover;border:1px solid var(--line);flex:none;}
+  .fuel-add-icon{
+    width:44px;height:44px;border-radius:10px;border:1.5px dashed var(--line);flex:none;
+    display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-size:20px;font-weight:300;
+  }
+  .fuel-thumb-wrap{position:relative;flex:none;}
+  .fuel-remove-x{
+    position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;
+    background:var(--danger);color:#fff;border:2px solid var(--surface);
+    display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;line-height:1;
+    cursor:pointer;
+  }
 
   .undo-link{display:block;text-align:center;margin:18px auto 4px;font-size:12.5px;color:var(--ink-faint);text-decoration:underline;background:none;border:none;cursor:pointer;font-family:inherit;}
 
@@ -470,22 +494,25 @@
     </div>
     <div class="settings-driver-note" id="day-bonus-note" style="margin-top:-8px;">Visibile solo a te nella pagina Home — non appare mai nel PDF.</div>
 
-    <div class="field" style="margin-top:6px;">
-      <label>Scontrino gasolio — facoltativo</label>
-      <div id="scontrino-empty-wrap">
-        <input type="file" accept="image/*" capture="environment" id="in-scontrino" style="display:none;">
-        <button type="button" class="btn btn-outline btn-sm" id="btn-add-scontrino">📷 Aggiungi foto scontrino</button>
-      </div>
-      <div id="scontrino-preview-wrap" class="hidden" style="display:flex;align-items:center;gap:12px;margin-top:4px;">
-        <img id="scontrino-preview" src="" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:10px;border:1px solid var(--line);">
-        <button type="button" class="link-btn" id="btn-remove-scontrino" style="color:var(--danger);">Rimuovi foto</button>
-      </div>
-    </div>
-    <div class="settings-driver-note" style="margin-top:-8px;">Salvato solo su questo telefono. A fine mese, tutti gli scontrini del mese vengono inclusi come pagine aggiuntive nel PDF.</div>
-
     <div class="modal-btnrow">
       <button class="btn btn-danger" id="day-clear">Svuota giorno</button>
       <button class="btn btn-accent" id="day-save">Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- Fuel screen — a dedicated place, reachable directly from Home, to
+     log fuel receipts day by day, without needing to open a full day's
+     trip details first. -->
+<div class="modal-overlay" id="modal-fuel">
+  <div class="sheet-panel">
+    <div class="grabber"></div>
+    <div class="modal-title">Scontrini carburante</div>
+    <div class="modal-sub" id="fuel-sub"></div>
+    <input type="file" accept="image/*" capture="environment" id="in-fuel-photo" style="display:none;">
+    <div class="giro-list" id="fuel-list"></div>
+    <div class="modal-btnrow">
+      <button class="btn btn-ghost" id="fuel-close">Chiudi</button>
     </div>
   </div>
 </div>

@@ -411,7 +411,8 @@
   function svgIcon(name) {
     var icons = {
       truck: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="6" width="14" height="11"/><path d="M15 10h4l3 3v4h-7z"/><circle cx="6" cy="19" r="1.6"/><circle cx="17.5" cy="19" r="1.6"/></svg>',
-      route: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M5 8v4a4 4 0 0 0 4 4h6" stroke-dasharray="3 3"/></svg>'
+      route: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M5 8v4a4 4 0 0 0 4 4h6" stroke-dasharray="3 3"/></svg>',
+      fuel: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 22V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16"/><path d="M3 12h10"/><path d="M15 8h1.5l3 3v6a1.5 1.5 0 0 1-3 0v-1a1 1 0 0 0-1-1h-.5"/><circle cx="8" cy="6.5" r="1"/></svg>'
     };
     return icons[name] || '';
   }
@@ -466,6 +467,13 @@
       html += '<button class="link-btn" id="home-jump-latest" style="display:block;margin:14px auto 0;">Vai al mese attivo →</button>';
     }
 
+    // A dedicated, prominent way in to log fuel receipts — day by day,
+    // without needing to open a full day's trip details first.
+    html += '<button class="card fuel-tile" id="home-fuel" style="margin-top:14px;">';
+    html += '<span class="fuel-tile-icon">' + svgIcon('fuel') + '</span>';
+    html += '<span><span class="fuel-tile-label">FUEL</span><span class="fuel-tile-sub">Scontrini carburante</span></span>';
+    html += '</button>';
+
     // 2) Viaggi totali / KM totali — the whole month, all clients combined.
     html += '<div class="section-title"><h3>Totale mese</h3></div>';
     html += '<div class="card" style="display:flex;gap:0;">';
@@ -519,6 +527,7 @@
     el.innerHTML = html;
     document.getElementById('home-continua').addEventListener('click', function () { showScreen('foglio'); });
     document.getElementById('home-pdf').addEventListener('click', function () { showScreen('pdf'); });
+    document.getElementById('home-fuel').addEventListener('click', openFuelScreen);
     var jumpBtn = document.getElementById('home-jump-latest');
     if (jumpBtn) jumpBtn.addEventListener('click', function () {
       var latest = latestSheet();
@@ -1102,16 +1111,18 @@
   /* Day editor                                                         */
   /* ---------------------------------------------------------------- */
   var dayModal = document.getElementById('modal-day');
-  // Fuel receipt photo — the person crops the raw photo down to just the
-  // receipt (excluding the table/background around it) using the crop
-  // screen below, and only THEN is it converted to a small black-and-
-  // white "document scan" and stored as base64 in localStorage. Works
-  // fully offline, like the rest of the app.
-  var pendingScontrino; // undefined = untouched this session, '' = removed, {data,w,h} = new photo
+  // Fuel receipt photos — logged from a dedicated screen (reachable
+  // straight from Home), day by day, independent of a client sheet's
+  // full trip-detail editor. The person crops the raw photo down to just
+  // the receipt (excluding the table/background around it) using the
+  // crop screen below, and only THEN is it converted to a small black-
+  // and-white "document scan" and stored as base64 in localStorage.
+  // Works fully offline, like the rest of the app.
   var cropRawImage = null; // the freshly-picked, not-yet-cropped photo
   var cropRect = null; // current crop rectangle, in on-screen pixels: {left,top,right,bottom}
   var cropDragMode = null; // null | 'move' | 'tl' | 'tr' | 'bl' | 'br'
   var cropDragStart = null;
+  var fuelTargetDay = null; // which day the photo currently being added/replaced belongs to
 
   function loadPickedImage(file) {
     return new Promise(function (resolve, reject) {
@@ -1156,30 +1167,66 @@
     return { data: canvas.toDataURL('image/jpeg', 0.7), w: w, h: h };
   }
 
-  function updateScontrinoPreview(scontrino) {
-    var emptyWrap = document.getElementById('scontrino-empty-wrap');
-    var previewWrap = document.getElementById('scontrino-preview-wrap');
-    if (scontrino && scontrino.data) {
-      document.getElementById('scontrino-preview').src = scontrino.data;
-      emptyWrap.classList.add('hidden'); previewWrap.classList.remove('hidden');
-    } else {
-      emptyWrap.classList.remove('hidden'); previewWrap.classList.add('hidden');
-    }
+  /* ---------------------------------------------------------------- */
+  /* Fuel screen — day-by-day list, reachable from Home, for logging     */
+  /* receipts directly without opening a day's full trip details.       */
+  /* ---------------------------------------------------------------- */
+  var fuelModal = document.getElementById('modal-fuel');
+  function openFuelScreen() {
+    var sheet = currentSheet();
+    if (!sheet) { toast('Crea prima un foglio mensile'); return; }
+    document.getElementById('fuel-sub').textContent = MESI[sheet.month - 1] + ' ' + sheet.year + ' · ' + (sheet.perContoDi || '—');
+    renderFuelList(sheet);
+    fuelModal.classList.add('open');
   }
-  document.getElementById('btn-add-scontrino').addEventListener('click', function () {
-    document.getElementById('in-scontrino').click();
+  function renderFuelList(sheet) {
+    var n = daysInMonth(sheet.month, sheet.year);
+    var html = '';
+    for (var d = 1; d <= n; d++) {
+      var g = sheet.giorni[d];
+      var date = new Date(sheet.year, sheet.month - 1, d);
+      var dow = GIORNI_SETT[date.getDay()].slice(0, 3);
+      var hasReceipt = g && g.scontrino && g.scontrino.data;
+      html += '<div class="day-row' + (hasReceipt ? ' filled' : '') + '" data-fuel-day="' + d + '">';
+      html += '<div class="day-num">' + d + '</div>';
+      html += '<div class="day-main"><div class="dest">Giorno ' + d + '</div><div class="sub">' + dow + (hasReceipt ? ' · scontrino allegato' : ' · nessuno scontrino') + '</div></div>';
+      if (hasReceipt) {
+        html += '<div class="fuel-thumb-wrap"><img class="fuel-thumb" src="' + g.scontrino.data + '" alt=""><span class="fuel-remove-x" data-fuel-remove="' + d + '">×</span></div>';
+      } else {
+        html += '<div class="fuel-add-icon">+</div>';
+      }
+      html += '</div>';
+    }
+    document.getElementById('fuel-list').innerHTML = html;
+    document.querySelectorAll('#fuel-list [data-fuel-remove]').forEach(function (x) {
+      x.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var d = x.getAttribute('data-fuel-remove');
+        var s = currentSheet();
+        if (!s || !s.giorni[d]) return;
+        s.giorni[d].scontrino = '';
+        saveSheets(state.sheets);
+        renderFuelList(s);
+        toast('Scontrino rimosso');
+      });
+    });
+    document.querySelectorAll('#fuel-list [data-fuel-day]').forEach(function (row) {
+      row.addEventListener('click', function () {
+        fuelTargetDay = row.getAttribute('data-fuel-day');
+        document.getElementById('in-fuel-photo').click();
+      });
+    });
+  }
+  document.getElementById('fuel-close').addEventListener('click', function () {
+    fuelModal.classList.remove('open');
   });
-  document.getElementById('in-scontrino').addEventListener('change', function (e) {
+  document.getElementById('in-fuel-photo').addEventListener('change', function (e) {
     var file = e.target.files && e.target.files[0];
     if (!file) return;
     loadPickedImage(file).then(function (img) {
       cropRawImage = img;
       openCropScreen(img);
     }).catch(function () { toast('Impossibile leggere la foto'); });
-  });
-  document.getElementById('btn-remove-scontrino').addEventListener('click', function () {
-    pendingScontrino = '';
-    updateScontrinoPreview('');
   });
 
   /* ---------------------------------------------------------------- */
@@ -1256,11 +1303,12 @@
 
   document.getElementById('crop-cancel').addEventListener('click', function () {
     document.getElementById('modal-crop').classList.remove('open');
-    document.getElementById('in-scontrino').value = ''; // allow picking the same file again
+    document.getElementById('in-fuel-photo').value = ''; // allow picking the same file again
     cropRawImage = null;
+    fuelTargetDay = null;
   });
   document.getElementById('crop-confirm').addEventListener('click', function () {
-    if (!cropRawImage || !cropRect) return;
+    if (!cropRawImage || !cropRect || !fuelTargetDay) return;
     var imgEl = document.getElementById('crop-img');
     var scaleX = cropRawImage.naturalWidth / imgEl.clientWidth;
     var scaleY = cropRawImage.naturalHeight / imgEl.clientHeight;
@@ -1272,11 +1320,19 @@
     srcCanvas.getContext('2d').drawImage(cropRawImage, sx, sy, sw, sh, 0, 0, srcCanvas.width, srcCanvas.height);
 
     var scontrino = processReceiptCanvas(srcCanvas);
-    pendingScontrino = scontrino;
-    updateScontrinoPreview(scontrino);
+    var sheet = currentSheet();
+    if (sheet) {
+      if (!sheet.giorni[fuelTargetDay]) sheet.giorni[fuelTargetDay] = emptyGiorno(state.profile.da, state.profile.provDa);
+      sheet.giorni[fuelTargetDay].scontrino = scontrino;
+      saveSheets(state.sheets);
+      renderFuelList(sheet);
+      toast('Scontrino salvato — Giorno ' + fuelTargetDay);
+      reportActivity();
+    }
     document.getElementById('modal-crop').classList.remove('open');
-    document.getElementById('in-scontrino').value = '';
+    document.getElementById('in-fuel-photo').value = '';
     cropRawImage = null;
+    fuelTargetDay = null;
   });
 
   function openDayEditor(sheet, day) {
@@ -1312,9 +1368,6 @@
     document.getElementById('day-bonus-note').textContent = countsForRate
       ? 'Visibile solo a te nella pagina Home — non appare mai nel PDF.'
       : 'Questo cliente non conta per il compenso giornaliero — questo importo è il tuo pagamento per la giornata. Visibile solo a te — non appare mai nel PDF.';
-
-    pendingScontrino = undefined; // untouched this session
-    updateScontrinoPreview(g.scontrino || '');
 
     updateKmTot();
     document.getElementById('ac-list').classList.remove('show');
@@ -1364,7 +1417,9 @@
       kmInizio: document.getElementById('day-kminizio').value === '' ? '' : Number(document.getElementById('day-kminizio').value),
       kmFine: document.getElementById('day-kmfine').value === '' ? '' : Number(document.getElementById('day-kmfine').value),
       bonus: document.getElementById('day-bonus').value === '' ? '' : Math.max(0, Number(document.getElementById('day-bonus').value)),
-      scontrino: pendingScontrino !== undefined ? pendingScontrino : ((existingGiorno && existingGiorno.scontrino) || '')
+      // Receipts are managed from the dedicated Fuel screen now, not here
+      // — simply carry forward whatever was already attached to this day.
+      scontrino: (existingGiorno && existingGiorno.scontrino) || ''
     };
     sheet.giorni[day] = g;
 
