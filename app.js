@@ -1205,11 +1205,13 @@
   /* ---------------------------------------------------------------- */
   var fuelModal = document.getElementById('modal-fuel');
   var fuelActiveMonth = null, fuelActiveYear = null;
+  var fuelScrollPending = false;
   function openFuelScreen() {
     var sheet = currentSheet();
     if (!sheet) { toast('Crea prima un foglio mensile'); return; }
     fuelActiveMonth = sheet.month; fuelActiveYear = sheet.year;
     document.getElementById('fuel-sub').textContent = MESI[sheet.month - 1] + ' ' + sheet.year;
+    fuelScrollPending = true;
     renderFuelList();
     fuelModal.classList.add('open');
   }
@@ -1218,11 +1220,13 @@
     var monthKey = fuelMonthKey(fuelActiveMonth, fuelActiveYear);
     var monthFuel = state.fuel[monthKey] || {};
     var html = '';
+    var lastReceiptDay = null;
     for (var d = 1; d <= n; d++) {
       var receipt = monthFuel[d];
       var date = new Date(fuelActiveYear, fuelActiveMonth - 1, d);
       var dow = GIORNI_SETT[date.getDay()].slice(0, 3);
       var hasReceipt = receipt && receipt.data;
+      if (hasReceipt) lastReceiptDay = d;
       html += '<div class="day-row' + (hasReceipt ? ' filled' : '') + '" data-fuel-day="' + d + '">';
       html += '<div class="day-num">' + d + '</div>';
       html += '<div class="day-main"><div class="dest">Giorno ' + d + '</div><div class="sub">' + dow + (hasReceipt ? ' · scontrino allegato' : ' · nessuno scontrino') + '</div></div>';
@@ -1258,6 +1262,21 @@
         }
       });
     });
+
+    // Same convenience as Foglio: land straight on the last day that
+    // already has a receipt, ready to tap the next one along — instead of
+    // always starting scrolled to the top of the whole month.
+    if (fuelScrollPending) {
+      fuelScrollPending = false;
+      if (lastReceiptDay) {
+        var targetRow = document.querySelector('#fuel-list [data-fuel-day="' + lastReceiptDay + '"]');
+        if (targetRow) {
+          requestAnimationFrame(function () {
+            targetRow.scrollIntoView({ behavior: 'auto', block: 'center' });
+          });
+        }
+      }
+    }
   }
   // Shows an already-attached receipt full-size, with its file size, so
   // the person can check what they saved without needing to replace it
