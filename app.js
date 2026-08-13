@@ -19,7 +19,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v48"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v49"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1305,31 +1305,25 @@
     });
   }
 
-  // Turns an already-cropped canvas into the final small black-and-white
-  // receipt image: grayscale with boosted contrast (like a document
-  // scanner, not a color photo — a receipt is just text on paper, so
-  // color carries no information but costs a lot of file size), then
-  // compressed. Real camera photos have far more per-pixel noise/detail
-  // than clean test images, so quality reduction alone isn't always
-  // enough — this also shrinks the dimensions in steps when needed,
-  // trying every combination from "still fairly big and top quality"
-  // down to "small and low quality" until the result is safely under
-  // the 10KB budget, no matter how detailed the original photo was.
-  //
-  // Contrast is stretched based on THIS photo's own tonal range
-  // (percentile-based "auto levels"), instead of a fixed formula around
-  // a guessed midpoint. A fixed strong multiplier pushed faded/uneven
-  // thermal-paper receipts almost entirely to white, wiping out lighter
-  // text along with the background — a photo-specific stretch adapts to
-  // how light or faded that particular receipt actually is, so real
-  // text survives. The percentile clip is set very small (0.05%, not the
-  // usual ~1%) because a receipt is mostly blank paper with only a
-  // little actual text — at the usual 1% threshold the text itself was
-  // being discarded as an "outlier" rather than the true black point.
+  // ION reconsidered the earlier approach after testing a real photo that
+  // came out unreadable: forcing every receipt through heavy grayscale +
+  // contrast + shadow-removal processing was too aggressive and could
+  // destroy real detail, especially on already-tricky photos. The budget
+  // was also based on a mistaken assumption — these images never leave
+  // the phone (nothing is uploaded to any server), so there was never a
+  // real reason to compress them as hard as possible; 10KB was solving a
+  // problem that didn't exist. The photo now stays close to what the
+  // camera actually captured — same colors, same detail — with only a
+  // small, fixed brightness lift (not a full contrast stretch) so a
+  // photo taken in dim light is a little easier to read, without
+  // washing out one taken in daylight, since it's the same small nudge
+  // either way rather than something that reacts to how bright the
+  // original already was.
   function processReceiptCanvas(sourceCanvas) {
-    var budgetBytes = 10 * 1024; // base64 is ~4/3 the size of the real bytes it encodes
-    var dimSteps = [1050, 850, 650, 500, 380, 280];
-    var qualitySteps = [0.6, 0.5, 0.4, 0.32, 0.25, 0.2, 0.15, 0.1, 0.05];
+    var budgetBytes = 50 * 1024; // stored locally only — no server/upload cost to weigh against
+    var dimSteps = [1400, 1200, 1000, 800, 600, 450];
+    var qualitySteps = [0.85, 0.78, 0.7, 0.62, 0.54, 0.46, 0.38, 0.3, 0.2];
+    var brightnessLift = 16; // small, fixed — enough to help a dim photo without blowing out a bright one
     var best = null; // smallest result found so far, kept as a fallback
 
     for (var dIdx = 0; dIdx < dimSteps.length; dIdx++) {
@@ -1342,53 +1336,12 @@
       var ctx = canvas.getContext('2d');
       ctx.drawImage(sourceCanvas, 0, 0, w, h);
 
-      // A real photo (unlike a flat scan) almost always has uneven
-      // lighting — creases in the paper, a shadow from the phone itself,
-      // one side of the receipt closer to a light source. A single
-      // global black/white point can't handle that: a shadowed area of
-      // clean background can end up darker than lit-up text elsewhere,
-      // so text gets lost inside the shadow. Estimating the large-scale
-      // shading itself (by shrinking the image down, which averages away
-      // small detail like text but keeps the broad shadow pattern, then
-      // stretching it back up) and subtracting it first flattens that
-      // lighting out — much closer to how an actual photocopier's even,
-      // built-in light produces a clean, uniform page.
-      var smallW = Math.max(4, Math.round(w / 70)), smallH = Math.max(4, Math.round(h / 70));
-      var smallCanvas = document.createElement('canvas');
-      smallCanvas.width = smallW; smallCanvas.height = smallH;
-      smallCanvas.getContext('2d').drawImage(canvas, 0, 0, smallW, smallH);
-      var bgCanvas = document.createElement('canvas');
-      bgCanvas.width = w; bgCanvas.height = h;
-      var bgCtx = bgCanvas.getContext('2d');
-      bgCtx.drawImage(smallCanvas, 0, 0, w, h);
-      var bgData = bgCtx.getImageData(0, 0, w, h).data;
-
       var imgData = ctx.getImageData(0, 0, w, h);
       var d = imgData.data;
-      var n = d.length / 4;
-
-      var gray = new Uint8ClampedArray(n);
-      var histogram = new Array(256).fill(0);
-      var flattenOffset = 210; // where a clean, evenly-lit background pixel should land
-      for (var p = 0; p < n; p++) {
-        var g = d[p * 4] * 0.299 + d[p * 4 + 1] * 0.587 + d[p * 4 + 2] * 0.114;
-        var bg = bgData[p * 4] * 0.299 + bgData[p * 4 + 1] * 0.587 + bgData[p * 4 + 2] * 0.114;
-        var flat = g - bg + flattenOffset;
-        flat = Math.max(0, Math.min(255, flat));
-        gray[p] = flat;
-        histogram[Math.round(flat)]++;
-      }
-      var clip = Math.max(1, Math.round(n * 0.0005));
-      var lowPoint = 0, acc = 0;
-      for (var v = 0; v < 256; v++) { acc += histogram[v]; if (acc >= clip) { lowPoint = v; break; } }
-      var highPoint = 255; acc = 0;
-      for (var v2 = 255; v2 >= 0; v2--) { acc += histogram[v2]; if (acc >= clip) { highPoint = v2; break; } }
-      var range = Math.max(20, highPoint - lowPoint); // floor avoids over-amplifying a near-blank photo
-
-      for (var p2 = 0; p2 < n; p2++) {
-        var stretched = (gray[p2] - lowPoint) / range * 255;
-        stretched = Math.max(0, Math.min(255, stretched));
-        d[p2 * 4] = d[p2 * 4 + 1] = d[p2 * 4 + 2] = stretched;
+      for (var p = 0; p < d.length; p += 4) {
+        d[p] = Math.min(255, d[p] + brightnessLift);
+        d[p + 1] = Math.min(255, d[p + 1] + brightnessLift);
+        d[p + 2] = Math.min(255, d[p + 2] + brightnessLift);
       }
       ctx.putImageData(imgData, 0, 0);
 
