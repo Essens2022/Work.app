@@ -92,6 +92,17 @@
   /* Cards */
   .card{background:var(--surface);border-radius:var(--radius-lg);padding:20px;box-shadow:var(--shadow-sm);border:1px solid var(--line);}
   .card + .card{margin-top:14px;}
+  .fuel-tile{
+    display:flex;align-items:center;gap:14px;width:100%;text-align:left;cursor:pointer;
+    font-family:inherit;background:var(--surface);
+  }
+  .fuel-tile:active{opacity:.7;}
+  .fuel-tile-icon{
+    flex:none;width:48px;height:48px;border-radius:14px;background:var(--accent-soft);color:var(--accent);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .fuel-tile-label{font-weight:800;font-size:15px;letter-spacing:.04em;display:block;}
+  .fuel-tile-sub{font-size:12.5px;color:var(--ink-soft);display:block;margin-top:2px;}
   .active-card{
     background:linear-gradient(160deg,#1C1B1F 0%,#2B2A2F 100%);color:#fff;border:none;
     position:relative;overflow:hidden;
@@ -188,6 +199,19 @@
   .day-km .lbl{font-size:9px;color:var(--ink-faint);font-weight:700;letter-spacing:.08em;text-transform:uppercase;}
   .chev{color:var(--ink-faint);flex:none;}
 
+  .fuel-thumb{width:44px;height:44px;border-radius:10px;object-fit:cover;border:1px solid var(--line);flex:none;}
+  .fuel-add-icon{
+    width:44px;height:44px;border-radius:10px;border:1.5px dashed var(--line);flex:none;
+    display:flex;align-items:center;justify-content:center;color:var(--ink-faint);font-size:20px;font-weight:300;
+  }
+  .fuel-thumb-wrap{position:relative;flex:none;}
+  .fuel-remove-x{
+    position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;
+    background:var(--danger);color:#fff;border:2px solid var(--surface);
+    display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;line-height:1;
+    cursor:pointer;
+  }
+
   .undo-link{display:block;text-align:center;margin:18px auto 4px;font-size:12.5px;color:var(--ink-faint);text-decoration:underline;background:none;border:none;cursor:pointer;font-family:inherit;}
 
   /* Archivio — grouped by month: one card per month, with a row per
@@ -277,6 +301,11 @@
   }
   .modal-overlay.open{opacity:1;pointer-events:auto;}
   .modal-overlay.center{align-items:center;padding:20px;}
+  .crop-handle{background:var(--accent);border:3px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.3);}
+  .crop-handle[data-corner="tl"]{cursor:nwse-resize;}
+  .crop-handle[data-corner="br"]{cursor:nwse-resize;}
+  .crop-handle[data-corner="tr"]{cursor:nesw-resize;}
+  .crop-handle[data-corner="bl"]{cursor:nesw-resize;}
   .sheet-panel{
     background:var(--surface);width:100%;max-width:560px;border-radius:22px 22px 0 0;
     padding:10px 20px calc(20px + var(--safe-bottom));max-height:88vh;overflow-y:auto;touch-action:pan-y;
@@ -468,6 +497,47 @@
     <div class="modal-btnrow">
       <button class="btn btn-danger" id="day-clear">Svuota giorno</button>
       <button class="btn btn-accent" id="day-save">Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- Fuel screen — a dedicated place, reachable directly from Home, to
+     log fuel receipts day by day, without needing to open a full day's
+     trip details first. -->
+<div class="modal-overlay" id="modal-fuel">
+  <div class="sheet-panel">
+    <div class="grabber"></div>
+    <div class="modal-title">Scontrini carburante</div>
+    <div class="modal-sub" id="fuel-sub"></div>
+    <input type="file" accept="image/*" capture="environment" id="in-fuel-photo" style="display:none;">
+    <div class="giro-list" id="fuel-list"></div>
+    <div class="modal-btnrow">
+      <button class="btn btn-ghost" id="fuel-close">Chiudi</button>
+    </div>
+  </div>
+</div>
+
+<!-- Fuel receipt crop screen — drag the rectangle to frame just the
+     receipt, cropping out the table/background around it, before the
+     photo gets converted to a small black-and-white document. -->
+<div class="modal-overlay center" id="modal-crop">
+  <div class="sheet-panel" style="max-width:480px;">
+    <h3 style="margin:0 0 4px;">Inquadra lo scontrino</h3>
+    <p class="settings-driver-note" style="margin-top:0;">Trascina gli angoli per includere solo lo scontrino, escludendo il tavolo o altro intorno.</p>
+    <div style="text-align:center;">
+      <div id="crop-stage" style="position:relative;display:inline-block;max-width:100%;background:#000;border-radius:12px;overflow:hidden;touch-action:none;user-select:none;">
+        <img id="crop-img" src="" alt="" style="display:block;max-width:100%;max-height:52vh;width:auto;height:auto;pointer-events:none;">
+        <div id="crop-rect" style="position:absolute;border:2px solid var(--accent);box-shadow:0 0 0 2000px rgba(0,0,0,.5);cursor:move;">
+          <div class="crop-handle" data-corner="tl" style="position:absolute;top:-14px;left:-14px;width:28px;height:28px;"></div>
+          <div class="crop-handle" data-corner="tr" style="position:absolute;top:-14px;right:-14px;width:28px;height:28px;"></div>
+          <div class="crop-handle" data-corner="bl" style="position:absolute;bottom:-14px;left:-14px;width:28px;height:28px;"></div>
+          <div class="crop-handle" data-corner="br" style="position:absolute;bottom:-14px;right:-14px;width:28px;height:28px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-btnrow">
+      <button class="btn btn-ghost" id="crop-cancel">Annulla</button>
+      <button class="btn btn-accent" id="crop-confirm">Conferma</button>
     </div>
   </div>
 </div>
