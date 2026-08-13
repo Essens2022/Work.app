@@ -19,7 +19,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v47"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v48"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1341,16 +1341,42 @@
       canvas.width = w; canvas.height = h;
       var ctx = canvas.getContext('2d');
       ctx.drawImage(sourceCanvas, 0, 0, w, h);
+
+      // A real photo (unlike a flat scan) almost always has uneven
+      // lighting — creases in the paper, a shadow from the phone itself,
+      // one side of the receipt closer to a light source. A single
+      // global black/white point can't handle that: a shadowed area of
+      // clean background can end up darker than lit-up text elsewhere,
+      // so text gets lost inside the shadow. Estimating the large-scale
+      // shading itself (by shrinking the image down, which averages away
+      // small detail like text but keeps the broad shadow pattern, then
+      // stretching it back up) and subtracting it first flattens that
+      // lighting out — much closer to how an actual photocopier's even,
+      // built-in light produces a clean, uniform page.
+      var smallW = Math.max(4, Math.round(w / 70)), smallH = Math.max(4, Math.round(h / 70));
+      var smallCanvas = document.createElement('canvas');
+      smallCanvas.width = smallW; smallCanvas.height = smallH;
+      smallCanvas.getContext('2d').drawImage(canvas, 0, 0, smallW, smallH);
+      var bgCanvas = document.createElement('canvas');
+      bgCanvas.width = w; bgCanvas.height = h;
+      var bgCtx = bgCanvas.getContext('2d');
+      bgCtx.drawImage(smallCanvas, 0, 0, w, h);
+      var bgData = bgCtx.getImageData(0, 0, w, h).data;
+
       var imgData = ctx.getImageData(0, 0, w, h);
       var d = imgData.data;
       var n = d.length / 4;
 
       var gray = new Uint8ClampedArray(n);
       var histogram = new Array(256).fill(0);
+      var flattenOffset = 210; // where a clean, evenly-lit background pixel should land
       for (var p = 0; p < n; p++) {
         var g = d[p * 4] * 0.299 + d[p * 4 + 1] * 0.587 + d[p * 4 + 2] * 0.114;
-        gray[p] = g;
-        histogram[Math.round(g)]++;
+        var bg = bgData[p * 4] * 0.299 + bgData[p * 4 + 1] * 0.587 + bgData[p * 4 + 2] * 0.114;
+        var flat = g - bg + flattenOffset;
+        flat = Math.max(0, Math.min(255, flat));
+        gray[p] = flat;
+        histogram[Math.round(flat)]++;
       }
       var clip = Math.max(1, Math.round(n * 0.0005));
       var lowPoint = 0, acc = 0;
