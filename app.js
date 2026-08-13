@@ -68,6 +68,15 @@
   function loadFuel() { return loadJSON(LS_FUEL, {}); }
   function saveFuel(obj) { saveJSON(LS_FUEL, obj); }
   function fuelMonthKey(month, year) { return year + '-' + month; }
+  // Deletes one day's receipt and saves — also drops the now-empty month
+  // wrapper entirely (rather than leaving an empty {} behind) so nothing
+  // lingers in storage once every receipt for a month has been removed.
+  function deleteFuelReceipt(monthKey, day) {
+    if (!state.fuel[monthKey]) return;
+    delete state.fuel[monthKey][day];
+    if (Object.keys(state.fuel[monthKey]).length === 0) delete state.fuel[monthKey];
+    saveFuel(state.fuel);
+  }
 
   function getCurrentSheetId() { return localStorage.getItem(LS_CURRENT) || null; }
   function setCurrentSheetId(id) { if (id) localStorage.setItem(LS_CURRENT, id); }
@@ -1254,8 +1263,7 @@
         e.stopPropagation();
         var d = x.getAttribute('data-fuel-remove');
         var monthKey2 = fuelMonthKey(fuelActiveMonth, fuelActiveYear);
-        if (state.fuel[monthKey2]) delete state.fuel[monthKey2][d];
-        saveFuel(state.fuel);
+        deleteFuelReceipt(monthKey2, d);
         renderFuelList();
         toast('Scontrino rimosso');
       });
@@ -1380,8 +1388,7 @@
   document.getElementById('fuel-view-remove').addEventListener('click', function () {
     var d = fuelViewModal.dataset.day;
     var monthKey2 = fuelMonthKey(fuelActiveMonth, fuelActiveYear);
-    if (state.fuel[monthKey2]) delete state.fuel[monthKey2][d];
-    saveFuel(state.fuel);
+    deleteFuelReceipt(monthKey2, d);
     closeFuelViewer();
     renderFuelList();
     toast('Scontrino rimosso');
