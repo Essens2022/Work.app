@@ -68,12 +68,17 @@
   function loadFuel() { return loadJSON(LS_FUEL, {}); }
   function saveFuel(obj) { saveJSON(LS_FUEL, obj); }
   function fuelMonthKey(month, year) { return year + '-' + month; }
-  // Deletes one day's receipt and saves — also drops the now-empty month
-  // wrapper entirely (rather than leaving an empty {} behind) so nothing
-  // lingers in storage once every receipt for a month has been removed.
-  function deleteFuelReceipt(monthKey, day) {
-    if (!state.fuel[monthKey]) return;
-    delete state.fuel[monthKey][day];
+  // Removes ONE specific receipt photo (by index) from a day — a day can
+  // now hold several receipts (e.g. if the pump printed more than one, or
+  // something went wrong and it needed retrying), so deleting means
+  // removing just that one photo from the day's list, not the whole day.
+  // Also drops the now-empty day/month wrappers entirely (rather than
+  // leaving empty [] / {} behind) so nothing lingers in storage once
+  // every receipt has been removed.
+  function deleteFuelReceipt(monthKey, day, index) {
+    if (!state.fuel[monthKey] || !state.fuel[monthKey][day]) return;
+    state.fuel[monthKey][day].splice(index, 1);
+    if (state.fuel[monthKey][day].length === 0) delete state.fuel[monthKey][day];
     if (Object.keys(state.fuel[monthKey]).length === 0) delete state.fuel[monthKey];
     saveFuel(state.fuel);
   }
@@ -1097,9 +1102,15 @@
   // month's PDF, regardless of how many client sheets that month has.
   function addReceiptPages(doc, month, year) {
     var monthFuel = state.fuel[fuelMonthKey(month, year)] || {};
-    var receipts = Object.keys(monthFuel).sort(function (a, b) { return Number(a) - Number(b); })
-      .filter(function (d) { return monthFuel[d] && monthFuel[d].data; })
-      .map(function (d) { return { day: d, scontrino: monthFuel[d] }; });
+    var receipts = [];
+    Object.keys(monthFuel).sort(function (a, b) { return Number(a) - Number(b); }).forEach(function (d) {
+      var dayReceipts = monthFuel[d];
+      if (!dayReceipts || !dayReceipts.length) return;
+      dayReceipts.forEach(function (r, idx) {
+        if (!r || !r.data) return;
+        receipts.push({ day: d, indexInDay: idx, totalInDay: dayReceipts.length, scontrino: r });
+      });
+    });
     if (!receipts.length) return;
 
     var pageW = 297, pageH = 210, margin = 10;
@@ -1131,7 +1142,8 @@
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
         doc.setTextColor(90, 90, 90);
-        doc.text('Giorno ' + r.day, cellX + cellW / 2, cellY + 3.5, { align: 'center' });
+        var label = 'Giorno ' + r.day + (r.totalInDay > 1 ? ' (' + (r.indexInDay + 1) + '/' + r.totalInDay + ')' : '');
+        doc.text(label, cellX + cellW / 2, cellY + 3.5, { align: 'center' });
 
         try {
           var padX = 4, padY = 1;
@@ -1242,39 +1254,35 @@
     var html = '';
     var lastReceiptDay = null;
     for (var d = 1; d <= n; d++) {
-      var receipt = monthFuel[d];
+      var receipts = monthFuel[d];
       var date = new Date(fuelActiveYear, fuelActiveMonth - 1, d);
       var dow = GIORNI_SETT[date.getDay()].slice(0, 3);
-      var hasReceipt = receipt && receipt.data;
-      if (hasReceipt) lastReceiptDay = d;
-      html += '<div class="day-row' + (hasReceipt ? ' filled' : '') + '" data-fuel-day="' + d + '">';
+      var count = (receipts && receipts.length) || 0;
+      if (count > 0) lastReceiptDay = d;
+      html += '<div class="day-row' + (count > 0 ? ' filled' : '') + '" data-fuel-day="' + d + '">';
       html += '<div class="day-num">' + d + '</div>';
-      html += '<div class="day-main"><div class="dest">Giorno ' + d + '</div><div class="sub">' + dow + (hasReceipt ? ' · scontrino allegato' : ' · nessuno scontrino') + '</div></div>';
-      if (hasReceipt) {
-        html += '<div class="fuel-thumb-wrap"><img class="fuel-thumb" src="' + receipt.data + '" alt=""><span class="fuel-remove-x" data-fuel-remove="' + d + '">×</span></div>';
+      var subLabel = count === 0 ? 'nessuno scontrino' : (count === 1 ? '1 scontrino allegato' : count + ' scontrini allegati');
+      html += '<div class="day-main"><div class="dest">Giorno ' + d + '</div><div class="sub">' + dow + ' · ' + subLabel + '</div></div>';
+      if (count > 0) {
+        var lastPhoto = receipts[receipts.length - 1];
+        html += '<div class="fuel-thumb-wrap"><img class="fuel-thumb" src="' + lastPhoto.data + '" alt="">';
+        if (count > 1) html += '<span class="fuel-count-badge">' + count + '</span>';
+        html += '</div>';
       } else {
         html += '<div class="fuel-add-icon">+</div>';
       }
       html += '</div>';
     }
     document.getElementById('fuel-list').innerHTML = html;
-    document.querySelectorAll('#fuel-list [data-fuel-remove]').forEach(function (x) {
-      x.addEventListener('click', function (e) {
-        e.stopPropagation();
-        var d = x.getAttribute('data-fuel-remove');
-        var monthKey2 = fuelMonthKey(fuelActiveMonth, fuelActiveYear);
-        deleteFuelReceipt(monthKey2, d);
-        renderFuelList();
-        toast('Scontrino rimosso');
-      });
-    });
     document.querySelectorAll('#fuel-list [data-fuel-day]').forEach(function (row) {
       row.addEventListener('click', function () {
         var d = row.getAttribute('data-fuel-day');
         var monthKey2 = fuelMonthKey(fuelActiveMonth, fuelActiveYear);
-        var existing = state.fuel[monthKey2] && state.fuel[monthKey2][d];
-        if (existing && existing.data) {
-          openFuelViewer(d, existing);
+        var dayReceipts = state.fuel[monthKey2] && state.fuel[monthKey2][d];
+        if (dayReceipts && dayReceipts.length === 1) {
+          openFuelViewer(d, 0, dayReceipts[0]);
+        } else if (dayReceipts && dayReceipts.length > 1) {
+          openFuelGallery(d, dayReceipts);
         } else {
           fuelTargetDay = d;
           document.getElementById('in-fuel-photo').click();
@@ -1297,6 +1305,62 @@
       }
     }
   }
+
+  // Shown when a day has MORE than one receipt — a small gallery of
+  // thumbnails to pick from (tap to view full-size and zoom), each with
+  // its own remove button, plus a clear way to add yet another.
+  var fuelGalleryModal = document.getElementById('modal-fuel-gallery');
+  function openFuelGallery(day, receipts) {
+    document.getElementById('fuel-gallery-title').textContent = 'Giorno ' + day + ' — ' + receipts.length + ' scontrini';
+    var html = '';
+    receipts.forEach(function (r, idx) {
+      html += '<div class="fuel-gallery-item" data-gallery-index="' + idx + '">';
+      html += '<img src="' + r.data + '" alt="">';
+      html += '<span class="fuel-remove-x" data-gallery-remove="' + idx + '">×</span>';
+      html += '</div>';
+    });
+    document.getElementById('fuel-gallery-grid').innerHTML = html;
+    fuelGalleryModal.dataset.day = day;
+    document.querySelectorAll('#fuel-gallery-grid [data-gallery-index]').forEach(function (item) {
+      item.addEventListener('click', function (e) {
+        if (e.target.hasAttribute('data-gallery-remove')) return;
+        var idx = parseInt(item.getAttribute('data-gallery-index'), 10);
+        var monthKey2 = fuelMonthKey(fuelActiveMonth, fuelActiveYear);
+        var current = state.fuel[monthKey2][day];
+        fuelGalleryModal.classList.remove('open');
+        openFuelViewer(day, idx, current[idx]);
+      });
+    });
+    document.querySelectorAll('#fuel-gallery-grid [data-gallery-remove]').forEach(function (x) {
+      x.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var idx = parseInt(x.getAttribute('data-gallery-remove'), 10);
+        var monthKey2 = fuelMonthKey(fuelActiveMonth, fuelActiveYear);
+        deleteFuelReceipt(monthKey2, day, idx);
+        var remaining = (state.fuel[monthKey2] && state.fuel[monthKey2][day]) || [];
+        renderFuelList();
+        toast('Scontrino rimosso');
+        if (remaining.length <= 1) {
+          fuelGalleryModal.classList.remove('open');
+        } else {
+          openFuelGallery(day, remaining);
+        }
+      });
+    });
+    fuelGalleryModal.classList.add('open');
+  }
+  document.getElementById('fuel-gallery-close-x').addEventListener('click', function () {
+    fuelGalleryModal.classList.remove('open');
+  });
+  fuelGalleryModal.addEventListener('click', function (e) {
+    if (e.target === fuelGalleryModal) fuelGalleryModal.classList.remove('open');
+  });
+  document.getElementById('fuel-gallery-add').addEventListener('click', function () {
+    fuelTargetDay = fuelGalleryModal.dataset.day;
+    fuelGalleryModal.classList.remove('open');
+    document.getElementById('in-fuel-photo').click();
+  });
+
   // Shows an already-attached receipt full-size, with its file size, so
   // the person can check what they saved without needing to replace it
   // just to look at it. Supports real pinch-to-zoom and drag-to-pan (not
@@ -1366,13 +1430,14 @@
   fuelViewStage.addEventListener('pointerup', endFuelZoomPointer);
   fuelViewStage.addEventListener('pointercancel', endFuelZoomPointer);
 
-  function openFuelViewer(day, receipt) {
+  function openFuelViewer(day, index, receipt) {
     document.getElementById('fuel-view-title').textContent = 'Scontrino — Giorno ' + day;
     document.getElementById('fuel-view-img').src = receipt.data;
     var approxKB = Math.round(receipt.data.length * 0.75 / 1024 * 10) / 10;
     document.getElementById('fuel-view-size').textContent = approxKB + ' KB';
     resetFuelZoom();
     fuelViewModal.dataset.day = day;
+    fuelViewModal.dataset.index = index;
     fuelViewModal.classList.add('open');
   }
   function closeFuelViewer() { fuelViewModal.classList.remove('open'); }
@@ -1380,6 +1445,9 @@
   fuelViewModal.addEventListener('click', function (e) {
     if (e.target === fuelViewModal) closeFuelViewer();
   });
+  // Repurposed as "add another" rather than "replace this one" — with a
+  // day now able to hold several receipts, adding a new one is the far
+  // more common need (e.g. the pump printed more than one, or a retry).
   document.getElementById('fuel-view-replace').addEventListener('click', function () {
     fuelTargetDay = fuelViewModal.dataset.day;
     closeFuelViewer();
@@ -1387,8 +1455,9 @@
   });
   document.getElementById('fuel-view-remove').addEventListener('click', function () {
     var d = fuelViewModal.dataset.day;
+    var idx = parseInt(fuelViewModal.dataset.index, 10);
     var monthKey2 = fuelMonthKey(fuelActiveMonth, fuelActiveYear);
-    deleteFuelReceipt(monthKey2, d);
+    deleteFuelReceipt(monthKey2, d, idx);
     closeFuelViewer();
     renderFuelList();
     toast('Scontrino rimosso');
@@ -1507,10 +1576,12 @@
     var scontrino = processReceiptCanvas(srcCanvas);
     var monthKey = fuelMonthKey(fuelActiveMonth, fuelActiveYear);
     if (!state.fuel[monthKey]) state.fuel[monthKey] = {};
-    state.fuel[monthKey][fuelTargetDay] = scontrino;
+    if (!state.fuel[monthKey][fuelTargetDay]) state.fuel[monthKey][fuelTargetDay] = [];
+    state.fuel[monthKey][fuelTargetDay].push(scontrino);
+    var savedCount = state.fuel[monthKey][fuelTargetDay].length;
     saveFuel(state.fuel);
     renderFuelList();
-    toast('Scontrino salvato — Giorno ' + fuelTargetDay);
+    toast(savedCount > 1 ? 'Scontrino ' + savedCount + ' salvato — Giorno ' + fuelTargetDay : 'Scontrino salvato — Giorno ' + fuelTargetDay);
     reportActivity();
     document.getElementById('modal-crop').classList.remove('open');
     document.getElementById('in-fuel-photo').value = '';

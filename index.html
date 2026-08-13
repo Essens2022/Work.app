@@ -206,6 +206,17 @@
     display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;line-height:1;
     cursor:pointer;
   }
+  .fuel-count-badge{
+    position:absolute;bottom:-4px;right:-4px;min-width:18px;height:18px;padding:0 4px;border-radius:100px;
+    background:var(--accent);color:#fff;border:2px solid var(--surface);
+    display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;line-height:1;
+  }
+  .fuel-gallery-grid{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0;max-height:52vh;overflow-y:auto;
+  }
+  .fuel-gallery-item{position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--line);cursor:pointer;background:#fff;}
+  .fuel-gallery-item img{width:100%;aspect-ratio:1;object-fit:cover;display:block;}
+  .fuel-gallery-item .fuel-remove-x{top:4px;right:4px;}
 
   .undo-link{display:block;text-align:center;margin:18px auto 4px;font-size:12.5px;color:var(--ink-faint);text-decoration:underline;background:none;border:none;cursor:pointer;font-family:inherit;}
 
@@ -529,6 +540,20 @@
 
 <!-- Fuel receipt viewer — full-size preview of an already-attached photo,
      with its file size shown, before deciding to keep or replace it. -->
+<!-- Fuel gallery — shown when a day has more than one receipt: a small
+     grid of thumbnails, tap one to view it full-size and zoomed, each with
+     its own remove button, plus a clear way to add yet another photo. -->
+<div class="modal-overlay center" id="modal-fuel-gallery">
+  <div class="sheet-panel" style="max-width:520px;">
+    <button type="button" class="fuel-close-x" id="fuel-gallery-close-x" aria-label="Chiudi">×</button>
+    <div class="modal-title" id="fuel-gallery-title">Scontrini</div>
+    <div class="fuel-gallery-grid" id="fuel-gallery-grid"></div>
+    <div class="modal-btnrow">
+      <button class="btn btn-accent btn-block" id="fuel-gallery-add">+ Aggiungi un'altra foto</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay center" id="modal-fuel-view">
   <div class="sheet-panel" style="max-width:520px;text-align:center;">
     <button type="button" class="fuel-close-x" id="fuel-view-close-x" aria-label="Chiudi">×</button>
@@ -539,9 +564,28 @@
     </div>
     <div class="settings-driver-note" style="margin-top:8px;">Pizzica per ingrandire, trascina per spostarti, doppio tocco per zoom rapido.</div>
     <div class="modal-btnrow">
-      <button class="btn btn-ghost" id="fuel-view-replace">Sostituisci foto</button>
+      <button class="btn btn-ghost" id="fuel-view-replace">+ Aggiungi un'altra foto</button>
       <button class="btn btn-danger" id="fuel-view-remove">Rimuovi</button>
     </div>
+  </div>
+</div>
+
+<!-- Custom in-app camera — replaces the phone's native camera app when
+     taking a fuel receipt photo, so a level indicator (from the real tilt
+     sensor) and a framing guide can be shown live, helping the photo come
+     out straight before it even reaches the crop screen. -->
+<div class="modal-overlay" id="modal-camera">
+  <div class="camera-stage">
+    <video id="camera-video" autoplay playsinline muted></video>
+    <div class="camera-guide-frame"></div>
+    <div class="camera-level-wrap">
+      <div class="camera-level-track"><div class="camera-level-dot" id="camera-level-dot"></div></div>
+      <div class="camera-level-label" id="camera-level-label">Tieni il telefono dritto, parallelo allo scontrino</div>
+    </div>
+    <button type="button" class="camera-close-x" id="camera-close-x" aria-label="Chiudi">×</button>
+  </div>
+  <div class="camera-controls">
+    <button type="button" class="camera-shutter" id="camera-shutter" aria-label="Scatta foto"></button>
   </div>
 </div>
 
