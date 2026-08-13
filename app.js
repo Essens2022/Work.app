@@ -19,7 +19,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v45"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v46"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1308,41 +1308,74 @@
   // Turns an already-cropped canvas into the final small black-and-white
   // receipt image: grayscale with boosted contrast (like a document
   // scanner, not a color photo — a receipt is just text on paper, so
-  // color carries no information but costs a lot of file size), resized,
-  // then compressed. Quality is reduced step by step, automatically,
-  // until the result is safely under the 10KB budget — a fixed quality
-  // setting isn't reliable on its own, since a receipt with a lot of
-  // text/detail compresses far less than a simple one at the same
-  // setting, as confirmed by testing.
+  // color carries no information but costs a lot of file size), then
+  // compressed. Real camera photos have far more per-pixel noise/detail
+  // than clean test images, so quality reduction alone isn't always
+  // enough — this also shrinks the dimensions in steps when needed,
+  // trying every combination from "still fairly big and top quality"
+  // down to "small and low quality" until the result is safely under
+  // the 10KB budget, no matter how detailed the original photo was.
+  //
+  // Contrast is stretched based on THIS photo's own tonal range
+  // (percentile-based "auto levels"), instead of a fixed formula around
+  // a guessed midpoint. A fixed strong multiplier pushed faded/uneven
+  // thermal-paper receipts almost entirely to white, wiping out lighter
+  // text along with the background — a photo-specific stretch adapts to
+  // how light or faded that particular receipt actually is, so real
+  // text survives. The percentile clip is set very small (0.05%, not the
+  // usual ~1%) because a receipt is mostly blank paper with only a
+  // little actual text — at the usual 1% threshold the text itself was
+  // being discarded as an "outlier" rather than the true black point.
   function processReceiptCanvas(sourceCanvas) {
-    var maxDim = 1050;
-    var scale = Math.min(1, maxDim / Math.max(sourceCanvas.width, sourceCanvas.height));
-    var w = Math.round(sourceCanvas.width * scale), h = Math.round(sourceCanvas.height * scale);
-    var canvas = document.createElement('canvas');
-    canvas.width = w; canvas.height = h;
-    var ctx = canvas.getContext('2d');
-    ctx.drawImage(sourceCanvas, 0, 0, w, h);
-    var imgData = ctx.getImageData(0, 0, w, h);
-    var d = imgData.data;
-    var contrast = 3.2; // >1 pushes midtones toward black/white
-    for (var i = 0; i < d.length; i += 4) {
-      var gray = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
-      gray = (gray - 128) * contrast + 128;
-      gray = Math.max(0, Math.min(255, gray));
-      d[i] = d[i + 1] = d[i + 2] = gray;
-    }
-    ctx.putImageData(imgData, 0, 0);
-
     var budgetBytes = 10 * 1024; // base64 is ~4/3 the size of the real bytes it encodes
-    var qualitySteps = [0.6, 0.5, 0.4, 0.32, 0.25, 0.2, 0.15, 0.1];
-    var data = canvas.toDataURL('image/jpeg', qualitySteps[0]);
-    for (var q = 1; q < qualitySteps.length && data.length * 0.75 > budgetBytes; q++) {
-      data = canvas.toDataURL('image/jpeg', qualitySteps[q]);
+    var dimSteps = [1050, 850, 650, 500, 380, 280];
+    var qualitySteps = [0.6, 0.5, 0.4, 0.32, 0.25, 0.2, 0.15, 0.1, 0.05];
+    var best = null; // smallest result found so far, kept as a fallback
+
+    for (var dIdx = 0; dIdx < dimSteps.length; dIdx++) {
+      var maxDim = dimSteps[dIdx];
+      var scale = Math.min(1, maxDim / Math.max(sourceCanvas.width, sourceCanvas.height));
+      var w = Math.max(1, Math.round(sourceCanvas.width * scale));
+      var h = Math.max(1, Math.round(sourceCanvas.height * scale));
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(sourceCanvas, 0, 0, w, h);
+      var imgData = ctx.getImageData(0, 0, w, h);
+      var d = imgData.data;
+      var n = d.length / 4;
+
+      var gray = new Uint8ClampedArray(n);
+      var histogram = new Array(256).fill(0);
+      for (var p = 0; p < n; p++) {
+        var g = d[p * 4] * 0.299 + d[p * 4 + 1] * 0.587 + d[p * 4 + 2] * 0.114;
+        gray[p] = g;
+        histogram[Math.round(g)]++;
+      }
+      var clip = Math.max(1, Math.round(n * 0.0005));
+      var lowPoint = 0, acc = 0;
+      for (var v = 0; v < 256; v++) { acc += histogram[v]; if (acc >= clip) { lowPoint = v; break; } }
+      var highPoint = 255; acc = 0;
+      for (var v2 = 255; v2 >= 0; v2--) { acc += histogram[v2]; if (acc >= clip) { highPoint = v2; break; } }
+      var range = Math.max(20, highPoint - lowPoint); // floor avoids over-amplifying a near-blank photo
+
+      for (var p2 = 0; p2 < n; p2++) {
+        var stretched = (gray[p2] - lowPoint) / range * 255;
+        stretched = Math.max(0, Math.min(255, stretched));
+        d[p2 * 4] = d[p2 * 4 + 1] = d[p2 * 4 + 2] = stretched;
+      }
+      ctx.putImageData(imgData, 0, 0);
+
+      for (var q = 0; q < qualitySteps.length; q++) {
+        var data = canvas.toDataURL('image/jpeg', qualitySteps[q]);
+        if (!best || data.length < best.data.length) best = { data: data, w: w, h: h };
+        if (data.length * 0.75 <= budgetBytes) return best;
+      }
     }
-    // Width/height stored alongside the data now, while we already have
-    // them synchronously — avoids reloading the image (async) later just
-    // to know its aspect ratio, e.g. when laying it out on a PDF page.
-    return { data: data, w: w, h: h };
+    // Even the smallest/lowest-quality attempt didn't fit — this should
+    // only happen in extreme, unusual cases; return the smallest one
+    // found rather than nothing, so saving a receipt never simply fails.
+    return best;
   }
 
   /* ---------------------------------------------------------------- */
