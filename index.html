@@ -519,6 +519,21 @@
   </div>
 </div>
 
+<!-- Fuel receipt viewer — full-size preview of an already-attached photo,
+     with its file size shown, before deciding to keep or replace it. -->
+<div class="modal-overlay center" id="modal-fuel-view">
+  <div class="sheet-panel" style="max-width:480px;text-align:center;">
+    <button type="button" class="fuel-close-x" id="fuel-view-close-x" aria-label="Chiudi">×</button>
+    <div class="modal-title" id="fuel-view-title">Scontrino</div>
+    <div class="modal-sub" id="fuel-view-size"></div>
+    <img id="fuel-view-img" src="" alt="" style="max-width:100%;max-height:60vh;border-radius:12px;border:1px solid var(--line);">
+    <div class="modal-btnrow">
+      <button class="btn btn-ghost" id="fuel-view-replace">Sostituisci foto</button>
+      <button class="btn btn-danger" id="fuel-view-remove">Rimuovi</button>
+    </div>
+  </div>
+</div>
+
 <!-- Fuel receipt crop screen — drag the rectangle to frame just the
      receipt, cropping out the table/background around it, before the
      photo gets converted to a small black-and-white document. -->

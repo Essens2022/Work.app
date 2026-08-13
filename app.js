@@ -22,6 +22,7 @@
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
+  var LS_FUEL = "pt_fuel_v1"; // fuel receipts, keyed by month — independent of any client sheet
 
   var MESI = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
     "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
@@ -60,12 +61,21 @@
   function loadSheets() { return loadJSON(LS_SHEETS, []); }
   function saveSheets(arr) { saveJSON(LS_SHEETS, arr); }
 
+  // Fuel receipts are logged per CALENDAR DAY, for the truck/driver as a
+  // whole — never tied to any one client. Whether a month has one client
+  // sheet or ten, the same set of receipts for that month is shared by
+  // all of them: { "2026-8": { "5": {data,w,h}, "12": {...} }, ... }
+  function loadFuel() { return loadJSON(LS_FUEL, {}); }
+  function saveFuel(obj) { saveJSON(LS_FUEL, obj); }
+  function fuelMonthKey(month, year) { return year + '-' + month; }
+
   function getCurrentSheetId() { return localStorage.getItem(LS_CURRENT) || null; }
   function setCurrentSheetId(id) { if (id) localStorage.setItem(LS_CURRENT, id); }
 
   var state = {
     profile: loadProfile(),
     sheets: loadSheets(),
+    fuel: loadFuel(),
     currentSheetId: getCurrentSheetId(),
     editingDay: null,
     acResults: []
@@ -279,7 +289,7 @@
   /* Sheet data model                                                   */
   /* ---------------------------------------------------------------- */
   function emptyGiorno(prefillDa, prefillProvDa) {
-    return { da: prefillDa || "", provDa: prefillProvDa || "", a: "", provA: "", ddt: "", kmInizio: "", kmFine: "", bonus: "", scontrino: "" };
+    return { da: prefillDa || "", provDa: prefillProvDa || "", a: "", provA: "", ddt: "", kmInizio: "", kmFine: "", bonus: "" };
   }
 
   function buildGiorni(month, year, da, provDa) {
@@ -577,7 +587,7 @@
       html += '<div class="day-num">' + d + '</div>';
       html += '<div class="day-main">';
       if (filled) {
-        html += '<div class="dest">' + (g.a ? escapeHtml(g.a) : 'Destinazione da inserire') + (g.provA ? ' <span style="color:var(--ink-faint);font-weight:600;">(' + g.provA + ')</span>' : '') + (g.scontrino ? ' <span title="Scontrino allegato">📷</span>' : '') + '</div>';
+        html += '<div class="dest">' + (g.a ? escapeHtml(g.a) : 'Destinazione da inserire') + (g.provA ? ' <span style="color:var(--ink-faint);font-weight:600;">(' + g.provA + ')</span>' : '') + '</div>';
         html += '<div class="sub">' + dow + ' · ' + (g.ddt ? 'DDT ' + escapeHtml(g.ddt) : 'DDT —') + '</div>';
       } else {
         html += '<div class="dest placeholder">' + dow + ' ' + d + ' — nessun viaggio</div>';
@@ -781,19 +791,14 @@
       var key = document.getElementById('pdf-month-select').value;
       var parts = key.split('-');
       var y = parseInt(parts[0], 10), m = parseInt(parts[1], 10);
-      var sheetsThisMonth = sheetsForMonth(m, y);
-      var count = sheetsThisMonth.length;
-      var receiptCount = 0;
-      sheetsThisMonth.forEach(function (s) {
-        Object.keys(s.giorni).forEach(function (d) {
-          if (s.giorni[d] && s.giorni[d].scontrino && s.giorni[d].scontrino.data) receiptCount++;
-        });
-      });
+      var count = sheetsForMonth(m, y).length;
+      var monthFuel = state.fuel[fuelMonthKey(m, y)] || {};
+      var receiptCount = Object.keys(monthFuel).filter(function (d) { return monthFuel[d] && monthFuel[d].data; }).length;
       var note = count > 1
         ? 'Questo mese ha ' + count + ' clienti — il PDF conterrà ' + count + ' pagine, una per ciascuno.'
         : 'Questo mese ha un solo cliente — il PDF conterrà una pagina.';
       if (receiptCount > 0) {
-        note += ' Più ' + receiptCount + (receiptCount === 1 ? ' pagina scontrino' : ' pagine scontrini') + ' allegata in fondo.';
+        note += ' Più ' + receiptCount + (receiptCount === 1 ? ' scontrino carburante allegato' : ' scontrini carburante allegati') + '.';
       }
       document.getElementById('pdf-month-note').textContent = note;
     }
@@ -1068,7 +1073,7 @@
       if (i > 0) doc.addPage();
       buildPdfPage(doc, s);
     });
-    addReceiptPages(doc, sheets);
+    addReceiptPages(doc, month, year);
     return doc;
   }
 
@@ -1078,14 +1083,14 @@
   // every two or three days), so the grid adapts on its own: however many
   // receipts there are, they're laid out edge to edge with no wasted
   // space, and the total count is printed at the top of the section.
-  function addReceiptPages(doc, sheets) {
-    var receipts = [];
-    sheets.forEach(function (s) {
-      Object.keys(s.giorni).sort(function (a, b) { return Number(a) - Number(b); }).forEach(function (d) {
-        var g = s.giorni[d];
-        if (g && g.scontrino && g.scontrino.data) receipts.push({ day: d, client: s.perContoDi, scontrino: g.scontrino });
-      });
-    });
+  // Receipts are logged per calendar day for the month as a whole — never
+  // tied to a specific client — so this section appears exactly once per
+  // month's PDF, regardless of how many client sheets that month has.
+  function addReceiptPages(doc, month, year) {
+    var monthFuel = state.fuel[fuelMonthKey(month, year)] || {};
+    var receipts = Object.keys(monthFuel).sort(function (a, b) { return Number(a) - Number(b); })
+      .filter(function (d) { return monthFuel[d] && monthFuel[d].data; })
+      .map(function (d) { return { day: d, scontrino: monthFuel[d] }; });
     if (!receipts.length) return;
 
     var pageW = 297, pageH = 210, margin = 10;
@@ -1094,7 +1099,7 @@
     var perPage = cols * rows;
     var gridW = pageW - margin * 2, gridH = pageH - margin * 2 - headerH;
     var cellW = gridW / cols, cellH = gridH / rows;
-    var captionH = 5; // space for the "Giorno N · CLIENTE" label inside each cell
+    var captionH = 5; // space for the "Giorno N" label inside each cell
     var totalCount = receipts.length;
 
     for (var i = 0; i < receipts.length; i += perPage) {
@@ -1117,7 +1122,7 @@
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8);
         doc.setTextColor(90, 90, 90);
-        doc.text('Giorno ' + r.day + ' · ' + r.client, cellX + cellW / 2, cellY + 3.5, { align: 'center' });
+        doc.text('Giorno ' + r.day, cellX + cellW / 2, cellY + 3.5, { align: 'center' });
 
         try {
           var padX = 4, padY = 1;
@@ -1195,29 +1200,34 @@
 
   /* ---------------------------------------------------------------- */
   /* Fuel screen — day-by-day list, reachable from Home, for logging     */
-  /* receipts directly without opening a day's full trip details.       */
+  /* receipts directly without opening a day's full trip details. Fully  */
+  /* independent of any client sheet — shared by the whole month.        */
   /* ---------------------------------------------------------------- */
   var fuelModal = document.getElementById('modal-fuel');
+  var fuelActiveMonth = null, fuelActiveYear = null;
   function openFuelScreen() {
     var sheet = currentSheet();
     if (!sheet) { toast('Crea prima un foglio mensile'); return; }
-    document.getElementById('fuel-sub').textContent = MESI[sheet.month - 1] + ' ' + sheet.year + ' · ' + (sheet.perContoDi || '—');
-    renderFuelList(sheet);
+    fuelActiveMonth = sheet.month; fuelActiveYear = sheet.year;
+    document.getElementById('fuel-sub').textContent = MESI[sheet.month - 1] + ' ' + sheet.year;
+    renderFuelList();
     fuelModal.classList.add('open');
   }
-  function renderFuelList(sheet) {
-    var n = daysInMonth(sheet.month, sheet.year);
+  function renderFuelList() {
+    var n = daysInMonth(fuelActiveMonth, fuelActiveYear);
+    var monthKey = fuelMonthKey(fuelActiveMonth, fuelActiveYear);
+    var monthFuel = state.fuel[monthKey] || {};
     var html = '';
     for (var d = 1; d <= n; d++) {
-      var g = sheet.giorni[d];
-      var date = new Date(sheet.year, sheet.month - 1, d);
+      var receipt = monthFuel[d];
+      var date = new Date(fuelActiveYear, fuelActiveMonth - 1, d);
       var dow = GIORNI_SETT[date.getDay()].slice(0, 3);
-      var hasReceipt = g && g.scontrino && g.scontrino.data;
+      var hasReceipt = receipt && receipt.data;
       html += '<div class="day-row' + (hasReceipt ? ' filled' : '') + '" data-fuel-day="' + d + '">';
       html += '<div class="day-num">' + d + '</div>';
       html += '<div class="day-main"><div class="dest">Giorno ' + d + '</div><div class="sub">' + dow + (hasReceipt ? ' · scontrino allegato' : ' · nessuno scontrino') + '</div></div>';
       if (hasReceipt) {
-        html += '<div class="fuel-thumb-wrap"><img class="fuel-thumb" src="' + g.scontrino.data + '" alt=""><span class="fuel-remove-x" data-fuel-remove="' + d + '">×</span></div>';
+        html += '<div class="fuel-thumb-wrap"><img class="fuel-thumb" src="' + receipt.data + '" alt=""><span class="fuel-remove-x" data-fuel-remove="' + d + '">×</span></div>';
       } else {
         html += '<div class="fuel-add-icon">+</div>';
       }
@@ -1228,21 +1238,58 @@
       x.addEventListener('click', function (e) {
         e.stopPropagation();
         var d = x.getAttribute('data-fuel-remove');
-        var s = currentSheet();
-        if (!s || !s.giorni[d]) return;
-        s.giorni[d].scontrino = '';
-        saveSheets(state.sheets);
-        renderFuelList(s);
+        var monthKey2 = fuelMonthKey(fuelActiveMonth, fuelActiveYear);
+        if (state.fuel[monthKey2]) delete state.fuel[monthKey2][d];
+        saveFuel(state.fuel);
+        renderFuelList();
         toast('Scontrino rimosso');
       });
     });
     document.querySelectorAll('#fuel-list [data-fuel-day]').forEach(function (row) {
       row.addEventListener('click', function () {
-        fuelTargetDay = row.getAttribute('data-fuel-day');
-        document.getElementById('in-fuel-photo').click();
+        var d = row.getAttribute('data-fuel-day');
+        var monthKey2 = fuelMonthKey(fuelActiveMonth, fuelActiveYear);
+        var existing = state.fuel[monthKey2] && state.fuel[monthKey2][d];
+        if (existing && existing.data) {
+          openFuelViewer(d, existing);
+        } else {
+          fuelTargetDay = d;
+          document.getElementById('in-fuel-photo').click();
+        }
       });
     });
   }
+  // Shows an already-attached receipt full-size, with its file size, so
+  // the person can check what they saved without needing to replace it
+  // just to look at it.
+  var fuelViewModal = document.getElementById('modal-fuel-view');
+  function openFuelViewer(day, receipt) {
+    document.getElementById('fuel-view-title').textContent = 'Scontrino — Giorno ' + day;
+    document.getElementById('fuel-view-img').src = receipt.data;
+    var approxKB = Math.round(receipt.data.length * 0.75 / 1024 * 10) / 10;
+    document.getElementById('fuel-view-size').textContent = approxKB + ' KB';
+    fuelViewModal.dataset.day = day;
+    fuelViewModal.classList.add('open');
+  }
+  function closeFuelViewer() { fuelViewModal.classList.remove('open'); }
+  document.getElementById('fuel-view-close-x').addEventListener('click', closeFuelViewer);
+  fuelViewModal.addEventListener('click', function (e) {
+    if (e.target === fuelViewModal) closeFuelViewer();
+  });
+  document.getElementById('fuel-view-replace').addEventListener('click', function () {
+    fuelTargetDay = fuelViewModal.dataset.day;
+    closeFuelViewer();
+    document.getElementById('in-fuel-photo').click();
+  });
+  document.getElementById('fuel-view-remove').addEventListener('click', function () {
+    var d = fuelViewModal.dataset.day;
+    var monthKey2 = fuelMonthKey(fuelActiveMonth, fuelActiveYear);
+    if (state.fuel[monthKey2]) delete state.fuel[monthKey2][d];
+    saveFuel(state.fuel);
+    closeFuelViewer();
+    renderFuelList();
+    toast('Scontrino rimosso');
+  });
   document.getElementById('fuel-close').addEventListener('click', function () {
     fuelModal.classList.remove('open');
   });
@@ -1355,15 +1402,13 @@
     srcCanvas.getContext('2d').drawImage(cropRawImage, sx, sy, sw, sh, 0, 0, srcCanvas.width, srcCanvas.height);
 
     var scontrino = processReceiptCanvas(srcCanvas);
-    var sheet = currentSheet();
-    if (sheet) {
-      if (!sheet.giorni[fuelTargetDay]) sheet.giorni[fuelTargetDay] = emptyGiorno(state.profile.da, state.profile.provDa);
-      sheet.giorni[fuelTargetDay].scontrino = scontrino;
-      saveSheets(state.sheets);
-      renderFuelList(sheet);
-      toast('Scontrino salvato — Giorno ' + fuelTargetDay);
-      reportActivity();
-    }
+    var monthKey = fuelMonthKey(fuelActiveMonth, fuelActiveYear);
+    if (!state.fuel[monthKey]) state.fuel[monthKey] = {};
+    state.fuel[monthKey][fuelTargetDay] = scontrino;
+    saveFuel(state.fuel);
+    renderFuelList();
+    toast('Scontrino salvato — Giorno ' + fuelTargetDay);
+    reportActivity();
     document.getElementById('modal-crop').classList.remove('open');
     document.getElementById('in-fuel-photo').value = '';
     cropRawImage = null;
@@ -1451,10 +1496,7 @@
       ddt: document.getElementById('day-ddt').value.trim(),
       kmInizio: document.getElementById('day-kminizio').value === '' ? '' : Number(document.getElementById('day-kminizio').value),
       kmFine: document.getElementById('day-kmfine').value === '' ? '' : Number(document.getElementById('day-kmfine').value),
-      bonus: document.getElementById('day-bonus').value === '' ? '' : Math.max(0, Number(document.getElementById('day-bonus').value)),
-      // Receipts are managed from the dedicated Fuel screen now, not here
-      // — simply carry forward whatever was already attached to this day.
-      scontrino: (existingGiorno && existingGiorno.scontrino) || ''
+      bonus: document.getElementById('day-bonus').value === '' ? '' : Math.max(0, Number(document.getElementById('day-bonus').value))
     };
     sheet.giorni[day] = g;
 
