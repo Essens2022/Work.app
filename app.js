@@ -1999,6 +1999,54 @@
       .catch(function () { /* offline or blocked — silently skip, never blocks the app */ });
   }
 
+  /* ---------------------------------------------------------------- */
+  /* "Install app" banner — Chrome/Android fires beforeinstallprompt    */
+  /* when it considers the site installable. Capturing that event lets  */
+  /* a normal in-page button trigger the native install dialog directly */
+  /* — no link can do this on its own; a real tap in the page is always */
+  /* required, this just skips the browser's own menu for it. (iOS      */
+  /* Safari doesn't support this API at all — "Add to Home Screen"      */
+  /* there stays a manual step via the Share sheet, with no programmatic*/
+  /* way to trigger it; the banner simply never appears there.)         */
+  /* ---------------------------------------------------------------- */
+  var LS_INSTALL_DISMISSED = 'pt_install_dismissed_v1';
+  var deferredInstallPrompt = null;
+  function isStandaloneMode() {
+    return (window.navigator && window.navigator.standalone === true) ||
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+  }
+  function updateInstallBanner() {
+    var banner = document.getElementById('install-banner');
+    if (!banner) return;
+    var dismissed = localStorage.getItem(LS_INSTALL_DISMISSED) === '1';
+    var shouldShow = !!deferredInstallPrompt && !isStandaloneMode() && !dismissed;
+    banner.classList.toggle('hidden', !shouldShow);
+  }
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault(); // stop Chrome's own mini-infobar; we show our own button instead
+    deferredInstallPrompt = e;
+    updateInstallBanner();
+  });
+  window.addEventListener('appinstalled', function () {
+    deferredInstallPrompt = null;
+    updateInstallBanner();
+  });
+  document.getElementById('install-banner-btn').addEventListener('click', function () {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    deferredInstallPrompt.userChoice.then(function () {
+      // Whether accepted or dismissed, this specific prompt instance is
+      // spent — Chrome will fire a fresh beforeinstallprompt later if
+      // still applicable.
+      deferredInstallPrompt = null;
+      updateInstallBanner();
+    });
+  });
+  document.getElementById('install-banner-close').addEventListener('click', function () {
+    localStorage.setItem(LS_INSTALL_DISMISSED, '1');
+    updateInstallBanner();
+  });
+
   function init() {
     migrateUppercaseLocalities();
     reportActivity();
