@@ -309,6 +309,14 @@
   .modal-overlay.open .sheet-panel{transform:translateY(0);}
   .modal-overlay.center .sheet-panel{border-radius:22px;max-height:80vh;}
   .fuel-panel{max-height:74vh;position:relative;}
+  #fuel-view-stage{
+    position:relative;overflow:hidden;border-radius:12px;border:1px solid var(--line);
+    background:#000;touch-action:none;height:58vh;display:flex;align-items:center;justify-content:center;
+  }
+  #fuel-view-img{
+    max-width:100%;max-height:100%;position:relative;transform-origin:center center;
+    will-change:transform;user-select:none;-webkit-user-drag:none;
+  }
   .fuel-close-x{
     position:absolute;top:14px;right:16px;width:30px;height:30px;border-radius:50%;
     background:var(--surface-2);color:var(--ink-soft);border:none;font-size:18px;line-height:1;
@@ -522,11 +530,14 @@
 <!-- Fuel receipt viewer — full-size preview of an already-attached photo,
      with its file size shown, before deciding to keep or replace it. -->
 <div class="modal-overlay center" id="modal-fuel-view">
-  <div class="sheet-panel" style="max-width:480px;text-align:center;">
+  <div class="sheet-panel" style="max-width:520px;text-align:center;">
     <button type="button" class="fuel-close-x" id="fuel-view-close-x" aria-label="Chiudi">×</button>
     <div class="modal-title" id="fuel-view-title">Scontrino</div>
     <div class="modal-sub" id="fuel-view-size"></div>
-    <img id="fuel-view-img" src="" alt="" style="max-width:100%;max-height:60vh;border-radius:12px;border:1px solid var(--line);">
+    <div id="fuel-view-stage">
+      <img id="fuel-view-img" src="" alt="">
+    </div>
+    <div class="settings-driver-note" style="margin-top:8px;">Pizzica per ingrandire, trascina per spostarti, doppio tocco per zoom rapido.</div>
     <div class="modal-btnrow">
       <button class="btn btn-ghost" id="fuel-view-replace">Sostituisci foto</button>
       <button class="btn btn-danger" id="fuel-view-remove">Rimuovi</button>
