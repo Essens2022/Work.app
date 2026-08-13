@@ -19,7 +19,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v44"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v45"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1192,6 +1192,14 @@
   // Receipts are logged per calendar day for the month as a whole — never
   // tied to a specific client — so this section appears exactly once per
   // month's PDF, regardless of how many client sheets that month has.
+  // Packs every fuel receipt edge-to-edge, in day order, after the GIRO
+  // table page(s) — instead of a fixed grid with wide, mostly-empty
+  // cells (receipts are narrow, so a grid sized for a generic cell left
+  // a lot of visible gap around each one). Each receipt is drawn at a
+  // shared row height, placed right after the previous one with a small
+  // fixed gap, and wraps to a new row (or page) only when it no longer
+  // fits — so however many happen to fit side by side, they end up
+  // genuinely close together, not spread across an artificial grid.
   function addReceiptPages(doc, month, year) {
     var monthFuel = state.fuel[fuelMonthKey(month, year)] || {};
     var receipts = [];
@@ -1207,48 +1215,63 @@
 
     var pageW = 297, pageH = 210, margin = 10;
     var headerH = 10; // space reserved for the page title on each receipts page
-    var cols = 4, rows = 2;
-    var perPage = cols * rows;
-    var gridW = pageW - margin * 2, gridH = pageH - margin * 2 - headerH;
-    var cellW = gridW / cols, cellH = gridH / rows;
-    var captionH = 5; // space for the "Giorno N" label inside each cell
+    var gap = 2; // mm between receipts, both across a row and between rows
+    var captionH = 4; // space for the "Giorno N" label above each image
+    var rowH = 78; // shared image height each receipt is scaled to
+    var usableW = pageW - margin * 2;
+    var usableH = pageH - margin * 2 - headerH;
     var totalCount = receipts.length;
+    var totalWord = totalCount === 1 ? 'totale' : 'totali';
 
-    for (var i = 0; i < receipts.length; i += perPage) {
+    // Pass 1: simulate the flow layout to find out how many pages it
+    // takes, so each page's title can say "pagina X di Y" correctly —
+    // with a flow layout (unlike a fixed grid) that isn't known upfront.
+    function simulateLayout() {
+      var x = 0, y = 0, pages = 1;
+      receipts.forEach(function (r) {
+        var ratio = (r.scontrino.w && r.scontrino.h) ? r.scontrino.w / r.scontrino.h : 0.6;
+        var w = rowH * ratio;
+        if (x + w > usableW && x > 0) { x = 0; y += rowH + captionH + gap; }
+        if (y + captionH + rowH > usableH) { pages++; x = 0; y = 0; }
+        x += w + gap;
+      });
+      return pages;
+    }
+    var totalPages = simulateLayout();
+
+    var x = margin, y = margin + headerH, pageNum = 0;
+    function startPage() {
       doc.addPage();
-      var pageReceipts = receipts.slice(i, i + perPage);
-
+      pageNum++;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
       doc.setTextColor(20, 20, 20);
-      var totalWord = totalCount === 1 ? 'totale' : 'totali';
-      var pageLabel = totalCount > perPage
-        ? 'Scontrini carburante — ' + totalCount + ' ' + totalWord + ' (pagina ' + (Math.floor(i / perPage) + 1) + ' di ' + Math.ceil(totalCount / perPage) + ')'
+      var pageLabel = totalPages > 1
+        ? 'Scontrini carburante — ' + totalCount + ' ' + totalWord + ' (pagina ' + pageNum + ' di ' + totalPages + ')'
         : 'Scontrini carburante — ' + totalCount + ' ' + totalWord;
       doc.text(pageLabel, pageW / 2, margin + 3, { align: 'center' });
-
-      pageReceipts.forEach(function (r, idx) {
-        var col = idx % cols, row = Math.floor(idx / cols);
-        var cellX = margin + col * cellW, cellY = margin + headerH + row * cellH;
-
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(8);
-        doc.setTextColor(90, 90, 90);
-        var label = 'Giorno ' + r.day + (r.totalInDay > 1 ? ' (' + (r.indexInDay + 1) + '/' + r.totalInDay + ')' : '');
-        doc.text(label, cellX + cellW / 2, cellY + 3.5, { align: 'center' });
-
-        try {
-          var padX = 4, padY = 1;
-          var maxW = cellW - padX * 2, maxH = cellH - captionH - padY * 2;
-          var ratio = (r.scontrino.w && r.scontrino.h) ? r.scontrino.w / r.scontrino.h : 0.6;
-          var w = maxW, h = w / ratio;
-          if (h > maxH) { h = maxH; w = h * ratio; }
-          var imgX = cellX + (cellW - w) / 2;
-          var imgY = cellY + captionH + (maxH - h) / 2;
-          doc.addImage(r.scontrino.data, 'JPEG', imgX, imgY, w, h);
-        } catch (e) { /* skip a broken image rather than fail the whole PDF */ }
-      });
+      x = margin; y = margin + headerH;
     }
+    startPage();
+
+    receipts.forEach(function (r) {
+      var ratio = (r.scontrino.w && r.scontrino.h) ? r.scontrino.w / r.scontrino.h : 0.6;
+      var w = rowH * ratio, h = rowH;
+      if (x + w > margin + usableW && x > margin) { x = margin; y += rowH + captionH + gap; }
+      if (y + captionH + h > margin + headerH + usableH) { startPage(); }
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7);
+      doc.setTextColor(90, 90, 90);
+      var label = 'G.' + r.day + (r.totalInDay > 1 ? ' (' + (r.indexInDay + 1) + '/' + r.totalInDay + ')' : '');
+      doc.text(label, x + w / 2, y + 3, { align: 'center' });
+
+      try {
+        doc.addImage(r.scontrino.data, 'JPEG', x, y + captionH, w, h);
+      } catch (e) { /* skip a broken image rather than fail the whole PDF */ }
+
+      x += w + gap;
+    });
   }
 
   /* ---------------------------------------------------------------- */
