@@ -277,6 +277,11 @@
   }
   .modal-overlay.open{opacity:1;pointer-events:auto;}
   .modal-overlay.center{align-items:center;padding:20px;}
+  .crop-handle{background:var(--accent);border:3px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.3);}
+  .crop-handle[data-corner="tl"]{cursor:nwse-resize;}
+  .crop-handle[data-corner="br"]{cursor:nwse-resize;}
+  .crop-handle[data-corner="tr"]{cursor:nesw-resize;}
+  .crop-handle[data-corner="bl"]{cursor:nesw-resize;}
   .sheet-panel{
     background:var(--surface);width:100%;max-width:560px;border-radius:22px 22px 0 0;
     padding:10px 20px calc(20px + var(--safe-bottom));max-height:88vh;overflow-y:auto;touch-action:pan-y;
@@ -465,9 +470,47 @@
     </div>
     <div class="settings-driver-note" id="day-bonus-note" style="margin-top:-8px;">Visibile solo a te nella pagina Home — non appare mai nel PDF.</div>
 
+    <div class="field" style="margin-top:6px;">
+      <label>Scontrino gasolio — facoltativo</label>
+      <div id="scontrino-empty-wrap">
+        <input type="file" accept="image/*" capture="environment" id="in-scontrino" style="display:none;">
+        <button type="button" class="btn btn-outline btn-sm" id="btn-add-scontrino">📷 Aggiungi foto scontrino</button>
+      </div>
+      <div id="scontrino-preview-wrap" class="hidden" style="display:flex;align-items:center;gap:12px;margin-top:4px;">
+        <img id="scontrino-preview" src="" alt="" style="width:64px;height:64px;object-fit:cover;border-radius:10px;border:1px solid var(--line);">
+        <button type="button" class="link-btn" id="btn-remove-scontrino" style="color:var(--danger);">Rimuovi foto</button>
+      </div>
+    </div>
+    <div class="settings-driver-note" style="margin-top:-8px;">Salvato solo su questo telefono. A fine mese, tutti gli scontrini del mese vengono inclusi come pagine aggiuntive nel PDF.</div>
+
     <div class="modal-btnrow">
       <button class="btn btn-danger" id="day-clear">Svuota giorno</button>
       <button class="btn btn-accent" id="day-save">Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- Fuel receipt crop screen — drag the rectangle to frame just the
+     receipt, cropping out the table/background around it, before the
+     photo gets converted to a small black-and-white document. -->
+<div class="modal-overlay center" id="modal-crop">
+  <div class="sheet-panel" style="max-width:480px;">
+    <h3 style="margin:0 0 4px;">Inquadra lo scontrino</h3>
+    <p class="settings-driver-note" style="margin-top:0;">Trascina gli angoli per includere solo lo scontrino, escludendo il tavolo o altro intorno.</p>
+    <div style="text-align:center;">
+      <div id="crop-stage" style="position:relative;display:inline-block;max-width:100%;background:#000;border-radius:12px;overflow:hidden;touch-action:none;user-select:none;">
+        <img id="crop-img" src="" alt="" style="display:block;max-width:100%;max-height:52vh;width:auto;height:auto;pointer-events:none;">
+        <div id="crop-rect" style="position:absolute;border:2px solid var(--accent);box-shadow:0 0 0 2000px rgba(0,0,0,.5);cursor:move;">
+          <div class="crop-handle" data-corner="tl" style="position:absolute;top:-14px;left:-14px;width:28px;height:28px;"></div>
+          <div class="crop-handle" data-corner="tr" style="position:absolute;top:-14px;right:-14px;width:28px;height:28px;"></div>
+          <div class="crop-handle" data-corner="bl" style="position:absolute;bottom:-14px;left:-14px;width:28px;height:28px;"></div>
+          <div class="crop-handle" data-corner="br" style="position:absolute;bottom:-14px;right:-14px;width:28px;height:28px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-btnrow">
+      <button class="btn btn-ghost" id="crop-cancel">Annulla</button>
+      <button class="btn btn-accent" id="crop-confirm">Conferma</button>
     </div>
   </div>
 </div>

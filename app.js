@@ -279,7 +279,7 @@
   /* Sheet data model                                                   */
   /* ---------------------------------------------------------------- */
   function emptyGiorno(prefillDa, prefillProvDa) {
-    return { da: prefillDa || "", provDa: prefillProvDa || "", a: "", provA: "", ddt: "", kmInizio: "", kmFine: "", bonus: "" };
+    return { da: prefillDa || "", provDa: prefillProvDa || "", a: "", provA: "", ddt: "", kmInizio: "", kmFine: "", bonus: "", scontrino: "" };
   }
 
   function buildGiorni(month, year, da, provDa) {
@@ -574,7 +574,7 @@
       html += '<div class="day-num">' + d + '</div>';
       html += '<div class="day-main">';
       if (filled) {
-        html += '<div class="dest">' + (g.a ? escapeHtml(g.a) : 'Destinazione da inserire') + (g.provA ? ' <span style="color:var(--ink-faint);font-weight:600;">(' + g.provA + ')</span>' : '') + '</div>';
+        html += '<div class="dest">' + (g.a ? escapeHtml(g.a) : 'Destinazione da inserire') + (g.provA ? ' <span style="color:var(--ink-faint);font-weight:600;">(' + g.provA + ')</span>' : '') + (g.scontrino ? ' <span title="Scontrino allegato">📷</span>' : '') + '</div>';
         html += '<div class="sub">' + dow + ' · ' + (g.ddt ? 'DDT ' + escapeHtml(g.ddt) : 'DDT —') + '</div>';
       } else {
         html += '<div class="dest placeholder">' + dow + ' ' + d + ' — nessun viaggio</div>';
@@ -777,10 +777,22 @@
     function updateMonthNote() {
       var key = document.getElementById('pdf-month-select').value;
       var parts = key.split('-');
-      var count = sheetsForMonth(parseInt(parts[1], 10), parseInt(parts[0], 10)).length;
-      document.getElementById('pdf-month-note').textContent = count > 1
+      var y = parseInt(parts[0], 10), m = parseInt(parts[1], 10);
+      var sheetsThisMonth = sheetsForMonth(m, y);
+      var count = sheetsThisMonth.length;
+      var receiptCount = 0;
+      sheetsThisMonth.forEach(function (s) {
+        Object.keys(s.giorni).forEach(function (d) {
+          if (s.giorni[d] && s.giorni[d].scontrino && s.giorni[d].scontrino.data) receiptCount++;
+        });
+      });
+      var note = count > 1
         ? 'Questo mese ha ' + count + ' clienti — il PDF conterrà ' + count + ' pagine, una per ciascuno.'
-        : 'Questo mese ha un solo cliente — il PDF conterrà una sola pagina.';
+        : 'Questo mese ha un solo cliente — il PDF conterrà una pagina.';
+      if (receiptCount > 0) {
+        note += ' Più ' + receiptCount + (receiptCount === 1 ? ' pagina scontrino' : ' pagine scontrini') + ' allegata in fondo.';
+      }
+      document.getElementById('pdf-month-note').textContent = note;
     }
     updateMonthNote();
 
@@ -1053,13 +1065,220 @@
       if (i > 0) doc.addPage();
       buildPdfPage(doc, s);
     });
+    addReceiptPages(doc, sheets);
     return doc;
+  }
+
+  // Appends one page per fuel receipt photo, after the GIRO table page(s)
+  // — so a single PDF has both the trip log and every receipt for the
+  // month, ready to hand to the boss digitally instead of on paper.
+  function addReceiptPages(doc, sheets) {
+    var receipts = [];
+    sheets.forEach(function (s) {
+      Object.keys(s.giorni).sort(function (a, b) { return Number(a) - Number(b); }).forEach(function (d) {
+        var g = s.giorni[d];
+        if (g && g.scontrino && g.scontrino.data) receipts.push({ day: d, client: s.perContoDi, scontrino: g.scontrino });
+      });
+    });
+    if (!receipts.length) return;
+    var pageW = 297, pageH = 210, margin = 12;
+    receipts.forEach(function (r) {
+      doc.addPage();
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(12);
+      doc.setTextColor(20, 20, 20);
+      doc.text('Scontrino gasolio — Giorno ' + r.day + ' — ' + r.client, pageW / 2, margin + 4, { align: 'center' });
+      try {
+        var maxW = pageW - margin * 2, maxH = pageH - margin * 2 - 14;
+        var ratio = (r.scontrino.w && r.scontrino.h) ? r.scontrino.w / r.scontrino.h : 0.75;
+        var w = maxW, h = w / ratio;
+        if (h > maxH) { h = maxH; w = h * ratio; }
+        doc.addImage(r.scontrino.data, 'JPEG', (pageW - w) / 2, margin + 12, w, h);
+      } catch (e) { /* skip a broken image rather than fail the whole PDF */ }
+    });
   }
 
   /* ---------------------------------------------------------------- */
   /* Day editor                                                         */
   /* ---------------------------------------------------------------- */
   var dayModal = document.getElementById('modal-day');
+  // Fuel receipt photo — the person crops the raw photo down to just the
+  // receipt (excluding the table/background around it) using the crop
+  // screen below, and only THEN is it converted to a small black-and-
+  // white "document scan" and stored as base64 in localStorage. Works
+  // fully offline, like the rest of the app.
+  var pendingScontrino; // undefined = untouched this session, '' = removed, {data,w,h} = new photo
+  var cropRawImage = null; // the freshly-picked, not-yet-cropped photo
+  var cropRect = null; // current crop rectangle, in on-screen pixels: {left,top,right,bottom}
+  var cropDragMode = null; // null | 'move' | 'tl' | 'tr' | 'bl' | 'br'
+  var cropDragStart = null;
+
+  function loadPickedImage(file) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onerror = reject;
+      reader.onload = function () {
+        var img = new Image();
+        img.onerror = reject;
+        img.onload = function () { resolve(img); };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // Turns an already-cropped canvas into the final small black-and-white
+  // receipt image: grayscale with boosted contrast (like a document
+  // scanner, not a color photo — a receipt is just text on paper, so
+  // color carries no information but costs a lot of file size), resized,
+  // then compressed.
+  function processReceiptCanvas(sourceCanvas) {
+    var maxDim = 1050;
+    var scale = Math.min(1, maxDim / Math.max(sourceCanvas.width, sourceCanvas.height));
+    var w = Math.round(sourceCanvas.width * scale), h = Math.round(sourceCanvas.height * scale);
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    var ctx = canvas.getContext('2d');
+    ctx.drawImage(sourceCanvas, 0, 0, w, h);
+    var imgData = ctx.getImageData(0, 0, w, h);
+    var d = imgData.data;
+    var contrast = 3.2; // >1 pushes midtones toward black/white
+    for (var i = 0; i < d.length; i += 4) {
+      var gray = d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114;
+      gray = (gray - 128) * contrast + 128;
+      gray = Math.max(0, Math.min(255, gray));
+      d[i] = d[i + 1] = d[i + 2] = gray;
+    }
+    ctx.putImageData(imgData, 0, 0);
+    // Width/height stored alongside the data now, while we already have
+    // them synchronously — avoids reloading the image (async) later just
+    // to know its aspect ratio, e.g. when laying it out on a PDF page.
+    return { data: canvas.toDataURL('image/jpeg', 0.7), w: w, h: h };
+  }
+
+  function updateScontrinoPreview(scontrino) {
+    var emptyWrap = document.getElementById('scontrino-empty-wrap');
+    var previewWrap = document.getElementById('scontrino-preview-wrap');
+    if (scontrino && scontrino.data) {
+      document.getElementById('scontrino-preview').src = scontrino.data;
+      emptyWrap.classList.add('hidden'); previewWrap.classList.remove('hidden');
+    } else {
+      emptyWrap.classList.remove('hidden'); previewWrap.classList.add('hidden');
+    }
+  }
+  document.getElementById('btn-add-scontrino').addEventListener('click', function () {
+    document.getElementById('in-scontrino').click();
+  });
+  document.getElementById('in-scontrino').addEventListener('change', function (e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    loadPickedImage(file).then(function (img) {
+      cropRawImage = img;
+      openCropScreen(img);
+    }).catch(function () { toast('Impossibile leggere la foto'); });
+  });
+  document.getElementById('btn-remove-scontrino').addEventListener('click', function () {
+    pendingScontrino = '';
+    updateScontrinoPreview('');
+  });
+
+  /* ---------------------------------------------------------------- */
+  /* Receipt crop screen — a simple rectangle (not free 4-corner        */
+  /* perspective warp) the person drags to frame just the receipt.      */
+  /* ---------------------------------------------------------------- */
+  function openCropScreen(img) {
+    document.getElementById('crop-img').src = img.src;
+    document.getElementById('modal-crop').classList.add('open');
+    requestAnimationFrame(function () {
+      requestAnimationFrame(initCropRect); // second frame: image has laid out at full width by now
+    });
+  }
+  function initCropRect() {
+    var stage = document.getElementById('crop-stage');
+    var imgEl = document.getElementById('crop-img');
+    var stageW = stage.clientWidth, stageH = imgEl.clientHeight;
+    var marginX = stageW * 0.06, marginY = stageH * 0.06;
+    cropRect = { left: marginX, top: marginY, right: stageW - marginX, bottom: stageH - marginY };
+    renderCropRect();
+  }
+  function renderCropRect() {
+    var r = document.getElementById('crop-rect');
+    r.style.left = cropRect.left + 'px';
+    r.style.top = cropRect.top + 'px';
+    r.style.width = (cropRect.right - cropRect.left) + 'px';
+    r.style.height = (cropRect.bottom - cropRect.top) + 'px';
+  }
+  function stagePoint(e) {
+    var stage = document.getElementById('crop-stage');
+    var rect = stage.getBoundingClientRect();
+    var t = (e.touches && e.touches[0]) || e;
+    return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+  }
+  function startCropDrag(mode, e) {
+    e.stopPropagation();
+    if (e.preventDefault) e.preventDefault();
+    cropDragMode = mode;
+    cropDragStart = { point: stagePoint(e), rect: { left: cropRect.left, top: cropRect.top, right: cropRect.right, bottom: cropRect.bottom } };
+  }
+  document.querySelectorAll('.crop-handle').forEach(function (handle) {
+    handle.addEventListener('pointerdown', function (e) { startCropDrag(handle.getAttribute('data-corner'), e); });
+  });
+  document.getElementById('crop-rect').addEventListener('pointerdown', function (e) {
+    if (e.target.classList.contains('crop-handle')) return;
+    startCropDrag('move', e);
+  });
+  document.getElementById('crop-stage').addEventListener('pointermove', function (e) {
+    if (!cropDragMode) return;
+    if (e.preventDefault) e.preventDefault();
+    var stage = document.getElementById('crop-stage');
+    var stageW = stage.clientWidth, stageH = stage.clientHeight;
+    var pt = stagePoint(e);
+    var dx = pt.x - cropDragStart.point.x, dy = pt.y - cropDragStart.point.y;
+    var r = { left: cropDragStart.rect.left, top: cropDragStart.rect.top, right: cropDragStart.rect.right, bottom: cropDragStart.rect.bottom };
+    var minSize = 40;
+    if (cropDragMode === 'move') {
+      var w = r.right - r.left, h = r.bottom - r.top;
+      r.left = Math.max(0, Math.min(stageW - w, r.left + dx));
+      r.top = Math.max(0, Math.min(stageH - h, r.top + dy));
+      r.right = r.left + w; r.bottom = r.top + h;
+    } else {
+      if (cropDragMode.indexOf('l') !== -1) r.left = Math.max(0, Math.min(r.right - minSize, r.left + dx));
+      if (cropDragMode.indexOf('r') !== -1) r.right = Math.min(stageW, Math.max(r.left + minSize, r.right + dx));
+      if (cropDragMode.indexOf('t') !== -1) r.top = Math.max(0, Math.min(r.bottom - minSize, r.top + dy));
+      if (cropDragMode.indexOf('b') !== -1) r.bottom = Math.min(stageH, Math.max(r.top + minSize, r.bottom + dy));
+    }
+    cropRect = r;
+    renderCropRect();
+  });
+  function endCropDrag() { cropDragMode = null; }
+  document.getElementById('crop-stage').addEventListener('pointerup', endCropDrag);
+  document.getElementById('crop-stage').addEventListener('pointercancel', endCropDrag);
+
+  document.getElementById('crop-cancel').addEventListener('click', function () {
+    document.getElementById('modal-crop').classList.remove('open');
+    document.getElementById('in-scontrino').value = ''; // allow picking the same file again
+    cropRawImage = null;
+  });
+  document.getElementById('crop-confirm').addEventListener('click', function () {
+    if (!cropRawImage || !cropRect) return;
+    var imgEl = document.getElementById('crop-img');
+    var scaleX = cropRawImage.naturalWidth / imgEl.clientWidth;
+    var scaleY = cropRawImage.naturalHeight / imgEl.clientHeight;
+    var sx = cropRect.left * scaleX, sy = cropRect.top * scaleY;
+    var sw = (cropRect.right - cropRect.left) * scaleX, sh = (cropRect.bottom - cropRect.top) * scaleY;
+
+    var srcCanvas = document.createElement('canvas');
+    srcCanvas.width = Math.max(1, Math.round(sw)); srcCanvas.height = Math.max(1, Math.round(sh));
+    srcCanvas.getContext('2d').drawImage(cropRawImage, sx, sy, sw, sh, 0, 0, srcCanvas.width, srcCanvas.height);
+
+    var scontrino = processReceiptCanvas(srcCanvas);
+    pendingScontrino = scontrino;
+    updateScontrinoPreview(scontrino);
+    document.getElementById('modal-crop').classList.remove('open');
+    document.getElementById('in-scontrino').value = '';
+    cropRawImage = null;
+  });
+
   function openDayEditor(sheet, day) {
     state.editingDay = { sheetId: sheet.id, day: day };
     var g = sheet.giorni[day] || emptyGiorno(state.profile.da, state.profile.provDa);
@@ -1093,6 +1312,9 @@
     document.getElementById('day-bonus-note').textContent = countsForRate
       ? 'Visibile solo a te nella pagina Home — non appare mai nel PDF.'
       : 'Questo cliente non conta per il compenso giornaliero — questo importo è il tuo pagamento per la giornata. Visibile solo a te — non appare mai nel PDF.';
+
+    pendingScontrino = undefined; // untouched this session
+    updateScontrinoPreview(g.scontrino || '');
 
     updateKmTot();
     document.getElementById('ac-list').classList.remove('show');
@@ -1132,6 +1354,7 @@
     var provAVal = document.getElementById('day-prova').value.trim().toUpperCase();
     if (aVal && !provAVal) provAVal = lookupProvincia(aVal);
 
+    var existingGiorno = sheet.giorni[day];
     var g = {
       da: daVal,
       provDa: document.getElementById('day-provda').value.trim().toUpperCase(),
@@ -1140,7 +1363,8 @@
       ddt: document.getElementById('day-ddt').value.trim(),
       kmInizio: document.getElementById('day-kminizio').value === '' ? '' : Number(document.getElementById('day-kminizio').value),
       kmFine: document.getElementById('day-kmfine').value === '' ? '' : Number(document.getElementById('day-kmfine').value),
-      bonus: document.getElementById('day-bonus').value === '' ? '' : Math.max(0, Number(document.getElementById('day-bonus').value))
+      bonus: document.getElementById('day-bonus').value === '' ? '' : Math.max(0, Number(document.getElementById('day-bonus').value)),
+      scontrino: pendingScontrino !== undefined ? pendingScontrino : ((existingGiorno && existingGiorno.scontrino) || '')
     };
     sheet.giorni[day] = g;
 
