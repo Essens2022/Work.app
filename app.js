@@ -19,7 +19,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v41"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v42"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1947,6 +1947,30 @@
     if (changed) { saveSheets(state.sheets); saveProfile(state.profile); }
   }
 
+  // Fuel receipts used to store, per day, a single {data,w,h} object —
+  // later changed to a LIST of them, so a day could hold more than one
+  // receipt. Anyone who had already saved a receipt before that change
+  // still has it on disk in the old, single-object shape; without this
+  // migration, the new list-based code doesn't recognize it (a day like
+  // that would wrongly show as empty, and trying to add a new photo to
+  // it would fail outright, since .push() doesn't exist on a plain
+  // object) — wrapping the old value into a one-item list fixes both at
+  // once, for every day, without losing the photo that was already there.
+  function migrateFuelToArrays() {
+    var changed = false;
+    Object.keys(state.fuel).forEach(function (monthKey) {
+      var monthFuel = state.fuel[monthKey];
+      Object.keys(monthFuel).forEach(function (day) {
+        var entry = monthFuel[day];
+        if (entry && !Array.isArray(entry) && entry.data) {
+          monthFuel[day] = [entry];
+          changed = true;
+        }
+      });
+    });
+    if (changed) saveFuel(state.fuel);
+  }
+
   // Measures the real rendered height of the fixed top/bottom bars and
   // exposes them as CSS variables, so the scrollable content in <main> is
   // padded to clear them exactly — no guessing, works identically on every
@@ -2072,6 +2096,7 @@
 
   function init() {
     migrateUppercaseLocalities();
+    migrateFuelToArrays();
     reportActivity();
     syncBarHeights();
     window.addEventListener('resize', syncBarHeights);
