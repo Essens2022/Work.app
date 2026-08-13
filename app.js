@@ -1173,7 +1173,11 @@
   // receipt image: grayscale with boosted contrast (like a document
   // scanner, not a color photo — a receipt is just text on paper, so
   // color carries no information but costs a lot of file size), resized,
-  // then compressed.
+  // then compressed. Quality is reduced step by step, automatically,
+  // until the result is safely under the 10KB budget — a fixed quality
+  // setting isn't reliable on its own, since a receipt with a lot of
+  // text/detail compresses far less than a simple one at the same
+  // setting, as confirmed by testing.
   function processReceiptCanvas(sourceCanvas) {
     var maxDim = 1050;
     var scale = Math.min(1, maxDim / Math.max(sourceCanvas.width, sourceCanvas.height));
@@ -1192,10 +1196,17 @@
       d[i] = d[i + 1] = d[i + 2] = gray;
     }
     ctx.putImageData(imgData, 0, 0);
+
+    var budgetBytes = 10 * 1024; // base64 is ~4/3 the size of the real bytes it encodes
+    var qualitySteps = [0.6, 0.5, 0.4, 0.32, 0.25, 0.2, 0.15, 0.1];
+    var data = canvas.toDataURL('image/jpeg', qualitySteps[0]);
+    for (var q = 1; q < qualitySteps.length && data.length * 0.75 > budgetBytes; q++) {
+      data = canvas.toDataURL('image/jpeg', qualitySteps[q]);
+    }
     // Width/height stored alongside the data now, while we already have
     // them synchronously — avoids reloading the image (async) later just
     // to know its aspect ratio, e.g. when laying it out on a PDF page.
-    return { data: canvas.toDataURL('image/jpeg', 0.7), w: w, h: h };
+    return { data: data, w: w, h: h };
   }
 
   /* ---------------------------------------------------------------- */
@@ -1280,13 +1291,79 @@
   }
   // Shows an already-attached receipt full-size, with its file size, so
   // the person can check what they saved without needing to replace it
-  // just to look at it.
+  // just to look at it. Supports real pinch-to-zoom and drag-to-pan (not
+  // just a bigger static image), plus double-tap as a quick shortcut —
+  // built by hand with pointer events, since the page's own viewport zoom
+  // is disabled app-wide and wouldn't reach into this modal anyway.
   var fuelViewModal = document.getElementById('modal-fuel-view');
+  var fuelZoom = { scale: 1, panX: 0, panY: 0 };
+  var fuelZoomPointers = {};
+  var fuelZoomPinchStart = null;
+  var fuelZoomPanStart = null;
+  var fuelZoomLastTap = 0;
+  function applyFuelZoom() {
+    var img = document.getElementById('fuel-view-img');
+    img.style.transform = 'translate(' + fuelZoom.panX + 'px,' + fuelZoom.panY + 'px) scale(' + fuelZoom.scale + ')';
+  }
+  function resetFuelZoom() {
+    fuelZoom = { scale: 1, panX: 0, panY: 0 };
+    applyFuelZoom();
+  }
+  function clampFuelPan() {
+    var maxPan = 140 * fuelZoom.scale;
+    fuelZoom.panX = Math.max(-maxPan, Math.min(maxPan, fuelZoom.panX));
+    fuelZoom.panY = Math.max(-maxPan, Math.min(maxPan, fuelZoom.panY));
+  }
+  var fuelViewStage = document.getElementById('fuel-view-stage');
+  fuelViewStage.addEventListener('pointerdown', function (e) {
+    try { fuelViewStage.setPointerCapture(e.pointerId); } catch (err) { /* not critical — tracking below still works without it */ }
+    fuelZoomPointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    var ids = Object.keys(fuelZoomPointers);
+    if (ids.length === 2) {
+      var p1 = fuelZoomPointers[ids[0]], p2 = fuelZoomPointers[ids[1]];
+      fuelZoomPinchStart = { dist: Math.hypot(p2.x - p1.x, p2.y - p1.y), scale: fuelZoom.scale };
+      fuelZoomPanStart = null;
+    } else if (ids.length === 1) {
+      fuelZoomPanStart = { x: e.clientX, y: e.clientY, panX: fuelZoom.panX, panY: fuelZoom.panY };
+      var now = Date.now();
+      if (now - fuelZoomLastTap < 300) {
+        if (fuelZoom.scale > 1.3) resetFuelZoom();
+        else { fuelZoom.scale = 2.5; applyFuelZoom(); }
+      }
+      fuelZoomLastTap = now;
+    }
+  });
+  fuelViewStage.addEventListener('pointermove', function (e) {
+    if (!(e.pointerId in fuelZoomPointers)) return;
+    fuelZoomPointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    var ids = Object.keys(fuelZoomPointers);
+    if (ids.length === 2 && fuelZoomPinchStart) {
+      var p1 = fuelZoomPointers[ids[0]], p2 = fuelZoomPointers[ids[1]];
+      var dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      fuelZoom.scale = Math.max(1, Math.min(5, fuelZoomPinchStart.scale * (dist / fuelZoomPinchStart.dist)));
+      applyFuelZoom();
+    } else if (ids.length === 1 && fuelZoomPanStart && fuelZoom.scale > 1) {
+      fuelZoom.panX = fuelZoomPanStart.panX + (e.clientX - fuelZoomPanStart.x);
+      fuelZoom.panY = fuelZoomPanStart.panY + (e.clientY - fuelZoomPanStart.y);
+      clampFuelPan();
+      applyFuelZoom();
+    }
+  });
+  function endFuelZoomPointer(e) {
+    delete fuelZoomPointers[e.pointerId];
+    var ids = Object.keys(fuelZoomPointers);
+    if (ids.length < 2) fuelZoomPinchStart = null;
+    if (ids.length < 1) fuelZoomPanStart = null;
+  }
+  fuelViewStage.addEventListener('pointerup', endFuelZoomPointer);
+  fuelViewStage.addEventListener('pointercancel', endFuelZoomPointer);
+
   function openFuelViewer(day, receipt) {
     document.getElementById('fuel-view-title').textContent = 'Scontrino — Giorno ' + day;
     document.getElementById('fuel-view-img').src = receipt.data;
     var approxKB = Math.round(receipt.data.length * 0.75 / 1024 * 10) / 10;
     document.getElementById('fuel-view-size').textContent = approxKB + ' KB';
+    resetFuelZoom();
     fuelViewModal.dataset.day = day;
     fuelViewModal.classList.add('open');
   }
