@@ -19,6 +19,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
+  var APP_VERSION = "pt-foglio-v40"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2127,6 +2128,35 @@
         window.location.reload();
       });
     }
+
+    // A SECOND, independent way of noticing a new version — iOS in
+    // particular is known to sometimes delay or skip the service worker's
+    // own update checks for installed home-screen apps (a platform
+    // limitation, not something this app's code can force), which can
+    // leave a phone showing an old version even with good internet and
+    // the app opened normally. This check doesn't rely on the service
+    // worker's update machinery at all: it just fetches a tiny version
+    // marker file directly, with caching fully bypassed, and reloads if
+    // it doesn't match what's currently running — a plain network
+    // request behaves far more predictably than background service
+    // worker scheduling.
+    function checkVersionDirectly() {
+      fetch('version.json', { cache: 'no-store' })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (data && data.v && data.v !== APP_VERSION) {
+            var modalOpen = document.querySelector('.modal-overlay.open');
+            if (modalOpen) { pendingReloadAfterModalClose = true; return; }
+            window.location.reload();
+          }
+        })
+        .catch(function () { /* offline or blocked — silently skip, try again later */ });
+    }
+    checkVersionDirectly();
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') checkVersionDirectly();
+    });
+    setInterval(checkVersionDirectly, 60000);
   }
 
   init();
