@@ -1078,9 +1078,12 @@
     return doc;
   }
 
-  // Appends one page per fuel receipt photo, after the GIRO table page(s)
-  // — so a single PDF has both the trip log and every receipt for the
-  // month, ready to hand to the boss digitally instead of on paper.
+  // Packs every fuel receipt into a compact grid, after the GIRO table
+  // page(s) — instead of one mostly-empty page per receipt. How many
+  // receipts a month has varies a lot (some drivers refuel daily, others
+  // every two or three days), so the grid adapts on its own: however many
+  // receipts there are, they're laid out edge to edge with no wasted
+  // space, and the total count is printed at the top of the section.
   function addReceiptPages(doc, sheets) {
     var receipts = [];
     sheets.forEach(function (s) {
@@ -1090,21 +1093,50 @@
       });
     });
     if (!receipts.length) return;
-    var pageW = 297, pageH = 210, margin = 12;
-    receipts.forEach(function (r) {
+
+    var pageW = 297, pageH = 210, margin = 10;
+    var headerH = 10; // space reserved for the page title on each receipts page
+    var cols = 4, rows = 2;
+    var perPage = cols * rows;
+    var gridW = pageW - margin * 2, gridH = pageH - margin * 2 - headerH;
+    var cellW = gridW / cols, cellH = gridH / rows;
+    var captionH = 5; // space for the "Giorno N · CLIENTE" label inside each cell
+    var totalCount = receipts.length;
+
+    for (var i = 0; i < receipts.length; i += perPage) {
       doc.addPage();
+      var pageReceipts = receipts.slice(i, i + perPage);
+
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(12);
       doc.setTextColor(20, 20, 20);
-      doc.text('Scontrino gasolio — Giorno ' + r.day + ' — ' + r.client, pageW / 2, margin + 4, { align: 'center' });
-      try {
-        var maxW = pageW - margin * 2, maxH = pageH - margin * 2 - 14;
-        var ratio = (r.scontrino.w && r.scontrino.h) ? r.scontrino.w / r.scontrino.h : 0.75;
-        var w = maxW, h = w / ratio;
-        if (h > maxH) { h = maxH; w = h * ratio; }
-        doc.addImage(r.scontrino.data, 'JPEG', (pageW - w) / 2, margin + 12, w, h);
-      } catch (e) { /* skip a broken image rather than fail the whole PDF */ }
-    });
+      var totalWord = totalCount === 1 ? 'totale' : 'totali';
+      var pageLabel = totalCount > perPage
+        ? 'Scontrini carburante — ' + totalCount + ' ' + totalWord + ' (pagina ' + (Math.floor(i / perPage) + 1) + ' di ' + Math.ceil(totalCount / perPage) + ')'
+        : 'Scontrini carburante — ' + totalCount + ' ' + totalWord;
+      doc.text(pageLabel, pageW / 2, margin + 3, { align: 'center' });
+
+      pageReceipts.forEach(function (r, idx) {
+        var col = idx % cols, row = Math.floor(idx / cols);
+        var cellX = margin + col * cellW, cellY = margin + headerH + row * cellH;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(90, 90, 90);
+        doc.text('Giorno ' + r.day + ' · ' + r.client, cellX + cellW / 2, cellY + 3.5, { align: 'center' });
+
+        try {
+          var padX = 4, padY = 1;
+          var maxW = cellW - padX * 2, maxH = cellH - captionH - padY * 2;
+          var ratio = (r.scontrino.w && r.scontrino.h) ? r.scontrino.w / r.scontrino.h : 0.6;
+          var w = maxW, h = w / ratio;
+          if (h > maxH) { h = maxH; w = h * ratio; }
+          var imgX = cellX + (cellW - w) / 2;
+          var imgY = cellY + captionH + (maxH - h) / 2;
+          doc.addImage(r.scontrino.data, 'JPEG', imgX, imgY, w, h);
+        } catch (e) { /* skip a broken image rather than fail the whole PDF */ }
+      });
+    }
   }
 
   /* ---------------------------------------------------------------- */
