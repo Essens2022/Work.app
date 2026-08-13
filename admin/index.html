@@ -11,7 +11,8 @@
     background:#FAFAF8;color:#1C1B1F;padding:24px 16px;
   }
   .wrap{max-width:640px;margin:0 auto;}
-  h1{font-size:20px;margin:0 0 24px;}
+  h1{font-size:20px;margin:0 0 4px;}
+  .subtitle{font-size:13px;color:#6B6A66;margin:0 0 20px;}
   .card{background:#fff;border:1px solid #E7E5E1;border-radius:16px;padding:20px;margin-bottom:14px;}
   input{
     width:100%;padding:12px 14px;border-radius:10px;border:1px solid #E7E5E1;font-size:15px;
@@ -19,11 +20,26 @@
   }
   button{
     appearance:none;border:none;border-radius:10px;padding:12px 18px;font-size:15px;font-weight:700;
-    background:#E8542B;color:#fff;cursor:pointer;width:100%;
+    background:#E8542B;color:#fff;cursor:pointer;
   }
   button:active{opacity:.85;}
+  .btn-block{width:100%;}
+  .btn-ghost{background:#F2F1EE;color:#1C1B1F;}
+  .btn-sm{padding:7px 12px;font-size:13px;border-radius:8px;font-weight:600;}
+  .toolbar{display:flex;gap:10px;margin-bottom:16px;}
+  .toolbar button{flex:1;}
+  .section-title{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#8C8A85;margin:22px 0 10px;}
+  .section-title:first-child{margin-top:0;}
+  .driver-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
   .driver-name{font-weight:800;font-size:15px;}
   .driver-meta{font-size:13px;color:#6B6A66;margin-top:4px;line-height:1.6;}
+  .device-id{font-size:11px;color:#B5B3AE;font-family:monospace;margin-top:6px;}
+  .badge{
+    display:inline-block;font-size:11px;font-weight:700;padding:3px 8px;border-radius:100px;
+    background:#FCEFE9;color:#E8542B;margin-top:6px;
+  }
+  .badge-hidden{background:#F2F1EE;color:#8C8A85;}
+  .card.is-hidden{opacity:.55;}
   .error{color:#C0392B;font-size:13px;margin-top:-4px;margin-bottom:12px;}
   .empty{text-align:center;color:#6B6A66;padding:30px 0;}
   #login-screen, #data-screen{display:none;}
@@ -33,20 +49,28 @@
 <body>
 <div class="wrap">
   <h1>Foglio Viaggi — Autisti</h1>
+  <div class="subtitle" id="last-refreshed"></div>
 
   <div id="login-screen" class="card show">
     <div id="login-error" class="error" style="display:none;">Password errata.</div>
     <input id="password-input" type="password" placeholder="Password" autocomplete="current-password">
-    <button id="login-btn">Accedi</button>
+    <button id="login-btn" class="btn-block">Accedi</button>
   </div>
 
   <div id="data-screen">
+    <div class="toolbar">
+      <button id="refresh-btn" class="btn-ghost">↻ Aggiorna</button>
+      <button id="toggle-hidden-btn" class="btn-ghost">Mostra nascosti</button>
+    </div>
     <div id="drivers-list"></div>
   </div>
 </div>
 
 <script>
   var FUNCTION_URL = 'https://chboalgzigdglygnnist.supabase.co/functions/v1/admin-data';
+  var currentPassword = '';
+  var showHidden = false;
+  var lastDrivers = [];
 
   function showScreen(id) {
     document.getElementById('login-screen').classList.toggle('show', id === 'login-screen');
@@ -61,39 +85,107 @@
 
   var MESI = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
 
+  function driverCard(d) {
+    var monthLabel = (d.active_month && d.active_year) ? (MESI[d.active_month - 1] + ' ' + d.active_year) : '—';
+    var everCreatedSheet = !!(d.active_month && d.active_year);
+    var html = '<div class="card' + (d.hidden ? ' is-hidden' : '') + '">';
+    html += '<div class="driver-row"><div>';
+    html += '<div class="driver-name">' + (d.nome || '(senza nome)') + '</div>';
+    html += '<div class="driver-meta">';
+    html += 'Targa: ' + (d.targa || '—') + '<br>';
+    html += 'Ultima attività: ' + formatDate(d.last_active) + '<br>';
+    html += 'Giorni lavorati (' + monthLabel + '): ' + (d.worked_days_this_month || 0);
+    html += '</div>';
+    if (!everCreatedSheet) html += '<div class="badge">Solo aperto — nessun foglio creato</div>';
+    if (d.hidden) html += '<div class="badge badge-hidden">Nascosto</div>';
+    html += '<div class="device-id">' + (d.device_id || '').slice(0, 8) + '</div>';
+    html += '</div>';
+    html += '<button class="btn-ghost btn-sm" data-toggle-hidden="' + d.device_id + '" data-hidden="' + (d.hidden ? '1' : '0') + '">' + (d.hidden ? 'Mostra' : 'Nascondi') + '</button>';
+    html += '</div></div>';
+    return html;
+  }
+
   function renderDrivers(drivers) {
+    lastDrivers = drivers || [];
     var el = document.getElementById('drivers-list');
-    if (!drivers || !drivers.length) {
+    if (!lastDrivers.length) {
       el.innerHTML = '<div class="card empty">Nessun autista ha ancora aperto l\'app.</div>';
       return;
     }
+    var visible = lastDrivers.filter(function (d) { return showHidden || !d.hidden; });
+    if (!visible.length) {
+      el.innerHTML = '<div class="card empty">Nessuno da mostrare — prova "Mostra nascosti".</div>';
+      return;
+    }
+    // Already sorted by the server (most worked days first) — split into
+    // two clearly-labeled groups so real, active usage is never mixed in
+    // visually with a one-off "just opened it" trial.
+    var active = visible.filter(function (d) { return d.active_month && d.active_year; });
+    var untried = visible.filter(function (d) { return !(d.active_month && d.active_year); });
     var html = '';
-    drivers.forEach(function (d) {
-      var monthLabel = (d.active_month && d.active_year) ? (MESI[d.active_month - 1] + ' ' + d.active_year) : '—';
-      html += '<div class="card">';
-      html += '<div class="driver-name">' + (d.nome || '(senza nome)') + '</div>';
-      html += '<div class="driver-meta">';
-      html += 'Targa: ' + (d.targa || '—') + '<br>';
-      html += 'Ultima attività: ' + formatDate(d.last_active) + '<br>';
-      html += 'Giorni lavorati (' + monthLabel + '): ' + (d.worked_days_this_month || 0);
-      html += '</div></div>';
-    });
+    if (active.length) {
+      html += '<div class="section-title">Autisti attivi (' + active.length + ')</div>';
+      active.forEach(function (d) { html += driverCard(d); });
+    }
+    if (untried.length) {
+      html += '<div class="section-title">Solo aperto, mai usato davvero (' + untried.length + ')</div>';
+      untried.forEach(function (d) { html += driverCard(d); });
+    }
     el.innerHTML = html;
+    el.querySelectorAll('[data-toggle-hidden]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var deviceId = btn.getAttribute('data-toggle-hidden');
+        var wasHidden = btn.getAttribute('data-hidden') === '1';
+        toggleHidden(deviceId, !wasHidden);
+      });
+    });
   }
+
+  function setRefreshedNow() {
+    document.getElementById('last-refreshed').textContent = 'Aggiornato alle ' + new Date().toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit'});
+  }
+
+  function fetchDrivers() {
+    return fetch(FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: currentPassword })
+    }).then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); });
+  }
+
+  function toggleHidden(deviceId, hidden) {
+    fetch(FUNCTION_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: currentPassword, action: 'toggle_hidden', device_id: deviceId, hidden: hidden })
+    }).then(function () { return fetchDrivers(); })
+      .then(function (res) {
+        if (res.ok) { renderDrivers(res.data.drivers); setRefreshedNow(); }
+      });
+  }
+
+  document.getElementById('refresh-btn').addEventListener('click', function () {
+    fetchDrivers().then(function (res) {
+      if (res.ok) { renderDrivers(res.data.drivers); setRefreshedNow(); }
+    });
+  });
+  document.getElementById('toggle-hidden-btn').addEventListener('click', function () {
+    showHidden = !showHidden;
+    document.getElementById('toggle-hidden-btn').textContent = showHidden ? 'Nascondi i nascosti' : 'Mostra nascosti';
+    renderDrivers(lastDrivers);
+  });
 
   function login() {
     var pw = document.getElementById('password-input').value;
     var errEl = document.getElementById('login-error');
     errEl.style.display = 'none';
-    fetch(FUNCTION_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: pw })
-    }).then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+    currentPassword = pw;
+    fetchDrivers()
       .then(function (res) {
         if (!res.ok) { errEl.style.display = 'block'; return; }
         sessionStorage.setItem('fv_admin_pw', pw); // kept only for this browser tab session
         renderDrivers(res.data.drivers);
+        setRefreshedNow();
         showScreen('data-screen');
       })
       .catch(function () { errEl.textContent = 'Errore di connessione.'; errEl.style.display = 'block'; });
