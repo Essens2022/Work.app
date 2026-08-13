@@ -19,7 +19,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v40"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v41"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1490,16 +1490,36 @@
   /* perspective warp) the person drags to frame just the receipt.      */
   /* ---------------------------------------------------------------- */
   function openCropScreen(img) {
-    document.getElementById('crop-img').src = img.src;
+    var imgEl = document.getElementById('crop-img');
+    imgEl.src = img.src;
     document.getElementById('modal-crop').classList.add('open');
-    requestAnimationFrame(function () {
-      requestAnimationFrame(initCropRect); // second frame: image has laid out at full width by now
-    });
+    cropRect = null; // reset — guards a premature "Conferma" tap while the photo is still loading
+    // Waiting on 'load'/'complete' (the image genuinely finished decoding
+    // and laying out) rather than just a couple of animation frames — a
+    // real camera photo can take real time to decode, especially on an
+    // older phone, and a fixed short delay isn't reliable: tapping
+    // "Conferma" before the crop rectangle was actually positioned left
+    // it silently doing nothing.
+    function afterImageReady() {
+      requestAnimationFrame(function () {
+        requestAnimationFrame(initCropRect);
+      });
+    }
+    if (imgEl.complete && imgEl.naturalWidth > 0) {
+      afterImageReady();
+    } else {
+      imgEl.onload = afterImageReady;
+    }
   }
   function initCropRect() {
     var stage = document.getElementById('crop-stage');
     var imgEl = document.getElementById('crop-img');
     var stageW = stage.clientWidth, stageH = imgEl.clientHeight;
+    // Defensive extra safety net: if the stage/image somehow haven't
+    // actually laid out yet (0 size), retry shortly instead of leaving
+    // cropRect degenerate — this should be rare now that openCropScreen
+    // waits for the image's own 'load' event, but costs nothing to guard.
+    if (stageW < 10 || stageH < 10) { setTimeout(initCropRect, 80); return; }
     var marginX = stageW * 0.06, marginY = stageH * 0.06;
     cropRect = { left: marginX, top: marginY, right: stageW - marginX, bottom: stageH - marginY };
     renderCropRect();
@@ -1564,7 +1584,8 @@
     fuelTargetDay = null;
   });
   document.getElementById('crop-confirm').addEventListener('click', function () {
-    if (!cropRawImage || !cropRect || !fuelTargetDay) return;
+    if (!cropRawImage || !fuelTargetDay) return;
+    if (!cropRect) { toast('Un istante, la foto si sta ancora preparando…'); return; }
     var imgEl = document.getElementById('crop-img');
     var scaleX = cropRawImage.naturalWidth / imgEl.clientWidth;
     var scaleY = cropRawImage.naturalHeight / imgEl.clientHeight;
