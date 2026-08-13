@@ -1832,6 +1832,26 @@
     window.addEventListener('resize', syncBarHeights);
     window.addEventListener('orientationchange', function () { setTimeout(syncBarHeights, 200); });
 
+    // iOS often "resumes" an installed app from a suspended state instead
+    // of doing a real page load — the whole JS context (including the
+    // topbar-height measurement taken at the very first load) is just
+    // left as-is while the app was in the background. If that first
+    // measurement was ever off (e.g. taken a frame too early, before
+    // fonts/layout settled), or the page had drifted to a slightly
+    // scrolled position before being backgrounded, the top card could
+    // end up sitting partly behind the fixed top bar when the person
+    // reopens the app, with no ordinary scroll gesture able to fix it
+    // since it isn't a real scroll-position problem. Re-measuring and
+    // resetting scroll every time the app becomes visible again makes
+    // this self-correct automatically, at zero cost while the app is
+    // actually in use.
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') {
+        syncBarHeights();
+        if (currentScreen === 'home' && mainEl) mainEl.scrollTop = 0;
+      }
+    });
+
     // hidden logo image used for PDF embedding — the bundled Power Trasporti
     // logo.
     var img = new Image();
