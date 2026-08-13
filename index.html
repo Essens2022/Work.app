@@ -325,7 +325,7 @@
   .sheet-panel{
     background:var(--surface);width:100%;max-width:560px;border-radius:22px 22px 0 0;
     padding:10px 20px calc(20px + var(--safe-bottom));max-height:88vh;overflow-y:auto;touch-action:pan-y;
-    transform:translateY(16px);transition:transform .2s ease;
+    transform:translateY(16px);transition:transform .2s ease;position:relative;
   }
   .modal-overlay.open .sheet-panel{transform:translateY(0);}
   .modal-overlay.center .sheet-panel{border-radius:22px;max-height:80vh;}
@@ -339,6 +339,11 @@
     will-change:transform;user-select:none;-webkit-user-drag:none;
   }
   .fuel-close-x{
+    position:absolute;top:14px;right:16px;width:30px;height:30px;border-radius:50%;
+    background:var(--surface-2);color:var(--ink-soft);border:none;font-size:18px;line-height:1;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2;
+  }
+  .modal-close-x{
     position:absolute;top:14px;right:16px;width:30px;height:30px;border-radius:50%;
     background:var(--surface-2);color:var(--ink-soft);border:none;font-size:18px;line-height:1;
     display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2;
@@ -464,6 +469,7 @@
 <!-- Onboarding / Settings modal -->
 <div class="modal-overlay" id="modal-settings">
   <div class="sheet-panel">
+    <button type="button" class="modal-close-x" id="settings-close-x" aria-label="Chiudi">×</button>
     <div class="grabber"></div>
     <div class="modal-title" id="settings-title">Benvenuto</div>
     <div class="modal-sub" id="settings-sub">Inserisci i dati autista per iniziare a compilare il foglio viaggi.</div>
@@ -496,6 +502,7 @@
 <!-- Day editor modal -->
 <div class="modal-overlay" id="modal-day">
   <div class="sheet-panel">
+    <button type="button" class="modal-close-x" id="day-close-x" aria-label="Chiudi">×</button>
     <div class="grabber"></div>
     <div class="modal-title" id="day-title">Giorno</div>
     <div class="modal-sub" id="day-sub"></div>
@@ -624,6 +631,7 @@
      photo gets converted to a small black-and-white document. -->
 <div class="modal-overlay center" id="modal-crop">
   <div class="sheet-panel" style="max-width:480px;">
+    <button type="button" class="modal-close-x" id="crop-close-x" aria-label="Chiudi">×</button>
     <h3 style="margin:0 0 4px;">Inquadra lo scontrino</h3>
     <p class="settings-driver-note" style="margin-top:0;">Trascina gli angoli per includere solo lo scontrino, escludendo il tavolo o altro intorno.</p>
     <div style="text-align:center;">
@@ -647,6 +655,7 @@
 <!-- Generic confirm modal -->
 <div class="modal-overlay center" id="modal-confirm">
   <div class="sheet-panel">
+    <button type="button" class="modal-close-x" id="confirm-close-x" aria-label="Chiudi">×</button>
     <div class="modal-title" id="confirm-title">Conferma</div>
     <div class="modal-sub" id="confirm-sub">Sei sicuro?</div>
     <div id="confirm-stepper-slot"></div>

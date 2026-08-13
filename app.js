@@ -19,7 +19,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v49"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v50"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1708,6 +1708,12 @@
     cropRawImage = null;
     fuelTargetDay = null;
   });
+  document.getElementById('crop-close-x').addEventListener('click', function () {
+    document.getElementById('crop-cancel').click();
+  });
+  document.getElementById('modal-crop').addEventListener('click', function (e) {
+    if (e.target === document.getElementById('modal-crop')) document.getElementById('crop-cancel').click();
+  });
   document.getElementById('crop-confirm').addEventListener('click', function () {
     if (!cropRawImage || !fuelTargetDay) return;
     if (!cropRect) { toast('Un istante, la foto si sta ancora preparando…'); return; }
@@ -1794,6 +1800,7 @@
   dayModal.addEventListener('click', function (e) {
     if (e.target === dayModal) closeDayEditor();
   });
+  document.getElementById('day-close-x').addEventListener('click', closeDayEditor);
 
   function updateKmTot() {
     var ki = document.getElementById('day-kminizio').value;
@@ -1942,6 +1949,12 @@
     settingsModal.classList.remove('open');
     reloadIfUpdatePending();
   });
+  document.getElementById('settings-close-x').addEventListener('click', function () {
+    document.getElementById('settings-cancel').click();
+  });
+  settingsModal.addEventListener('click', function (e) {
+    if (e.target === settingsModal) document.getElementById('settings-cancel').click();
+  });
   document.getElementById('settings-save').addEventListener('click', function () {
     var nome = document.getElementById('in-nome').value.trim();
     var targa = document.getElementById('in-targa').value.trim().toUpperCase();
@@ -1974,6 +1987,12 @@
   /* Generic confirm modal                                             */
   /* ---------------------------------------------------------------- */
   var confirmModal = document.getElementById('modal-confirm');
+  document.getElementById('confirm-close-x').addEventListener('click', function () {
+    document.getElementById('confirm-cancel').click();
+  });
+  confirmModal.addEventListener('click', function (e) {
+    if (e.target === confirmModal) document.getElementById('confirm-cancel').click();
+  });
   function showConfirm(opts) {
     document.getElementById('confirm-title').textContent = opts.title;
     document.getElementById('confirm-sub').textContent = opts.message;
