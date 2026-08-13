@@ -92,17 +92,12 @@
   /* Cards */
   .card{background:var(--surface);border-radius:var(--radius-lg);padding:20px;box-shadow:var(--shadow-sm);border:1px solid var(--line);}
   .card + .card{margin-top:14px;}
-  .fuel-tile{
-    display:flex;align-items:center;gap:14px;width:100%;text-align:left;cursor:pointer;
-    font-family:inherit;background:var(--surface);
-  }
-  .fuel-tile:active{opacity:.7;}
-  .fuel-tile-icon{
-    flex:none;width:48px;height:48px;border-radius:14px;background:var(--accent-soft);color:var(--accent);
+  .fuel-corner-btn{
+    position:absolute;top:16px;right:16px;width:38px;height:38px;border-radius:12px;
+    background:rgba(255,255,255,.14);color:#fff;border:none;cursor:pointer;z-index:2;
     display:flex;align-items:center;justify-content:center;
   }
-  .fuel-tile-label{font-weight:800;font-size:15px;letter-spacing:.04em;display:block;}
-  .fuel-tile-sub{font-size:12.5px;color:var(--ink-soft);display:block;margin-top:2px;}
+  .fuel-corner-btn:active{background:rgba(255,255,255,.26);}
   .active-card{
     background:linear-gradient(160deg,#1C1B1F 0%,#2B2A2F 100%);color:#fff;border:none;
     position:relative;overflow:hidden;
@@ -313,6 +308,12 @@
   }
   .modal-overlay.open .sheet-panel{transform:translateY(0);}
   .modal-overlay.center .sheet-panel{border-radius:22px;max-height:80vh;}
+  .fuel-panel{max-height:74vh;position:relative;}
+  .fuel-close-x{
+    position:absolute;top:14px;right:16px;width:30px;height:30px;border-radius:50%;
+    background:var(--surface-2);color:var(--ink-soft);border:none;font-size:18px;line-height:1;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2;
+  }
   .grabber{width:36px;height:4px;background:var(--line);border-radius:100px;margin:8px auto 14px;}
   .modal-title{font-size:18px;font-weight:800;margin-bottom:4px;}
   .modal-sub{font-size:13px;color:var(--ink-soft);margin-bottom:16px;line-height:1.5;}
@@ -505,7 +506,8 @@
      log fuel receipts day by day, without needing to open a full day's
      trip details first. -->
 <div class="modal-overlay" id="modal-fuel">
-  <div class="sheet-panel">
+  <div class="sheet-panel fuel-panel">
+    <button type="button" class="fuel-close-x" id="fuel-close-x" aria-label="Chiudi">×</button>
     <div class="grabber"></div>
     <div class="modal-title">Scontrini carburante</div>
     <div class="modal-sub" id="fuel-sub"></div>

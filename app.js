@@ -412,7 +412,7 @@
     var icons = {
       truck: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="6" width="14" height="11"/><path d="M15 10h4l3 3v4h-7z"/><circle cx="6" cy="19" r="1.6"/><circle cx="17.5" cy="19" r="1.6"/></svg>',
       route: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M5 8v4a4 4 0 0 0 4 4h6" stroke-dasharray="3 3"/></svg>',
-      fuel: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 22V6a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16"/><path d="M3 12h10"/><path d="M15 8h1.5l3 3v6a1.5 1.5 0 0 1-3 0v-1a1 1 0 0 0-1-1h-.5"/><circle cx="8" cy="6.5" r="1"/></svg>'
+      fuel: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="9" height="18" rx="1"/><rect x="6.3" y="5.5" width="4.4" height="4" rx="0.5"/><path d="M13 9h2.5l3 2.5v6.5a1.5 1.5 0 0 1-3 0v-3.5a1 1 0 0 0-1-1h-1.5"/></svg>'
     };
     return icons[name] || '';
   }
@@ -447,6 +447,7 @@
     // specific client — a past month's client sheet can still be opened
     // and edited, but it isn't "active" again just because you touched it.
     html += '<div class="card active-card"><div class="route-dashes"></div>';
+    html += '<button class="fuel-corner-btn" id="home-fuel" aria-label="Scontrini carburante">' + svgIcon('fuel') + '</button>';
     html += '<span class="badge ' + (activeMonth ? '' : 'muted') + '">' + (activeMonth ? 'Mese attivo' : 'Mese archiviato') + '</span>';
     html += '<h2>' + MESI[sheet.month - 1] + ' ' + sheet.year;
     if (multiClient) html += ' <span class="multi-badge">' + monthSheets.length + ' clienti</span>';
@@ -466,13 +467,6 @@
     if (!activeMonth) {
       html += '<button class="link-btn" id="home-jump-latest" style="display:block;margin:14px auto 0;">Vai al mese attivo →</button>';
     }
-
-    // A dedicated, prominent way in to log fuel receipts — day by day,
-    // without needing to open a full day's trip details first.
-    html += '<button class="card fuel-tile" id="home-fuel" style="margin-top:14px;">';
-    html += '<span class="fuel-tile-icon">' + svgIcon('fuel') + '</span>';
-    html += '<span><span class="fuel-tile-label">FUEL</span><span class="fuel-tile-sub">Scontrini carburante</span></span>';
-    html += '</button>';
 
     // 2) Viaggi totali / KM totali — the whole month, all clients combined.
     html += '<div class="section-title"><h3>Totale mese</h3></div>';
@@ -1251,6 +1245,15 @@
   }
   document.getElementById('fuel-close').addEventListener('click', function () {
     fuelModal.classList.remove('open');
+  });
+  document.getElementById('fuel-close-x').addEventListener('click', function () {
+    fuelModal.classList.remove('open');
+  });
+  // Tapping the dark backdrop area (outside the panel itself) also closes
+  // it — useful when someone opens this just to glance at it without
+  // adding anything.
+  fuelModal.addEventListener('click', function (e) {
+    if (e.target === fuelModal) fuelModal.classList.remove('open');
   });
   document.getElementById('in-fuel-photo').addEventListener('change', function (e) {
     var file = e.target.files && e.target.files[0];
