@@ -70,8 +70,9 @@
     border-bottom:1px solid var(--line);
   }
   .brand{display:flex;align-items:center;gap:10px;}
-  .brand-mark{width:30px;height:30px;border-radius:9px;background:var(--ink);display:flex;align-items:center;justify-content:center;flex:none;}
+  .brand-mark{width:30px;height:30px;border-radius:9px;background:var(--ink);display:flex;align-items:center;justify-content:center;flex:none;overflow:hidden;}
   .brand-mark svg{width:16px;height:16px;}
+  .brand-mark-img{width:100%;height:100%;object-fit:cover;display:block;}
   .brand-text{font-weight:800;font-size:15px;letter-spacing:-.01em;line-height:1.1;}
   .brand-text small{display:block;font-weight:600;font-size:10px;color:var(--ink-faint);letter-spacing:.12em;text-transform:uppercase;}
   .icon-btn{
@@ -439,7 +440,7 @@
   <div class="topbar">
     <div class="brand">
       <div class="brand-mark">
-        <svg viewBox="0 0 24 24" fill="none"><path d="M4 16 L12 6 L20 16 M8 16 L12 11 L16 16" stroke="#E8542B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <img src="icon-192.png" alt="" class="brand-mark-img">
       </div>
       <div class="brand-text">ADB Smart<small>Foglio Viaggi Digitale</small></div>
     </div>
