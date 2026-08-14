@@ -85,17 +85,31 @@
     padding-top:calc(18px + var(--topbar-h, 70px));
     padding-bottom:calc(24px + var(--bottomnav-h, 90px));
   }
-  .install-banner{
-    display:flex;align-items:center;gap:10px;background:var(--ink);color:#fff;border-radius:14px;
-    padding:12px 12px 12px 14px;margin-bottom:14px;
+  .install-cta-wrap{position:relative;margin-bottom:14px;}
+  .install-cta-btn{
+    width:100%;display:flex;align-items:center;justify-content:center;gap:10px;
+    background:var(--ink);color:#fff;border:1px solid rgba(255,255,255,.14);border-radius:100px;
+    padding:14px 44px 14px 20px;font-family:inherit;font-weight:800;font-size:15px;cursor:pointer;
   }
-  .install-banner-icon{font-size:16px;flex:none;}
-  .install-banner-text{flex:1;font-size:12.5px;font-weight:600;line-height:1.4;}
-  .install-banner button{font-family:inherit;border:none;cursor:pointer;flex:none;}
-  #install-banner-btn{background:var(--accent);color:#fff;font-weight:800;font-size:12.5px;padding:8px 14px;border-radius:100px;}
-  #install-banner-btn:active{opacity:.85;}
-  #install-banner-btn.hidden{display:none;}
-  #install-banner-close{background:none;color:rgba(255,255,255,.6);font-size:18px;line-height:1;padding:4px;}
+  .install-cta-btn:active{opacity:.85;}
+  .install-cta-icon{font-size:18px;flex:none;}
+  .install-cta-close{
+    position:absolute;top:50%;right:8px;transform:translateY(-50%);width:28px;height:28px;border-radius:50%;
+    background:rgba(255,255,255,.12);color:rgba(255,255,255,.75);border:none;font-size:16px;line-height:1;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;font-family:inherit;
+  }
+  .install-tabs{display:flex;gap:8px;margin:14px 0 4px;}
+  .install-tab{
+    flex:1;padding:10px;border-radius:12px;border:1px solid var(--line);background:var(--surface-2);
+    color:var(--ink-soft);font-family:inherit;font-weight:700;font-size:13.5px;cursor:pointer;
+  }
+  .install-tab.active{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);}
+  .install-steps{margin-top:12px;}
+  .install-step{display:flex;align-items:flex-start;gap:10px;padding:9px 0;font-size:13.5px;line-height:1.5;}
+  .install-step-num{
+    flex:none;width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:800;margin-top:1px;
+  }
   .screen{display:none;animation:fadein .18s ease;}
   .screen.active{display:block;}
   @keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
@@ -422,11 +436,12 @@
   </div>
 
   <main>
-    <div id="install-banner" class="install-banner hidden">
-      <span class="install-banner-icon" id="install-banner-icon">⬇</span>
-      <span class="install-banner-text" id="install-banner-text">Installa l'app sulla schermata home per un accesso più rapido</span>
-      <button type="button" id="install-banner-btn">Installa</button>
-      <button type="button" id="install-banner-close" aria-label="Chiudi">×</button>
+    <div id="install-banner" class="install-cta-wrap hidden">
+      <button type="button" id="install-cta-btn" class="install-cta-btn">
+        <span class="install-cta-icon">📲</span>
+        <span>Installa la nostra app (Android / iOS)</span>
+      </button>
+      <button type="button" id="install-banner-close" class="install-cta-close" aria-label="Chiudi">×</button>
     </div>
 
     <!-- HOME -->
@@ -494,8 +509,7 @@
     </div>
 
     <div id="settings-install-section" class="hidden" style="margin-top:18px;padding-top:16px;border-top:1px solid var(--line);text-align:center;">
-      <button type="button" id="settings-install-btn" class="btn btn-outline btn-sm hidden">📲 Installa l'app</button>
-      <div class="settings-driver-note" id="settings-install-note" style="margin-top:4px;margin-bottom:0;"></div>
+      <button type="button" id="settings-install-btn" class="btn btn-outline btn-sm">📲 Installa l'app</button>
     </div>
 
     <div class="modal-btnrow">
@@ -659,6 +673,35 @@
 </div>
 
 <!-- Generic confirm modal -->
+<!-- Install instructions — clear, visual, step-by-step, since a single
+     line of text wasn't clear enough. Both platforms are always
+     available via the tabs (useful for showing a colleague on the other
+     platform what to do), defaulting to whichever one this phone is. -->
+<div class="modal-overlay center" id="modal-install-help">
+  <div class="sheet-panel" style="max-width:480px;">
+    <button type="button" class="modal-close-x" id="install-help-close-x" aria-label="Chiudi">×</button>
+    <div class="modal-title">Installa l'app</div>
+    <div class="modal-sub">Sulla schermata home, si apre come un'app vera — a schermo intero, senza barra del browser.</div>
+    <div class="install-tabs">
+      <button type="button" class="install-tab" id="install-tab-ios" data-platform="ios">📱 iPhone</button>
+      <button type="button" class="install-tab" id="install-tab-android" data-platform="android">🤖 Android</button>
+    </div>
+    <div id="install-steps-ios" class="install-steps hidden">
+      <div class="install-step"><span class="install-step-num">1</span><span>Apri questa pagina in <b>Safari</b> (non funziona da dentro WhatsApp o altre app)</span></div>
+      <div class="install-step"><span class="install-step-num">2</span><span>Tocca l'icona <b>Condividi</b> ⬆️ nella barra in basso</span></div>
+      <div class="install-step"><span class="install-step-num">3</span><span>Scorri e tocca <b>"Aggiungi alla schermata Home"</b></span></div>
+      <div class="install-step"><span class="install-step-num">4</span><span>Tocca <b>"Aggiungi"</b> in alto a destra</span></div>
+    </div>
+    <div id="install-steps-android" class="install-steps hidden">
+      <div class="install-step"><span class="install-step-num">1</span><span>Apri questa pagina in <b>Chrome</b></span></div>
+      <div class="install-step"><span class="install-step-num">2</span><span>Se vedi il pulsante qui sotto, toccalo — si apre subito la finestra di installazione</span></div>
+      <div class="install-step"><span class="install-step-num">3</span><span>Altrimenti, tocca i <b>tre puntini ⋮</b> in alto a destra del browser</span></div>
+      <div class="install-step"><span class="install-step-num">4</span><span>Tocca <b>"Aggiungi a schermata Home"</b> o <b>"Installa app"</b></span></div>
+    </div>
+    <button type="button" id="install-help-direct-btn" class="btn btn-accent btn-block hidden" style="margin-top:14px;">Installa ora</button>
+  </div>
+</div>
+
 <div class="modal-overlay center" id="modal-confirm">
   <div class="sheet-panel">
     <button type="button" class="modal-close-x" id="confirm-close-x" aria-label="Chiudi">×</button>
