@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v80") {
+          if (data && data.v && data.v !== "pt-foglio-v81") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v80"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v81"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2371,10 +2371,10 @@
   document.getElementById('install-cta-btn').addEventListener('click', openInstallHelp);
 
   function shareApp() {
-    var shareUrl = window.location.origin + window.location.pathname;
-    var shareText = 'Foglio Viaggi — l\'app che uso per registrare i viaggi in modo semplice. Provala anche tu:';
+    var shareUrl = window.location.origin + '/'; // clean root link, regardless of exact path the app happened to launch from (e.g. installed PWAs open at "/index.html" per the manifest's start_url)
+    var shareText = 'ADB Smart — l\'app che uso per registrare i viaggi in modo semplice. Provala anche tu:';
     if (navigator.share) {
-      navigator.share({ title: 'Foglio Viaggi', text: shareText, url: shareUrl }).catch(function () { /* person cancelled the native share sheet — not an error */ });
+      navigator.share({ title: 'ADB Smart', text: shareText, url: shareUrl }).catch(function () { /* person cancelled the native share sheet — not an error */ });
     } else if (navigator.clipboard && navigator.clipboard.writeText) {
       // Desktop browsers mostly lack the Web Share API — copy the link
       // instead, so there's still a one-tap way to grab it.
