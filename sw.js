@@ -9,7 +9,7 @@
 //  - Large, rarely-changing files (jsPDF, the comuni database, icons, logo)
 //    stay CACHE-FIRST, so they don't get re-downloaded on every load.
 
-const CACHE_VERSION = 'pt-foglio-v68';
+const CACHE_VERSION = 'pt-foglio-v69';
 const CORE_ASSETS = ['./', './index.html', './app.js', './manifest.json', './version.json'];
 const STATIC_ASSETS = [
   './icon-192.png',
@@ -18,6 +18,7 @@ const STATIC_ASSETS = [
   './vendor/jspdf.plugin.autotable.min.js',
   './vendor/comuni.js',
   './vendor/logo.png',
+  './splash-hero.jpg',
   './splash/splash_iphone_se1_640x1136.png',
   './splash/splash_iphone_678_se23_750x1334.png',
   './splash/splash_iphone_678plus_1242x2208.png',

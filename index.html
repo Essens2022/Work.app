@@ -68,6 +68,13 @@
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased;
   }
+  #app-splash{
+    position:fixed;inset:0;z-index:9999;background:#0A0A0B;
+    display:flex;align-items:center;justify-content:center;
+    opacity:1;transition:opacity .5s ease;
+  }
+  #app-splash img{width:100%;height:100%;object-fit:cover;display:block;}
+  #app-splash.hide{opacity:0;pointer-events:none;}
   h1,h2,h3{margin:0;letter-spacing:-0.02em;}
   .eyebrow{
     font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-faint);
@@ -451,6 +458,18 @@
 </style>
 </head>
 <body>
+<div id="app-splash">
+  <img src="splash-hero.jpg" alt="">
+</div>
+<script>
+  // Runs immediately, independent of app.js (which loads later, at the
+  // end of body) — the timer needs to start the moment the page opens,
+  // not whenever the rest of the app happens to finish loading.
+  setTimeout(function () {
+    var splash = document.getElementById('app-splash');
+    if (splash) splash.classList.add('hide');
+  }, 3400);
+</script>
 <div id="app">
 
   <div class="topbar">
