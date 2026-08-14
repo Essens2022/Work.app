@@ -16,7 +16,19 @@
   // this file that might be broken. Deliberately minimal and wrapped in
   // its own try/catch so this early check itself can never be the thing
   // that breaks the page.
+  //
+  // The fetch itself still fires immediately — but with updates shipping
+  // often during active development, a newer version is very frequently
+  // already available the moment the app opens, which meant the reload
+  // this triggers was interrupting the splash screen mid-animation almost
+  // every time — small icon, reload, splash restarts, again. The reload
+  // itself is delayed (not the check) until just past the splash's own
+  // 3.4s, so the splash always plays start to finish uninterrupted, and
+  // an update (if one was found) applies right after, quietly, instead of
+  // visibly restarting the splash sequence.
   try {
+    var SPLASH_DURATION_MS = 3400;
+    var pageLoadStart = Date.now();
     var EARLY_RELOAD_COOLDOWN_MS = 20000;
     var lastAutoReload = sessionStorage.getItem('pt_last_auto_reload');
     var reloadedRecently = !!(lastAutoReload && (Date.now() - parseInt(lastAutoReload, 10)) < EARLY_RELOAD_COOLDOWN_MS);
@@ -24,9 +36,14 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v75") {
-            try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
-            window.location.reload();
+          if (data && data.v && data.v !== "pt-foglio-v76") {
+            var doReload = function () {
+              try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
+              window.location.reload();
+            };
+            var elapsed = Date.now() - pageLoadStart;
+            var remaining = SPLASH_DURATION_MS + 200 - elapsed; // small buffer past the splash's own hide timer
+            if (remaining > 0) { setTimeout(doReload, remaining); } else { doReload(); }
           }
         })
         .catch(function () { /* offline or blocked — silently skip, try again later */ });
@@ -49,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v75"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v76"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2598,8 +2615,17 @@
         return;
       }
       reloadTriggeredThisLoad = true;
-      try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
-      window.location.reload();
+      var doReload = function () {
+        try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
+        window.location.reload();
+      };
+      // Same reasoning as the early version check at the very top of this
+      // file: don't let a reload cut off the splash screen mid-animation
+      // if one is still playing (only relevant for the first few seconds
+      // right after opening the app).
+      var elapsedSincePageLoad = (typeof pageLoadStart !== 'undefined') ? (Date.now() - pageLoadStart) : Infinity;
+      var splashRemaining = (typeof SPLASH_DURATION_MS !== 'undefined' ? SPLASH_DURATION_MS : 3400) + 200 - elapsedSincePageLoad;
+      if (splashRemaining > 0) { setTimeout(doReload, splashRemaining); } else { doReload(); }
     }
 
     if ('serviceWorker' in navigator) {
