@@ -466,17 +466,42 @@
 <body>
 <div id="app-splash">
   <img src="splash-hero.jpg" alt="">
-  <svg id="splash-wheel" viewBox="0 0 100 100" width="56" height="56">
-    <circle cx="50" cy="50" r="44" fill="#141316" stroke="#3a3733" stroke-width="3"/>
-    <circle cx="50" cy="50" r="44" fill="none" stroke="#E8542B" stroke-width="3" stroke-dasharray="4 10" stroke-linecap="round"/>
-    <circle cx="50" cy="50" r="20" fill="#232025" stroke="#4a4642" stroke-width="2"/>
-    <circle cx="50" cy="50" r="5" fill="#E8542B"/>
-    <circle cx="50" cy="26" r="4.5" fill="#4a4642"/>
-    <circle cx="70.6" cy="38" r="4.5" fill="#4a4642"/>
-    <circle cx="70.6" cy="62" r="4.5" fill="#4a4642"/>
-    <circle cx="50" cy="74" r="4.5" fill="#4a4642"/>
-    <circle cx="29.4" cy="62" r="4.5" fill="#4a4642"/>
-    <circle cx="29.4" cy="38" r="4.5" fill="#4a4642"/>
+  <svg id="splash-wheel" viewBox="0 0 100 100" width="96" height="96">
+    <defs>
+      <radialGradient id="lugGrad" cx="35%" cy="30%" r="75%">
+        <stop offset="0%" stop-color="#f0eee9"/>
+        <stop offset="45%" stop-color="#a8a49d"/>
+        <stop offset="100%" stop-color="#3d3a36"/>
+      </radialGradient>
+      <radialGradient id="hubGrad" cx="35%" cy="30%" r="75%">
+        <stop offset="0%" stop-color="#e8e5df"/>
+        <stop offset="50%" stop-color="#8a8681"/>
+        <stop offset="100%" stop-color="#2e2b28"/>
+      </radialGradient>
+      <linearGradient id="rimGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#7d7a75"/>
+        <stop offset="45%" stop-color="#d4d1cb"/>
+        <stop offset="100%" stop-color="#5c5955"/>
+      </linearGradient>
+    </defs>
+    <!-- tire: thick dark rubber ring, with tread-block texture -->
+    <circle cx="50" cy="50" r="43" fill="none" stroke="#161515" stroke-width="15"/>
+    <circle cx="50" cy="50" r="43" fill="none" stroke="#332f2c" stroke-width="15" stroke-dasharray="3 7.2" stroke-linecap="butt"/>
+    <!-- chrome rim -->
+    <circle cx="50" cy="50" r="32" fill="none" stroke="url(#rimGrad)" stroke-width="5.5"/>
+    <!-- hub disc -->
+    <circle cx="50" cy="50" r="27" fill="#1c1a18"/>
+    <!-- 6 raised hex lug nuts, protruding around the hub -->
+    <g fill="url(#lugGrad)" stroke="#1c1a18" stroke-width="0.8">
+      <polygon transform="translate(50,20.5)" points="6.2,0 3.1,5.37 -3.1,5.37 -6.2,0 -3.1,-5.37 3.1,-5.37"/>
+      <polygon transform="translate(76.5,35.25)" points="6.2,0 3.1,5.37 -3.1,5.37 -6.2,0 -3.1,-5.37 3.1,-5.37"/>
+      <polygon transform="translate(76.5,64.75)" points="6.2,0 3.1,5.37 -3.1,5.37 -6.2,0 -3.1,-5.37 3.1,-5.37"/>
+      <polygon transform="translate(50,79.5)" points="6.2,0 3.1,5.37 -3.1,5.37 -6.2,0 -3.1,-5.37 3.1,-5.37"/>
+      <polygon transform="translate(23.5,64.75)" points="6.2,0 3.1,5.37 -3.1,5.37 -6.2,0 -3.1,-5.37 3.1,-5.37"/>
+      <polygon transform="translate(23.5,35.25)" points="6.2,0 3.1,5.37 -3.1,5.37 -6.2,0 -3.1,-5.37 3.1,-5.37"/>
+    </g>
+    <!-- center cap -->
+    <circle cx="50" cy="50" r="9" fill="url(#hubGrad)" stroke="#1c1a18" stroke-width="1"/>
   </svg>
 </div>
 <script>
