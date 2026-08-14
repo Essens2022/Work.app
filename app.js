@@ -19,7 +19,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v52"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v53"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2250,6 +2250,9 @@
     var ua = navigator.userAgent || '';
     return /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
   }
+  function isAndroidDevice() {
+    return /Android/.test(navigator.userAgent || '');
+  }
   function updateInstallBanner() {
     var banner = document.getElementById('install-banner');
     if (!banner) return;
@@ -2263,8 +2266,8 @@
       return;
     }
     if (deferredInstallPrompt) {
-      // Android/Chrome — a real tap here can trigger the native install
-      // dialog directly.
+      // Chrome (Android or otherwise) offered its native install signal
+      // — a real tap here can trigger that dialog directly.
       icon.textContent = '⬇';
       text.textContent = 'Installa l\'app sulla schermata home per un accesso più rapido';
       btn.classList.remove('hidden');
@@ -2274,6 +2277,18 @@
       // instead, since that's the only way it can be done here.
       icon.textContent = '⎋';
       text.textContent = 'Per installarla: tocca l\'icona "Condividi" di Safari, poi "Aggiungi alla schermata Home"';
+      btn.classList.add('hidden');
+      banner.classList.remove('hidden');
+    } else if (isAndroidDevice()) {
+      // Android, but no beforeinstallprompt yet — either the browser
+      // isn't Chrome (Samsung Internet, Firefox, etc., none of which
+      // fire that event) or Chrome simply hasn't offered it yet.
+      // Manual steps still work everywhere on Android, so show those
+      // rather than leaving the person with nothing at all; if the
+      // event does fire later this gets replaced with the direct
+      // button automatically.
+      icon.textContent = '⋮';
+      text.textContent = 'Per installarla: apri il menu del browser, poi "Aggiungi a schermata Home" o "Installa app"';
       btn.classList.add('hidden');
       banner.classList.remove('hidden');
     } else {
@@ -2328,6 +2343,10 @@
       btn.classList.add('hidden');
       note.textContent = 'Per installare l\'app: tocca l\'icona "Condividi" di Safari, poi "Aggiungi alla schermata Home"';
       section.classList.remove('hidden');
+    } else if (isAndroidDevice()) {
+      btn.classList.add('hidden');
+      note.textContent = 'Per installare l\'app: apri il menu del browser, poi "Aggiungi a schermata Home" o "Installa app"';
+      section.classList.remove('hidden');
     } else {
       section.classList.add('hidden');
     }
@@ -2344,7 +2363,7 @@
   // iOS never fires an event we can listen for, so the banner has to be
   // offered proactively on load — Android still waits for the real
   // beforeinstallprompt signal before showing anything.
-  if (isIOSDevice() && !isStandaloneMode()) updateInstallBanner();
+  if ((isIOSDevice() || isAndroidDevice()) && !isStandaloneMode()) updateInstallBanner();
 
   function init() {
     migrateUppercaseLocalities();
