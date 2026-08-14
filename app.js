@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v91") {
+          if (data && data.v && data.v !== "pt-foglio-v92") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v91"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v92"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2438,6 +2438,14 @@
   // Clicking the link in that email brings the person right back here,
   // already signed in.
   function requestMagicLink(email) {
+    // Send just the first name as user metadata (not the full "Nome
+    // Cognome") — this becomes available in the confirmation email
+    // template as {{ .Data.first_name }}, so each person is greeted by
+    // their own first name. Read straight from the input field (not
+    // state.profile.nome), since "Invia" can be pressed before "Salva"
+    // has ever committed the typed name to the saved profile.
+    var typedNome = document.getElementById('in-nome') ? document.getElementById('in-nome').value : '';
+    var firstName = (typedNome || state.profile.nome || '').trim().split(/\s+/)[0] || '';
     return fetch(SUPABASE_URL + '/auth/v1/otp', {
       method: 'POST',
       headers: {
@@ -2448,6 +2456,7 @@
       body: JSON.stringify({
         email: email,
         create_user: true,
+        data: { first_name: firstName },
         options: { email_redirect_to: window.location.origin + '/' }
       })
     }).then(function (res) {
