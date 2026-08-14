@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v85") {
+          if (data && data.v && data.v !== "pt-foglio-v86") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v85"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v86"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2006,10 +2006,12 @@
   // submitted and is simply waiting to confirm, so nobody is ever
   // actually blocked out of the app by a delayed or missed confirmation
   // email; only entering NO email at all is blocking.
+  // Strict now: only an actually-confirmed session counts. Simply having
+  // typed an email and requested the link is not enough on its own — the
+  // person must have clicked the confirmation link.
   function emailIsSatisfied() {
     var session = getAuthSession();
-    if (session && session.email) return true;
-    return !!(state.profile.pendingEmail && state.profile.pendingEmail.indexOf('@') !== -1);
+    return !!(session && session.email);
   }
 
   // The best email currently known for this device — a confirmed session
@@ -2021,12 +2023,50 @@
     return (session && session.email) || state.profile.pendingEmail || null;
   }
 
+  // While the settings sheet is showing the "waiting to confirm" state,
+  // this watches for the moment confirmation actually happens — clicking
+  // the email link is a real page navigation, so it usually lands in a
+  // *different* browser tab/window than the one showing this waiting
+  // screen; a storage event lets that original tab notice immediately
+  // rather than the person having to come back and close/reopen it
+  // themselves. Polling underneath is a simple, reliable fallback for any
+  // browser/situation where that event doesn't fire.
+  var emailConfirmWatcher = null;
+  function handleStorageForConfirmation(e) {
+    if (e.key && e.key !== LS_AUTH_SESSION) return;
+    checkForConfirmationNow();
+  }
+  function checkForConfirmationNow() {
+    if (emailIsSatisfied()) {
+      stopWatchingForConfirmation();
+      onEmailConfirmed();
+    }
+  }
+  function startWatchingForConfirmation() {
+    stopWatchingForConfirmation();
+    emailConfirmWatcher = setInterval(checkForConfirmationNow, 1500);
+    window.addEventListener('storage', handleStorageForConfirmation);
+  }
+  function stopWatchingForConfirmation() {
+    if (emailConfirmWatcher) { clearInterval(emailConfirmWatcher); emailConfirmWatcher = null; }
+    window.removeEventListener('storage', handleStorageForConfirmation);
+  }
+  function onEmailConfirmed() {
+    renderAccountSection();
+    toast('Email confermata!');
+    if (state.profile.nome && state.profile.targa) {
+      settingsModal.classList.remove('open');
+      reloadIfUpdatePending();
+    }
+  }
+
   function renderAccountSection() {
     var session = getAuthSession();
     var loggedOut = document.getElementById('account-logged-out');
     var pending = document.getElementById('account-pending');
     var loggedIn = document.getElementById('account-logged-in');
     if (session && session.email) {
+      stopWatchingForConfirmation();
       loggedOut.classList.add('hidden');
       pending.classList.add('hidden');
       loggedIn.classList.remove('hidden');
@@ -2036,7 +2076,9 @@
       pending.classList.remove('hidden');
       loggedIn.classList.add('hidden');
       document.getElementById('account-pending-email-display').textContent = state.profile.pendingEmail;
+      startWatchingForConfirmation();
     } else {
+      stopWatchingForConfirmation();
       loggedOut.classList.remove('hidden');
       pending.classList.add('hidden');
       loggedIn.classList.add('hidden');
@@ -2121,6 +2163,16 @@
       settingsTargetSheet.countsForDailyRate = document.getElementById('in-sheet-daily-rate').checked;
       saveSheets(state.sheets);
     }
+
+    // Keep the sheet open in the "waiting to confirm" state if email
+    // isn't actually confirmed yet — closing here would defeat the whole
+    // point of requiring it. A per-sheet edit never blocks on this.
+    if (!settingsTargetSheet && !emailIsSatisfied()) {
+      renderAccountSection();
+      render();
+      return;
+    }
+
     settingsModal.classList.remove('open');
     toast('Dati salvati');
     render();

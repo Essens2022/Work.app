@@ -455,7 +455,7 @@
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
   .toast .dot{width:6px;height:6px;border-radius:50%;background:var(--teal);}
 
-  .settings-driver-note{font-size:12px;color:var(--ink-faint);margin-top:-6px;margin-bottom:16px;line-height:1.5;}
+  .settings-driver-note{font-size:12.5px;color:#6B6A66;font-weight:500;margin-top:-6px;margin-bottom:16px;line-height:1.5;}
   .badge-pending{font-size:11px;font-weight:700;padding:3px 8px;border-radius:100px;background:#3A2E1C;color:#E8A02B;}
   .checkbox-row{
     display:flex;align-items:center;gap:10px;padding:10px 0 4px;cursor:pointer;
@@ -553,7 +553,7 @@
     <div id="account-section" style="margin:2px 0 14px;">
       <div id="account-logged-out">
         <div class="field"><label>Email <span style="color:var(--accent);">*</span></label><input id="in-account-email" type="email" placeholder="latua@email.it" autocomplete="email"></div>
-        <div class="settings-driver-note">Obbligatoria — nessuna password da ricordare. Premi Salva qui sotto: riceverai un link via email di conferma, ma puoi continuare subito a usare l'app nel frattempo.</div>
+        <div class="settings-driver-note">Obbligatoria — nessuna password da ricordare. Premi Salva qui sotto: riceverai un link via email da confermare prima di poter continuare.</div>
       </div>
       <div id="account-pending" class="hidden">
         <label>Account</label>
@@ -561,7 +561,7 @@
           <span id="account-pending-email-display" style="font-weight:600;"></span>
           <span class="badge-pending">in attesa di conferma</span>
         </div>
-        <div class="settings-driver-note">Controlla la tua email e apri il link per confermare l'account. Puoi comunque continuare a usare l'app nel frattempo.</div>
+        <div class="settings-driver-note" style="color:var(--accent);font-weight:700;">Apri l'email e tocca il link per confermare — questa finestra si chiuderà da sola appena confermi. Non puoi chiuderla prima.</div>
         <div style="margin-top:8px;">
           <button type="button" id="account-remind-pending-btn" class="btn btn-outline btn-sm">Invia di nuovo il link</button>
         </div>
