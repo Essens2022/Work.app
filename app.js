@@ -27,7 +27,7 @@
   // an update (if one was found) applies right after, quietly, instead of
   // visibly restarting the splash sequence.
   try {
-    var SPLASH_DURATION_MS = 3400;
+    var SPLASH_DURATION_MS = 3000;
     var pageLoadStart = Date.now();
     var EARLY_RELOAD_COOLDOWN_MS = 20000;
     var lastAutoReload = sessionStorage.getItem('pt_last_auto_reload');
@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v79") {
+          if (data && data.v && data.v !== "pt-foglio-v80") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v79"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v80"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2624,7 +2624,7 @@
       // if one is still playing (only relevant for the first few seconds
       // right after opening the app).
       var elapsedSincePageLoad = (typeof pageLoadStart !== 'undefined') ? (Date.now() - pageLoadStart) : Infinity;
-      var splashRemaining = (typeof SPLASH_DURATION_MS !== 'undefined' ? SPLASH_DURATION_MS : 3400) + 200 - elapsedSincePageLoad;
+      var splashRemaining = (typeof SPLASH_DURATION_MS !== 'undefined' ? SPLASH_DURATION_MS : 3000) + 200 - elapsedSincePageLoad;
       if (splashRemaining > 0) { setTimeout(doReload, splashRemaining); } else { doReload(); }
     }
 
