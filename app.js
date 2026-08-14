@@ -24,7 +24,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v58") {
+          if (data && data.v && data.v !== "pt-foglio-v59") {
             try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
             window.location.reload();
           }
@@ -49,7 +49,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v58"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v59"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2294,15 +2294,15 @@
     var banner = document.getElementById('install-banner');
     // Dismissing the top banner only hides THAT banner — it's an
     // unsolicited interruption, so closing it should stick. The option
-    // inside Settings is different: nobody sees it unless they
-    // deliberately go looking for it, so it stays available there
-    // regardless of whether the banner was ever dismissed (this also
-    // means anyone who dismissed the OLD banner design, before this
-    // button existed in its current form, doesn't lose access to it
-    // permanently without realizing why).
+    // inside the "Altre opzioni" menu is different: nobody sees it
+    // unless they deliberately go looking for it, so it stays available
+    // there regardless of whether the banner was ever dismissed (this
+    // also means anyone who dismissed the OLD banner design, before
+    // this option existed in its current form, doesn't lose access to
+    // it permanently without realizing why).
     if (banner) banner.classList.toggle('hidden', !(installable && !dismissed));
-    var section = document.getElementById('settings-install-section');
-    if (section) section.classList.toggle('hidden', !installable);
+    var moreOptInstall = document.getElementById('more-opt-install');
+    if (moreOptInstall) moreOptInstall.classList.toggle('hidden', !installable);
   }
   window.addEventListener('beforeinstallprompt', function (e) {
     e.preventDefault(); // stop Chrome's own mini-infobar; we show our own flow instead
@@ -2352,8 +2352,8 @@
     });
   });
   document.getElementById('install-cta-btn').addEventListener('click', openInstallHelp);
-  document.getElementById('settings-install-btn').addEventListener('click', openInstallHelp);
-  document.getElementById('settings-share-btn').addEventListener('click', function () {
+
+  function shareApp() {
     var shareUrl = window.location.origin + window.location.pathname;
     var shareText = 'Foglio Viaggi — l\'app che uso per registrare i viaggi in modo semplice. Provala anche tu:';
     if (navigator.share) {
@@ -2367,14 +2367,14 @@
     } else {
       toast('Link: ' + shareUrl);
     }
-  });
+  }
 
-  // Complete data reset — a rare, deliberately destructive action, so it
-  // asks TWICE before doing anything, and clears absolutely everything
-  // for this origin (every sheet, every fuel receipt, the profile) in
-  // one go, then reloads straight into a genuinely fresh first-run state
-  // — the same thing a brand new install would look like.
-  document.getElementById('settings-delete-all-btn').addEventListener('click', function () {
+  function confirmDeleteAllData() {
+    // A rare, deliberately destructive action, so it asks TWICE before
+    // doing anything, and clears absolutely everything for this origin
+    // (every sheet, every fuel receipt, the profile) in one go, then
+    // reloads straight into a genuinely fresh first-run state — the
+    // same thing a brand new install would look like.
     showConfirm({
       title: 'Eliminare tutti i dati?',
       message: 'Verranno cancellati definitivamente tutti i fogli, gli scontrini e il profilo salvati su questo telefono.',
@@ -2393,6 +2393,33 @@
         });
       }
     });
+  }
+
+  // "Altre opzioni" — a single small menu bundling three occasional,
+  // non-everyday actions (share, install, delete-everything), instead of
+  // three separate buttons cluttering the main Settings screen.
+  var moreOptionsModal = document.getElementById('modal-more-options');
+  document.getElementById('settings-more-btn').addEventListener('click', function () {
+    updateInstallVisibility(); // refresh in case something changed since Settings opened
+    moreOptionsModal.classList.add('open');
+  });
+  document.getElementById('more-options-close-x').addEventListener('click', function () {
+    moreOptionsModal.classList.remove('open');
+  });
+  moreOptionsModal.addEventListener('click', function (e) {
+    if (e.target === moreOptionsModal) moreOptionsModal.classList.remove('open');
+  });
+  document.getElementById('more-opt-share').addEventListener('click', function () {
+    moreOptionsModal.classList.remove('open');
+    shareApp();
+  });
+  document.getElementById('more-opt-install').addEventListener('click', function () {
+    moreOptionsModal.classList.remove('open');
+    openInstallHelp();
+  });
+  document.getElementById('more-opt-delete').addEventListener('click', function () {
+    moreOptionsModal.classList.remove('open');
+    confirmDeleteAllData();
   });
   document.getElementById('install-help-close-x').addEventListener('click', function () {
     installHelpModal.classList.remove('open');
