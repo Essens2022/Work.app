@@ -3,52 +3,91 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Foglio Viaggi — Autisti</title>
+<title>ADB Smart — Autisti</title>
 <style>
   *{box-sizing:border-box;}
+  :root{
+    --bg:#0A0A0B; --surface:#161516; --surface-2:#1F1D1E; --line:#2A2828;
+    --ink:#F3F1EE; --ink-faint:#8C8985; --accent:#E8542B; --accent-soft:#3A241C;
+    --live:#3CB878; --offline:#C0392B;
+  }
   body{
     margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    background:#FAFAF8;color:#1C1B1F;padding:24px 16px;
+    background:var(--bg);color:var(--ink);padding:20px 14px 60px;
   }
   .wrap{max-width:640px;margin:0 auto;}
-  h1{font-size:20px;margin:0 0 4px;}
-  .subtitle{font-size:13px;color:#6B6A66;margin:0 0 20px;}
-  .card{background:#fff;border:1px solid #E7E5E1;border-radius:16px;padding:20px;margin-bottom:14px;}
+  .header{display:flex;align-items:center;gap:10px;margin-bottom:4px;}
+  .header-icon{width:34px;height:34px;border-radius:9px;overflow:hidden;flex:none;background:#000;}
+  .header-icon img{width:100%;height:100%;object-fit:cover;display:block;}
+  h1{font-size:19px;margin:0;font-weight:800;letter-spacing:-.01em;}
+  .subtitle{font-size:12.5px;color:var(--ink-faint);margin:2px 0 20px;padding-left:44px;}
+  .stat-strip{display:flex;gap:10px;margin-bottom:18px;}
+  .stat-box{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 12px;text-align:center;}
+  .stat-num{font-size:22px;font-weight:800;line-height:1;}
+  .stat-label{font-size:10.5px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.06em;margin-top:5px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:12px;}
   input{
-    width:100%;padding:12px 14px;border-radius:10px;border:1px solid #E7E5E1;font-size:15px;
-    margin-bottom:12px;font-family:inherit;
+    width:100%;padding:13px 14px;border-radius:10px;border:1px solid var(--line);font-size:15px;
+    margin-bottom:12px;font-family:inherit;background:var(--surface-2);color:var(--ink);
   }
+  input::placeholder{color:var(--ink-faint);}
   button{
-    appearance:none;border:none;border-radius:10px;padding:12px 18px;font-size:15px;font-weight:700;
-    background:#E8542B;color:#fff;cursor:pointer;
+    appearance:none;border:none;border-radius:10px;padding:12px 18px;font-size:14.5px;font-weight:700;
+    background:var(--accent);color:#fff;cursor:pointer;font-family:inherit;
   }
-  button:active{opacity:.85;}
+  button:active{opacity:.8;}
   .btn-block{width:100%;}
-  .btn-ghost{background:#F2F1EE;color:#1C1B1F;}
-  .btn-sm{padding:7px 12px;font-size:13px;border-radius:8px;font-weight:600;}
+  .btn-ghost{background:var(--surface-2);color:var(--ink);border:1px solid var(--line);}
+  .btn-sm{padding:8px 12px;font-size:12.5px;border-radius:8px;font-weight:600;}
   .toolbar{display:flex;gap:10px;margin-bottom:16px;}
   .toolbar button{flex:1;}
-  .section-title{font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:#8C8A85;margin:22px 0 10px;}
+  .section-title{font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);margin:22px 0 10px;}
   .section-title:first-child{margin-top:0;}
-  .driver-row{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
-  .driver-name{font-weight:800;font-size:15px;}
-  .driver-meta{font-size:13px;color:#6B6A66;margin-top:4px;line-height:1.6;}
-  .device-id{font-size:11px;color:#B5B3AE;font-family:monospace;margin-top:6px;}
-  .badge{
-    display:inline-block;font-size:11px;font-weight:700;padding:3px 8px;border-radius:100px;
-    background:#FCEFE9;color:#E8542B;margin-top:6px;
+
+  .person-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;margin-bottom:10px;overflow:hidden;}
+  .person-row{display:flex;align-items:center;gap:12px;padding:15px 16px;cursor:pointer;}
+  .live-dot{width:10px;height:10px;border-radius:50%;flex:none;background:var(--offline);}
+  .live-dot.is-live{background:var(--live);box-shadow:0 0 0 0 rgba(60,184,120,.5);animation:pulse 1.6s infinite;}
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(60,184,120,.55);}
+    70%{box-shadow:0 0 0 7px rgba(60,184,120,0);}
+    100%{box-shadow:0 0 0 0 rgba(60,184,120,0);}
   }
-  .badge-hidden{background:#F2F1EE;color:#8C8A85;}
-  .card.is-hidden{opacity:.55;}
-  .error{color:#C0392B;font-size:13px;margin-top:-4px;margin-bottom:12px;}
-  .empty{text-align:center;color:#6B6A66;padding:30px 0;}
+  .person-main{flex:1;min-width:0;}
+  .person-name{font-weight:800;font-size:15px;}
+  .person-email{font-size:12px;color:var(--ink-faint);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .person-lastseen{font-size:11.5px;color:var(--ink-faint);white-space:nowrap;flex:none;}
+  .chevron{color:var(--ink-faint);flex:none;transition:transform .15s ease;font-size:13px;}
+  .person-card.open .chevron{transform:rotate(90deg);}
+  .person-detail{display:none;padding:0 16px 16px;border-top:1px solid var(--line);}
+  .person-card.open .person-detail{display:block;padding-top:14px;}
+  .detail-row{display:flex;justify-content:space-between;font-size:13px;padding:7px 0;border-bottom:1px solid var(--line);}
+  .detail-row:last-child{border-bottom:none;}
+  .detail-label{color:var(--ink-faint);}
+  .detail-value{font-weight:700;}
+  .sheet-item{background:var(--surface-2);border-radius:10px;padding:10px 12px;margin-top:8px;font-size:12.5px;}
+  .sheet-item-top{display:flex;justify-content:space-between;font-weight:700;margin-bottom:4px;}
+  .sheet-item-meta{color:var(--ink-faint);display:flex;gap:12px;}
+  .badge{
+    display:inline-block;font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:100px;
+    background:var(--accent-soft);color:var(--accent);margin-top:6px;
+  }
+  .badge-hidden{background:var(--surface-2);color:var(--ink-faint);}
+  .person-card.is-hidden{opacity:.5;}
+  .device-list{font-size:10.5px;color:var(--ink-faint);font-family:monospace;margin-top:10px;line-height:1.7;}
+  .detail-actions{display:flex;gap:8px;margin-top:14px;}
+  .error{color:#E57373;font-size:13px;margin-top:-4px;margin-bottom:12px;}
+  .empty{text-align:center;color:var(--ink-faint);padding:36px 0;font-size:14px;}
   #login-screen, #data-screen{display:none;}
   #login-screen.show, #data-screen.show{display:block;}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Foglio Viaggi — Autisti</h1>
+  <div class="header">
+    <div class="header-icon"><img src="../icon-192.png" alt=""></div>
+    <h1>ADB Smart — Autisti</h1>
+  </div>
   <div class="subtitle" id="last-refreshed"></div>
 
   <div id="login-screen" class="card show">
@@ -58,6 +97,11 @@
   </div>
 
   <div id="data-screen">
+    <div class="stat-strip">
+      <div class="stat-box"><div class="stat-num" id="stat-total">—</div><div class="stat-label">Autisti</div></div>
+      <div class="stat-box"><div class="stat-num" id="stat-live">—</div><div class="stat-label">Live ora</div></div>
+      <div class="stat-box"><div class="stat-num" id="stat-registered">—</div><div class="stat-label">Con email</div></div>
+    </div>
     <div class="toolbar">
       <button id="refresh-btn" class="btn-ghost">↻ Aggiorna</button>
       <button id="toggle-hidden-btn" class="btn-ghost">Mostra nascosti</button>
@@ -68,9 +112,12 @@
 
 <script>
   var FUNCTION_URL = 'https://chboalgzigdglygnnist.supabase.co/functions/v1/admin-data';
+  var LIVE_THRESHOLD_MS = 45000; // heartbeats fire every ~25s while visible — 45s of silence means offline
   var currentPassword = '';
   var showHidden = false;
-  var lastDrivers = [];
+  var lastGroups = [];
+  var openGroupKeys = {};
+  var refreshTimer = null;
 
   function showScreen(id) {
     document.getElementById('login-screen').classList.toggle('show', id === 'login-screen');
@@ -82,61 +129,172 @@
     var d = new Date(iso);
     return d.toLocaleDateString('it-IT') + ' ' + d.toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit'});
   }
+  function formatRelative(iso) {
+    if (!iso) return 'mai visto';
+    var diffMs = Date.now() - new Date(iso).getTime();
+    var mins = Math.round(diffMs / 60000);
+    if (mins < 1) return 'proprio ora';
+    if (mins < 60) return mins + ' min fa';
+    var hrs = Math.round(mins / 60);
+    if (hrs < 24) return hrs + ' h fa';
+    var days = Math.round(hrs / 24);
+    return days + ' g fa';
+  }
 
   var MESI = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
 
-  function driverCard(d) {
-    var monthLabel = (d.active_month && d.active_year) ? (MESI[d.active_month - 1] + ' ' + d.active_year) : '—';
-    var everCreatedSheet = !!(d.active_month && d.active_year);
-    var html = '<div class="card' + (d.hidden ? ' is-hidden' : '') + '">';
-    html += '<div class="driver-row"><div>';
-    html += '<div class="driver-name">' + (d.nome || '(senza nome)') + '</div>';
-    html += '<div class="driver-meta">';
-    html += 'Targa: ' + (d.targa || '—') + '<br>';
-    html += 'Ultima attività: ' + formatDate(d.last_active) + '<br>';
-    html += 'Giorni lavorati (' + monthLabel + '): ' + (d.worked_days_this_month || 0);
+  // Groups raw per-device rows into one entry per real person, matched by
+  // normalized name+targa — the closest thing to a reliable identity for
+  // drivers who haven't registered with email, and a safety net even for
+  // those who have (covers the phone that hasn't synced its email yet).
+  function groupDrivers(drivers) {
+    var groups = {};
+    (drivers || []).forEach(function (d) {
+      var key = (d.nome || '').trim().toLowerCase() + '|' + (d.targa || '').trim().toLowerCase();
+      if (!groups[key]) {
+        groups[key] = {
+          key: key, nome: d.nome || '(senza nome)', targa: d.targa || '—',
+          emails: {}, deviceIds: [], hidden: true, lastActive: null, lastHeartbeat: null,
+          sheetsByKey: {}, activeMonth: null, activeYear: null, dailyRate: null
+        };
+      }
+      var g = groups[key];
+      g.deviceIds.push(d.device_id);
+      if (d.account_email) g.emails[d.account_email] = true;
+      // Group is "hidden" only if EVERY device under it is hidden.
+      if (!d.hidden) g.hidden = false;
+      if (d.last_active && (!g.lastActive || d.last_active > g.lastActive)) g.lastActive = d.last_active;
+      if (d.last_heartbeat && (!g.lastHeartbeat || d.last_heartbeat > g.lastHeartbeat)) g.lastHeartbeat = d.last_heartbeat;
+      if (d.active_month && d.active_year) {
+        if (!g.activeYear || d.active_year > g.activeYear || (d.active_year === g.activeYear && d.active_month > g.activeMonth)) {
+          g.activeMonth = d.active_month; g.activeYear = d.active_year;
+        }
+      }
+      (d.sheets || []).forEach(function (s) {
+        var sKey = s.month + '-' + s.year + '-' + s.client;
+        if (!g.sheetsByKey[sKey]) {
+          g.sheetsByKey[sKey] = { month: s.month, year: s.year, client: s.client, total_km: 0, giorni_count: 0 };
+        }
+        // Sum across devices for the same sheet — covers the case where a
+        // reinstall split one real sheet's data across two device rows.
+        g.sheetsByKey[sKey].total_km += Number(s.total_km) || 0;
+        g.sheetsByKey[sKey].giorni_count += Number(s.giorni_count) || 0;
+        if (s.daily_rate != null) g.dailyRate = Number(s.daily_rate);
+      });
+    });
+    return Object.keys(groups).map(function (k) {
+      var g = groups[k];
+      g.emailList = Object.keys(g.emails);
+      g.sheets = Object.keys(g.sheetsByKey).map(function (sk) { return g.sheetsByKey[sk]; })
+        .sort(function (a, b) { return (b.year - a.year) || (b.month - a.month); });
+      g.isLive = !!(g.lastHeartbeat && (Date.now() - new Date(g.lastHeartbeat).getTime()) < LIVE_THRESHOLD_MS);
+      g.lastSeen = g.lastHeartbeat && (!g.lastActive || g.lastHeartbeat > g.lastActive) ? g.lastHeartbeat : g.lastActive;
+      return g;
+    });
+  }
+
+  function sheetDetailHtml(s, dailyRate) {
+    var monthLabel = MESI[s.month - 1] + ' ' + s.year;
+    var earnings = dailyRate ? (s.giorni_count * dailyRate) : null;
+    var html = '<div class="sheet-item">';
+    html += '<div class="sheet-item-top"><span>' + s.client + '</span><span>' + monthLabel + '</span></div>';
+    html += '<div class="sheet-item-meta">';
+    html += '<span>' + Math.round(s.total_km) + ' km</span>';
+    html += '<span>' + s.giorni_count + ' giri</span>';
+    if (earnings !== null) html += '<span>~€' + earnings.toFixed(0) + '</span>';
+    html += '</div></div>';
+    return html;
+  }
+
+  function personCardHtml(g) {
+    var isOpen = !!openGroupKeys[g.key];
+    var html = '<div class="person-card' + (g.hidden ? ' is-hidden' : '') + (isOpen ? ' open' : '') + '" data-key="' + g.key + '">';
+    html += '<div class="person-row" data-toggle-open="' + g.key + '">';
+    html += '<div class="live-dot' + (g.isLive ? ' is-live' : '') + '"></div>';
+    html += '<div class="person-main">';
+    html += '<div class="person-name">' + g.nome + '</div>';
+    if (g.emailList.length) html += '<div class="person-email">' + g.emailList.join(', ') + '</div>';
     html += '</div>';
-    if (!everCreatedSheet) html += '<div class="badge">Solo aperto — nessun foglio creato</div>';
-    if (d.hidden) html += '<div class="badge badge-hidden">Nascosto</div>';
-    html += '<div class="device-id">' + (d.device_id || '').slice(0, 8) + '</div>';
+    html += '<div class="person-lastseen">' + (g.isLive ? 'Live ora' : formatRelative(g.lastSeen)) + '</div>';
+    html += '<div class="chevron">▶</div>';
     html += '</div>';
-    html += '<button class="btn-ghost btn-sm" data-toggle-hidden="' + d.device_id + '" data-hidden="' + (d.hidden ? '1' : '0') + '">' + (d.hidden ? 'Mostra' : 'Nascondi') + '</button>';
+
+    html += '<div class="person-detail">';
+    html += '<div class="detail-row"><span class="detail-label">Targa</span><span class="detail-value">' + g.targa + '</span></div>';
+    html += '<div class="detail-row"><span class="detail-label">Ultima attività</span><span class="detail-value">' + formatDate(g.lastSeen) + '</span></div>';
+    var monthLabel = (g.activeMonth && g.activeYear) ? (MESI[g.activeMonth - 1] + ' ' + g.activeYear) : '—';
+    html += '<div class="detail-row"><span class="detail-label">Mese attivo</span><span class="detail-value">' + monthLabel + '</span></div>';
+    if (g.dailyRate) html += '<div class="detail-row"><span class="detail-label">Compenso giornaliero</span><span class="detail-value">€' + g.dailyRate + '</span></div>';
+
+    if (g.sheets.length) {
+      html += '<div style="margin-top:4px;">';
+      g.sheets.forEach(function (s) { html += sheetDetailHtml(s, g.dailyRate); });
+      html += '</div>';
+    } else {
+      html += '<div class="empty" style="padding:14px 0;font-size:12.5px;">Nessun foglio ancora sincronizzato.</div>';
+    }
+
+    if (!(g.activeMonth && g.activeYear) && !g.sheets.length) html += '<div class="badge">Solo aperto — nessun foglio creato</div>';
+    if (g.hidden) html += '<div class="badge badge-hidden">Nascosto</div>';
+
+    html += '<div class="device-list">' + g.deviceIds.length + ' dispositivo/i: ' + g.deviceIds.map(function (id) { return id.slice(0, 8); }).join(', ') + '</div>';
+
+    html += '<div class="detail-actions">';
+    html += '<button class="btn-ghost btn-sm" data-toggle-hidden="' + g.key + '" data-hidden="' + (g.hidden ? '1' : '0') + '">' + (g.hidden ? 'Mostra' : 'Nascondi') + '</button>';
+    html += '</div>';
     html += '</div></div>';
     return html;
   }
 
   function renderDrivers(drivers) {
-    lastDrivers = drivers || [];
+    lastGroups = groupDrivers(drivers);
     var el = document.getElementById('drivers-list');
-    if (!lastDrivers.length) {
+
+    document.getElementById('stat-total').textContent = lastGroups.filter(function (g) { return !g.hidden; }).length;
+    document.getElementById('stat-live').textContent = lastGroups.filter(function (g) { return g.isLive; }).length;
+    document.getElementById('stat-registered').textContent = lastGroups.filter(function (g) { return g.emailList.length; }).length;
+
+    if (!lastGroups.length) {
       el.innerHTML = '<div class="card empty">Nessun autista ha ancora aperto l\'app.</div>';
       return;
     }
-    var visible = lastDrivers.filter(function (d) { return showHidden || !d.hidden; });
+    var visible = lastGroups.filter(function (g) { return showHidden || !g.hidden; });
     if (!visible.length) {
       el.innerHTML = '<div class="card empty">Nessuno da mostrare — prova "Mostra nascosti".</div>';
       return;
     }
-    // Already sorted by the server (most worked days first) — split into
-    // two clearly-labeled groups so real, active usage is never mixed in
-    // visually with a one-off "just opened it" trial.
-    var active = visible.filter(function (d) { return d.active_month && d.active_year; });
-    var untried = visible.filter(function (d) { return !(d.active_month && d.active_year); });
+    visible.sort(function (a, b) {
+      if (a.isLive !== b.isLive) return a.isLive ? -1 : 1;
+      return (new Date(b.lastSeen || 0)) - (new Date(a.lastSeen || 0));
+    });
+    var active = visible.filter(function (g) { return g.activeMonth && g.activeYear; });
+    var untried = visible.filter(function (g) { return !(g.activeMonth && g.activeYear); });
     var html = '';
     if (active.length) {
       html += '<div class="section-title">Autisti attivi (' + active.length + ')</div>';
-      active.forEach(function (d) { html += driverCard(d); });
+      active.forEach(function (g) { html += personCardHtml(g); });
     }
     if (untried.length) {
       html += '<div class="section-title">Solo aperto, mai usato davvero (' + untried.length + ')</div>';
-      untried.forEach(function (d) { html += driverCard(d); });
+      untried.forEach(function (g) { html += personCardHtml(g); });
     }
     el.innerHTML = html;
+
+    el.querySelectorAll('[data-toggle-open]').forEach(function (row) {
+      row.addEventListener('click', function () {
+        var key = row.getAttribute('data-toggle-open');
+        openGroupKeys[key] = !openGroupKeys[key];
+        var card = el.querySelector('.person-card[data-key="' + CSS.escape(key) + '"]');
+        if (card) card.classList.toggle('open', openGroupKeys[key]);
+      });
+    });
     el.querySelectorAll('[data-toggle-hidden]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var deviceId = btn.getAttribute('data-toggle-hidden');
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var key = btn.getAttribute('data-toggle-hidden');
         var wasHidden = btn.getAttribute('data-hidden') === '1';
-        toggleHidden(deviceId, !wasHidden);
+        var group = lastGroups.filter(function (g) { return g.key === key; })[0];
+        if (group) toggleHiddenForGroup(group.deviceIds, !wasHidden);
       });
     });
   }
@@ -153,14 +311,18 @@
     }).then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); });
   }
 
-  function toggleHidden(deviceId, hidden) {
-    fetch(FUNCTION_URL, {
+  function toggleHiddenSingle(deviceId, hidden) {
+    return fetch(FUNCTION_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: currentPassword, action: 'toggle_hidden', device_id: deviceId, hidden: hidden })
-    }).then(function () { return fetchDrivers(); })
+    });
+  }
+  function toggleHiddenForGroup(deviceIds, hidden) {
+    Promise.all(deviceIds.map(function (id) { return toggleHiddenSingle(id, hidden); }))
+      .then(function () { return fetchDrivers(); })
       .then(function (res) {
-        if (res.ok) { renderDrivers(res.data.drivers); setRefreshedNow(); }
+        if (res.ok) { lastGroupsRaw = res.data.drivers; renderDrivers(lastGroupsRaw); setRefreshedNow(); }
       });
   }
 
@@ -172,8 +334,10 @@
   document.getElementById('toggle-hidden-btn').addEventListener('click', function () {
     showHidden = !showHidden;
     document.getElementById('toggle-hidden-btn').textContent = showHidden ? 'Nascondi i nascosti' : 'Mostra nascosti';
-    renderDrivers(lastDrivers);
+    renderDrivers(lastGroupsRaw);
   });
+
+  var lastGroupsRaw = [];
 
   function login() {
     var pw = document.getElementById('password-input').value;
@@ -183,10 +347,17 @@
     fetchDrivers()
       .then(function (res) {
         if (!res.ok) { errEl.style.display = 'block'; return; }
-        sessionStorage.setItem('fv_admin_pw', pw); // kept only for this browser tab session
-        renderDrivers(res.data.drivers);
+        sessionStorage.setItem('fv_admin_pw', pw);
+        lastGroupsRaw = res.data.drivers;
+        renderDrivers(lastGroupsRaw);
         setRefreshedNow();
         showScreen('data-screen');
+        if (refreshTimer) clearInterval(refreshTimer);
+        refreshTimer = setInterval(function () {
+          fetchDrivers().then(function (r) {
+            if (r.ok) { lastGroupsRaw = r.data.drivers; renderDrivers(lastGroupsRaw); setRefreshedNow(); }
+          });
+        }, 30000);
       })
       .catch(function () { errEl.textContent = 'Errore di connessione.'; errEl.style.display = 'block'; });
   }
@@ -196,7 +367,6 @@
     if (e.key === 'Enter') login();
   });
 
-  // If already unlocked earlier in this browser tab session, skip straight in.
   var savedPw = sessionStorage.getItem('fv_admin_pw');
   if (savedPw) {
     document.getElementById('password-input').value = savedPw;
