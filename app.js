@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v88") {
+          if (data && data.v && data.v !== "pt-foglio-v89") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v88"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v89"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2081,6 +2081,22 @@
     }
   }
 
+  document.getElementById('account-send-btn').addEventListener('click', function () {
+    var email = document.getElementById('in-account-email').value.trim();
+    if (!email || email.indexOf('@') === -1) { toast('Inserisci un\'email valida'); return; }
+    var btn = this;
+    btn.disabled = true;
+    requestMagicLink(email)
+      .then(function () {
+        state.profile.pendingEmail = email;
+        saveProfile(state.profile);
+        toast('✓ Email inviata — controlla la tua posta');
+        renderAccountSection();
+      })
+      .catch(function () { toast('Invio non riuscito — controlla la connessione e riprova'); })
+      .then(function () { btn.disabled = false; });
+  });
+
   function renderAccountSection() {
     var session = getAuthSession();
     var loggedOut = document.getElementById('account-logged-out');
@@ -2160,18 +2176,13 @@
     if (!nome || !targa) { toast('Inserisci nome e targa'); return; }
 
     // Email is only required on the main profile — a per-sheet override
-    // edit isn't the place this is enforced.
-    if (!settingsTargetSheet) {
-      var session = getAuthSession();
-      var alreadySatisfied = (session && session.email) || state.profile.pendingEmail;
-      if (!alreadySatisfied) {
-        var typedEmail = document.getElementById('in-account-email').value.trim();
-        if (!typedEmail || typedEmail.indexOf('@') === -1) { toast('Inserisci la tua email per continuare'); return; }
-        state.profile.pendingEmail = typedEmail;
-        requestMagicLink(typedEmail)
-          .then(function () { toast('Controlla la tua email: ' + typedEmail); })
-          .catch(function () { /* they can still retry from the pending-account view */ });
-      }
+    // edit isn't the place this is enforced. Sending the confirmation
+    // link itself now happens via the dedicated "Invia" button next to
+    // the email field, not here — Salva just checks it's actually been
+    // sent and confirmed before letting the sheet close.
+    if (!settingsTargetSheet && !emailIsSatisfied() && !state.profile.pendingEmail) {
+      toast('Inserisci la tua email e tocca Invia per continuare');
+      return;
     }
 
     state.profile.nome = nome; state.profile.targa = targa; state.profile.perContoDi = conto;
