@@ -3,6 +3,36 @@
 (function () {
   "use strict";
 
+  // EARLY, SELF-CONTAINED VERSION CHECK — runs before absolutely anything
+  // else in this file. If this phone is ever stuck running a stale copy
+  // of this exact script (for example, one that still refers to an
+  // element ID that got renamed in a later change elsewhere in this
+  // file), that stale script would throw an uncaught error the moment it
+  // reaches the broken part, and everything after that point — including
+  // a version check placed near the bottom, as this used to be — would
+  // simply never run, leaving a blank page with no way to self-heal.
+  // Putting this check first means it always gets a chance to notice a
+  // mismatch and reload to a fresh copy BEFORE reaching any code later in
+  // this file that might be broken. Deliberately minimal and wrapped in
+  // its own try/catch so this early check itself can never be the thing
+  // that breaks the page.
+  try {
+    var EARLY_RELOAD_COOLDOWN_MS = 20000;
+    var lastAutoReload = sessionStorage.getItem('pt_last_auto_reload');
+    var reloadedRecently = !!(lastAutoReload && (Date.now() - parseInt(lastAutoReload, 10)) < EARLY_RELOAD_COOLDOWN_MS);
+    if (!reloadedRecently) {
+      fetch('version.json', { cache: 'no-store' })
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (data && data.v && data.v !== "pt-foglio-v56") {
+            try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
+            window.location.reload();
+          }
+        })
+        .catch(function () { /* offline or blocked — silently skip, try again later */ });
+    }
+  } catch (e) { /* never let this early check itself break the page */ }
+
   // Marks the page as running in the installed app (not a regular Safari
   // tab) as early as possible, using TWO checks together for reliability:
   // the modern standard (matchMedia display-mode) and the older,
@@ -19,7 +49,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v54"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v56"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1997,6 +2027,7 @@
     document.getElementById('confirm-title').textContent = opts.title;
     document.getElementById('confirm-sub').textContent = opts.message;
     var okBtn = document.getElementById('confirm-ok');
+    okBtn.onclick = null; // defensively drop any stale handler a previous, different use of this shared dialog (e.g. the new-sheet flow) might have left attached directly
     okBtn.className = 'btn ' + (opts.danger ? 'btn-danger' : 'btn-accent');
     okBtn.textContent = opts.confirmLabel || 'Conferma';
     document.getElementById('confirm-cancel').textContent = opts.cancelLabel || 'Annulla';
@@ -2072,6 +2103,7 @@
         toast('Foglio ' + MESI[m - 1] + ' ' + y + ' (' + chosenClient + ') già esistente — aperto');
         showScreen('foglio');
         reloadIfUpdatePending();
+        okBtn.onclick = null; // don't let this stick around for the next, unrelated use of the shared confirm dialog
         return;
       }
       createSheet(m, y, chosenClient, countsForRate, chosenTemplate);
@@ -2079,6 +2111,7 @@
       showScreen('foglio');
       reportActivity();
       reloadIfUpdatePending();
+      okBtn.onclick = null; // don't let this stick around for the next, unrelated use of the shared confirm dialog
     };
   }
   document.getElementById('btn-nuovo-foglio').addEventListener('click', openNewSheetFlow);
@@ -2312,6 +2345,32 @@
   });
   document.getElementById('install-cta-btn').addEventListener('click', openInstallHelp);
   document.getElementById('settings-install-btn').addEventListener('click', openInstallHelp);
+
+  // Complete data reset — a rare, deliberately destructive action, so it
+  // asks TWICE before doing anything, and clears absolutely everything
+  // for this origin (every sheet, every fuel receipt, the profile) in
+  // one go, then reloads straight into a genuinely fresh first-run state
+  // — the same thing a brand new install would look like.
+  document.getElementById('settings-delete-all-btn').addEventListener('click', function () {
+    showConfirm({
+      title: 'Eliminare tutti i dati?',
+      message: 'Verranno cancellati definitivamente tutti i fogli, gli scontrini e il profilo salvati su questo telefono.',
+      danger: true,
+      confirmLabel: 'Continua',
+      onConfirm: function () {
+        showConfirm({
+          title: 'Sei sicuro? Non si può annullare',
+          message: 'Questa è l\'ultima conferma — una volta eliminati, questi dati non si possono più recuperare.',
+          danger: true,
+          confirmLabel: 'Elimina tutto',
+          onConfirm: function () {
+            try { localStorage.clear(); } catch (e) { /* ignore */ }
+            window.location.reload();
+          }
+        });
+      }
+    });
+  });
   document.getElementById('install-help-close-x').addEventListener('click', function () {
     installHelpModal.classList.remove('open');
   });

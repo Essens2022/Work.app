@@ -9,7 +9,7 @@
 //  - Large, rarely-changing files (jsPDF, the comuni database, icons, logo)
 //    stay CACHE-FIRST, so they don't get re-downloaded on every load.
 
-const CACHE_VERSION = 'pt-foglio-v54';
+const CACHE_VERSION = 'pt-foglio-v56';
 const CORE_ASSETS = ['./', './index.html', './app.js', './manifest.json', './version.json'];
 const STATIC_ASSETS = [
   './icon-192.png',
@@ -47,8 +47,15 @@ self.addEventListener('fetch', (event) => {
 
   if (isNavigation || isCoreAsset(url)) {
     // Network-first: always try to get the latest app code when online.
+    // { cache: 'no-store' } here is deliberate and important — without
+    // it, this fetch() can still be satisfied by the BROWSER's own HTTP
+    // cache (a layer completely separate from this service worker's own
+    // Cache API storage), depending on cache-control headers from the
+    // server. That could quietly serve a stale copy of app.js even
+    // though this code "looks" network-first — no-store forces a truly
+    // fresh network round-trip every time, when online.
     event.respondWith(
-      fetch(event.request)
+      fetch(event.request, { cache: 'no-store' })
         .then((response) => {
           if (response && response.status === 200) {
             const copy = response.clone();
