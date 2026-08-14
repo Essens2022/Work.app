@@ -19,7 +19,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v53"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v54"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1942,7 +1942,6 @@
     }
 
     settingsModal.classList.add('open');
-    updateSettingsInstallSection();
   }
   document.getElementById('btn-settings').addEventListener('click', function () { openSettingsModal(null); });
   document.getElementById('settings-cancel').addEventListener('click', function () {
@@ -2231,14 +2230,16 @@
   /* "Install app" banner — platform-aware, since the two mobile         */
   /* platforms genuinely need different things here:                    */
   /*  - Android/Chrome fires beforeinstallprompt when it considers the   */
-  /*    site installable; capturing that event lets a normal in-page     */
-  /*    button trigger the native install dialog directly.               */
+  /*    site installable; capturing that event lets a button inside the  */
+  /*    instructions modal trigger the native install dialog directly.   */
   /*  - iOS Safari doesn't support that API at all — there is no event   */
   /*    to listen for and no programmatic way to trigger "Add to Home    */
-  /*    Screen"; it's always a manual step through the Share sheet. For  */
-  /*    someone opening a link shared over WhatsApp on an iPhone, the    */
-  /*    most useful thing this app can do is show clear instructions for */
-  /*    that manual step, since no button here can do it for them.       */
+  /*    Screen"; it's always a manual step through the Share sheet.      */
+  /* Both platforms open the SAME instructions modal (tabs let anyone    */
+  /* check the other platform's steps too — useful when showing a       */
+  /* colleague on a different phone what to do); Android's tab also      */
+  /* shows a direct "Installa ora" button when the native prompt is      */
+  /* actually available.                                                 */
   /* ---------------------------------------------------------------- */
   var LS_INSTALL_DISMISSED = 'pt_install_dismissed_v1';
   var deferredInstallPrompt = null;
@@ -2253,60 +2254,52 @@
   function isAndroidDevice() {
     return /Android/.test(navigator.userAgent || '');
   }
-  function updateInstallBanner() {
-    var banner = document.getElementById('install-banner');
-    if (!banner) return;
+  function updateInstallVisibility() {
     var dismissed = localStorage.getItem(LS_INSTALL_DISMISSED) === '1';
-    var btn = document.getElementById('install-banner-btn');
-    var icon = document.getElementById('install-banner-icon');
-    var text = document.getElementById('install-banner-text');
-
-    if (dismissed || isStandaloneMode()) {
-      banner.classList.add('hidden');
-      return;
-    }
-    if (deferredInstallPrompt) {
-      // Chrome (Android or otherwise) offered its native install signal
-      // — a real tap here can trigger that dialog directly.
-      icon.textContent = '⬇';
-      text.textContent = 'Installa l\'app sulla schermata home per un accesso più rapido';
-      btn.classList.remove('hidden');
-      banner.classList.remove('hidden');
-    } else if (isIOSDevice()) {
-      // iOS Safari — no button can do this; show the manual steps
-      // instead, since that's the only way it can be done here.
-      icon.textContent = '⎋';
-      text.textContent = 'Per installarla: tocca l\'icona "Condividi" di Safari, poi "Aggiungi alla schermata Home"';
-      btn.classList.add('hidden');
-      banner.classList.remove('hidden');
-    } else if (isAndroidDevice()) {
-      // Android, but no beforeinstallprompt yet — either the browser
-      // isn't Chrome (Samsung Internet, Firefox, etc., none of which
-      // fire that event) or Chrome simply hasn't offered it yet.
-      // Manual steps still work everywhere on Android, so show those
-      // rather than leaving the person with nothing at all; if the
-      // event does fire later this gets replaced with the direct
-      // button automatically.
-      icon.textContent = '⋮';
-      text.textContent = 'Per installarla: apri il menu del browser, poi "Aggiungi a schermata Home" o "Installa app"';
-      btn.classList.add('hidden');
-      banner.classList.remove('hidden');
-    } else {
-      banner.classList.add('hidden');
-    }
+    var isMobile = isIOSDevice() || isAndroidDevice();
+    var show = isMobile && !dismissed && !isStandaloneMode();
+    var banner = document.getElementById('install-banner');
+    if (banner) banner.classList.toggle('hidden', !show);
+    var section = document.getElementById('settings-install-section');
+    if (section) section.classList.toggle('hidden', !show);
   }
   window.addEventListener('beforeinstallprompt', function (e) {
-    e.preventDefault(); // stop Chrome's own mini-infobar; we show our own button instead
+    e.preventDefault(); // stop Chrome's own mini-infobar; we show our own flow instead
     deferredInstallPrompt = e;
-    updateInstallBanner();
-    updateSettingsInstallSection();
+    updateInstallHelpTab(); // in case the modal happens to already be open
   });
   window.addEventListener('appinstalled', function () {
     deferredInstallPrompt = null;
-    updateInstallBanner();
-    updateSettingsInstallSection();
+    updateInstallVisibility();
   });
-  document.getElementById('install-banner-btn').addEventListener('click', function () {
+  document.getElementById('install-banner-close').addEventListener('click', function () {
+    localStorage.setItem(LS_INSTALL_DISMISSED, '1');
+    updateInstallVisibility();
+  });
+  updateInstallVisibility();
+
+  var installHelpModal = document.getElementById('modal-install-help');
+  var currentInstallTab = isAndroidDevice() ? 'android' : 'ios'; // default guess; iOS is the fallback for desktop testing too
+  function updateInstallHelpTab() {
+    document.getElementById('install-tab-ios').classList.toggle('active', currentInstallTab === 'ios');
+    document.getElementById('install-tab-android').classList.toggle('active', currentInstallTab === 'android');
+    document.getElementById('install-steps-ios').classList.toggle('hidden', currentInstallTab !== 'ios');
+    document.getElementById('install-steps-android').classList.toggle('hidden', currentInstallTab !== 'android');
+    var directBtn = document.getElementById('install-help-direct-btn');
+    directBtn.classList.toggle('hidden', !(currentInstallTab === 'android' && deferredInstallPrompt));
+  }
+  function openInstallHelp() {
+    currentInstallTab = isAndroidDevice() ? 'android' : 'ios';
+    updateInstallHelpTab();
+    installHelpModal.classList.add('open');
+  }
+  document.querySelectorAll('.install-tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      currentInstallTab = tab.getAttribute('data-platform');
+      updateInstallHelpTab();
+    });
+  });
+  document.getElementById('install-help-direct-btn').addEventListener('click', function () {
     if (!deferredInstallPrompt) return;
     deferredInstallPrompt.prompt();
     deferredInstallPrompt.userChoice.then(function () {
@@ -2314,56 +2307,17 @@
       // spent — Chrome will fire a fresh beforeinstallprompt later if
       // still applicable.
       deferredInstallPrompt = null;
-      updateInstallBanner();
-      updateSettingsInstallSection();
+      updateInstallHelpTab();
     });
   });
-  document.getElementById('install-banner-close').addEventListener('click', function () {
-    localStorage.setItem(LS_INSTALL_DISMISSED, '1');
-    updateInstallBanner();
+  document.getElementById('install-cta-btn').addEventListener('click', openInstallHelp);
+  document.getElementById('settings-install-btn').addEventListener('click', openInstallHelp);
+  document.getElementById('install-help-close-x').addEventListener('click', function () {
+    installHelpModal.classList.remove('open');
   });
-
-  // A second, persistent way in to install — the top banner can be
-  // dismissed permanently, so this stays available in Settings for
-  // anyone who wants to install later, or just prefers looking there.
-  function updateSettingsInstallSection() {
-    var section = document.getElementById('settings-install-section');
-    if (!section) return;
-    var btn = document.getElementById('settings-install-btn');
-    var note = document.getElementById('settings-install-note');
-    if (isStandaloneMode()) {
-      section.classList.add('hidden');
-      return;
-    }
-    if (deferredInstallPrompt) {
-      btn.classList.remove('hidden');
-      note.textContent = '';
-      section.classList.remove('hidden');
-    } else if (isIOSDevice()) {
-      btn.classList.add('hidden');
-      note.textContent = 'Per installare l\'app: tocca l\'icona "Condividi" di Safari, poi "Aggiungi alla schermata Home"';
-      section.classList.remove('hidden');
-    } else if (isAndroidDevice()) {
-      btn.classList.add('hidden');
-      note.textContent = 'Per installare l\'app: apri il menu del browser, poi "Aggiungi a schermata Home" o "Installa app"';
-      section.classList.remove('hidden');
-    } else {
-      section.classList.add('hidden');
-    }
-  }
-  document.getElementById('settings-install-btn').addEventListener('click', function () {
-    if (!deferredInstallPrompt) return;
-    deferredInstallPrompt.prompt();
-    deferredInstallPrompt.userChoice.then(function () {
-      deferredInstallPrompt = null;
-      updateInstallBanner();
-      updateSettingsInstallSection();
-    });
+  installHelpModal.addEventListener('click', function (e) {
+    if (e.target === installHelpModal) installHelpModal.classList.remove('open');
   });
-  // iOS never fires an event we can listen for, so the banner has to be
-  // offered proactively on load — Android still waits for the real
-  // beforeinstallprompt signal before showing anything.
-  if ((isIOSDevice() || isAndroidDevice()) && !isStandaloneMode()) updateInstallBanner();
 
   function init() {
     migrateUppercaseLocalities();
