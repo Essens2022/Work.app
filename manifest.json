@@ -1,7 +1,7 @@
 {
-  "name": "Power Trasporti - Foglio Viaggi",
-  "short_name": "PT Foglio",
-  "description": "Compilazione del foglio mensile GIRO per autisti Power Trasporti",
+  "name": "Autista Documento di Bordo Smart",
+  "short_name": "ADB Smart",
+  "description": "Compilazione del foglio mensile GIRO per autisti",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
