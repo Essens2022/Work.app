@@ -24,7 +24,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v56") {
+          if (data && data.v && data.v !== "pt-foglio-v57") {
             try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
             window.location.reload();
           }
@@ -49,7 +49,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v56"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v57"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2290,11 +2290,19 @@
   function updateInstallVisibility() {
     var dismissed = localStorage.getItem(LS_INSTALL_DISMISSED) === '1';
     var isMobile = isIOSDevice() || isAndroidDevice();
-    var show = isMobile && !dismissed && !isStandaloneMode();
+    var installable = isMobile && !isStandaloneMode();
     var banner = document.getElementById('install-banner');
-    if (banner) banner.classList.toggle('hidden', !show);
+    // Dismissing the top banner only hides THAT banner — it's an
+    // unsolicited interruption, so closing it should stick. The option
+    // inside Settings is different: nobody sees it unless they
+    // deliberately go looking for it, so it stays available there
+    // regardless of whether the banner was ever dismissed (this also
+    // means anyone who dismissed the OLD banner design, before this
+    // button existed in its current form, doesn't lose access to it
+    // permanently without realizing why).
+    if (banner) banner.classList.toggle('hidden', !(installable && !dismissed));
     var section = document.getElementById('settings-install-section');
-    if (section) section.classList.toggle('hidden', !show);
+    if (section) section.classList.toggle('hidden', !installable);
   }
   window.addEventListener('beforeinstallprompt', function (e) {
     e.preventDefault(); // stop Chrome's own mini-infobar; we show our own flow instead
