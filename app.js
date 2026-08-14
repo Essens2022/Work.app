@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v81") {
+          if (data && data.v && data.v !== "pt-foglio-v83") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v81"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v83"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1988,8 +1988,61 @@
       sheetRateSection.classList.add('hidden');
     }
 
+    // The account section only makes sense in the main settings view — a
+    // per-sheet override edit isn't the place to manage login.
+    var accountSection = document.getElementById('account-section');
+    if (settingsTargetSheet) {
+      accountSection.classList.add('hidden');
+    } else {
+      accountSection.classList.remove('hidden');
+      renderAccountSection();
+    }
+
     settingsModal.classList.add('open');
   }
+
+  function renderAccountSection() {
+    var session = getAuthSession();
+    var loggedOut = document.getElementById('account-logged-out');
+    var loggedIn = document.getElementById('account-logged-in');
+    if (session && session.email) {
+      loggedOut.classList.add('hidden');
+      loggedIn.classList.remove('hidden');
+      document.getElementById('account-email-display').textContent = session.email;
+    } else {
+      loggedOut.classList.remove('hidden');
+      loggedIn.classList.add('hidden');
+      document.getElementById('in-account-email').value = '';
+    }
+  }
+
+  document.getElementById('account-register-btn').addEventListener('click', function () {
+    var email = document.getElementById('in-account-email').value.trim();
+    if (!email || email.indexOf('@') === -1) { toast('Inserisci un\'email valida'); return; }
+    var btn = this;
+    btn.disabled = true;
+    requestMagicLink(email)
+      .then(function () { toast('Controlla la tua email: ' + email); })
+      .catch(function () { toast('Invio non riuscito — riprova più tardi'); })
+      .then(function () { btn.disabled = false; });
+  });
+
+  document.getElementById('account-remind-btn').addEventListener('click', function () {
+    var session = getAuthSession();
+    if (!session || !session.email) return;
+    var btn = this;
+    btn.disabled = true;
+    requestMagicLink(session.email)
+      .then(function () { toast('Promemoria inviato a: ' + session.email); })
+      .catch(function () { toast('Invio non riuscito — riprova più tardi'); })
+      .then(function () { btn.disabled = false; });
+  });
+
+  document.getElementById('account-logout-btn').addEventListener('click', function () {
+    logoutAccount();
+    renderAccountSection();
+    toast('Disconnesso');
+  });
   document.getElementById('btn-settings').addEventListener('click', function () { openSettingsModal(null); });
   document.getElementById('settings-cancel').addEventListener('click', function () {
     if (!state.profile.nome && !settingsTargetSheet) return; // force first-run completion
@@ -2222,6 +2275,75 @@
   var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoYm9hbGd6aWdkZ2x5Z25uaXN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1NTc4MjMsImV4cCI6MjEwMjEzMzgyM30.vorEiww3SvVAadgnAqFH42M-MjbpXOojAlhNm-cIeMI';
   var LS_DEVICE_ID = 'pt_device_id_v1';
 
+  // Optional account (email only, no password) — lets ION recognize the
+  // same person reliably across devices/reinstalls, for anyone who
+  // chooses to register. Nothing about this blocks normal, no-account use
+  // of the app; it only affects what appears in the admin view.
+  var LS_AUTH_SESSION = 'pt_auth_session_v1';
+
+  function getAuthSession() {
+    try {
+      var raw = localStorage.getItem(LS_AUTH_SESSION);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  }
+
+  function setAuthSession(session) {
+    try {
+      if (session) localStorage.setItem(LS_AUTH_SESSION, JSON.stringify(session));
+      else localStorage.removeItem(LS_AUTH_SESSION);
+    } catch (e) { /* storage unavailable — session just won't persist */ }
+  }
+
+  // Sends the "magic link" email — no password anywhere in this flow.
+  // Clicking the link in that email brings the person right back here,
+  // already signed in.
+  function requestMagicLink(email) {
+    return fetch(SUPABASE_URL + '/auth/v1/otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY },
+      body: JSON.stringify({
+        email: email,
+        create_user: true,
+        options: { email_redirect_to: window.location.origin + '/' }
+      })
+    }).then(function (res) {
+      if (!res.ok) throw new Error('richiesta fallita');
+      return true;
+    });
+  }
+
+  // Runs once, early, on every page load — catches the redirect back from
+  // a clicked magic-link email (Supabase appends the session tokens as a
+  // URL fragment: #access_token=...&refresh_token=...), stores them as
+  // the active session, then cleans the address bar so the tokens don't
+  // linger visibly or get bookmarked/shared by accident.
+  function handleAuthCallback() {
+    var hash = window.location.hash;
+    if (!hash || hash.indexOf('access_token') === -1) return;
+    var params = new URLSearchParams(hash.replace(/^#/, ''));
+    var accessToken = params.get('access_token');
+    var refreshToken = params.get('refresh_token');
+    if (!accessToken) return;
+    // Decode the JWT payload just enough to read the email — no
+    // verification needed here, it's only used for display; every actual
+    // request to Supabase still carries the real token, which Supabase
+    // itself verifies server-side.
+    var email = null;
+    try {
+      var payload = JSON.parse(atob(accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+      email = payload.email || null;
+    } catch (e) { /* leave email null — session still works, just can't display it yet */ }
+    setAuthSession({ access_token: accessToken, refresh_token: refreshToken, email: email });
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+    toast(email ? ('Accesso effettuato: ' + email) : 'Accesso effettuato');
+  }
+  handleAuthCallback();
+
+  function logoutAccount() {
+    setAuthSession(null);
+  }
+
   function getDeviceId() {
     var id = localStorage.getItem(LS_DEVICE_ID);
     if (!id) {
@@ -2234,6 +2356,7 @@
 
   function reportActivity() {
     if (!state.profile.nome) return; // nothing meaningful to report yet
+    syncSheetSummaries();
     var active = latestSheet();
     var month = active ? active.month : null;
     var year = active ? active.year : null;
@@ -2246,6 +2369,7 @@
       worked_days_this_month: earnings.workedDaysCount || 0,
       active_month: month,
       active_year: year,
+      account_email: (getAuthSession() || {}).email || null,
       updated_at: new Date().toISOString()
     };
     var headers = {
@@ -2274,6 +2398,60 @@
         });
       })
       .catch(function () { /* offline or blocked — silently skip, never blocks the app */ });
+  }
+
+  // High-frequency "live" signal, separate from reportActivity (which
+  // only fires on meaningful save actions) — this is a lightweight ping,
+  // sent often while the app is actually open and visible, so the admin
+  // view can show a real live/offline status, not just "last saved
+  // something a while ago".
+  function sendHeartbeat() {
+    if (!state.profile.nome) return;
+    var deviceId = getDeviceId();
+    var headers = {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+    };
+    fetch(SUPABASE_URL + '/rest/v1/driver_activity?device_id=eq.' + encodeURIComponent(deviceId), {
+      method: 'PATCH',
+      headers: headers,
+      body: JSON.stringify({ last_heartbeat: new Date().toISOString() })
+    }).catch(function () { /* offline or blocked — silently skip */ });
+  }
+
+  // Pushes a lightweight summary (km + days worked, no photos or PDFs —
+  // those never leave the phone) for every sheet this device has, so the
+  // admin view can show real activity without needing to see receipts.
+  function syncSheetSummaries() {
+    if (!state.profile.nome) return;
+    var deviceId = getDeviceId();
+    var dailyRate = (state.profile.dailyRate === "" || state.profile.dailyRate === undefined) ? null : Number(state.profile.dailyRate);
+    var headers = {
+      'Content-Type': 'application/json',
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+      'Prefer': 'resolution=merge-duplicates'
+    };
+    state.sheets.forEach(function (sheet) {
+      var kt = sheetKmAndTrips(sheet);
+      var row = {
+        device_id: deviceId,
+        month: sheet.month,
+        year: sheet.year,
+        client: (sheet.perContoDi || '').trim().toUpperCase() || '(nessuno)',
+        total_km: kt.km || 0,
+        giorni_count: kt.viaggi || 0,
+        daily_rate: dailyRate,
+        account_email: (getAuthSession() || {}).email || null,
+        updated_at: new Date().toISOString()
+      };
+      fetch(SUPABASE_URL + '/rest/v1/driver_sheets_summary', {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(row)
+      }).catch(function () { /* offline or blocked — silently skip */ });
+    });
   }
 
   /* ---------------------------------------------------------------- */
@@ -2668,6 +2846,17 @@
       if (document.visibilityState === 'visible') checkVersionDirectly();
     });
     setInterval(checkVersionDirectly, 60000);
+
+    // Live status heartbeat — only while the app is actually visible in
+    // the foreground, so "live" genuinely means someone has it open right
+    // now, not just that the phone is powered on somewhere.
+    if (document.visibilityState === 'visible') sendHeartbeat();
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') sendHeartbeat();
+    });
+    setInterval(function () {
+      if (document.visibilityState === 'visible') sendHeartbeat();
+    }, 25000);
   }
 
   init();

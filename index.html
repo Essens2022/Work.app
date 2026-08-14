@@ -548,6 +548,27 @@
     <div class="modal-title" id="settings-title">Benvenuto</div>
     <div class="modal-sub" id="settings-sub">Inserisci i dati autista per iniziare a compilare il foglio viaggi.</div>
     <div class="field"><label>Nome autista</label><input id="in-nome" type="text" placeholder="Es. Ion Bondari"></div>
+
+    <div id="account-section" style="margin:2px 0 14px;">
+      <div id="account-logged-out">
+        <div class="field-row" style="align-items:flex-end;">
+          <div class="field"><label>Email (facoltativo)</label><input id="in-account-email" type="email" placeholder="latua@email.it" autocomplete="email"></div>
+          <button type="button" id="account-register-btn" class="btn btn-outline btn-sm" style="margin-bottom:2px;">Registrati</button>
+        </div>
+        <div class="settings-driver-note">Facoltativo — riceverai un link via email, nessuna password da ricordare. Una volta confermato, resti connesso automaticamente.</div>
+      </div>
+      <div id="account-logged-in" class="hidden">
+        <label>Account</label>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+          <span id="account-email-display" style="font-weight:600;"></span>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;">
+          <button type="button" id="account-remind-btn" class="btn btn-outline btn-sm">Inviami un promemoria</button>
+          <button type="button" id="account-logout-btn" class="btn btn-outline btn-sm">Esci</button>
+        </div>
+      </div>
+    </div>
+
     <div class="field-row">
       <div class="field"><label>Targa veicolo</label><input id="in-targa" type="text" placeholder="Es. GN 542 NM" style="text-transform:uppercase"></div>
       <div class="field"><label>Per conto di</label><input id="in-conto" type="text" placeholder="Es. BARCELLA" style="text-transform:uppercase"></div>
