@@ -19,7 +19,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v50"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v51"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2227,14 +2227,17 @@
   }
 
   /* ---------------------------------------------------------------- */
-  /* "Install app" banner — Chrome/Android fires beforeinstallprompt    */
-  /* when it considers the site installable. Capturing that event lets  */
-  /* a normal in-page button trigger the native install dialog directly */
-  /* — no link can do this on its own; a real tap in the page is always */
-  /* required, this just skips the browser's own menu for it. (iOS      */
-  /* Safari doesn't support this API at all — "Add to Home Screen"      */
-  /* there stays a manual step via the Share sheet, with no programmatic*/
-  /* way to trigger it; the banner simply never appears there.)         */
+  /* "Install app" banner — platform-aware, since the two mobile         */
+  /* platforms genuinely need different things here:                    */
+  /*  - Android/Chrome fires beforeinstallprompt when it considers the   */
+  /*    site installable; capturing that event lets a normal in-page     */
+  /*    button trigger the native install dialog directly.               */
+  /*  - iOS Safari doesn't support that API at all — there is no event   */
+  /*    to listen for and no programmatic way to trigger "Add to Home    */
+  /*    Screen"; it's always a manual step through the Share sheet. For  */
+  /*    someone opening a link shared over WhatsApp on an iPhone, the    */
+  /*    most useful thing this app can do is show clear instructions for */
+  /*    that manual step, since no button here can do it for them.       */
   /* ---------------------------------------------------------------- */
   var LS_INSTALL_DISMISSED = 'pt_install_dismissed_v1';
   var deferredInstallPrompt = null;
@@ -2242,12 +2245,39 @@
     return (window.navigator && window.navigator.standalone === true) ||
       (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
   }
+  function isIOSDevice() {
+    var ua = navigator.userAgent || '';
+    return /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+  }
   function updateInstallBanner() {
     var banner = document.getElementById('install-banner');
     if (!banner) return;
     var dismissed = localStorage.getItem(LS_INSTALL_DISMISSED) === '1';
-    var shouldShow = !!deferredInstallPrompt && !isStandaloneMode() && !dismissed;
-    banner.classList.toggle('hidden', !shouldShow);
+    var btn = document.getElementById('install-banner-btn');
+    var icon = document.getElementById('install-banner-icon');
+    var text = document.getElementById('install-banner-text');
+
+    if (dismissed || isStandaloneMode()) {
+      banner.classList.add('hidden');
+      return;
+    }
+    if (deferredInstallPrompt) {
+      // Android/Chrome — a real tap here can trigger the native install
+      // dialog directly.
+      icon.textContent = '⬇';
+      text.textContent = 'Installa l\'app sulla schermata home per un accesso più rapido';
+      btn.classList.remove('hidden');
+      banner.classList.remove('hidden');
+    } else if (isIOSDevice()) {
+      // iOS Safari — no button can do this; show the manual steps
+      // instead, since that's the only way it can be done here.
+      icon.textContent = '⎋';
+      text.textContent = 'Per installarla: tocca l\'icona "Condividi" di Safari, poi "Aggiungi alla schermata Home"';
+      btn.classList.add('hidden');
+      banner.classList.remove('hidden');
+    } else {
+      banner.classList.add('hidden');
+    }
   }
   window.addEventListener('beforeinstallprompt', function (e) {
     e.preventDefault(); // stop Chrome's own mini-infobar; we show our own button instead
@@ -2273,6 +2303,10 @@
     localStorage.setItem(LS_INSTALL_DISMISSED, '1');
     updateInstallBanner();
   });
+  // iOS never fires an event we can listen for, so the banner has to be
+  // offered proactively on load — Android still waits for the real
+  // beforeinstallprompt signal before showing anything.
+  if (isIOSDevice() && !isStandaloneMode()) updateInstallBanner();
 
   function init() {
     migrateUppercaseLocalities();

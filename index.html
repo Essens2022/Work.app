@@ -94,6 +94,7 @@
   .install-banner button{font-family:inherit;border:none;cursor:pointer;flex:none;}
   #install-banner-btn{background:var(--accent);color:#fff;font-weight:800;font-size:12.5px;padding:8px 14px;border-radius:100px;}
   #install-banner-btn:active{opacity:.85;}
+  #install-banner-btn.hidden{display:none;}
   #install-banner-close{background:none;color:rgba(255,255,255,.6);font-size:18px;line-height:1;padding:4px;}
   .screen{display:none;animation:fadein .18s ease;}
   .screen.active{display:block;}
@@ -422,8 +423,8 @@
 
   <main>
     <div id="install-banner" class="install-banner hidden">
-      <span class="install-banner-icon">⬇</span>
-      <span class="install-banner-text">Installa l'app sulla schermata home per un accesso più rapido</span>
+      <span class="install-banner-icon" id="install-banner-icon">⬇</span>
+      <span class="install-banner-text" id="install-banner-text">Installa l'app sulla schermata home per un accesso più rapido</span>
       <button type="button" id="install-banner-btn">Installa</button>
       <button type="button" id="install-banner-close" aria-label="Chiudi">×</button>
     </div>
