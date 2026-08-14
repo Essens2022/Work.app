@@ -19,7 +19,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v51"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v52"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1942,6 +1942,7 @@
     }
 
     settingsModal.classList.add('open');
+    updateSettingsInstallSection();
   }
   document.getElementById('btn-settings').addEventListener('click', function () { openSettingsModal(null); });
   document.getElementById('settings-cancel').addEventListener('click', function () {
@@ -2283,10 +2284,12 @@
     e.preventDefault(); // stop Chrome's own mini-infobar; we show our own button instead
     deferredInstallPrompt = e;
     updateInstallBanner();
+    updateSettingsInstallSection();
   });
   window.addEventListener('appinstalled', function () {
     deferredInstallPrompt = null;
     updateInstallBanner();
+    updateSettingsInstallSection();
   });
   document.getElementById('install-banner-btn').addEventListener('click', function () {
     if (!deferredInstallPrompt) return;
@@ -2297,11 +2300,46 @@
       // still applicable.
       deferredInstallPrompt = null;
       updateInstallBanner();
+      updateSettingsInstallSection();
     });
   });
   document.getElementById('install-banner-close').addEventListener('click', function () {
     localStorage.setItem(LS_INSTALL_DISMISSED, '1');
     updateInstallBanner();
+  });
+
+  // A second, persistent way in to install — the top banner can be
+  // dismissed permanently, so this stays available in Settings for
+  // anyone who wants to install later, or just prefers looking there.
+  function updateSettingsInstallSection() {
+    var section = document.getElementById('settings-install-section');
+    if (!section) return;
+    var btn = document.getElementById('settings-install-btn');
+    var note = document.getElementById('settings-install-note');
+    if (isStandaloneMode()) {
+      section.classList.add('hidden');
+      return;
+    }
+    if (deferredInstallPrompt) {
+      btn.classList.remove('hidden');
+      note.textContent = '';
+      section.classList.remove('hidden');
+    } else if (isIOSDevice()) {
+      btn.classList.add('hidden');
+      note.textContent = 'Per installare l\'app: tocca l\'icona "Condividi" di Safari, poi "Aggiungi alla schermata Home"';
+      section.classList.remove('hidden');
+    } else {
+      section.classList.add('hidden');
+    }
+  }
+  document.getElementById('settings-install-btn').addEventListener('click', function () {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    deferredInstallPrompt.userChoice.then(function () {
+      deferredInstallPrompt = null;
+      updateInstallBanner();
+      updateSettingsInstallSection();
+    });
   });
   // iOS never fires an event we can listen for, so the banner has to be
   // offered proactively on load — Android still waits for the real
