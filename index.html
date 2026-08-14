@@ -383,6 +383,12 @@
   }
   .modal-overlay.open .sheet-panel{transform:translateY(0);}
   .modal-overlay.center .sheet-panel{border-radius:22px;max-height:80vh;}
+  /* Settings can show a first-run mandatory sheet with the install banner
+     sitting right above it — capping this one a bit shorter than the
+     general 88vh guarantees that banner always stays visible above it,
+     even on shorter phone screens, instead of the sheet growing tall
+     enough to cover it entirely. */
+  #modal-settings .sheet-panel{max-height:calc(100vh - 170px);}
   .fuel-panel{max-height:74vh;position:relative;}
   #fuel-view-stage{
     position:relative;overflow:hidden;border-radius:12px;border:1px solid var(--line);
