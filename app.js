@@ -24,7 +24,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v65") {
+          if (data && data.v && data.v !== "pt-foglio-v66") {
             try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
             window.location.reload();
           }
@@ -49,7 +49,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v65"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v66"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2417,6 +2417,70 @@
     moreOptionsModal.classList.remove('open');
     openInstallHelp();
   });
+  // Backup / restore — a real safety net for anyone worried about
+  // losing data (e.g. before removing and re-adding the home screen
+  // icon, which is sometimes needed to pick up a new name/icon, though
+  // the underlying data itself is tied to the website's storage, not the
+  // shortcut, and normally survives that on its own). Exports every
+  // piece of real data into one JSON file the person can keep anywhere.
+  function exportBackup() {
+    var backup = {
+      exportedAt: new Date().toISOString(),
+      appVersion: APP_VERSION,
+      profile: JSON.parse(localStorage.getItem(LS_PROFILE) || 'null'),
+      sheets: JSON.parse(localStorage.getItem(LS_SHEETS) || 'null'),
+      currentSheetId: localStorage.getItem(LS_CURRENT),
+      fuel: JSON.parse(localStorage.getItem(LS_FUEL) || 'null')
+    };
+    var blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    var dateStr = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = 'ADB-Smart-backup-' + dateStr + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    toast('Backup salvato — controlla i tuoi download');
+  }
+  function restoreBackup(file) {
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      var data;
+      try { data = JSON.parse(e.target.result); } catch (err) { toast('File non valido'); return; }
+      if (!data || (!data.sheets && !data.profile)) { toast('File di backup non riconosciuto'); return; }
+      var dateLabel = data.exportedAt ? new Date(data.exportedAt).toLocaleDateString('it-IT') : 'data sconosciuta';
+      showConfirm({
+        title: 'Ripristinare questo backup?',
+        message: 'I dati attuali su questo telefono (foglio, scontrini, profilo) verranno sostituiti con quelli del file (' + dateLabel + '). Questa azione non può essere annullata.',
+        danger: true,
+        confirmLabel: 'Ripristina',
+        onConfirm: function () {
+          if (data.profile) localStorage.setItem(LS_PROFILE, JSON.stringify(data.profile));
+          if (data.sheets) localStorage.setItem(LS_SHEETS, JSON.stringify(data.sheets));
+          if (data.currentSheetId) localStorage.setItem(LS_CURRENT, data.currentSheetId);
+          if (data.fuel) localStorage.setItem(LS_FUEL, JSON.stringify(data.fuel));
+          window.location.reload();
+        }
+      });
+    };
+    reader.readAsText(file);
+  }
+  document.getElementById('more-opt-backup').addEventListener('click', function () {
+    moreOptionsModal.classList.remove('open');
+    exportBackup();
+  });
+  document.getElementById('more-opt-restore').addEventListener('click', function () {
+    moreOptionsModal.classList.remove('open');
+    document.getElementById('in-restore-backup').click();
+  });
+  document.getElementById('in-restore-backup').addEventListener('change', function (e) {
+    var file = e.target.files[0];
+    if (file) restoreBackup(file);
+    e.target.value = '';
+  });
+
   document.getElementById('more-opt-delete').addEventListener('click', function () {
     moreOptionsModal.classList.remove('open');
     confirmDeleteAllData();
