@@ -24,7 +24,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v66") {
+          if (data && data.v && data.v !== "pt-foglio-v67") {
             try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
             window.location.reload();
           }
@@ -49,7 +49,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v66"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v67"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2408,6 +2408,28 @@
   });
   moreOptionsModal.addEventListener('click', function (e) {
     if (e.target === moreOptionsModal) moreOptionsModal.classList.remove('open');
+  });
+  // Manual "check for updates" — the app already checks automatically
+  // (on open, when it comes back to the foreground, and every 60s while
+  // open), but this gives an immediate, deliberate way to check right
+  // now, with clear feedback either way, for anyone who wants that
+  // reassurance rather than waiting.
+  document.getElementById('more-opt-refresh').addEventListener('click', function () {
+    moreOptionsModal.classList.remove('open');
+    toast('Verifica aggiornamenti in corso…');
+    fetch('version.json', { cache: 'no-store' })
+      .then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (data && data.v && data.v !== APP_VERSION) {
+          toast('Nuova versione trovata — aggiornamento in corso…');
+          setTimeout(function () { window.location.reload(); }, 600);
+        } else {
+          toast('Hai già la versione più recente ✓');
+        }
+      })
+      .catch(function () {
+        toast('Impossibile verificare — controlla la connessione');
+      });
   });
   document.getElementById('more-opt-share').addEventListener('click', function () {
     moreOptionsModal.classList.remove('open');
