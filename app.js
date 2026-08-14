@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v83") {
+          if (data && data.v && data.v !== "pt-foglio-v84") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v83"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v84"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2001,28 +2001,56 @@
     settingsModal.classList.add('open');
   }
 
+  // Whether the "email required" condition is currently satisfied — a
+  // confirmed session counts, but so does an email the person has already
+  // submitted and is simply waiting to confirm, so nobody is ever
+  // actually blocked out of the app by a delayed or missed confirmation
+  // email; only entering NO email at all is blocking.
+  function emailIsSatisfied() {
+    var session = getAuthSession();
+    if (session && session.email) return true;
+    return !!(state.profile.pendingEmail && state.profile.pendingEmail.indexOf('@') !== -1);
+  }
+
+  // The best email currently known for this device — a confirmed session
+  // if one exists, otherwise whatever the person already typed in and is
+  // waiting to confirm. Used anywhere data gets synced, so the admin view
+  // can see who this is even before that confirmation click happens.
+  function currentAccountEmail() {
+    var session = getAuthSession();
+    return (session && session.email) || state.profile.pendingEmail || null;
+  }
+
   function renderAccountSection() {
     var session = getAuthSession();
     var loggedOut = document.getElementById('account-logged-out');
+    var pending = document.getElementById('account-pending');
     var loggedIn = document.getElementById('account-logged-in');
     if (session && session.email) {
       loggedOut.classList.add('hidden');
+      pending.classList.add('hidden');
       loggedIn.classList.remove('hidden');
       document.getElementById('account-email-display').textContent = session.email;
+    } else if (state.profile.pendingEmail) {
+      loggedOut.classList.add('hidden');
+      pending.classList.remove('hidden');
+      loggedIn.classList.add('hidden');
+      document.getElementById('account-pending-email-display').textContent = state.profile.pendingEmail;
     } else {
       loggedOut.classList.remove('hidden');
+      pending.classList.add('hidden');
       loggedIn.classList.add('hidden');
       document.getElementById('in-account-email').value = '';
     }
   }
 
-  document.getElementById('account-register-btn').addEventListener('click', function () {
-    var email = document.getElementById('in-account-email').value.trim();
-    if (!email || email.indexOf('@') === -1) { toast('Inserisci un\'email valida'); return; }
+  document.getElementById('account-remind-pending-btn').addEventListener('click', function () {
+    var email = state.profile.pendingEmail;
+    if (!email) return;
     var btn = this;
     btn.disabled = true;
     requestMagicLink(email)
-      .then(function () { toast('Controlla la tua email: ' + email); })
+      .then(function () { toast('Link inviato di nuovo a: ' + email); })
       .catch(function () { toast('Invio non riuscito — riprova più tardi'); })
       .then(function () { btn.disabled = false; });
   });
@@ -2040,12 +2068,14 @@
 
   document.getElementById('account-logout-btn').addEventListener('click', function () {
     logoutAccount();
+    state.profile.pendingEmail = '';
+    saveProfile(state.profile);
     renderAccountSection();
     toast('Disconnesso');
   });
   document.getElementById('btn-settings').addEventListener('click', function () { openSettingsModal(null); });
   document.getElementById('settings-cancel').addEventListener('click', function () {
-    if (!state.profile.nome && !settingsTargetSheet) return; // force first-run completion
+    if ((!state.profile.nome || !emailIsSatisfied()) && !settingsTargetSheet) return; // force first-run completion, email included
     settingsModal.classList.remove('open');
     reloadIfUpdatePending();
   });
@@ -2065,6 +2095,21 @@
     var dailyRate = dailyRateRaw === '' ? '' : Math.max(0, parseFloat(dailyRateRaw) || 0);
 
     if (!nome || !targa) { toast('Inserisci nome e targa'); return; }
+
+    // Email is only required on the main profile — a per-sheet override
+    // edit isn't the place this is enforced.
+    if (!settingsTargetSheet) {
+      var session = getAuthSession();
+      var alreadySatisfied = (session && session.email) || state.profile.pendingEmail;
+      if (!alreadySatisfied) {
+        var typedEmail = document.getElementById('in-account-email').value.trim();
+        if (!typedEmail || typedEmail.indexOf('@') === -1) { toast('Inserisci la tua email per continuare'); return; }
+        state.profile.pendingEmail = typedEmail;
+        requestMagicLink(typedEmail)
+          .then(function () { toast('Controlla la tua email: ' + typedEmail); })
+          .catch(function () { /* they can still retry from the pending-account view */ });
+      }
+    }
 
     state.profile.nome = nome; state.profile.targa = targa; state.profile.perContoDi = conto;
     state.profile.da = da; state.profile.provDa = provDa;
@@ -2369,7 +2414,7 @@
       worked_days_this_month: earnings.workedDaysCount || 0,
       active_month: month,
       active_year: year,
-      account_email: (getAuthSession() || {}).email || null,
+      account_email: currentAccountEmail(),
       updated_at: new Date().toISOString()
     };
     var headers = {
@@ -2443,7 +2488,7 @@
         total_km: kt.km || 0,
         giorni_count: kt.viaggi || 0,
         daily_rate: dailyRate,
-        account_email: (getAuthSession() || {}).email || null,
+        account_email: currentAccountEmail(),
         updated_at: new Date().toISOString()
       };
       fetch(SUPABASE_URL + '/rest/v1/driver_sheets_summary', {
@@ -2745,7 +2790,7 @@
     img.style.display = 'none';
     document.body.appendChild(img);
 
-    if (!state.profile.nome || !state.profile.targa) {
+    if (!state.profile.nome || !state.profile.targa || !emailIsSatisfied()) {
       openSettingsModal(null);
     }
     if (!state.currentSheetId) {
