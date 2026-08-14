@@ -12,21 +12,16 @@
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 
-<!-- iOS splash screens ("startup images") — unlike Android, iOS doesn't
-     generate one automatically from the manifest; each needs to match a
-     device's exact screen resolution, hence the long list below. -->
-<link rel="apple-touch-startup-image" href="splash/splash_iphone_se1_640x1136.png" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)">
-<link rel="apple-touch-startup-image" href="splash/splash_iphone_678_se23_750x1334.png" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)">
-<link rel="apple-touch-startup-image" href="splash/splash_iphone_678plus_1242x2208.png" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3)">
-<link rel="apple-touch-startup-image" href="splash/splash_iphone_x_xs_11pro_12mini_13mini_1125x2436.png" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)">
-<link rel="apple-touch-startup-image" href="splash/splash_iphone_xr_11_828x1792.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)">
-<link rel="apple-touch-startup-image" href="splash/splash_iphone_xsmax_11promax_1242x2688.png" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3)">
-<link rel="apple-touch-startup-image" href="splash/splash_iphone_12_13_14_1170x2532.png" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)">
-<link rel="apple-touch-startup-image" href="splash/splash_iphone_12_13_promax_14plus_1284x2778.png" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3)">
-<link rel="apple-touch-startup-image" href="splash/splash_iphone_14pro_15_16_1179x2556.png" media="(device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3)">
-<link rel="apple-touch-startup-image" href="splash/splash_iphone_14promax_15plus_15promax_16plus_1290x2796.png" media="(device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3)">
-<link rel="apple-touch-startup-image" href="splash/splash_iphone_16pro_1206x2622.png" media="(device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3)">
-<link rel="apple-touch-startup-image" href="splash/splash_iphone_16promax_1320x2868.png" media="(device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3)">
+<!-- The native iOS "startup image" mechanism was removed here — it only
+     works when the device matches one of several exact, hardcoded screen
+     resolutions, and on any device that doesn't match, iOS falls back to
+     showing the small app icon by itself instead of nothing, which
+     looked like a stray icon flashing before the real (in-page,
+     JS-controlled) splash screen further down takes over. Without these
+     tags, iOS just shows the plain background color for that first
+     instant instead — a brief blank moment is far less jarring than a
+     wrong image, and the real splash below starts immediately after
+     regardless. -->
 <title>Autista Documento di Bordo Smart</title>
 <style>
   :root{
