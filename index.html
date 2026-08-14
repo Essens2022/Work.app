@@ -110,6 +110,19 @@
     flex:none;width:22px;height:22px;border-radius:50%;background:var(--ink);color:#fff;
     display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:800;margin-top:1px;
   }
+  .more-options-list{display:flex;flex-direction:column;gap:8px;margin-top:14px;}
+  .more-option-row{
+    display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+    padding:13px 14px;border-radius:14px;border:1px solid var(--line);background:var(--surface-2);
+    font-family:inherit;cursor:pointer;
+  }
+  .more-option-row:active{opacity:.8;}
+  .more-option-icon{font-size:20px;flex:none;}
+  .more-option-text{display:flex;flex-direction:column;gap:2px;}
+  .more-option-text b{font-size:14px;color:var(--ink);}
+  .more-option-text small{font-size:12px;color:var(--ink-faint);font-weight:500;}
+  .more-option-danger{border-color:var(--danger-soft);background:var(--danger-soft);}
+  .more-option-danger .more-option-text b{color:var(--danger);}
   .screen{display:none;animation:fadein .18s ease;}
   .screen.active{display:block;}
   @keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
@@ -509,17 +522,7 @@
     </div>
 
     <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--line);text-align:center;">
-      <button type="button" id="settings-share-btn" class="btn btn-outline btn-sm">📤 Condividi con un collega</button>
-      <div class="settings-driver-note" style="margin-top:6px;">Invia il link dell'app su WhatsApp o come preferisci.</div>
-    </div>
-
-    <div id="settings-install-section" class="hidden" style="margin-top:18px;padding-top:16px;border-top:1px solid var(--line);text-align:center;">
-      <button type="button" id="settings-install-btn" class="btn btn-outline btn-sm">📲 Installa l'app</button>
-    </div>
-
-    <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--line);text-align:center;">
-      <button type="button" id="settings-delete-all-btn" class="btn btn-danger btn-sm">🗑 Elimina tutti i dati</button>
-      <div class="settings-driver-note" style="margin-top:6px;">Cancella definitivamente fogli, scontrini e profilo da questo telefono. Non può essere annullato.</div>
+      <button type="button" id="settings-more-btn" class="btn btn-outline btn-sm">⋯ Altre opzioni</button>
     </div>
 
     <div class="modal-btnrow">
@@ -687,6 +690,32 @@
      line of text wasn't clear enough. Both platforms are always
      available via the tabs (useful for showing a colleague on the other
      platform what to do), defaulting to whichever one this phone is. -->
+<!-- A single "more options" entry point, instead of several separate
+     buttons directly on the Settings page — Condividi, Installa and
+     Elimina are all rare, occasional actions, so tucking them behind
+     one small menu keeps the main Settings screen focused on the
+     everyday fields. -->
+<div class="modal-overlay center" id="modal-more-options">
+  <div class="sheet-panel" style="max-width:420px;">
+    <button type="button" class="modal-close-x" id="more-options-close-x" aria-label="Chiudi">×</button>
+    <div class="modal-title">Altre opzioni</div>
+    <div class="more-options-list">
+      <button type="button" class="more-option-row" id="more-opt-share">
+        <span class="more-option-icon">📤</span>
+        <span class="more-option-text"><b>Condividi con un collega</b><small>Invia il link dell'app su WhatsApp</small></span>
+      </button>
+      <button type="button" class="more-option-row hidden" id="more-opt-install">
+        <span class="more-option-icon">📲</span>
+        <span class="more-option-text"><b>Installa l'app</b><small>Sulla schermata home, come un'app vera</small></span>
+      </button>
+      <button type="button" class="more-option-row more-option-danger" id="more-opt-delete">
+        <span class="more-option-icon">🗑</span>
+        <span class="more-option-text"><b>Elimina tutti i dati</b><small>Cancella fogli, scontrini e profilo — non annullabile</small></span>
+      </button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay center" id="modal-install-help">
   <div class="sheet-panel" style="max-width:480px;">
     <button type="button" class="modal-close-x" id="install-help-close-x" aria-label="Chiudi">×</button>
