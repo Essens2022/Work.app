@@ -27,7 +27,7 @@
   // an update (if one was found) applies right after, quietly, instead of
   // visibly restarting the splash sequence.
   try {
-    var SPLASH_DURATION_MS = 3000;
+    var SPLASH_DURATION_MS = 2400;
     var pageLoadStart = Date.now();
     var EARLY_RELOAD_COOLDOWN_MS = 20000;
     var lastAutoReload = sessionStorage.getItem('pt_last_auto_reload');
@@ -307,7 +307,7 @@
     document.getElementById('toast-text').textContent = msg;
     t.classList.add('show');
     clearTimeout(toast._t);
-    toast._t = setTimeout(function () { t.classList.remove('show'); }, 2200);
+    toast._t = setTimeout(function () { t.classList.remove('show'); }, 3000);
   }
 
   /* ---------------------------------------------------------------- */
@@ -2802,7 +2802,7 @@
       // if one is still playing (only relevant for the first few seconds
       // right after opening the app).
       var elapsedSincePageLoad = (typeof pageLoadStart !== 'undefined') ? (Date.now() - pageLoadStart) : Infinity;
-      var splashRemaining = (typeof SPLASH_DURATION_MS !== 'undefined' ? SPLASH_DURATION_MS : 3000) + 200 - elapsedSincePageLoad;
+      var splashRemaining = (typeof SPLASH_DURATION_MS !== 'undefined' ? SPLASH_DURATION_MS : 2400) + 200 - elapsedSincePageLoad;
       if (splashRemaining > 0) { setTimeout(doReload, splashRemaining); } else { doReload(); }
     }
 
