@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v90") {
+          if (data && data.v && data.v !== "pt-foglio-v91") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v90"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v91"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2081,6 +2081,16 @@
     }
   }
 
+  // A single, accurate error message for every "send the link" button —
+  // Supabase enforces roughly one request per email per minute, and
+  // hitting that is a completely normal, expected thing (not a real
+  // connection problem), so it deserves its own clear message instead of
+  // a generic, misleading "check your connection".
+  function magicLinkErrorMessage(err) {
+    if (err && err.rateLimited) return 'Hai già richiesto un link da poco — aspetta un minuto e riprova';
+    return 'Invio non riuscito — controlla la connessione e riprova';
+  }
+
   document.getElementById('account-send-btn').addEventListener('click', function () {
     var email = document.getElementById('in-account-email').value.trim();
     if (!email || email.indexOf('@') === -1) { toast('Inserisci un\'email valida'); return; }
@@ -2093,7 +2103,7 @@
         toast('✓ Email inviata — controlla la tua posta');
         renderAccountSection();
       })
-      .catch(function () { toast('Invio non riuscito — controlla la connessione e riprova'); })
+      .catch(function (err) { toast(magicLinkErrorMessage(err)); })
       .then(function () { btn.disabled = false; });
   });
 
@@ -2130,7 +2140,7 @@
     btn.disabled = true;
     requestMagicLink(email)
       .then(function () { toast('Link inviato di nuovo a: ' + email); })
-      .catch(function () { toast('Devi aspettare un minuto tra un invio e l\'altro — riprova tra poco'); })
+      .catch(function (err) { toast(magicLinkErrorMessage(err)); })
       .then(function () { btn.disabled = false; });
   });
 
@@ -2141,7 +2151,7 @@
     btn.disabled = true;
     requestMagicLink(session.email)
       .then(function () { toast('Promemoria inviato a: ' + session.email); })
-      .catch(function () { toast('Invio non riuscito — riprova più tardi'); })
+      .catch(function (err) { toast(magicLinkErrorMessage(err)); })
       .then(function () { btn.disabled = false; });
   });
 
@@ -2441,6 +2451,11 @@
         options: { email_redirect_to: window.location.origin + '/' }
       })
     }).then(function (res) {
+      if (res.status === 429) {
+        var err = new Error('rate_limited');
+        err.rateLimited = true;
+        throw err;
+      }
       if (!res.ok) throw new Error('richiesta fallita');
       return true;
     });
