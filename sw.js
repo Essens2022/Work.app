@@ -9,7 +9,7 @@
 //  - Large, rarely-changing files (jsPDF, the comuni database, icons, logo)
 //    stay CACHE-FIRST, so they don't get re-downloaded on every load.
 
-const CACHE_VERSION = 'pt-foglio-v67';
+const CACHE_VERSION = 'pt-foglio-v68';
 const CORE_ASSETS = ['./', './index.html', './app.js', './manifest.json', './version.json'];
 const STATIC_ASSETS = [
   './icon-192.png',
@@ -17,7 +17,19 @@ const STATIC_ASSETS = [
   './vendor/jspdf.umd.min.js',
   './vendor/jspdf.plugin.autotable.min.js',
   './vendor/comuni.js',
-  './vendor/logo.png'
+  './vendor/logo.png',
+  './splash/splash_iphone_se1_640x1136.png',
+  './splash/splash_iphone_678_se23_750x1334.png',
+  './splash/splash_iphone_678plus_1242x2208.png',
+  './splash/splash_iphone_x_xs_11pro_12mini_13mini_1125x2436.png',
+  './splash/splash_iphone_xr_11_828x1792.png',
+  './splash/splash_iphone_xsmax_11promax_1242x2688.png',
+  './splash/splash_iphone_12_13_14_1170x2532.png',
+  './splash/splash_iphone_12_13_promax_14plus_1284x2778.png',
+  './splash/splash_iphone_14pro_15_16_1179x2556.png',
+  './splash/splash_iphone_14promax_15plus_15promax_16plus_1290x2796.png',
+  './splash/splash_iphone_16pro_1206x2622.png',
+  './splash/splash_iphone_16promax_1320x2868.png'
 ];
 
 self.addEventListener('install', (event) => {
