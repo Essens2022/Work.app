@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v86") {
+          if (data && data.v && data.v !== "pt-foglio-v87") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v86"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v87"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2009,9 +2009,16 @@
   // Strict now: only an actually-confirmed session counts. Simply having
   // typed an email and requested the link is not enough on its own — the
   // person must have clicked the confirmation link.
+  // Confirmed via either an actual local session, OR a server-verified
+  // confirmation for the email this device already asked to confirm —
+  // the second path exists because clicking the magic link opens a
+  // *different* browser context than the installed app on iOS (they
+  // don't share local storage at all), so checking local state alone
+  // can never see a confirmation that happened elsewhere.
   function emailIsSatisfied() {
     var session = getAuthSession();
-    return !!(session && session.email);
+    if (session && session.email) return true;
+    return !!(state.profile.emailConfirmed && state.profile.pendingEmail);
   }
 
   // The best email currently known for this device — a confirmed session
@@ -2024,32 +2031,42 @@
   }
 
   // While the settings sheet is showing the "waiting to confirm" state,
-  // this watches for the moment confirmation actually happens — clicking
-  // the email link is a real page navigation, so it usually lands in a
-  // *different* browser tab/window than the one showing this waiting
-  // screen; a storage event lets that original tab notice immediately
-  // rather than the person having to come back and close/reopen it
-  // themselves. Polling underneath is a simple, reliable fallback for any
-  // browser/situation where that event doesn't fire.
+  // this asks the SERVER directly whether the pending email has been
+  // confirmed yet — not just local storage, since the confirmation click
+  // very often happens in a completely separate browser storage context
+  // (installed app vs. a regular Safari tab, on iOS in particular).
   var emailConfirmWatcher = null;
-  function handleStorageForConfirmation(e) {
-    if (e.key && e.key !== LS_AUTH_SESSION) return;
-    checkForConfirmationNow();
-  }
   function checkForConfirmationNow() {
-    if (emailIsSatisfied()) {
+    var session = getAuthSession();
+    if (session && session.email) {
       stopWatchingForConfirmation();
       onEmailConfirmed();
+      return;
     }
+    var email = state.profile.pendingEmail;
+    if (!email) return;
+    fetch(SUPABASE_URL + '/functions/v1/check-email-confirmed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+      body: JSON.stringify({ email: email })
+    }).then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (data && data.confirmed) {
+          stopWatchingForConfirmation();
+          state.profile.emailConfirmed = true;
+          saveProfile(state.profile);
+          onEmailConfirmed();
+        }
+      })
+      .catch(function () { /* offline or blocked — the next poll tick simply retries */ });
   }
   function startWatchingForConfirmation() {
     stopWatchingForConfirmation();
-    emailConfirmWatcher = setInterval(checkForConfirmationNow, 1500);
-    window.addEventListener('storage', handleStorageForConfirmation);
+    checkForConfirmationNow(); // check right away too, not just after the first interval tick
+    emailConfirmWatcher = setInterval(checkForConfirmationNow, 4000);
   }
   function stopWatchingForConfirmation() {
     if (emailConfirmWatcher) { clearInterval(emailConfirmWatcher); emailConfirmWatcher = null; }
-    window.removeEventListener('storage', handleStorageForConfirmation);
   }
   function onEmailConfirmed() {
     renderAccountSection();
@@ -2065,12 +2082,12 @@
     var loggedOut = document.getElementById('account-logged-out');
     var pending = document.getElementById('account-pending');
     var loggedIn = document.getElementById('account-logged-in');
-    if (session && session.email) {
+    if (emailIsSatisfied()) {
       stopWatchingForConfirmation();
       loggedOut.classList.add('hidden');
       pending.classList.add('hidden');
       loggedIn.classList.remove('hidden');
-      document.getElementById('account-email-display').textContent = session.email;
+      document.getElementById('account-email-display').textContent = currentAccountEmail();
     } else if (state.profile.pendingEmail) {
       loggedOut.classList.add('hidden');
       pending.classList.remove('hidden');
@@ -2093,7 +2110,7 @@
     btn.disabled = true;
     requestMagicLink(email)
       .then(function () { toast('Link inviato di nuovo a: ' + email); })
-      .catch(function () { toast('Invio non riuscito — riprova più tardi'); })
+      .catch(function () { toast('Devi aspettare un minuto tra un invio e l\'altro — riprova tra poco'); })
       .then(function () { btn.disabled = false; });
   });
 
