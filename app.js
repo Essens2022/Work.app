@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v101") {
+          if (data && data.v && data.v !== "pt-foglio-v102") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v101"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v102"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2095,14 +2095,55 @@
         }
       })
       .catch(function () { /* offline or blocked — nothing to correct right now, try again next open */ });
+    // Beyond that one-time check, also hold a live connection watching
+    // for this account being deleted WHILE the app stays open — so if
+    // that happens (e.g. "Esci" pressed in a browser tab elsewhere),
+    // this device notices within about a second, not just next time it
+    // happens to reopen.
+    watchForAccountDeletion(email);
   }
+
+  var accountDeletionChannel = null;
+  function watchForAccountDeletion(email) {
+    if (accountDeletionChannel) { supabaseClient.removeChannel(accountDeletionChannel); accountDeletionChannel = null; }
+    if (!supabaseClient || !email) return;
+    accountDeletionChannel = supabaseClient
+      .channel('email-deletion-' + email)
+      .on('postgres_changes', {
+        event: 'DELETE', schema: 'public', table: 'email_confirmations',
+        filter: 'email=eq.' + email
+      }, function () { revalidateEmailWithServer(); })
+      .subscribe();
+  }
+
+  var emailConfirmRealtimeChannel = null;
   function startWatchingForConfirmation() {
     stopWatchingForConfirmation();
-    checkForConfirmationNow(); // check right away too, not just after the first interval tick
+    checkForConfirmationNow(); // check right away too, not just after the first tick
+
+    // The live connection is the primary mechanism — near-instant,
+    // regardless of which context (this one, a browser tab, another
+    // device) actually triggered the confirmation. Polling underneath is
+    // just a safety net, in case the live connection can't be
+    // established for some reason (network quirks, etc.).
+    var email = state.profile.pendingEmail;
+    if (supabaseClient && email) {
+      emailConfirmRealtimeChannel = supabaseClient
+        .channel('email-confirm-' + email)
+        .on('postgres_changes', {
+          event: '*', schema: 'public', table: 'email_confirmations',
+          filter: 'email=eq.' + email
+        }, function (payload) {
+          if (payload.eventType === 'DELETE') return; // a deletion here just means "not confirmed yet", not relevant mid-registration
+          if (payload.new && payload.new.confirmed) checkForConfirmationNow();
+        })
+        .subscribe();
+    }
     emailConfirmWatcher = setInterval(checkForConfirmationNow, 4000);
   }
   function stopWatchingForConfirmation() {
     if (emailConfirmWatcher) { clearInterval(emailConfirmWatcher); emailConfirmWatcher = null; }
+    if (emailConfirmRealtimeChannel) { supabaseClient.removeChannel(emailConfirmRealtimeChannel); emailConfirmRealtimeChannel = null; }
   }
   function onEmailConfirmed() {
     toast('Email confermata!');
@@ -2111,6 +2152,9 @@
     // otherwise the admin view would keep showing this device with no
     // email until whatever the NEXT unrelated save/sync happened to be.
     if (state.profile.nome && state.profile.targa) reportActivity();
+    // Keep watching, live, in case this same account gets deleted later
+    // (e.g. from a browser tab) while this device stays open.
+    watchForAccountDeletion(currentAccountEmail());
     render();
     reloadIfUpdatePending();
   }
@@ -2461,6 +2505,18 @@
   /* ---------------------------------------------------------------- */
   var SUPABASE_URL = 'https://chboalgzigdglygnnist.supabase.co';
   var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoYm9hbGd6aWdkZ2x5Z25uaXN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1NTc4MjMsImV4cCI6MjEwMjEzMzgyM30.vorEiww3SvVAadgnAqFH42M-MjbpXOojAlhNm-cIeMI';
+
+  // A live connection to Supabase (via the vendored supabase-js library) —
+  // this is what actually lets a browser tab and the installed app "see"
+  // the same reality instantly: both hold their own independent
+  // connection to the server, and the moment the server-side confirmation
+  // status changes (however it happened, wherever), it pushes the update
+  // to every connected client within roughly a second. Neither context
+  // ever talks to the other directly — they don't need to, since they're
+  // both just watching the same live server state.
+  var supabaseClient = (typeof supabase !== 'undefined' && supabase.createClient)
+    ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : null;
   var LS_DEVICE_ID = 'pt_device_id_v1';
 
   // Optional account (email only, no password) — lets ION recognize the
