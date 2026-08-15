@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v108") {
+          if (data && data.v && data.v !== "pt-foglio-v109") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v108"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v109"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2312,6 +2312,7 @@
     state.profile.da = da; state.profile.provDa = provDa;
     state.profile.dailyRate = dailyRate;
     saveProfile(state.profile);
+    startPresence(); // profile is minimally ready now — no need to wait for anything else
 
     if (settingsTargetSheet) {
       settingsTargetSheet.nome = nome; settingsTargetSheet.targa = targa; settingsTargetSheet.perContoDi = conto;
@@ -2724,16 +2725,32 @@
   // itself removes it from presence automatically — no heartbeat timer,
   // no timestamp math, no possibility of a write silently not landing.
   var presenceChannel = null;
+  function setPresenceDiagnostic(text) {
+    var el = document.getElementById('presence-diagnostic');
+    if (el) el.textContent = 'Live: ' + text;
+  }
   function startPresence() {
-    if (!supabaseClient || !state.profile.nome || presenceChannel) return;
+    if (!supabaseClient) { setPresenceDiagnostic('client Supabase lipsa'); return; }
+    if (!state.profile.nome) { setPresenceDiagnostic('profil incomplet'); return; }
+    if (presenceChannel) return; // already connecting/connected
+    setPresenceDiagnostic('conectare...');
     var deviceId = getDeviceId();
     presenceChannel = supabaseClient.channel('drivers-presence', { config: { presence: { key: deviceId } } });
-    presenceChannel.subscribe(function (status) {
+    presenceChannel.subscribe(function (status, err) {
       if (status === 'SUBSCRIBED') {
+        setPresenceDiagnostic('conectat, trimit prezenta...');
         presenceChannel.track({
           nome: state.profile.nome, targa: state.profile.targa || '',
           account_email: currentAccountEmail(), online_at: new Date().toISOString()
+        }).then(function (trackStatus) {
+          setPresenceDiagnostic('trimis (' + trackStatus + ') — email: ' + (currentAccountEmail() || 'NICIUNUL'));
         });
+      } else if (status === 'CHANNEL_ERROR') {
+        setPresenceDiagnostic('eroare conexiune: ' + (err ? err.message : '?'));
+      } else if (status === 'TIMED_OUT') {
+        setPresenceDiagnostic('timeout conexiune');
+      } else if (status === 'CLOSED') {
+        setPresenceDiagnostic('conexiune inchisa');
       }
     });
   }
