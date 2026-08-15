@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v99") {
+          if (data && data.v && data.v !== "pt-foglio-v100") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v99"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v100"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2102,23 +2102,17 @@
     if (!email || email.indexOf('@') === -1) { toast('Inserisci un\'email valida'); return; }
     var btn = this;
     btn.disabled = true;
-    // Check first whether this email is already confirmed somewhere else
-    // — if it is, don't send a new link at all: someone else's device (or
-    // this same person's other phone) still has it active. Sending
-    // another link here would let two devices both end up "confirmed"
-    // for the same email at once, double-counting one real person.
-    fetch(SUPABASE_URL + '/functions/v1/check-email-confirmed', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
-      body: JSON.stringify({ email: email })
-    }).then(function (res) { return res.json(); })
-      .then(function (data) {
-        if (data && data.confirmed) {
-          toast('Questa email è già registrata altrove — esci da quel dispositivo prima di usarla qui');
-          throw { alreadyHandled: true };
-        }
-        return requestMagicLink(email);
-      })
+    // No longer blocks on "already confirmed elsewhere" — that check
+    // was meant to stop two different people sharing one email, but it
+    // also caught the far more common, entirely legitimate case: the
+    // same driver confirming once in a browser tab, then again from the
+    // installed app (which has its own separate local storage on iOS,
+    // so it never "sees" the browser's earlier confirmation). Supabase
+    // itself never creates a second account for one email regardless of
+    // how many times it's confirmed, and the admin view already groups
+    // by name+targa, not by device — so this was pure friction with no
+    // real protective benefit.
+    requestMagicLink(email)
       .then(function () {
         state.profile.pendingEmail = email;
         saveProfile(state.profile);

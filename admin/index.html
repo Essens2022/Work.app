@@ -98,9 +98,8 @@
 
   <div id="data-screen">
     <div class="stat-strip">
-      <div class="stat-box"><div class="stat-num" id="stat-total">—</div><div class="stat-label">Autisti</div></div>
+      <div class="stat-box"><div class="stat-num" id="stat-total">—</div><div class="stat-label">Autisti registrati</div></div>
       <div class="stat-box"><div class="stat-num" id="stat-live">—</div><div class="stat-label">Live ora</div></div>
-      <div class="stat-box"><div class="stat-num" id="stat-registered">—</div><div class="stat-label">Con email</div></div>
     </div>
     <div class="toolbar">
       <button id="refresh-btn" class="btn-ghost">↻ Aggiorna</button>
@@ -150,15 +149,30 @@
   function groupDrivers(drivers) {
     var groups = {};
     (drivers || []).forEach(function (d) {
-      var key = (d.nome || '').trim().toLowerCase() + '|' + (d.targa || '').trim().toLowerCase();
+      // Prefer the confirmed email as the identifying key — it's the one
+      // truly stable signal for a real person (only the actual account
+      // owner could have confirmed it, and it survives a targa/vehicle
+      // change over time, unlike grouping by name+targa alone). Only
+      // fall back to name+targa for drivers who haven't registered an
+      // email yet, since that's the best signal available for them.
+      var key = d.account_email
+        ? 'email:' + d.account_email.trim().toLowerCase()
+        : 'nt:' + (d.nome || '').trim().toLowerCase() + '|' + (d.targa || '').trim().toLowerCase();
       if (!groups[key]) {
         groups[key] = {
-          key: key, nome: d.nome || '(senza nome)', targa: d.targa || '—',
+          key: key, nome: d.nome || '(senza nome)', targa: d.targa || '—', _latestForNameTarga: null,
           emails: {}, deviceIds: [], hidden: true, lastActive: null, lastHeartbeat: null,
           sheetsByKey: {}, activeMonth: null, activeYear: null, dailyRate: null
         };
       }
       var g = groups[key];
+      // Show whichever name/targa was seen most recently — covers a
+      // driver switching vehicles, or correcting a typo in their name,
+      // without rows arriving in any guaranteed order.
+      if (d.last_active && (!g._latestForNameTarga || d.last_active > g._latestForNameTarga)) {
+        g.nome = d.nome || g.nome; g.targa = d.targa || g.targa;
+        g._latestForNameTarga = d.last_active;
+      }
       g.deviceIds.push(d.device_id);
       if (d.account_email) g.emails[d.account_email] = true;
       // Group is "hidden" only if EVERY device under it is hidden.
@@ -247,15 +261,19 @@
   }
 
   function renderDrivers(drivers) {
-    lastGroups = groupDrivers(drivers);
+    // Nobody can use the app without confirming their email now, so an
+    // entry with no confirmed email at all is either stale (from before
+    // that requirement existed) or mid-registration — not someone worth
+    // showing here.
+    var registeredOnly = (drivers || []).filter(function (d) { return !!d.account_email; });
+    lastGroups = groupDrivers(registeredOnly);
     var el = document.getElementById('drivers-list');
 
     document.getElementById('stat-total').textContent = lastGroups.filter(function (g) { return !g.hidden; }).length;
     document.getElementById('stat-live').textContent = lastGroups.filter(function (g) { return g.isLive; }).length;
-    document.getElementById('stat-registered').textContent = lastGroups.filter(function (g) { return g.emailList.length; }).length;
 
     if (!lastGroups.length) {
-      el.innerHTML = '<div class="card empty">Nessun autista ha ancora aperto l\'app.</div>';
+      el.innerHTML = '<div class="card empty">Nessun autista si è ancora registrato.</div>';
       return;
     }
     var visible = lastGroups.filter(function (g) { return showHidden || !g.hidden; });
