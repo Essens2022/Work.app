@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v102") {
+          if (data && data.v && data.v !== "pt-foglio-v104") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v102"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v104"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2238,24 +2238,44 @@
   });
 
   document.getElementById('account-logout-btn').addEventListener('click', function () {
-    // Free up this email on the server too, not just locally — otherwise
-    // it would stay "confirmed" forever there, blocking anyone (including
-    // this same person, later) from ever registering it again.
-    var emailToFree = currentAccountEmail();
-    if (emailToFree) {
-      fetch(SUPABASE_URL + '/functions/v1/delete-auth-account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
-        body: JSON.stringify({ email: emailToFree })
-      }).catch(function () { /* best-effort — local logout still proceeds either way */ });
-    }
-    logoutAccount();
-    state.profile.pendingEmail = '';
-    state.profile.emailConfirmed = false;
-    saveProfile(state.profile);
-    document.getElementById('settings-account-row').classList.add('hidden');
-    toast('Disconnesso');
-    openEmailRequiredModal();
+    // Destructive-ish action (frees up the email, requires re-confirming
+    // to use the app again) — asks twice before doing anything, same
+    // pattern as "Elimina tutti i dati".
+    showConfirm({
+      title: 'Uscire dal tuo account?',
+      message: 'Dovrai confermare di nuovo la tua email per continuare a usare l\'app.',
+      danger: true,
+      confirmLabel: 'Continua',
+      onConfirm: function () {
+        showConfirm({
+          title: 'Sei sicuro?',
+          message: 'Questa email tornerà disponibile per una nuova registrazione, e dovrai confermarla di nuovo su questo telefono.',
+          danger: true,
+          confirmLabel: 'Esci',
+          onConfirm: function () {
+            // Free up this email on the server too, not just locally —
+            // otherwise it would stay "confirmed" forever there,
+            // blocking anyone (including this same person, later) from
+            // ever registering it again.
+            var emailToFree = currentAccountEmail();
+            if (emailToFree) {
+              fetch(SUPABASE_URL + '/functions/v1/delete-auth-account', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+                body: JSON.stringify({ email: emailToFree })
+              }).catch(function () { /* best-effort — local logout still proceeds either way */ });
+            }
+            logoutAccount();
+            state.profile.pendingEmail = '';
+            state.profile.emailConfirmed = false;
+            saveProfile(state.profile);
+            document.getElementById('settings-account-row').classList.add('hidden');
+            toast('Disconnesso');
+            openEmailRequiredModal();
+          }
+        });
+      }
+    });
   });
   document.getElementById('btn-settings').addEventListener('click', function () { openSettingsModal(null); });
   document.getElementById('settings-cancel').addEventListener('click', function () {
