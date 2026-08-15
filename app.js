@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v107") {
+          if (data && data.v && data.v !== "pt-foglio-v108") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v107"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v108"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2745,6 +2745,16 @@
       });
     }
   }
+  // Explicitly signals "no longer live" the moment the app is put away —
+  // waiting for the WebSocket itself to notice a dropped connection can
+  // take a while (it's designed to tolerate brief network hiccups without
+  // flickering offline), which made the live indicator feel laggy on
+  // exit. Marking presence gone immediately on hide, and re-joining
+  // immediately on return, makes both directions feel instant instead of
+  // relying purely on connection-level detection for going offline.
+  function stopPresence() {
+    if (presenceChannel) { presenceChannel.untrack(); }
+  }
 
 
   // Pushes a lightweight summary (km + days worked, no photos or PDFs —
@@ -3223,13 +3233,15 @@
     setInterval(checkVersionDirectly, 60000);
 
     // Live status — a real presence channel, joined once the profile is
-    // ready. Supabase itself tracks the connection and clears it the
-    // moment it drops (app closed, network lost) — no periodic writes,
-    // nothing that can silently fail to land.
+    // ready. Marked explicitly gone the moment the app is hidden/closed
+    // (rather than waiting for the connection itself to time out), so
+    // the indicator feels instant in both directions.
     startPresence();
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState === 'visible') { startPresence(); updatePresenceIfActive(); }
+      else { stopPresence(); }
     });
+    window.addEventListener('pagehide', stopPresence);
   }
 
   init();
