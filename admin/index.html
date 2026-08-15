@@ -166,16 +166,24 @@
         : 'nt:' + (d.nome || '').trim().toLowerCase() + '|' + (d.targa || '').trim().toLowerCase();
       if (!groups[key]) {
         groups[key] = {
-          key: key, nome: d.nome || '(senza nome)', targa: d.targa || '—', _latestForNameTarga: null,
+          key: key, nome: d.nome || '(senza nome)', targa: d.targa || '—',
+          _latestForNameTarga: null, _latestWithRealActivity: null,
           emails: {}, deviceIds: [], devices: [], hidden: true, lastActive: null, lastHeartbeat: null,
           sheetsByKey: {}, activeMonth: null, activeYear: null, dailyRate: null
         };
       }
       var g = groups[key];
-      // Show whichever name/targa was seen most recently — covers a
-      // driver switching vehicles, or correcting a typo in their name,
-      // without rows arriving in any guaranteed order.
-      if (d.last_active && (!g._latestForNameTarga || d.last_active > g._latestForNameTarga)) {
+      // Which device's nome/targa to show: prefer the most recent device
+      // that has ACTUALLY created a sheet (real usage — active_month set),
+      // over one that merely typed a name into the field once and never
+      // used the app. Falls back to "most recently touched" only if
+      // nobody under this email has real activity yet — so admin always
+      // reflects genuine usage, not a stray test value.
+      var hasRealActivity = !!(d.active_month && d.active_year);
+      if (hasRealActivity && d.last_active && (!g._latestWithRealActivity || d.last_active > g._latestWithRealActivity)) {
+        g.nome = d.nome || g.nome; g.targa = d.targa || g.targa;
+        g._latestWithRealActivity = d.last_active;
+      } else if (!g._latestWithRealActivity && d.last_active && (!g._latestForNameTarga || d.last_active > g._latestForNameTarga)) {
         g.nome = d.nome || g.nome; g.targa = d.targa || g.targa;
         g._latestForNameTarga = d.last_active;
       }
