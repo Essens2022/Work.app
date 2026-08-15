@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v94") {
+          if (data && data.v && data.v !== "pt-foglio-v95") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v94"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v95"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2102,14 +2102,30 @@
     if (!email || email.indexOf('@') === -1) { toast('Inserisci un\'email valida'); return; }
     var btn = this;
     btn.disabled = true;
-    requestMagicLink(email)
+    // Check first whether this email is already confirmed somewhere else
+    // — if it is, don't send a new link at all: someone else's device (or
+    // this same person's other phone) still has it active. Sending
+    // another link here would let two devices both end up "confirmed"
+    // for the same email at once, double-counting one real person.
+    fetch(SUPABASE_URL + '/functions/v1/check-email-confirmed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+      body: JSON.stringify({ email: email })
+    }).then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (data && data.confirmed) {
+          toast('Questa email è già registrata altrove — esci da quel dispositivo prima di usarla qui');
+          throw { alreadyHandled: true };
+        }
+        return requestMagicLink(email);
+      })
       .then(function () {
         state.profile.pendingEmail = email;
         saveProfile(state.profile);
         toast('✓ Email inviata — controlla la tua posta');
         renderEmailRequiredModal();
       })
-      .catch(function (err) { toast(magicLinkErrorMessage(err)); })
+      .catch(function (err) { if (!err || !err.alreadyHandled) toast(magicLinkErrorMessage(err)); })
       .then(function () { btn.disabled = false; });
   });
 
@@ -2156,8 +2172,20 @@
   });
 
   document.getElementById('account-logout-btn').addEventListener('click', function () {
+    // Free up this email on the server too, not just locally — otherwise
+    // it would stay "confirmed" forever there, blocking anyone (including
+    // this same person, later) from ever registering it again.
+    var emailToFree = currentAccountEmail();
+    if (emailToFree) {
+      fetch(SUPABASE_URL + '/functions/v1/delete-auth-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+        body: JSON.stringify({ email: emailToFree })
+      }).catch(function () { /* best-effort — local logout still proceeds either way */ });
+    }
     logoutAccount();
     state.profile.pendingEmail = '';
+    state.profile.emailConfirmed = false;
     saveProfile(state.profile);
     document.getElementById('settings-account-row').classList.add('hidden');
     toast('Disconnesso');
