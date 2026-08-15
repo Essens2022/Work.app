@@ -75,6 +75,12 @@
   .badge-hidden{background:var(--surface-2);color:var(--ink-faint);}
   .person-card.is-hidden{opacity:.5;}
   .device-list{font-size:10.5px;color:var(--ink-faint);font-family:monospace;margin-top:10px;line-height:1.7;}
+  .device-list-title{font-size:11px;font-weight:700;color:var(--ink-faint);margin-top:14px;margin-bottom:6px;text-transform:uppercase;letter-spacing:.4px;}
+  .device-list-detail{display:flex;flex-direction:column;gap:6px;}
+  .device-row{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface-2);border-radius:10px;padding:8px 10px;}
+  .device-row-info{font-size:12.5px;color:var(--ink);line-height:1.5;}
+  .device-row-time{font-size:11px;color:var(--ink-faint);}
+  .device-delete-btn{flex-shrink:0;padding:4px 9px;font-size:13px;}
   .detail-actions{display:flex;gap:8px;margin-top:14px;}
   .error{color:#E57373;font-size:13px;margin-top:-4px;margin-bottom:12px;}
   .empty{text-align:center;color:var(--ink-faint);padding:36px 0;font-size:14px;}
@@ -161,7 +167,7 @@
       if (!groups[key]) {
         groups[key] = {
           key: key, nome: d.nome || '(senza nome)', targa: d.targa || '—', _latestForNameTarga: null,
-          emails: {}, deviceIds: [], hidden: true, lastActive: null, lastHeartbeat: null,
+          emails: {}, deviceIds: [], devices: [], hidden: true, lastActive: null, lastHeartbeat: null,
           sheetsByKey: {}, activeMonth: null, activeYear: null, dailyRate: null
         };
       }
@@ -174,6 +180,7 @@
         g._latestForNameTarga = d.last_active;
       }
       g.deviceIds.push(d.device_id);
+      g.devices.push({ device_id: d.device_id, nome: d.nome || '(senza nome)', targa: d.targa || '—', last_active: d.last_active });
       if (d.account_email) g.emails[d.account_email] = true;
       // Group is "hidden" only if EVERY device under it is hidden.
       if (!d.hidden) g.hidden = false;
@@ -251,7 +258,22 @@
     if (!(g.activeMonth && g.activeYear) && !g.sheets.length) html += '<div class="badge">Solo aperto — nessun foglio creato</div>';
     if (g.hidden) html += '<div class="badge badge-hidden">Nascosto</div>';
 
-    html += '<div class="device-list">' + g.deviceIds.length + ' dispositivo/i: ' + g.deviceIds.map(function (id) { return id.slice(0, 8); }).join(', ') + '</div>';
+    // Every individual device seen under this person, newest first, each
+    // with its own delete button — lets ION recognize and remove stale
+    // test/duplicate entries himself, one at a time, without ever
+    // automatically deleting anything (a driver switching phones, or
+    // simply correcting a typo in their name, must never be silently
+    // affected).
+    var devicesSorted = g.devices.slice().sort(function (a, b) { return (new Date(b.last_active || 0)) - (new Date(a.last_active || 0)); });
+    html += '<div class="device-list-title">' + g.devices.length + ' dispositivo/i registrati:</div>';
+    html += '<div class="device-list-detail">';
+    devicesSorted.forEach(function (dev) {
+      html += '<div class="device-row">';
+      html += '<div class="device-row-info"><b>' + dev.nome + '</b> · ' + dev.targa + '<br><span class="device-row-time">' + formatDate(dev.last_active) + '</span></div>';
+      html += '<button class="btn-ghost btn-sm device-delete-btn" data-delete-device="' + dev.device_id + '" data-group-key="' + g.key + '">🗑</button>';
+      html += '</div>';
+    });
+    html += '</div>';
 
     html += '<div class="detail-actions">';
     html += '<button class="btn-ghost btn-sm" data-toggle-hidden="' + g.key + '" data-hidden="' + (g.hidden ? '1' : '0') + '">' + (g.hidden ? 'Mostra' : 'Nascondi') + '</button>';
@@ -313,6 +335,28 @@
         var wasHidden = btn.getAttribute('data-hidden') === '1';
         var group = lastGroups.filter(function (g) { return g.key === key; })[0];
         if (group) toggleHiddenForGroup(group.deviceIds, !wasHidden);
+      });
+    });
+    el.querySelectorAll('[data-delete-device]').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var deviceId = btn.getAttribute('data-delete-device');
+        if (!window.confirm('Eliminare definitivamente questo dispositivo? Non è possibile annullare.')) return;
+        btn.disabled = true;
+        fetch(FUNCTION_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: currentPassword, action: 'delete_device', device_id: deviceId })
+        }).then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (data && data.ok) {
+              fetchDrivers().then(function (res) { if (res.ok) { renderDrivers(res.data.drivers); setRefreshedNow(); } });
+            } else {
+              btn.disabled = false;
+              window.alert('Eliminazione non riuscita — riprova.');
+            }
+          })
+          .catch(function () { btn.disabled = false; window.alert('Eliminazione non riuscita — controlla la connessione.'); });
       });
     });
   }
