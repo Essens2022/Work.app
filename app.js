@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v113") {
+          if (data && data.v && data.v !== "pt-foglio-v114") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v113"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v114"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -800,6 +800,27 @@
   document.getElementById('modal-calendar').addEventListener('click', function (e) {
     if (e.target === document.getElementById('modal-calendar')) document.getElementById('modal-calendar').classList.remove('open');
   });
+  // Swiping left/right directly over the calendar grid changes the month
+  // — much easier to hit reliably on a phone than the small arrow
+  // buttons. A minimum horizontal distance (and staying mostly
+  // horizontal, not vertical) keeps an ordinary tap-on-a-day from
+  // accidentally triggering navigation.
+  (function () {
+    var grid = document.getElementById('calendar-grid');
+    var startX = null, startY = null;
+    grid.addEventListener('touchstart', function (e) {
+      startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+    }, { passive: true });
+    grid.addEventListener('touchend', function (e) {
+      if (startX === null) return;
+      var dx = e.changedTouches[0].clientX - startX;
+      var dy = e.changedTouches[0].clientY - startY;
+      startX = null; startY = null;
+      if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy) * 1.5) return; // too short, or too vertical — not a swipe
+      var btn = document.getElementById(dx < 0 ? 'calendar-next' : 'calendar-prev');
+      if (btn && !btn.disabled) btn.click();
+    }, { passive: true });
+  })();
 
   function renderArchivio() {
     var el = document.getElementById('screen-archivio');
