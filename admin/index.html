@@ -167,26 +167,34 @@
       if (!groups[key]) {
         groups[key] = {
           key: key, nome: d.nome || '(senza nome)', targa: d.targa || '—',
-          _latestForNameTarga: null, _latestWithRealActivity: null,
+          _latestForNameTarga: null, _latestWithRealActivity: null, _fallbackNome: null, _hasOfficialName: false,
           emails: {}, deviceIds: [], devices: [], hidden: true, lastActive: null, lastHeartbeat: null,
           sheetsByKey: {}, activeMonth: null, activeYear: null, dailyRate: null
         };
       }
       var g = groups[key];
-      // Which device's nome/targa to show: prefer the most recent device
-      // that has ACTUALLY created a sheet (real usage — active_month set),
-      // over one that merely typed a name into the field once and never
-      // used the app. Falls back to "most recently touched" only if
-      // nobody under this email has real activity yet — so admin always
-      // reflects genuine usage, not a stray test value.
+      // Which device's targa to show: prefer the most recent device that
+      // has ACTUALLY created a sheet (real usage — active_month set),
+      // over one that merely typed something into the field once and
+      // never used the app. Falls back to "most recently touched" only
+      // if nobody under this email has real activity yet.
       var hasRealActivity = !!(d.active_month && d.active_year);
       if (hasRealActivity && d.last_active && (!g._latestWithRealActivity || d.last_active > g._latestWithRealActivity)) {
-        g.nome = d.nome || g.nome; g.targa = d.targa || g.targa;
+        g.targa = d.targa || g.targa; g._fallbackNome = d.nome || g._fallbackNome;
         g._latestWithRealActivity = d.last_active;
       } else if (!g._latestWithRealActivity && d.last_active && (!g._latestForNameTarga || d.last_active > g._latestForNameTarga)) {
-        g.nome = d.nome || g.nome; g.targa = d.targa || g.targa;
+        g.targa = d.targa || g.targa; g._fallbackNome = d.nome || g._fallbackNome;
         g._latestForNameTarga = d.last_active;
       }
+      // The name itself always prefers the OFFICIAL, current one from the
+      // confirmed account (kept fresh server-side, updated every time a
+      // magic link is sent) over anything typed locally into a device —
+      // that field can't be spoofed or left stale the way a local device
+      // field can. Only falls back to the activity-based device name
+      // above when no confirmed account name exists at all.
+      if (d.official_first_name) g.nome = d.official_first_name;
+      else if (!g._hasOfficialName) g.nome = g._fallbackNome || g.nome;
+      if (d.official_first_name) g._hasOfficialName = true;
       g.deviceIds.push(d.device_id);
       g.devices.push({ device_id: d.device_id, nome: d.nome || '(senza nome)', targa: d.targa || '—', last_active: d.last_active });
       if (d.account_email) g.emails[d.account_email] = true;
