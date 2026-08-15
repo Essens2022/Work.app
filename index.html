@@ -456,7 +456,12 @@
   .toast .dot{width:6px;height:6px;border-radius:50%;background:var(--teal);}
 
   .settings-driver-note{font-size:12.5px;color:#6B6A66;font-weight:500;margin-top:-6px;margin-bottom:16px;line-height:1.5;}
-  .badge-pending{font-size:11px;font-weight:700;padding:3px 8px;border-radius:100px;background:#1C3A24;color:#3CB878;}
+  .badge-pending{font-size:11px;font-weight:700;padding:3px 8px;border-radius:100px;background:#1C3A24;color:#3CB878;display:inline-block;margin-bottom:14px;}
+  .pending-email-text{font-size:16px;font-weight:700;color:var(--ink);margin-bottom:8px;word-break:break-all;}
+  .pending-warning-box{
+    background:#FBEFE9;border:1px solid #F0D5C4;border-radius:12px;padding:12px 14px;
+    font-size:13px;color:#B23A0F;font-weight:600;line-height:1.5;margin-bottom:16px;
+  }
   .checkbox-row{
     display:flex;align-items:center;gap:10px;padding:10px 0 4px;cursor:pointer;
     font-size:13.5px;font-weight:600;color:var(--ink);
@@ -608,14 +613,10 @@
       <div class="settings-driver-note">Nessuna password da ricordare. Tocca Invia: riceverai un link via email da confermare prima di poter continuare.</div>
     </div>
     <div id="account-pending" class="hidden">
-      <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-        <span id="account-pending-email-display" style="font-weight:600;"></span>
-        <span class="badge-pending">✓ email inviata</span>
-      </div>
-      <div class="settings-driver-note" style="color:var(--accent);font-weight:700;">Apri l'email e tocca il link per confermare — questa finestra si chiuderà da sola appena confermi. Non puoi chiuderla prima.</div>
-      <div style="margin-top:8px;">
-        <button type="button" id="account-remind-pending-btn" class="btn btn-outline btn-sm">Invia di nuovo il link</button>
-      </div>
+      <div class="pending-email-text" id="account-pending-email-display"></div>
+      <span class="badge-pending">✓ email inviata</span>
+      <div class="pending-warning-box">Apri l'email e tocca il link per confermare — questa finestra si chiuderà da sola appena confermi. Non puoi chiuderla prima.</div>
+      <button type="button" id="account-remind-pending-btn" class="btn btn-outline btn-sm">Invia di nuovo il link</button>
     </div>
   </div>
 </div>
