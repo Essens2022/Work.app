@@ -96,6 +96,7 @@
     <h1>ADB Smart — Autisti</h1>
   </div>
   <div class="subtitle" id="last-refreshed"></div>
+  <div class="subtitle" id="live-diagnostic" style="font-size:11px;color:var(--ink-faint);"></div>
 
   <div id="login-screen" class="card show">
     <div id="login-error" class="error" style="display:none;">Password errata.</div>
@@ -138,21 +139,34 @@
   var liveEmails = {}; // account_email (lowercased) -> true, currently present
   var presenceReady = false;
   function startAdminPresenceWatch() {
-    if (!supabaseClient) return;
+    if (!supabaseClient) { setLiveDiagnostic('Client Supabase nu s-a incarcat'); return; }
+    setLiveDiagnostic('Conectare...');
     var channel = supabaseClient.channel('drivers-presence');
     channel.on('presence', { event: 'sync' }, function () {
       var state = channel.presenceState();
       var next = {};
+      var totalEntries = 0;
       Object.keys(state).forEach(function (key) {
         (state[key] || []).forEach(function (entry) {
+          totalEntries++;
           if (entry.account_email) next[entry.account_email.toLowerCase()] = true;
         });
       });
       liveEmails = next;
       presenceReady = true;
+      setLiveDiagnostic('Conectat — ' + totalEntries + ' prezenta/e primita/e');
       if (lastGroups.length) renderDrivers(lastGroupsRaw);
     });
-    channel.subscribe();
+    channel.subscribe(function (status, err) {
+      if (status === 'SUBSCRIBED') setLiveDiagnostic('Conectat, in asteptarea semnalelor...');
+      else if (status === 'CHANNEL_ERROR') setLiveDiagnostic('Eroare de conexiune: ' + (err ? err.message : 'necunoscuta'));
+      else if (status === 'TIMED_OUT') setLiveDiagnostic('Conexiune expirata (timeout)');
+      else if (status === 'CLOSED') setLiveDiagnostic('Conexiune inchisa');
+    });
+  }
+  function setLiveDiagnostic(text) {
+    var el = document.getElementById('live-diagnostic');
+    if (el) el.textContent = 'Live: ' + text;
   }
 
   function showScreen(id) {
