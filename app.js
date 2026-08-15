@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v109") {
+          if (data && data.v && data.v !== "pt-foglio-v110") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v109"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v110"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2675,6 +2675,7 @@
     var earnings = (month && year) ? monthEarnings(month, year) : { workedDaysCount: 0 };
     var deviceId = getDeviceId();
     var payload = {
+      device_id: deviceId,
       nome: state.profile.nome,
       targa: state.profile.targa || '',
       last_active: new Date().toISOString(),
@@ -2684,32 +2685,21 @@
       account_email: currentAccountEmail(),
       updated_at: new Date().toISOString()
     };
-    var headers = {
-      'Content-Type': 'application/json',
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
-    };
-    // Try updating this device's existing row first; if none exists yet
-    // (first time this phone reports), fall back to inserting a new one.
-    // (Not using a single "upsert" request here — combined with the
-    // privacy rule that phones can never read this table, an INSERT ...
-    // ON CONFLICT DO UPDATE fails Postgres' row-level security check in a
-    // way a plain UPDATE-then-INSERT does not.)
-    fetch(SUPABASE_URL + '/rest/v1/driver_activity?device_id=eq.' + encodeURIComponent(deviceId), {
-      method: 'PATCH',
-      headers: Object.assign({}, headers, { 'Prefer': 'return=representation' }),
+    // A genuine, native upsert — reliable now that anon has SELECT
+    // permission on this table (PostgreSQL requires it for the UPDATE
+    // path of INSERT ... ON CONFLICT DO UPDATE, even with INSERT/UPDATE
+    // otherwise fully granted — without it, this silently failed to
+    // find/update existing rows).
+    fetch(SUPABASE_URL + '/rest/v1/driver_activity?on_conflict=device_id', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+        'Prefer': 'resolution=merge-duplicates,return=minimal'
+      },
       body: JSON.stringify(payload)
-    }).then(function (res) { return res.json().catch(function () { return []; }); })
-      .then(function (updated) {
-        if (updated && updated.length > 0) return; // row existed, updated — done
-        payload.device_id = deviceId;
-        return fetch(SUPABASE_URL + '/rest/v1/driver_activity', {
-          method: 'POST',
-          headers: Object.assign({}, headers, { 'Prefer': 'return=minimal' }),
-          body: JSON.stringify(payload)
-        });
-      })
-      .catch(function () { /* offline or blocked — silently skip, never blocks the app */ });
+    }).catch(function () { /* offline or blocked — never blocks the app */ });
   }
 
   // High-frequency "live" signal, separate from reportActivity (which
@@ -2781,46 +2771,30 @@
     if (!state.profile.nome) return;
     var deviceId = getDeviceId();
     var dailyRate = (state.profile.dailyRate === "" || state.profile.dailyRate === undefined) ? null : Number(state.profile.dailyRate);
-    var headers = {
-      'Content-Type': 'application/json',
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
-    };
     state.sheets.forEach(function (sheet) {
       var kt = sheetKmAndTrips(sheet);
       var client = (sheet.perContoDi || '').trim().toUpperCase() || '(nessuno)';
       var payload = {
+        device_id: deviceId, month: sheet.month, year: sheet.year, client: client,
         total_km: kt.km || 0,
         giorni_count: kt.viaggi || 0,
         daily_rate: dailyRate,
         account_email: currentAccountEmail(),
         updated_at: new Date().toISOString()
       };
-      var filter = '?device_id=eq.' + encodeURIComponent(deviceId)
-        + '&month=eq.' + sheet.month + '&year=eq.' + sheet.year
-        + '&client=eq.' + encodeURIComponent(client);
-      // Same reasoning as reportActivity() — try updating the existing
-      // row first (filtered by the full primary key); a combined
-      // "upsert" request silently fails Postgres' row-level security
-      // check here, since phones can never read this table back.
-      fetch(SUPABASE_URL + '/rest/v1/driver_sheets_summary' + filter, {
-        method: 'PATCH',
-        headers: Object.assign({}, headers, { 'Prefer': 'return=representation' }),
+      // A genuine, native upsert, matched on the full primary key —
+      // reliable now that anon has SELECT permission on this table (see
+      // reportActivity() for the full explanation).
+      fetch(SUPABASE_URL + '/rest/v1/driver_sheets_summary?on_conflict=device_id,month,year,client', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+          'Prefer': 'resolution=merge-duplicates,return=minimal'
+        },
         body: JSON.stringify(payload)
-      }).then(function (res) { return res.json().catch(function () { return []; }); })
-        .then(function (updated) {
-          if (updated && updated.length > 0) return; // row existed, updated — done
-          payload.device_id = deviceId;
-          payload.month = sheet.month;
-          payload.year = sheet.year;
-          payload.client = client;
-          return fetch(SUPABASE_URL + '/rest/v1/driver_sheets_summary', {
-            method: 'POST',
-            headers: Object.assign({}, headers, { 'Prefer': 'return=minimal' }),
-            body: JSON.stringify(payload)
-          });
-        })
-        .catch(function () { /* offline or blocked — silently skip */ });
+      }).catch(function () { /* offline or blocked — silently skip */ });
     });
   }
 
