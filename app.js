@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v92") {
+          if (data && data.v && data.v !== "pt-foglio-v93") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v92"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v93"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1961,6 +1961,7 @@
   /* Settings / onboarding modal                                       */
   /* ---------------------------------------------------------------- */
   var settingsModal = document.getElementById('modal-settings');
+  var emailModal = document.getElementById('modal-email-required');
   var settingsTargetSheet = null;
 
   function openSettingsModal(sheetOverride) {
@@ -1988,33 +1989,31 @@
       sheetRateSection.classList.add('hidden');
     }
 
-    // The account section only makes sense in the main settings view — a
-    // per-sheet override edit isn't the place to manage login.
-    var accountSection = document.getElementById('account-section');
-    if (settingsTargetSheet) {
-      accountSection.classList.add('hidden');
+    // The "Account" row (showing the confirmed email + reminder/logout)
+    // only makes sense in the main settings view, and only once there
+    // actually is a confirmed account to show — a per-sheet override
+    // edit isn't the place to manage login, and first-run has nothing to
+    // show yet either.
+    var accountRow = document.getElementById('settings-account-row');
+    if (settingsTargetSheet || !emailIsSatisfied()) {
+      accountRow.classList.add('hidden');
     } else {
-      accountSection.classList.remove('hidden');
-      renderAccountSection();
+      accountRow.classList.remove('hidden');
+      document.getElementById('account-email-display').textContent = currentAccountEmail();
     }
 
     settingsModal.classList.add('open');
   }
 
-  // Whether the "email required" condition is currently satisfied — a
-  // confirmed session counts, but so does an email the person has already
-  // submitted and is simply waiting to confirm, so nobody is ever
-  // actually blocked out of the app by a delayed or missed confirmation
-  // email; only entering NO email at all is blocking.
-  // Strict now: only an actually-confirmed session counts. Simply having
-  // typed an email and requested the link is not enough on its own — the
-  // person must have clicked the confirmation link.
-  // Confirmed via either an actual local session, OR a server-verified
-  // confirmation for the email this device already asked to confirm —
-  // the second path exists because clicking the magic link opens a
-  // *different* browser context than the installed app on iOS (they
-  // don't share local storage at all), so checking local state alone
-  // can never see a confirmation that happened elsewhere.
+  // Whether the "email required" condition is currently satisfied —
+  // strict: only an actually-confirmed email counts, not merely having
+  // sent a link and being unconfirmed. Confirmed via either a real local
+  // session, OR a server-verified confirmation for the email this device
+  // already asked to confirm — the second path exists because clicking
+  // the magic link opens a *different* browser context than the
+  // installed app on iOS (they don't share local storage at all), so
+  // checking local state alone can never see a confirmation that
+  // happened elsewhere.
   function emailIsSatisfied() {
     var session = getAuthSession();
     if (session && session.email) return true;
@@ -2030,11 +2029,20 @@
     return (session && session.email) || state.profile.pendingEmail || null;
   }
 
-  // While the settings sheet is showing the "waiting to confirm" state,
-  // this asks the SERVER directly whether the pending email has been
-  // confirmed yet — not just local storage, since the confirmation click
-  // very often happens in a completely separate browser storage context
-  // (installed app vs. a regular Safari tab, on iOS in particular).
+  // Shows the dedicated, minimal "confirm your email" step — used right
+  // after Salva on first setup, and on its own (skipping the full
+  // Benvenuto/Impostazioni sheet entirely) for anyone who already has a
+  // saved profile from before this requirement existed.
+  function openEmailRequiredModal() {
+    renderEmailRequiredModal();
+    emailModal.classList.add('open');
+  }
+
+  // While this modal is showing the "waiting to confirm" state, this asks
+  // the SERVER directly whether the pending email has been confirmed yet
+  // — not just local storage, since the confirmation click very often
+  // happens in a completely separate browser storage context (installed
+  // app vs. a regular Safari tab, on iOS in particular).
   var emailConfirmWatcher = null;
   function checkForConfirmationNow() {
     var session = getAuthSession();
@@ -2069,16 +2077,14 @@
     if (emailConfirmWatcher) { clearInterval(emailConfirmWatcher); emailConfirmWatcher = null; }
   }
   function onEmailConfirmed() {
-    renderAccountSection();
     toast('Email confermata!');
-    if (state.profile.nome && state.profile.targa) {
-      // Push the now-confirmed email (plus everything else) right away —
-      // otherwise the admin view would keep showing this device with no
-      // email until whatever the NEXT unrelated save/sync happened to be.
-      reportActivity();
-      settingsModal.classList.remove('open');
-      reloadIfUpdatePending();
-    }
+    emailModal.classList.remove('open');
+    // Push the now-confirmed email (plus everything else) right away —
+    // otherwise the admin view would keep showing this device with no
+    // email until whatever the NEXT unrelated save/sync happened to be.
+    if (state.profile.nome && state.profile.targa) reportActivity();
+    render();
+    reloadIfUpdatePending();
   }
 
   // A single, accurate error message for every "send the link" button —
@@ -2101,34 +2107,28 @@
         state.profile.pendingEmail = email;
         saveProfile(state.profile);
         toast('✓ Email inviata — controlla la tua posta');
-        renderAccountSection();
+        renderEmailRequiredModal();
       })
       .catch(function (err) { toast(magicLinkErrorMessage(err)); })
       .then(function () { btn.disabled = false; });
   });
 
-  function renderAccountSection() {
-    var session = getAuthSession();
+  // Renders the two possible states of the dedicated email modal: still
+  // needs an email typed in and sent, or already sent and waiting on
+  // confirmation. (The "confirmed" case never renders here — the modal
+  // closes itself the moment that happens, via onEmailConfirmed.)
+  function renderEmailRequiredModal() {
     var loggedOut = document.getElementById('account-logged-out');
     var pending = document.getElementById('account-pending');
-    var loggedIn = document.getElementById('account-logged-in');
-    if (emailIsSatisfied()) {
-      stopWatchingForConfirmation();
-      loggedOut.classList.add('hidden');
-      pending.classList.add('hidden');
-      loggedIn.classList.remove('hidden');
-      document.getElementById('account-email-display').textContent = currentAccountEmail();
-    } else if (state.profile.pendingEmail) {
+    if (state.profile.pendingEmail && !emailIsSatisfied()) {
       loggedOut.classList.add('hidden');
       pending.classList.remove('hidden');
-      loggedIn.classList.add('hidden');
       document.getElementById('account-pending-email-display').textContent = state.profile.pendingEmail;
       startWatchingForConfirmation();
     } else {
       stopWatchingForConfirmation();
       loggedOut.classList.remove('hidden');
       pending.classList.add('hidden');
-      loggedIn.classList.add('hidden');
       document.getElementById('in-account-email').value = '';
     }
   }
@@ -2159,12 +2159,13 @@
     logoutAccount();
     state.profile.pendingEmail = '';
     saveProfile(state.profile);
-    renderAccountSection();
+    document.getElementById('settings-account-row').classList.add('hidden');
     toast('Disconnesso');
+    openEmailRequiredModal();
   });
   document.getElementById('btn-settings').addEventListener('click', function () { openSettingsModal(null); });
   document.getElementById('settings-cancel').addEventListener('click', function () {
-    if ((!state.profile.nome || !emailIsSatisfied()) && !settingsTargetSheet) return; // force first-run completion, email included
+    if (!state.profile.nome && !settingsTargetSheet) return; // force first-run completion
     settingsModal.classList.remove('open');
     reloadIfUpdatePending();
   });
@@ -2174,6 +2175,10 @@
   settingsModal.addEventListener('click', function (e) {
     if (e.target === settingsModal) document.getElementById('settings-cancel').click();
   });
+  // The email modal has no close/cancel control at all — by design, it
+  // cannot be dismissed until the email is actually confirmed (that's the
+  // whole point of it existing separately). A stray click on the
+  // backdrop should not close it either.
   document.getElementById('settings-save').addEventListener('click', function () {
     var nome = document.getElementById('in-nome').value.trim();
     var targa = document.getElementById('in-targa').value.trim().toUpperCase();
@@ -2185,15 +2190,7 @@
 
     if (!nome || !targa) { toast('Inserisci nome e targa'); return; }
 
-    // Email is only required on the main profile — a per-sheet override
-    // edit isn't the place this is enforced. Sending the confirmation
-    // link itself now happens via the dedicated "Invia" button next to
-    // the email field, not here — Salva just checks it's actually been
-    // sent and confirmed before letting the sheet close.
-    if (!settingsTargetSheet && !emailIsSatisfied() && !state.profile.pendingEmail) {
-      toast('Inserisci la tua email e tocca Invia per continuare');
-      return;
-    }
+    var wasFirstRun = !state.profile.nome;
 
     state.profile.nome = nome; state.profile.targa = targa; state.profile.perContoDi = conto;
     state.profile.da = da; state.profile.provDa = provDa;
@@ -2206,18 +2203,20 @@
       saveSheets(state.sheets);
     }
 
-    // Keep the sheet open in the "waiting to confirm" state if email
-    // isn't actually confirmed yet — closing here would defeat the whole
-    // point of requiring it. A per-sheet edit never blocks on this.
-    if (!settingsTargetSheet && !emailIsSatisfied()) {
-      renderAccountSection();
-      render();
-      return;
-    }
-
     settingsModal.classList.remove('open');
     toast('Dati salvati');
     render();
+
+    // First time ever completing the welcome screen — immediately follow
+    // up with the dedicated email step, right after this one closes.
+    // Existing profiles that still need email get sent here too, but
+    // that path is normally reached directly from init(), never by
+    // passing through this whole form again.
+    if (wasFirstRun && !emailIsSatisfied()) {
+      openEmailRequiredModal();
+      return;
+    }
+
     reportActivity();
     reloadIfUpdatePending();
   });
@@ -2902,8 +2901,16 @@
     img.style.display = 'none';
     document.body.appendChild(img);
 
-    if (!state.profile.nome || !state.profile.targa || !emailIsSatisfied()) {
+    if (!state.profile.nome || !state.profile.targa) {
+      // Brand-new profile — the full Benvenuto flow (name/targa/etc.)
+      // comes first; the dedicated email step follows automatically
+      // right after Salva, from inside that handler.
       openSettingsModal(null);
+    } else if (!emailIsSatisfied()) {
+      // Existing profile from before this requirement existed (or email
+      // was never finished) — skip straight to the small, dedicated
+      // email step, without re-showing the whole profile form again.
+      openEmailRequiredModal();
     }
     if (!state.currentSheetId) {
       var latest = latestSheet();
