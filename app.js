@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v95") {
+          if (data && data.v && data.v !== "pt-foglio-v96") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v95"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v96"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2473,20 +2473,34 @@
     // has ever committed the typed name to the saved profile.
     var typedNome = document.getElementById('in-nome') ? document.getElementById('in-nome').value : '';
     var firstName = (typedNome || state.profile.nome || '').trim().split(/\s+/)[0] || '';
-    return fetch(SUPABASE_URL + '/auth/v1/otp', {
+    // Force the name up to date FIRST, via the admin API — Supabase's own
+    // /auth/v1/otp only seems to set metadata the very first time an
+    // email is used; on later requests for an existing account it keeps
+    // whatever was captured back then, silently ignoring a new name
+    // (e.g. after a driver re-registers, or corrects a typo). Best-effort:
+    // if this fails for any reason, the email still gets sent below —
+    // worst case is a stale name in that one email, not a blocked signup.
+    return fetch(SUPABASE_URL + '/functions/v1/update-user-name', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': SUPABASE_ANON_KEY,
-        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
-      },
-      body: JSON.stringify({
-        email: email,
-        create_user: true,
-        data: { first_name: firstName },
-        options: { email_redirect_to: window.location.origin + '/email-confirmed.html' }
-      })
-    }).then(function (res) {
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+      body: JSON.stringify({ email: email, first_name: firstName })
+    }).catch(function () { /* best-effort — proceed to send the email regardless */ })
+      .then(function () {
+        return fetch(SUPABASE_URL + '/auth/v1/otp', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+          },
+          body: JSON.stringify({
+            email: email,
+            create_user: true,
+            data: { first_name: firstName },
+            options: { email_redirect_to: window.location.origin + '/email-confirmed.html' }
+          })
+        });
+      }).then(function (res) {
       if (res.status === 429) {
         var err = new Error('rate_limited');
         err.rateLimited = true;
