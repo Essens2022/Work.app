@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v106") {
+          if (data && data.v && data.v !== "pt-foglio-v107") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v106"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v107"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2152,6 +2152,8 @@
     // otherwise the admin view would keep showing this device with no
     // email until whatever the NEXT unrelated save/sync happened to be.
     if (state.profile.nome && state.profile.targa) reportActivity();
+    startPresence();
+    updatePresenceIfActive();
     // Keep watching, live, in case this same account gets deleted later
     // (e.g. from a browser tab) while this device stays open.
     watchForAccountDeletion(currentAccountEmail());
@@ -2714,42 +2716,36 @@
   // sent often while the app is actually open and visible, so the admin
   // view can show a real live/offline status, not just "last saved
   // something a while ago".
-  function sendHeartbeat() {
-    if (!state.profile.nome) return;
+  // "Live now" status, done the way large apps actually do it — genuine
+  // WebSocket presence, not a periodic database write that something has
+  // to interpret as "recent enough to count as online". The device joins
+  // a shared Realtime channel while the app is open; the moment its
+  // connection drops (tab closed, app closed, network lost), Supabase
+  // itself removes it from presence automatically — no heartbeat timer,
+  // no timestamp math, no possibility of a write silently not landing.
+  var presenceChannel = null;
+  function startPresence() {
+    if (!supabaseClient || !state.profile.nome || presenceChannel) return;
     var deviceId = getDeviceId();
-    var headers = {
-      'Content-Type': 'application/json',
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
-    };
-    // Same reasoning as reportActivity() — verify explicitly that the
-    // PATCH actually found and updated a row (via return=representation),
-    // rather than trusting a bare success status alone, and fall back to
-    // creating the row if it didn't. A plain PATCH with no verification
-    // was observed to report success while the value silently never
-    // changed server-side for this table, for reasons not fully pinned
-    // down — this makes the heartbeat robust regardless of that.
-    fetch(SUPABASE_URL + '/rest/v1/driver_activity?device_id=eq.' + encodeURIComponent(deviceId), {
-      method: 'PATCH',
-      headers: Object.assign({}, headers, { 'Prefer': 'return=representation' }),
-      body: JSON.stringify({ last_heartbeat: new Date().toISOString() })
-    }).then(function (res) { return res.json().catch(function () { return []; }); })
-      .then(function (updated) {
-        if (updated && updated.length > 0) return; // row existed, updated — done
-        // No matching row yet on this device — extremely rare (would mean
-        // reportActivity() never ran even once), but create a minimal one
-        // rather than silently doing nothing.
-        return fetch(SUPABASE_URL + '/rest/v1/driver_activity', {
-          method: 'POST',
-          headers: Object.assign({}, headers, { 'Prefer': 'return=minimal' }),
-          body: JSON.stringify({
-            device_id: deviceId, nome: state.profile.nome, targa: state.profile.targa || '',
-            account_email: currentAccountEmail(), last_heartbeat: new Date().toISOString()
-          })
+    presenceChannel = supabaseClient.channel('drivers-presence', { config: { presence: { key: deviceId } } });
+    presenceChannel.subscribe(function (status) {
+      if (status === 'SUBSCRIBED') {
+        presenceChannel.track({
+          nome: state.profile.nome, targa: state.profile.targa || '',
+          account_email: currentAccountEmail(), online_at: new Date().toISOString()
         });
-      })
-      .catch(function () { /* offline or blocked — silently skip */ });
+      }
+    });
   }
+  function updatePresenceIfActive() {
+    if (presenceChannel) {
+      presenceChannel.track({
+        nome: state.profile.nome, targa: state.profile.targa || '',
+        account_email: currentAccountEmail(), online_at: new Date().toISOString()
+      });
+    }
+  }
+
 
   // Pushes a lightweight summary (km + days worked, no photos or PDFs —
   // those never leave the phone) for every sheet this device has, so the
@@ -3226,16 +3222,14 @@
     });
     setInterval(checkVersionDirectly, 60000);
 
-    // Live status heartbeat — only while the app is actually visible in
-    // the foreground, so "live" genuinely means someone has it open right
-    // now, not just that the phone is powered on somewhere.
-    if (document.visibilityState === 'visible') sendHeartbeat();
+    // Live status — a real presence channel, joined once the profile is
+    // ready. Supabase itself tracks the connection and clears it the
+    // moment it drops (app closed, network lost) — no periodic writes,
+    // nothing that can silently fail to land.
+    startPresence();
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'visible') sendHeartbeat();
+      if (document.visibilityState === 'visible') { startPresence(); updatePresenceIfActive(); }
     });
-    setInterval(function () {
-      if (document.visibilityState === 'visible') sendHeartbeat();
-    }, 25000);
   }
 
   init();

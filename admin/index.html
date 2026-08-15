@@ -87,6 +87,7 @@
   #login-screen, #data-screen{display:none;}
   #login-screen.show, #data-screen.show{display:block;}
 </style>
+<script src="../vendor/supabase.js"></script>
 </head>
 <body>
 <div class="wrap">
@@ -117,12 +118,42 @@
 
 <script>
   var FUNCTION_URL = 'https://chboalgzigdglygnnist.supabase.co/functions/v1/admin-data';
-  var LIVE_THRESHOLD_MS = 45000; // heartbeats fire every ~25s while visible — 45s of silence means offline
+  var SUPABASE_URL = 'https://chboalgzigdglygnnist.supabase.co';
+  var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoYm9hbGd6aWdkZ2x5Z25uaXN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1NTc4MjMsImV4cCI6MjEwMjEzMzgyM30.vorEiww3SvVAadgnAqFH42M-MjbpXOojAlhNm-cIeMI';
+  var supabaseClient = (typeof supabase !== 'undefined' && supabase.createClient)
+    ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : null;
   var currentPassword = '';
   var showHidden = false;
   var lastGroups = [];
   var openGroupKeys = {};
   var refreshTimer = null;
+
+  // Real "who's online right now" — the SAME shared presence channel every
+  // driver's phone joins while the app is open (see startPresence() in
+  // app.js). This is genuine WebSocket presence, not a timestamp someone
+  // has to interpret as "recent enough" — the moment a phone's connection
+  // drops, Supabase removes it from this list automatically, and this
+  // page re-renders instantly, live, with no polling at all.
+  var liveEmails = {}; // account_email (lowercased) -> true, currently present
+  var presenceReady = false;
+  function startAdminPresenceWatch() {
+    if (!supabaseClient) return;
+    var channel = supabaseClient.channel('drivers-presence');
+    channel.on('presence', { event: 'sync' }, function () {
+      var state = channel.presenceState();
+      var next = {};
+      Object.keys(state).forEach(function (key) {
+        (state[key] || []).forEach(function (entry) {
+          if (entry.account_email) next[entry.account_email.toLowerCase()] = true;
+        });
+      });
+      liveEmails = next;
+      presenceReady = true;
+      if (lastGroups.length) renderDrivers(lastGroupsRaw);
+    });
+    channel.subscribe();
+  }
 
   function showScreen(id) {
     document.getElementById('login-screen').classList.toggle('show', id === 'login-screen');
@@ -224,7 +255,7 @@
       g.emailList = Object.keys(g.emails);
       g.sheets = Object.keys(g.sheetsByKey).map(function (sk) { return g.sheetsByKey[sk]; })
         .sort(function (a, b) { return (b.year - a.year) || (b.month - a.month); });
-      g.isLive = !!(g.lastHeartbeat && (Date.now() - new Date(g.lastHeartbeat).getTime()) < LIVE_THRESHOLD_MS);
+      g.isLive = g.emailList.some(function (e) { return !!liveEmails[e.toLowerCase()]; });
       g.lastSeen = g.lastHeartbeat && (!g.lastActive || g.lastHeartbeat > g.lastActive) ? g.lastHeartbeat : g.lastActive;
       return g;
     });
@@ -430,6 +461,7 @@
         renderDrivers(lastGroupsRaw);
         setRefreshedNow();
         showScreen('data-screen');
+        startAdminPresenceWatch();
         if (refreshTimer) clearInterval(refreshTimer);
         refreshTimer = setInterval(function () {
           fetchDrivers().then(function (r) {
