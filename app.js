@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v114") {
+          if (data && data.v && data.v !== "pt-foglio-v115") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v114"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v115"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -735,25 +735,21 @@
     renderCalendarModal();
     document.getElementById('modal-calendar').classList.add('open');
   }
-  function calendarMonthRange() {
-    // The earliest/latest month that actually has a sheet — prev/next
-    // won't go further than that in either direction, since there's
-    // nothing meaningful to show past it.
-    var keys = state.sheets.map(function (s) { return s.year * 12 + (s.month - 1); });
-    if (!keys.length) {
-      var now = new Date();
-      return { min: now.getFullYear() * 12 + now.getMonth(), max: now.getFullYear() * 12 + now.getMonth() };
-    }
-    return { min: Math.min.apply(null, keys), max: Math.max.apply(null, keys) };
-  }
   function renderCalendarModal() {
     var month = calendarShowingMonth, year = calendarShowingYear;
     document.getElementById('calendar-title').textContent = MESI[month - 1] + ' ' + year;
 
-    var range = calendarMonthRange();
+    // Free navigation to any month — not limited to months that happen to
+    // have a sheet already (a driver should be able to browse forward
+    // to see an upcoming empty month, or back through old, unworked
+    // months, same as any ordinary calendar app). Only a wide sanity
+    // bound (10 years either way) to stop someone from scrolling forever
+    // by mistake.
+    var now = new Date();
     var thisKey = year * 12 + (month - 1);
-    document.getElementById('calendar-prev').disabled = thisKey <= range.min;
-    document.getElementById('calendar-next').disabled = thisKey >= range.max;
+    var todayKey = now.getFullYear() * 12 + now.getMonth();
+    document.getElementById('calendar-prev').disabled = thisKey <= todayKey - 120;
+    document.getElementById('calendar-next').disabled = thisKey >= todayKey + 120;
 
     // Every day in this month, across every client sheet, that has an
     // actual trip logged (same check used in Archivio).
