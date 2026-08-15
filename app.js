@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v104") {
+          if (data && data.v && data.v !== "pt-foglio-v105") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v104"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v105"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2739,27 +2739,43 @@
     var headers = {
       'Content-Type': 'application/json',
       'apikey': SUPABASE_ANON_KEY,
-      'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
-      'Prefer': 'resolution=merge-duplicates'
+      'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
     };
     state.sheets.forEach(function (sheet) {
       var kt = sheetKmAndTrips(sheet);
-      var row = {
-        device_id: deviceId,
-        month: sheet.month,
-        year: sheet.year,
-        client: (sheet.perContoDi || '').trim().toUpperCase() || '(nessuno)',
+      var client = (sheet.perContoDi || '').trim().toUpperCase() || '(nessuno)';
+      var payload = {
         total_km: kt.km || 0,
         giorni_count: kt.viaggi || 0,
         daily_rate: dailyRate,
         account_email: currentAccountEmail(),
         updated_at: new Date().toISOString()
       };
-      fetch(SUPABASE_URL + '/rest/v1/driver_sheets_summary', {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify(row)
-      }).catch(function () { /* offline or blocked — silently skip */ });
+      var filter = '?device_id=eq.' + encodeURIComponent(deviceId)
+        + '&month=eq.' + sheet.month + '&year=eq.' + sheet.year
+        + '&client=eq.' + encodeURIComponent(client);
+      // Same reasoning as reportActivity() — try updating the existing
+      // row first (filtered by the full primary key); a combined
+      // "upsert" request silently fails Postgres' row-level security
+      // check here, since phones can never read this table back.
+      fetch(SUPABASE_URL + '/rest/v1/driver_sheets_summary' + filter, {
+        method: 'PATCH',
+        headers: Object.assign({}, headers, { 'Prefer': 'return=representation' }),
+        body: JSON.stringify(payload)
+      }).then(function (res) { return res.json().catch(function () { return []; }); })
+        .then(function (updated) {
+          if (updated && updated.length > 0) return; // row existed, updated — done
+          payload.device_id = deviceId;
+          payload.month = sheet.month;
+          payload.year = sheet.year;
+          payload.client = client;
+          return fetch(SUPABASE_URL + '/rest/v1/driver_sheets_summary', {
+            method: 'POST',
+            headers: Object.assign({}, headers, { 'Prefer': 'return=minimal' }),
+            body: JSON.stringify(payload)
+          });
+        })
+        .catch(function () { /* offline or blocked — silently skip */ });
     });
   }
 
