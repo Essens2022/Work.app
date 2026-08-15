@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v98") {
+          if (data && data.v && data.v !== "pt-foglio-v99") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v98"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v99"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2793,6 +2793,19 @@
           danger: true,
           confirmLabel: 'Elimina tutto',
           onConfirm: function () {
+            // Free up the email on the server too, exactly like "Esci"
+            // does — otherwise it would stay "confirmed" there forever,
+            // even though every trace of it just got wiped locally,
+            // blocking this same person from ever registering it again
+            // if they decide to start over.
+            var emailToFree = currentAccountEmail();
+            if (emailToFree) {
+              fetch(SUPABASE_URL + '/functions/v1/delete-auth-account', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+                body: JSON.stringify({ email: emailToFree })
+              }).catch(function () { /* best-effort — local wipe still proceeds either way */ });
+            }
             try { localStorage.clear(); } catch (e) { /* ignore */ }
             window.location.reload();
           }
