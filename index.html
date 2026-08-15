@@ -162,6 +162,36 @@
     display:flex;align-items:center;justify-content:center;
   }
   .fuel-corner-btn:active{background:rgba(255,255,255,.26);}
+  .calendar-panel{
+    background:linear-gradient(180deg,rgba(10,10,11,.55) 0%,rgba(10,10,11,.88) 55%,rgba(10,10,11,.97) 100%),url('splash-hero.jpg') center 20%/cover no-repeat;
+    border-radius:20px;padding:20px 18px 22px;width:100%;max-width:340px;
+    box-shadow:0 20px 60px rgba(0,0,0,.4);position:relative;
+  }
+  .calendar-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .calendar-nav-title{font-size:16px;font-weight:800;color:#fff;text-transform:capitalize;}
+  .calendar-nav-btn{
+    width:32px;height:32px;border-radius:10px;border:none;background:rgba(255,255,255,.14);color:#fff;
+    font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  }
+  .calendar-nav-btn:disabled{opacity:.3;cursor:default;}
+  .calendar-weekdays{display:grid;grid-template-columns:repeat(7,1fr);text-align:center;margin-bottom:6px;}
+  .calendar-weekdays span{font-size:11px;font-weight:700;color:rgba(255,255,255,.55);}
+  .calendar-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
+  .calendar-day{
+    aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:50%;
+    font-size:13.5px;color:#fff;position:relative;cursor:pointer;background:none;border:none;
+  }
+  .calendar-day.empty{visibility:hidden;}
+  .calendar-day.has-entry{background:var(--accent);color:#fff;font-weight:700;}
+  .calendar-day.is-today:not(.has-entry){border:1.5px solid var(--accent);font-weight:700;}
+  .calendar-legend{display:flex;align-items:center;gap:8px;margin-top:16px;font-size:12px;color:rgba(255,255,255,.6);}
+  .calendar-legend-dot{width:10px;height:10px;border-radius:50%;background:var(--accent);flex-shrink:0;}
+  .calendar-corner-btn{
+    position:absolute;top:16px;right:62px;width:38px;height:38px;border-radius:12px;
+    background:rgba(255,255,255,.14);color:#fff;border:none;cursor:pointer;z-index:2;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .calendar-corner-btn:active{background:rgba(255,255,255,.26);}
   .active-card{
     background:linear-gradient(160deg,#1C1B1F 0%,#2B2A2F 100%);color:#fff;border:none;
     position:relative;overflow:hidden;
@@ -619,6 +649,24 @@
       <div class="pending-warning-box">Apri l'email e tocca il link per confermare — questa finestra si chiuderà da sola appena confermi. Non puoi chiuderla prima.</div>
       <button type="button" id="account-remind-pending-btn" class="btn btn-outline btn-sm">Invia di nuovo il link</button>
     </div>
+  </div>
+</div>
+
+<!-- Calendar modal — a real month grid, days with a completed entry
+     circled, with prev/next navigation across every month that has data. -->
+<div class="modal-overlay center" id="modal-calendar">
+  <div class="calendar-panel">
+    <button type="button" class="modal-close-x" id="calendar-close-x" aria-label="Chiudi">×</button>
+    <div class="calendar-nav">
+      <button type="button" class="calendar-nav-btn" id="calendar-prev" aria-label="Mese precedente">‹</button>
+      <div class="calendar-nav-title" id="calendar-title"></div>
+      <button type="button" class="calendar-nav-btn" id="calendar-next" aria-label="Mese successivo">›</button>
+    </div>
+    <div class="calendar-weekdays">
+      <span>L</span><span>M</span><span>M</span><span>G</span><span>V</span><span>S</span><span>D</span>
+    </div>
+    <div class="calendar-grid" id="calendar-grid"></div>
+    <div class="calendar-legend"><span class="calendar-legend-dot"></span>Giorno con viaggio registrato</div>
   </div>
 </div>
 

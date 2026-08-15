@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v111") {
+          if (data && data.v && data.v !== "pt-foglio-v112") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v111"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v112"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -508,7 +508,8 @@
       truck: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="6" width="14" height="11"/><path d="M15 10h4l3 3v4h-7z"/><circle cx="6" cy="19" r="1.6"/><circle cx="17.5" cy="19" r="1.6"/></svg>',
       route: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M5 8v4a4 4 0 0 0 4 4h6" stroke-dasharray="3 3"/></svg>',
       fuel: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="9" height="18" rx="1"/><rect x="6.3" y="5.5" width="4.4" height="4" rx="0.5"/><path d="M13 9h2.5l3 2.5v6.5a1.5 1.5 0 0 1-3 0v-3.5a1 1 0 0 0-1-1h-1.5"/></svg>',
-      share: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg>'
+      share: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg>',
+      calendar: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg>'
     };
     return icons[name] || '';
   }
@@ -545,6 +546,7 @@
     html += '<div class="card active-card"><div class="route-dashes"></div>';
     html += '<button class="fuel-corner-btn" id="home-fuel" aria-label="Scontrini carburante">' + svgIcon('fuel') + '</button>';
     html += '<span class="badge ' + (activeMonth ? '' : 'muted') + '">' + (activeMonth ? 'Mese attivo' : 'Mese archiviato') + '</span>';
+    html += '<button class="calendar-corner-btn" id="home-calendar" aria-label="Calendario">' + svgIcon('calendar') + '</button>';
     html += '<h2>' + MESI[sheet.month - 1] + ' ' + sheet.year;
     if (multiClient) html += ' <span class="multi-badge">' + monthSheets.length + ' clienti</span>';
     html += '</h2>';
@@ -618,6 +620,7 @@
     document.getElementById('home-continua').addEventListener('click', function () { showScreen('foglio'); });
     document.getElementById('home-pdf').addEventListener('click', function () { showScreen('pdf'); });
     document.getElementById('home-fuel').addEventListener('click', openFuelScreen);
+    document.getElementById('home-calendar').addEventListener('click', function () { openCalendarModal(sheet.month, sheet.year); });
     var jumpBtn = document.getElementById('home-jump-latest');
     if (jumpBtn) jumpBtn.addEventListener('click', function () {
       var latest = latestSheet();
@@ -720,6 +723,83 @@
       }
     }
   }
+
+  // Real calendar grid for a given month — every day, with a filled
+  // (has a real trip logged, checked across every client sheet that
+  // month, not just the currently-open one) day circled. Remembers which
+  // month is currently showing, so prev/next can step through any month
+  // that's ever had a sheet.
+  var calendarShowingMonth = null, calendarShowingYear = null;
+  function openCalendarModal(month, year) {
+    calendarShowingMonth = month; calendarShowingYear = year;
+    renderCalendarModal();
+    document.getElementById('modal-calendar').classList.add('open');
+  }
+  function calendarMonthRange() {
+    // The earliest/latest month that actually has a sheet — prev/next
+    // won't go further than that in either direction, since there's
+    // nothing meaningful to show past it.
+    var keys = state.sheets.map(function (s) { return s.year * 12 + (s.month - 1); });
+    if (!keys.length) {
+      var now = new Date();
+      return { min: now.getFullYear() * 12 + now.getMonth(), max: now.getFullYear() * 12 + now.getMonth() };
+    }
+    return { min: Math.min.apply(null, keys), max: Math.max.apply(null, keys) };
+  }
+  function renderCalendarModal() {
+    var month = calendarShowingMonth, year = calendarShowingYear;
+    document.getElementById('calendar-title').textContent = MESI[month - 1] + ' ' + year;
+
+    var range = calendarMonthRange();
+    var thisKey = year * 12 + (month - 1);
+    document.getElementById('calendar-prev').disabled = thisKey <= range.min;
+    document.getElementById('calendar-next').disabled = thisKey >= range.max;
+
+    // Every day in this month, across every client sheet, that has an
+    // actual trip logged (same check used in Archivio).
+    var filledDays = {};
+    state.sheets.forEach(function (s) {
+      if (s.month !== month || s.year !== year) return;
+      Object.keys(s.giorni).forEach(function (d) {
+        var g = s.giorni[d];
+        if (g && (g.a || g.kmFine !== "")) filledDays[Number(d)] = true;
+      });
+    });
+
+    var firstOfMonth = new Date(year, month - 1, 1);
+    var daysInMonth = new Date(year, month, 0).getDate();
+    // JS getDay(): 0=Sunday..6=Saturday — shifted so Monday is column 0,
+    // matching the "L M M G V S D" header already in the markup.
+    var startOffset = (firstOfMonth.getDay() + 6) % 7;
+    var today = new Date();
+    var isCurrentMonth = today.getFullYear() === year && (today.getMonth() + 1) === month;
+
+    var html = '';
+    for (var i = 0; i < startOffset; i++) html += '<div class="calendar-day empty"></div>';
+    for (var day = 1; day <= daysInMonth; day++) {
+      var classes = 'calendar-day';
+      if (filledDays[day]) classes += ' has-entry';
+      if (isCurrentMonth && today.getDate() === day) classes += ' is-today';
+      html += '<button type="button" class="' + classes + '">' + day + '</button>';
+    }
+    document.getElementById('calendar-grid').innerHTML = html;
+  }
+  document.getElementById('calendar-prev').addEventListener('click', function () {
+    calendarShowingMonth--;
+    if (calendarShowingMonth < 1) { calendarShowingMonth = 12; calendarShowingYear--; }
+    renderCalendarModal();
+  });
+  document.getElementById('calendar-next').addEventListener('click', function () {
+    calendarShowingMonth++;
+    if (calendarShowingMonth > 12) { calendarShowingMonth = 1; calendarShowingYear++; }
+    renderCalendarModal();
+  });
+  document.getElementById('calendar-close-x').addEventListener('click', function () {
+    document.getElementById('modal-calendar').classList.remove('open');
+  });
+  document.getElementById('modal-calendar').addEventListener('click', function (e) {
+    if (e.target === document.getElementById('modal-calendar')) document.getElementById('modal-calendar').classList.remove('open');
+  });
 
   function renderArchivio() {
     var el = document.getElementById('screen-archivio');
