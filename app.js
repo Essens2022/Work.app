@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v94") {
+          if (data && data.v && data.v !== "pt-foglio-v95") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v94"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v95"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2097,20 +2097,46 @@
     return 'Invio non riuscito — controlla la connessione e riprova';
   }
 
+  // Checks the server whether an email is ALREADY a confirmed account
+  // before letting someone "register" it here — this device isn't
+  // trying to log into an existing account (that's what the pending/
+  // confirmed states already handle), it's someone entering a fresh
+  // email for the first time, so an already-confirmed email at this
+  // exact point means either a mistake or an attempt to reuse someone
+  // else's address. Blocking it here keeps the eventual driver count
+  // accurate — one real email always maps to exactly one person.
+  function checkEmailAlreadyConfirmed(email) {
+    return fetch(SUPABASE_URL + '/functions/v1/check-email-confirmed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+      body: JSON.stringify({ email: email })
+    }).then(function (res) { return res.json(); })
+      .then(function (data) { return !!(data && data.confirmed); })
+      .catch(function () { return false; }); // can't tell — don't block on a network hiccup
+  }
+
   document.getElementById('account-send-btn').addEventListener('click', function () {
     var email = document.getElementById('in-account-email').value.trim();
     if (!email || email.indexOf('@') === -1) { toast('Inserisci un\'email valida'); return; }
     var btn = this;
     btn.disabled = true;
-    requestMagicLink(email)
-      .then(function () {
-        state.profile.pendingEmail = email;
-        saveProfile(state.profile);
-        toast('✓ Email inviata — controlla la tua posta');
-        renderEmailRequiredModal();
-      })
-      .catch(function (err) { toast(magicLinkErrorMessage(err)); })
-      .then(function () { btn.disabled = false; });
+    checkEmailAlreadyConfirmed(email)
+      .then(function (alreadyConfirmed) {
+        if (alreadyConfirmed) {
+          toast('Questa email è già registrata e confermata — usane un\'altra');
+          btn.disabled = false;
+          return;
+        }
+        requestMagicLink(email)
+          .then(function () {
+            state.profile.pendingEmail = email;
+            saveProfile(state.profile);
+            toast('✓ Email inviata — controlla la tua posta');
+            renderEmailRequiredModal();
+          })
+          .catch(function (err) { toast(magicLinkErrorMessage(err)); })
+          .then(function () { btn.disabled = false; });
+      });
   });
 
   // Renders the two possible states of the dedicated email modal: still
@@ -2156,12 +2182,30 @@
   });
 
   document.getElementById('account-logout-btn').addEventListener('click', function () {
-    logoutAccount();
-    state.profile.pendingEmail = '';
-    saveProfile(state.profile);
-    document.getElementById('settings-account-row').classList.add('hidden');
-    toast('Disconnesso');
-    openEmailRequiredModal();
+    var emailToDelete = currentAccountEmail();
+    var btn = this;
+    btn.disabled = true;
+    var cleanupLocal = function () {
+      logoutAccount();
+      state.profile.pendingEmail = '';
+      state.profile.emailConfirmed = false;
+      saveProfile(state.profile);
+      document.getElementById('settings-account-row').classList.add('hidden');
+      btn.disabled = false;
+      toast('Disconnesso');
+      openEmailRequiredModal();
+    };
+    if (!emailToDelete) { cleanupLocal(); return; }
+    // Actually remove the account server-side too, not just locally —
+    // otherwise this same email would stay permanently "confirmed" and
+    // could never be freely re-registered (by this person or, since
+    // emails must be unique in Supabase, by anyone else either).
+    fetch(SUPABASE_URL + '/functions/v1/delete-account-by-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+      body: JSON.stringify({ email: emailToDelete })
+    }).catch(function () { /* best-effort — still clean up locally either way */ })
+      .then(cleanupLocal);
   });
   document.getElementById('btn-settings').addEventListener('click', function () { openSettingsModal(null); });
   document.getElementById('settings-cancel').addEventListener('click', function () {
