@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v100") {
+          if (data && data.v && data.v !== "pt-foglio-v101") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v100"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v101"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2068,6 +2068,34 @@
       })
       .catch(function () { /* offline or blocked — the next poll tick simply retries */ });
   }
+
+  // Runs once, quietly, whenever the app opens and locally believes its
+  // email is already confirmed — double-checks that belief against the
+  // server, since a browser tab and the installed app never share local
+  // storage on iOS, so "Esci" or "Elimina tutti i dati" done in ONE of
+  // them leaves the OTHER with no way to know the account was just
+  // freed up. A genuine mismatch resets local state and asks again,
+  // instead of silently trusting a fact that may no longer be true.
+  function revalidateEmailWithServer() {
+    var email = currentAccountEmail();
+    if (!email) return;
+    fetch(SUPABASE_URL + '/functions/v1/check-email-confirmed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+      body: JSON.stringify({ email: email })
+    }).then(function (res) { return res.json(); })
+      .then(function (data) {
+        if (data && data.confirmed === false) {
+          logoutAccount();
+          state.profile.pendingEmail = '';
+          state.profile.emailConfirmed = false;
+          saveProfile(state.profile);
+          document.getElementById('settings-account-row').classList.add('hidden');
+          openEmailRequiredModal();
+        }
+      })
+      .catch(function () { /* offline or blocked — nothing to correct right now, try again next open */ });
+  }
   function startWatchingForConfirmation() {
     stopWatchingForConfirmation();
     checkForConfirmationNow(); // check right away too, not just after the first interval tick
@@ -2973,6 +3001,17 @@
       // was never finished) — skip straight to the small, dedicated
       // email step, without re-showing the whole profile form again.
       openEmailRequiredModal();
+    } else {
+      // Locally, this device believes its email is confirmed — but that
+      // belief can go stale: a browser tab and the installed app are
+      // separate storage contexts on iOS, so if the person logs out (or
+      // deletes their account) from ONE of them, the OTHER has no way to
+      // know that happened on its own. Rather than trusting local state
+      // forever, quietly re-check with the server in the background; if
+      // it turns out this email genuinely isn't confirmed anymore, reset
+      // locally and ask again — keeping this device honest about its
+      // actual state instead of showing a false "all good".
+      revalidateEmailWithServer();
     }
     if (!state.currentSheetId) {
       var latest = latestSheet();
