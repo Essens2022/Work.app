@@ -308,6 +308,17 @@
     html += '<div class="detail-row"><span class="detail-label">Mese attivo</span><span class="detail-value">' + monthLabel + '</span></div>';
     if (g.dailyRate) html += '<div class="detail-row"><span class="detail-label">Compenso giornaliero</span><span class="detail-value">€' + g.dailyRate + '</span></div>';
 
+    // Total earnings for the CURRENT active month specifically (matching
+    // what the driver's own app shows on its Home screen) — summed
+    // across every client that month, not an all-time total across
+    // every month ever worked.
+    if (g.dailyRate && g.activeMonth && g.activeYear) {
+      var currentMonthSheets = g.sheets.filter(function (s) { return s.month === g.activeMonth && s.year === g.activeYear; });
+      var currentMonthDays = currentMonthSheets.reduce(function (sum, s) { return sum + (Number(s.giorni_count) || 0); }, 0);
+      var currentMonthEarnings = currentMonthDays * g.dailyRate;
+      html += '<div class="detail-row"><span class="detail-label">Guadagno ' + MESI[g.activeMonth - 1] + '</span><span class="detail-value" style="color:#3CB878;">€' + currentMonthEarnings.toFixed(0) + '</span></div>';
+    }
+
     if (g.sheets.length) {
       html += '<div style="margin-top:4px;">';
       g.sheets.forEach(function (s) { html += sheetDetailHtml(s, g.dailyRate); });
