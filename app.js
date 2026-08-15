@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v97") {
+          if (data && data.v && data.v !== "pt-foglio-v98") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v97"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v98"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2520,6 +2520,19 @@
     var hash = window.location.hash;
     if (!hash || hash.indexOf('access_token') === -1) return;
     var params = new URLSearchParams(hash.replace(/^#/, ''));
+    // Supabase's own server-side redirect (Site URL / Redirect URLs
+    // settings) has proven unreliable to depend on — confirmations kept
+    // landing back here instead of the dedicated confirmation page, even
+    // with those settings verified correct on their end. Since this code
+    // runs regardless, catch it ourselves: if this is a fresh
+    // confirmation link, send the person straight to the proper page,
+    // carrying the same token along so nothing about the actual
+    // confirmation changes, just where it visually lands.
+    var type = params.get('type');
+    if (type === 'signup' || type === 'magiclink' || type === 'email') {
+      window.location.replace('email-confirmed.html' + window.location.hash);
+      return;
+    }
     var accessToken = params.get('access_token');
     var refreshToken = params.get('refresh_token');
     if (!accessToken) return;
