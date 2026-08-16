@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v158") {
+          if (data && data.v && data.v !== "pt-foglio-v159") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v158"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v159"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1028,6 +1028,7 @@
   ];
 
   var navMap = null, navRouteLayer = null;
+  var navLocateMarker = null; // "you are here" marker dropped by the standalone locate button, kept separate from the active-navigation position marker
   var navSearchFocusPoint = null; // driver's GPS position, cached once per Navigatore visit, used to bias/rank geocoding results toward nearby places first — without this, a generic query like "Via Roma 5" ranks results from anywhere in Italy with no sense of which one is actually relevant
 
   function renderNavigatore() {
@@ -1156,7 +1157,25 @@
       if (btn) btn.classList.toggle('on', navShowingSatellite);
     });
     document.getElementById('nav-locate-btn').addEventListener('click', function () {
-      currentPosition().then(function (p) { navMap.setView([p.lat, p.lon], 15); }).catch(function () { toast('Posizione non disponibile'); });
+      var btn = document.getElementById('nav-locate-btn');
+      btn.classList.add('on'); // immediate feedback that the tap registered — a GPS fix can genuinely take a few seconds, so without this the button looked like it was doing nothing
+      currentPosition()
+        .then(function (p) {
+          navMap.setView([p.lat, p.lon], 16, { animate: true });
+          // A visible "you are here" marker — previously this only
+          // panned the map, which (especially if already roughly
+          // nearby) could look like nothing happened at all.
+          if (navLocateMarker) navMap.removeLayer(navLocateMarker);
+          navLocateMarker = L.marker([p.lat, p.lon], {
+            icon: L.divIcon({
+              className: 'nav-locate-marker',
+              html: '<svg viewBox="0 0 60 60" width="26" height="26"><circle cx="30" cy="30" r="27" fill="#ffffff" stroke="#e4e8ef" stroke-width="2"/><circle cx="30" cy="30" r="10" fill="#6fa3ff"/><circle cx="30" cy="30" r="18" fill="#6fa3ff" fill-opacity="0.18"/></svg>',
+              iconSize: [26, 26], iconAnchor: [13, 13]
+            })
+          }).addTo(navMap);
+        })
+        .catch(function () { toast('Posizione non disponibile — verifica i permessi di localizzazione'); })
+        .then(function () { btn.classList.remove('on'); });
     });
 
     initNavMap();
@@ -1191,6 +1210,7 @@
     if (navMap) { navMap.remove(); navMap = null; }
     navWaypointMarkers = {}; // the old map instance (and any markers on it) is gone
     navRouteLayer = null;
+    navLocateMarker = null;
     // rotate:true / rotateControl:false / touchRotate:false — enables
     // real map rotation (leaflet-rotate plugin, vendored), but only
     // ever driven programmatically (setBearing, in
@@ -1813,7 +1833,14 @@
       navigator.geolocation.getCurrentPosition(
         function (pos) { resolve({ lon: pos.coords.longitude, lat: pos.coords.latitude, label: 'Posizione attuale' }); },
         function (err) { reject(err); },
-        { timeout: 8000 }
+        // Matches the settings already proven reliable elsewhere in
+        // the Navigator (requestNavLocationPermission, active-nav
+        // watchPosition) — the previous version here used neither
+        // enableHighAccuracy nor a realistic timeout, so it was
+        // meaningfully more likely to fail (or silently take too long)
+        // right when GPS genuinely needs a moment for a first fix —
+        // most likely why "la mia posizione" felt broken.
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
       );
     });
   }
