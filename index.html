@@ -481,6 +481,13 @@
   .warn-banner.show{display:block;}
 
   .autocomplete-wrap{position:relative;}
+  .ac-clear-btn{
+    position:absolute;right:8px;top:31px;width:26px;height:26px;border-radius:50%;border:none;
+    background:var(--surface-2);color:var(--ink-soft);font-size:13px;display:none;
+    align-items:center;justify-content:center;z-index:2;
+  }
+  .ac-clear-btn.show{display:flex;}
+  .field.autocomplete-wrap input{padding-right:36px;}
 
   .nav-checkbox-row{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--ink);margin-bottom:14px;}
   .nav-checkbox-row input{width:18px;height:18px;}
@@ -590,13 +597,27 @@
     transition:transform .3s ease;transform-origin:center center;
   }
   .nav-map-rotate-wrap .nav-map{width:100%;height:100%;}
+  /* 3D perspective wrapper — sits OUTSIDE the existing heading-rotation
+     wrapper. Purely a clipping/sizing container; the actual tilt
+     transform is applied by JS directly on nav-map-rotate-wrap (see
+     rotateNavMapToHeading), combined with the heading rotation in one
+     transform string, since an inline style always overrides a CSS
+     class rule and the two can't be split across two rules. */
+  .nav-map-tilt-wrap{width:100%;height:100%;overflow:hidden;}
+  .nav-map-wrap.nav-fullscreen .nav-map-tilt-wrap .nav-map-rotate-wrap{
+    transform-origin:50% 78%;
+  }
   /* Only while actively navigating (turn-by-turn) does the wrapper need
-     to be oversized — so that when it rotates to match the direction of
-     travel, the visible rectangle never shows an empty corner. Applied
-     only for that mode, not by default, or the map would render at an
-     absurd, offset size the rest of the time. */
+     to be oversized — so that when it rotates (and, now, tilts in 3D)
+     to match the direction of travel, the visible rectangle never
+     shows an empty corner. Applied only for that mode, not by default,
+     or the map would render at an absurd, offset size the rest of the
+     time. Sized noticeably bigger than the plain-2D-rotation case used
+     to need, since a 3D tilt reveals much more area toward the "far"
+     edge of the screen — this exact margin is a first estimate and
+     will likely need tuning once seen on a real device. */
   .nav-map-wrap.nav-fullscreen .nav-map-rotate-wrap{
-    position:absolute;top:-30%;left:-30%;width:160%;height:160%;
+    position:absolute;top:-80%;left:-80%;width:260%;height:260%;
   }
   .nav-recenter-btn{
     position:absolute;right:10px;bottom:170px;z-index:1000;width:44px;height:44px;border-radius:50%;
@@ -851,11 +872,13 @@
     <div class="field autocomplete-wrap">
       <label>🏠 Casa</label>
       <input type="text" id="hw-home-input" placeholder="Indirizzo di casa" autocomplete="off">
+      <button type="button" class="ac-clear-btn" id="hw-home-clear" aria-label="Cancella">✕</button>
       <div class="ac-list" id="hw-home-ac"></div>
     </div>
     <div class="field autocomplete-wrap" style="margin-top:10px;">
       <label>💼 Lavoro</label>
       <input type="text" id="hw-work-input" placeholder="Indirizzo di lavoro" autocomplete="off">
+      <button type="button" class="ac-clear-btn" id="hw-work-clear" aria-label="Cancella">✕</button>
       <div class="ac-list" id="hw-work-ac"></div>
     </div>
     <button type="button" class="btn btn-accent btn-block" id="nav-homework-save" style="margin-top:14px;">Salva</button>
