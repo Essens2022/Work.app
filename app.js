@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v125") {
+          if (data && data.v && data.v !== "pt-foglio-v127") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v125"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v127"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1000,14 +1000,18 @@
     html += '</div>';
     html += '</div>';
 
-    html += '<div class="card">';
+    html += '<div class="card" id="nav-waypoints-card">';
     html += '<div id="nav-waypoints-list"></div>';
     html += '<button type="button" class="nav-add-stop-btn" id="nav-add-stop">+ Aggiungi tappa</button>';
     html += '<button type="button" class="btn btn-accent btn-block" id="nav-calc-btn" style="margin-top:12px;">Calcola percorso</button>';
     html += '</div>';
 
     html += '<div id="nav-result" class="nav-result" style="display:none;"></div>';
-    html += '<div id="nav-map" class="nav-map"></div>';
+    html += '<div class="nav-map-wrap"><div id="nav-map" class="nav-map"></div>';
+    html += '<div id="nav-active-overlay" class="nav-active-overlay" style="display:none;">';
+    html += '<div class="nav-instruction-banner"><div class="nav-instruction-icon" id="nav-instr-icon">➜</div><div><div class="nav-instruction-text" id="nav-instr-text">—</div><div class="nav-instruction-dist" id="nav-instr-dist"></div></div></div>';
+    html += '<div class="nav-active-bottom"><div class="nav-active-stats"><b id="nav-active-eta"></b><span id="nav-active-remaining"></span></div><button type="button" class="nav-end-btn" id="nav-end-btn">Termina</button></div>';
+    html += '</div></div>';
 
     el.innerHTML = html;
     renderNavWaypointsList();
@@ -1049,9 +1053,13 @@
     navWaypointMarkers = {}; // the old map instance (and any markers on it) is gone
     navRouteLayer = null;
     navMap = L.map(mapEl).setView([45.4642, 9.19], 6); // centered on Northern Italy by default
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap',
-      maxZoom: 19
+    // CARTO's free "Voyager" style — light background, clear road/place
+    // labels, closer to the familiar look people already know from
+    // Google Maps than the plainer default OpenStreetMap tiles.
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      attribution: '© OpenStreetMap contributors © CARTO',
+      maxZoom: 20,
+      subdomains: 'abcd'
     }).addTo(navMap);
     navMap.on('click', function (e) {
       if (navPickingWaypointId) handleNavMapPick(e.latlng);
@@ -1408,6 +1416,7 @@
       // request for "don't leave the highway to save two minutes
       // through a village" — recommended, not steered by ETA alone.
       preference: 'recommended',
+      language: 'it',
       options: { profile_params: { restrictions: restrictions } }
     };
     // Alternatives only requested for a short (single-segment) trip —
@@ -1454,6 +1463,22 @@
     return { alternatives: [merged], origin: origin, dest: dest };
   }
 
+  // ORS's own warning messages come back in English, even when
+  // language:'it' is set for turn-by-turn instructions (that parameter
+  // covers step-by-step directions, not these route-level notices). A
+  // small, known-message translation table covers this — falling back
+  // to a plain, still-useful Italian sentence for anything unrecognized,
+  // rather than silently leaving English text on screen.
+  var NAV_WARNING_TRANSLATIONS = {
+    'There may be restrictions on some roads': 'Alcune strade potrebbero avere restrizioni non completamente verificate',
+    'This route may contain roads which are not suitable for the chosen mode of transport': 'Questo percorso potrebbe includere strade non adatte al veicolo scelto',
+    'This route contains steep hills, so please drive carefully': 'Il percorso include tratti in forte pendenza — guida con prudenza',
+    'The distance of this route may be smaller than expected due to internal simplifications': 'La distanza indicata potrebbe essere leggermente approssimata'
+  };
+  function translateNavWarning(message) {
+    return NAV_WARNING_TRANSLATIONS[message] || 'Attenzione: possibili restrizioni non completamente verificate su questo percorso';
+  }
+
   function displayNavRoute(routeResult) {
     displayNavRouteChoice(routeResult.alternatives, routeResult.points, 0);
   }
@@ -1468,7 +1493,7 @@
     var hours = Math.floor(minutes / 60);
     var mins = minutes % 60;
     var durationText = hours > 0 ? (hours + ' h ' + mins + ' min') : (mins + ' min');
-    var warnings = (feature.properties.warnings || []).map(function (w) { return w.message; });
+    var warnings = (feature.properties.warnings || []).map(function (w) { return translateNavWarning(w.message); });
 
     var resultEl = document.getElementById('nav-result');
     var html = '<div class="nav-result-stats"><div><b>' + km + ' km</b><span>distanza</span></div><div><b>' + durationText + '</b><span>tempo stimato</span></div></div>';
@@ -1482,11 +1507,13 @@
       });
       html += '</div>';
     }
+    html += '<button type="button" class="btn btn-accent btn-block nav-avvia-btn" id="nav-avvia-btn">▶ Avvia navigazione</button>';
     resultEl.innerHTML = html;
     resultEl.style.display = 'block';
     resultEl.querySelectorAll('.nav-alt-btn').forEach(function (btn) {
       btn.addEventListener('click', function () { displayNavRouteChoice(alternatives, points, Number(btn.getAttribute('data-alt'))); });
     });
+    document.getElementById('nav-avvia-btn').addEventListener('click', function () { startActiveNavigation(feature); });
 
     if (navRouteLayer) navMap.removeLayer(navRouteLayer);
     Object.keys(navWaypointMarkers).forEach(function (id) { navMap.removeLayer(navWaypointMarkers[id]); });
@@ -1502,6 +1529,110 @@
       if (wp) navWaypointMarkers[wp.id] = marker;
     });
     navMap.fitBounds(navRouteLayer.getBounds(), { padding: [24, 24] });
+  }
+
+  // Live, turn-by-turn active navigation — "Avvia navigazione" starts
+  // tracking the phone's real position continuously, keeps the map
+  // centered on it as it moves (same as Google Maps), and shows the
+  // current turn instruction as a banner, advancing automatically as
+  // each maneuver point is reached.
+  var navWatchId = null;
+  var navActiveSteps = null; // flattened list of {instruction, coordLat, coordLon, distanceFromStart}
+  var navActiveStepIndex = 0;
+  var navPositionMarker = null;
+  var navActiveFeature = null;
+
+  // ORS's numeric maneuver "type" codes, mapped to a simple directional
+  // glyph for the instruction banner.
+  var NAV_TURN_ICONS = {
+    0: '⬅', 1: '➡', 2: '⬉', 3: '⬈', 4: '⬋', 5: '⬊', 6: '⬆', 7: '↩', 8: '↩', 10: '🏁', 11: '🔄'
+  };
+
+  function startActiveNavigation(feature) {
+    navActiveFeature = feature;
+    var coords = feature.geometry.coordinates; // [lon, lat] pairs along the whole route
+    var segments = feature.properties.segments || [];
+    navActiveSteps = [];
+    segments.forEach(function (seg) {
+      (seg.steps || []).forEach(function (step) {
+        var wp = step.way_points[0];
+        var c = coords[wp];
+        if (c) navActiveSteps.push({ instruction: step.instruction, type: step.type, lat: c[1], lon: c[0] });
+      });
+    });
+    navActiveStepIndex = 0;
+
+    if (!navigator.geolocation) { toast('Il GPS non è disponibile su questo dispositivo'); return; }
+
+    document.getElementById('nav-active-overlay').style.display = 'flex';
+    document.querySelector('.nav-vehicle-card').style.display = 'none';
+    document.getElementById('nav-waypoints-card').style.display = 'none';
+    document.getElementById('nav-result').style.display = 'none';
+
+    updateActiveInstructionBanner();
+
+    navWatchId = navigator.geolocation.watchPosition(
+      onActiveNavPosition,
+      function () { /* GPS signal lost momentarily — keep the last known instruction visible rather than clearing it */ },
+      { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
+    );
+
+    document.getElementById('nav-end-btn').addEventListener('click', stopActiveNavigation);
+  }
+
+  function onActiveNavPosition(position) {
+    var lat = position.coords.latitude, lon = position.coords.longitude;
+    var heading = position.coords.heading;
+
+    if (navPositionMarker) navMap.removeLayer(navPositionMarker);
+    navPositionMarker = L.circleMarker([lat, lon], {
+      radius: 9, color: '#fff', weight: 3, fillColor: '#4285F4', fillOpacity: 1
+    }).addTo(navMap);
+    navMap.setView([lat, lon], 17, { animate: true });
+
+    // Advance through steps as each maneuver point is reached (within
+    // ~40m — GPS on a phone isn't precise enough to require reaching
+    // the exact point). The very first instruction is always shown as
+    // step 0 initially — the route naturally starts right at that same
+    // point, so this only starts checking distance from step 1 onward,
+    // rather than skipping straight past the first instruction before
+    // the person ever sees it.
+    while (navActiveStepIndex < navActiveSteps.length - 1) {
+      var nextStep = navActiveSteps[navActiveStepIndex + 1];
+      var distToNextStep = haversineKm({ lat: lat, lon: lon }, { lat: nextStep.lat, lon: nextStep.lon }) * 1000;
+      var currentStep = navActiveSteps[navActiveStepIndex];
+      var distToCurrentStep = haversineKm({ lat: lat, lon: lon }, { lat: currentStep.lat, lon: currentStep.lon }) * 1000;
+      // Only advance once genuinely closer to the NEXT maneuver than to
+      // the current one — not just "near the current step's own point",
+      // which is trivially true at the very start of the route.
+      if (distToNextStep < 40 && distToNextStep < distToCurrentStep) { navActiveStepIndex++; } else { break; }
+    }
+    updateActiveInstructionBanner(lat, lon);
+  }
+
+  function updateActiveInstructionBanner(lat, lon) {
+    var step = navActiveSteps[navActiveStepIndex];
+    if (!step) return;
+    document.getElementById('nav-instr-icon').textContent = NAV_TURN_ICONS[step.type] || '➜';
+    document.getElementById('nav-instr-text').textContent = step.instruction;
+    if (lat != null) {
+      var distM = haversineKm({ lat: lat, lon: lon }, { lat: step.lat, lon: step.lon }) * 1000;
+      document.getElementById('nav-instr-dist').textContent = distM < 1000 ? Math.round(distM) + ' m' : (distM / 1000).toFixed(1) + ' km';
+    }
+    var props = navActiveFeature.properties.summary;
+    var minutes = Math.round(props.duration / 60);
+    var hours = Math.floor(minutes / 60), mins = minutes % 60;
+    document.getElementById('nav-active-eta').textContent = (hours > 0 ? hours + ' h ' : '') + mins + ' min';
+    document.getElementById('nav-active-remaining').textContent = (props.distance / 1000).toFixed(1) + ' km totali';
+  }
+
+  function stopActiveNavigation() {
+    if (navWatchId != null) { navigator.geolocation.clearWatch(navWatchId); navWatchId = null; }
+    if (navPositionMarker) { navMap.removeLayer(navPositionMarker); navPositionMarker = null; }
+    document.getElementById('nav-active-overlay').style.display = 'none';
+    document.querySelector('.nav-vehicle-card').style.display = '';
+    document.getElementById('nav-waypoints-card').style.display = '';
+    if (navActiveFeature) navMap.fitBounds(navRouteLayer.getBounds(), { padding: [24, 24] });
   }
 
   function renderPdfScreen() {
