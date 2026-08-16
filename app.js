@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v122") {
+          if (data && data.v && data.v !== "pt-foglio-v123") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,11 +66,12 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v122"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v123"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
   var LS_FUEL = "pt_fuel_v1"; // fuel receipts, keyed by month — independent of any client sheet
+  var LS_VEHICLE = "pt_vehicle_v1"; // commercial-vehicle dimensions/weight, used by the Navigatore for restriction-aware routing
 
   var MESI = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
     "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
@@ -105,6 +106,14 @@
     });
   }
   function saveProfile(p) { saveJSON(LS_PROFILE, p); }
+
+  function loadVehicle() {
+    return loadJSON(LS_VEHICLE, {
+      tipo: "furgone", altezza: "", larghezza: "", lunghezza: "",
+      massa: "", massaAssi: "", rimorchio: false, classeEmissioni: ""
+    });
+  }
+  function saveVehicle(v) { saveJSON(LS_VEHICLE, v); }
 
   function loadSheets() { return loadJSON(LS_SHEETS, []); }
   function saveSheets(arr) { saveJSON(LS_SHEETS, arr); }
@@ -149,6 +158,7 @@
     profile: loadProfile(),
     sheets: loadSheets(),
     fuel: loadFuel(),
+    vehicle: loadVehicle(),
     currentSheetId: getCurrentSheetId(),
     editingDay: null,
     acResults: []
@@ -484,7 +494,7 @@
 
   function showScreen(name) {
     currentScreen = name;
-    ['home', 'foglio', 'archivio', 'pdf'].forEach(function (n) {
+    ['home', 'foglio', 'archivio', 'pdf', 'navigatore'].forEach(function (n) {
       document.getElementById('screen-' + n).classList.toggle('active', n === name);
     });
     document.querySelectorAll('.navbtn[data-nav]').forEach(function (b) {
@@ -515,6 +525,7 @@
     else if (currentScreen === 'foglio') renderFoglio();
     else if (currentScreen === 'archivio') renderArchivio();
     else if (currentScreen === 'pdf') renderPdfScreen();
+    else if (currentScreen === 'navigatore') renderNavigatore();
   }
 
   function svgIcon(name) {
@@ -938,6 +949,226 @@
     pdfLibsPromise = loadScript('vendor/jspdf.umd.min.js')
       .then(function () { return loadScript('vendor/jspdf.plugin.autotable.min.js'); });
     return pdfLibsPromise;
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Navigatore — commercial-vehicle-aware routing                     */
+  /* ---------------------------------------------------------------- */
+  // Uses OpenRouteService (openrouteservice.org) — a free, open routing
+  // service with a dedicated "driving-hgv" (heavy goods vehicle) profile
+  // that actually understands truck-specific restrictions (height,
+  // width, length, weight, axle load), not just car routing. Needs a
+  // free API key (no payment method required) — set below once ION has
+  // registered one at openrouteservice.org/dev/#/signup.
+  var ORS_API_KEY = ""; // TODO: incolla qui la chiave gratuita da openrouteservice.org
+
+  var TIPO_VEICOLO_OPTS = [
+    { v: 'furgone', l: 'Furgone' },
+    { v: 'cassonato', l: 'Cassonato' },
+    { v: 'camion', l: 'Camion' },
+    { v: 'autoarticolato', l: 'Autoarticolato' }
+  ];
+
+  var navMap = null, navRouteLayer = null, navMarkerA = null, navMarkerB = null;
+
+  function renderNavigatore() {
+    var el = document.getElementById('screen-navigatore');
+    var v = state.vehicle;
+    var html = '';
+    html += '<div class="nav-header"><h2>Navigatore</h2><p class="nav-sub">Percorso calcolato in base alle dimensioni del tuo veicolo — evita, dove i dati lo consentono, ponti bassi, strade troppo strette o con limiti di peso.</p></div>';
+
+    html += '<div class="card nav-vehicle-card">';
+    html += '<div class="nav-vehicle-toggle" id="nav-vehicle-toggle"><span>🚛 Il tuo veicolo</span><span id="nav-vehicle-chevron">' + (vehicleIsConfigured(v) ? '✓ configurato' : 'da configurare ›') + '</span></div>';
+    html += '<div class="nav-vehicle-form" id="nav-vehicle-form" style="display:' + (vehicleIsConfigured(v) ? 'none' : 'block') + ';">';
+    html += '<div class="field"><label>Tipo veicolo</label><select id="veh-tipo">';
+    TIPO_VEICOLO_OPTS.forEach(function (o) { html += '<option value="' + o.v + '"' + (v.tipo === o.v ? ' selected' : '') + '>' + o.l + '</option>'; });
+    html += '</select></div>';
+    html += '<div class="field-row">';
+    html += '<div class="field"><label>Altezza (m)</label><input type="number" step="0.1" id="veh-altezza" value="' + escapeHtml(v.altezza) + '" placeholder="es. 3.5"></div>';
+    html += '<div class="field"><label>Larghezza (m)</label><input type="number" step="0.1" id="veh-larghezza" value="' + escapeHtml(v.larghezza) + '" placeholder="es. 2.3"></div>';
+    html += '</div>';
+    html += '<div class="field-row">';
+    html += '<div class="field"><label>Lunghezza (m)</label><input type="number" step="0.1" id="veh-lunghezza" value="' + escapeHtml(v.lunghezza) + '" placeholder="es. 8"></div>';
+    html += '<div class="field"><label>Massa totale (t)</label><input type="number" step="0.1" id="veh-massa" value="' + escapeHtml(v.massa) + '" placeholder="es. 12"></div>';
+    html += '</div>';
+    html += '<div class="field-row">';
+    html += '<div class="field"><label>Massa per asse (t)</label><input type="number" step="0.1" id="veh-massaAssi" value="' + escapeHtml(v.massaAssi) + '" placeholder="opzionale"></div>';
+    html += '<div class="field"><label>Classe emissioni</label><input type="text" id="veh-classeEmissioni" value="' + escapeHtml(v.classeEmissioni) + '" placeholder="es. Euro 6"></div>';
+    html += '</div>';
+    html += '<label class="nav-checkbox-row"><input type="checkbox" id="veh-rimorchio"' + (v.rimorchio ? ' checked' : '') + '> Con rimorchio</label>';
+    html += '<button type="button" class="btn btn-accent btn-block" id="nav-vehicle-save">Salva veicolo</button>';
+    html += '</div>';
+    html += '</div>';
+
+    html += '<div class="card">';
+    html += '<div class="field"><label>Partenza</label><input type="text" id="nav-origin" placeholder="Indirizzo, o lascia vuoto per la posizione attuale"></div>';
+    html += '<div class="field"><label>Destinazione</label><input type="text" id="nav-dest" placeholder="Indirizzo di destinazione"></div>';
+    html += '<button type="button" class="btn btn-accent btn-block" id="nav-calc-btn">Calcola percorso</button>';
+    html += '</div>';
+
+    html += '<div id="nav-result" class="nav-result" style="display:none;"></div>';
+    html += '<div id="nav-map" class="nav-map"></div>';
+
+    el.innerHTML = html;
+
+    document.getElementById('nav-vehicle-toggle').addEventListener('click', function () {
+      var form = document.getElementById('nav-vehicle-form');
+      form.style.display = (form.style.display === 'none') ? 'block' : 'none';
+    });
+    document.getElementById('nav-vehicle-save').addEventListener('click', function () {
+      state.vehicle = {
+        tipo: document.getElementById('veh-tipo').value,
+        altezza: document.getElementById('veh-altezza').value,
+        larghezza: document.getElementById('veh-larghezza').value,
+        lunghezza: document.getElementById('veh-lunghezza').value,
+        massa: document.getElementById('veh-massa').value,
+        massaAssi: document.getElementById('veh-massaAssi').value,
+        rimorchio: document.getElementById('veh-rimorchio').checked,
+        classeEmissioni: document.getElementById('veh-classeEmissioni').value
+      };
+      saveVehicle(state.vehicle);
+      toast('Veicolo salvato');
+      document.getElementById('nav-vehicle-form').style.display = 'none';
+      document.getElementById('nav-vehicle-chevron').textContent = '✓ configurato';
+    });
+    document.getElementById('nav-calc-btn').addEventListener('click', calculateNavRoute);
+
+    initNavMap();
+  }
+
+  function vehicleIsConfigured(v) {
+    return !!(v.altezza && v.larghezza && v.lunghezza && v.massa);
+  }
+
+  function initNavMap() {
+    var mapEl = document.getElementById('nav-map');
+    if (!mapEl || typeof L === 'undefined') return;
+    if (navMap) { navMap.remove(); navMap = null; }
+    navMap = L.map(mapEl).setView([45.4642, 9.19], 6); // centered on Northern Italy by default
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap',
+      maxZoom: 19
+    }).addTo(navMap);
+  }
+
+  function geocodeAddress(text) {
+    if (!text || !text.trim()) return Promise.resolve(null);
+    return fetch('https://api.openrouteservice.org/geocode/search?api_key=' + encodeURIComponent(ORS_API_KEY) + '&text=' + encodeURIComponent(text) + '&size=1')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data.features || !data.features.length) return null;
+        var coords = data.features[0].geometry.coordinates; // [lon, lat]
+        return { lon: coords[0], lat: coords[1], label: data.features[0].properties.label };
+      });
+  }
+
+  function currentPosition() {
+    return new Promise(function (resolve, reject) {
+      if (!navigator.geolocation) { reject(new Error('no geolocation')); return; }
+      navigator.geolocation.getCurrentPosition(
+        function (pos) { resolve({ lon: pos.coords.longitude, lat: pos.coords.latitude, label: 'Posizione attuale' }); },
+        function (err) { reject(err); },
+        { timeout: 8000 }
+      );
+    });
+  }
+
+  function calculateNavRoute() {
+    if (!ORS_API_KEY) {
+      toast('Manca la chiave API di OpenRouteService — da configurare');
+      return;
+    }
+    var v = state.vehicle;
+    if (!vehicleIsConfigured(v)) {
+      toast('Configura prima le dimensioni del veicolo');
+      document.getElementById('nav-vehicle-form').style.display = 'block';
+      return;
+    }
+    var originText = document.getElementById('nav-origin').value;
+    var destText = document.getElementById('nav-dest').value;
+    if (!destText || !destText.trim()) { toast('Inserisci una destinazione'); return; }
+
+    var btn = document.getElementById('nav-calc-btn');
+    btn.disabled = true; btn.textContent = 'Calcolo in corso…';
+
+    var originPromise = originText.trim() ? geocodeAddress(originText) : currentPosition().catch(function () { return null; });
+
+    Promise.all([originPromise, geocodeAddress(destText)])
+      .then(function (results) {
+        var origin = results[0], dest = results[1];
+        if (!origin) throw new Error('Impossibile trovare il punto di partenza');
+        if (!dest) throw new Error('Impossibile trovare la destinazione');
+        return fetchTruckRoute(origin, dest);
+      })
+      .then(function (route) {
+        displayNavRoute(route);
+      })
+      .catch(function (err) {
+        console.error(err);
+        toast(err.message || 'Impossibile calcolare il percorso');
+      })
+      .then(function () {
+        btn.disabled = false; btn.textContent = 'Calcola percorso';
+      });
+  }
+
+  function fetchTruckRoute(origin, dest) {
+    var v = state.vehicle;
+    var restrictions = {
+      height: Number(v.altezza) || undefined,
+      width: Number(v.larghezza) || undefined,
+      length: Number(v.lunghezza) || undefined,
+      weight: Number(v.massa) || undefined
+    };
+    if (v.massaAssi) restrictions.axleload = Number(v.massaAssi);
+    var body = {
+      coordinates: [[origin.lon, origin.lat], [dest.lon, dest.lat]],
+      // Prefer highways/major roads when reasonable, matching the
+      // request for "don't leave the highway to save two minutes
+      // through a village" — recommended, not steered by ETA alone.
+      preference: 'recommended',
+      options: { profile_params: { restrictions: restrictions } }
+    };
+    return fetch('https://api.openrouteservice.org/v2/directions/driving-hgv/geojson', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': ORS_API_KEY },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      if (!r.ok) return r.json().then(function (e) { throw new Error(e.error && e.error.message ? e.error.message : 'Errore nel calcolo del percorso'); });
+      return r.json();
+    }).then(function (geojson) {
+      var feature = geojson.features && geojson.features[0];
+      if (!feature) throw new Error('Nessun percorso trovato per questo veicolo');
+      return { geojson: feature, origin: origin, dest: dest };
+    });
+  }
+
+  function displayNavRoute(route) {
+    var props = route.geojson.properties.summary;
+    var km = (props.distance / 1000).toFixed(1);
+    var minutes = Math.round(props.duration / 60);
+    var hours = Math.floor(minutes / 60);
+    var mins = minutes % 60;
+    var durationText = hours > 0 ? (hours + ' h ' + mins + ' min') : (mins + ' min');
+
+    var warnings = (route.geojson.properties.warnings || []).map(function (w) { return w.message; });
+
+    var resultEl = document.getElementById('nav-result');
+    var html = '<div class="nav-result-stats"><div><b>' + km + ' km</b><span>distanza</span></div><div><b>' + durationText + '</b><span>tempo stimato</span></div></div>';
+    if (warnings.length) {
+      html += '<div class="nav-warning-box">⚠️ ' + warnings.join('<br>') + '</div>';
+    }
+    resultEl.innerHTML = html;
+    resultEl.style.display = 'block';
+
+    if (navRouteLayer) navMap.removeLayer(navRouteLayer);
+    if (navMarkerA) navMap.removeLayer(navMarkerA);
+    if (navMarkerB) navMap.removeLayer(navMarkerB);
+
+    navRouteLayer = L.geoJSON(route.geojson, { style: { color: '#E8542B', weight: 5 } }).addTo(navMap);
+    navMarkerA = L.marker([route.origin.lat, route.origin.lon]).addTo(navMap).bindPopup('Partenza');
+    navMarkerB = L.marker([route.dest.lat, route.dest.lon]).addTo(navMap).bindPopup('Destinazione');
+    navMap.fitBounds(navRouteLayer.getBounds(), { padding: [24, 24] });
   }
 
   function renderPdfScreen() {
@@ -2442,6 +2673,7 @@
     });
   });
   document.getElementById('btn-settings').addEventListener('click', function () { openSettingsModal(null); });
+  document.getElementById('btn-navigatore').addEventListener('click', function () { showScreen('navigatore'); });
   document.getElementById('settings-cancel').addEventListener('click', function () {
     if (!state.profile.nome && !settingsTargetSheet) return; // force first-run completion
     settingsModal.classList.remove('open');
