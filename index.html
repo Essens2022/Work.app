@@ -521,6 +521,10 @@
     font-size:12.5px;font-weight:600;line-height:1.5;box-shadow:0 4px 14px rgba(0,0,0,.15);
   }
   .nav-location-banner-loading{background:var(--surface);color:var(--ink-soft);border:1px solid var(--line);}
+  .nav-unlock-guide-btn{display:block;margin-top:8px;background:none;border:none;color:var(--danger);font-weight:800;font-size:12.5px;text-decoration:underline;padding:0;}
+  .nav-unlock-modal-inner{background:var(--surface);border-radius:var(--radius-lg);padding:22px;max-width:340px;width:calc(100% - 32px);}
+  .nav-unlock-steps{margin:14px 0 20px;padding-left:20px;}
+  .nav-unlock-steps li{font-size:14px;line-height:1.6;margin-bottom:10px;color:var(--ink);}
   .nav-search-bar{
     position:absolute;top:calc(10px + env(safe-area-inset-top));left:10px;right:10px;z-index:1000;
     background:#fff;border-radius:100px;padding:12px 8px 12px 18px;
@@ -799,6 +803,13 @@
     <button type="button" class="btn btn-accent btn-block" id="nav-vehicle-save">Salva veicolo</button>
   </div>
 </div>
+
+<!-- Location-unlock guide — platform-specific step-by-step, shown when
+     the browser has this site's location permission blocked. No code
+     on any website can re-trigger that native prompt once denied
+     (every browser blocks this deliberately) — the point of this guide
+     is just skipping the hunting through unfamiliar settings menus. -->
+<div class="modal-overlay center" id="modal-nav-unlock-guide"></div>
 
 <!-- PDF viewer — our own, page-by-page canvas rendering (PDF.js),
      instead of relying on the phone's native PDF handling, which is
