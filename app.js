@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v133") {
+          if (data && data.v && data.v !== "pt-foglio-v134") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v133"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v134"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1402,7 +1402,7 @@
         // the person still deserves to see SOMETHING rather than
         // silence, so every case gets a clear, distinct message.
         if (err.code === 1) {
-          showNavLocationBanner('Posizione non attiva — per navigare, consenti l\'accesso alla posizione nelle impostazioni del telefono per questo sito.');
+          showNavLocationBanner('Posizione bloccata per questo sito.', false, true);
         } else if (err.code === 3) {
           showNavLocationBanner('Ricerca della posizione ancora in corso — può richiedere più tempo la prima volta, specialmente al chiuso.');
         } else {
@@ -1413,7 +1413,7 @@
     );
   }
 
-  function showNavLocationBanner(message, isLoading) {
+  function showNavLocationBanner(message, isLoading, showUnlockGuide) {
     var mapWrap = document.querySelector('.nav-map-wrap');
     if (!mapWrap) return;
     var existing = document.getElementById('nav-location-banner');
@@ -1422,7 +1422,47 @@
     banner.id = 'nav-location-banner';
     banner.className = 'nav-location-banner' + (isLoading ? ' nav-location-banner-loading' : '');
     banner.textContent = message;
+    if (showUnlockGuide) {
+      var guideBtn = document.createElement('button');
+      guideBtn.type = 'button';
+      guideBtn.className = 'nav-unlock-guide-btn';
+      guideBtn.textContent = 'Come sbloccarla →';
+      guideBtn.addEventListener('click', openNavLocationUnlockGuide);
+      banner.appendChild(guideBtn);
+    }
     mapWrap.appendChild(banner);
+  }
+
+  // A site that's been denied once can't be re-prompted by any code on
+  // any website — every browser blocks that deliberately. What actually
+  // saves time here is skipping the hunting: platform-specific, exact
+  // steps, shown the moment they're needed, so it's a couple of taps to
+  // follow rather than a search through unfamiliar settings menus.
+  function openNavLocationUnlockGuide() {
+    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    var steps = isIOS ? [
+      'Apri "Impostazioni" sul telefono (l\'app grigia con l\'ingranaggio).',
+      'Scorri e tocca "Safari".',
+      'Tocca "Posizione".',
+      'Scegli "Consenti" (o "Chiedi").',
+      'Torna qui e ricarica la pagina.'
+    ] : [
+      'Tocca l\'icona 🔒 (o "ⓘ") accanto all\'indirizzo, in alto.',
+      'Tocca "Autorizzazioni" o "Permessi".',
+      'Tocca "Posizione".',
+      'Scegli "Consenti".',
+      'Torna qui e ricarica la pagina.'
+    ];
+    var html = '<div class="nav-unlock-modal-inner">';
+    html += '<div class="modal-title">Sblocca la posizione</div>';
+    html += '<div class="modal-sub">' + (isIOS ? 'Su iPhone' : 'Su Android') + ', in pochi passaggi:</div>';
+    html += '<ol class="nav-unlock-steps">' + steps.map(function (s) { return '<li>' + escapeHtml(s) + '</li>'; }).join('') + '</ol>';
+    html += '<button type="button" class="btn btn-accent btn-block" id="nav-unlock-guide-close">Ho capito</button>';
+    html += '</div>';
+    var modal = document.getElementById('modal-nav-unlock-guide');
+    modal.innerHTML = html;
+    modal.classList.add('open');
+    document.getElementById('nav-unlock-guide-close').addEventListener('click', function () { modal.classList.remove('open'); });
   }
   function hideNavLocationBanner() {
     var existing = document.getElementById('nav-location-banner');
