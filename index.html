@@ -564,7 +564,12 @@
     position:absolute;top:calc(70px + env(safe-area-inset-top));left:10px;right:10px;z-index:1001;max-height:70%;overflow-y:auto;
     background:#fff;border-radius:var(--radius-lg);padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.2);
   }
-  .nav-float-controls{position:absolute;right:10px;bottom:110px;z-index:1000;display:flex;flex-direction:column;gap:10px;}
+  /* Bumped well above the old 110px — the result card underneath
+     (distance/tempo/alternatives/Avvia, easily 180-220px tall once a
+     route with alternatives is shown) was tall enough to sit on top of
+     these buttons at the old offset, not the app's own bottom nav bar
+     (that's already excluded via nav-map-wrap's own height). */
+  .nav-float-controls{position:absolute;right:10px;bottom:230px;z-index:1000;display:flex;flex-direction:column;gap:10px;}
   .nav-float-btn{
     width:44px;height:44px;border-radius:50%;border:none;background:#fff;font-size:18px;
     box-shadow:0 2px 8px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;
@@ -592,16 +597,14 @@
   .nav-instruction-text{font-size:13.5px;font-weight:600;color:rgba(255,255,255,.85);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .nav-active-float-controls{position:absolute;right:10px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:10px;}
   /* Small dark pill showing the driver's real current bearing as a
-     letter (N/NE/E…) — same reading as the bearing badge in Google
-     Maps/CarPlay navigation. Doubles as the north-up toggle button;
-     "active" (north-up engaged) gets a subtle accent ring so it's
-     clear the mode is on. */
+     letter (N/NE/E…) — purely informational, not a button (an earlier
+     version doubled it as a north-up toggle; removed as more
+     confusing than useful — see rotateNavMapToHeading). */
   .nav-compass-badge{
-    pointer-events:auto;width:40px;height:32px;border-radius:10px;border:none;background:#1C1B1F;color:#fff;
+    pointer-events:none;width:40px;height:32px;border-radius:10px;border:none;background:#1C1B1F;color:#fff;
     font-weight:800;font-size:12.5px;display:flex;align-items:center;justify-content:center;
     box-shadow:0 2px 8px rgba(0,0,0,.3);
   }
-  .nav-compass-badge.active{box-shadow:0 0 0 2px var(--accent),0 2px 8px rgba(0,0,0,.3);}
   .nav-speed-badge{
     position:absolute;left:10px;bottom:110px;z-index:1000;pointer-events:none;
     width:58px;height:58px;border-radius:50%;background:#fff;border:3px solid #1C1B1F;
