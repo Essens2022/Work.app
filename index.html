@@ -474,16 +474,16 @@
 
   .autocomplete-wrap{position:relative;}
 
-  .nav-header{margin-bottom:16px;}
-  .nav-header h2{font-size:20px;font-weight:800;margin-bottom:4px;}
-  .nav-sub{font-size:13px;color:var(--ink-soft);line-height:1.5;}
-  .nav-vehicle-card{margin-bottom:14px;padding:16px;}
-  .nav-vehicle-toggle{display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-weight:700;font-size:14.5px;}
-  .nav-vehicle-toggle span:last-child{font-size:12.5px;color:var(--ink-soft);font-weight:600;}
-  .nav-vehicle-form{margin-top:14px;}
+  .nav-topbar-compact{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .nav-topbar-compact h2{font-size:19px;font-weight:800;}
+  .nav-gear-btn{width:38px;height:38px;border-radius:12px;border:1px solid var(--line);background:var(--surface);font-size:17px;}
   .nav-checkbox-row{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--ink);margin-bottom:14px;}
   .nav-checkbox-row input{width:18px;height:18px;}
-  .nav-result{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:16px;margin:14px 0;}
+  .nav-result{
+    position:absolute;left:10px;right:10px;bottom:10px;z-index:15;
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:16px;
+    box-shadow:0 10px 30px rgba(0,0,0,.18);
+  }
   .nav-result-stats{display:flex;gap:24px;}
   .nav-result-stats div{display:flex;flex-direction:column;}
   .nav-result-stats b{font-size:18px;font-weight:800;}
@@ -492,9 +492,37 @@
   .nav-alt-row{display:flex;gap:8px;margin-top:12px;overflow-x:auto;padding-bottom:2px;}
   .nav-alt-btn{flex-shrink:0;padding:8px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);font-size:12px;font-weight:700;color:var(--ink);white-space:nowrap;}
   .nav-alt-btn.active{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);}
-  .nav-map{width:100%;height:340px;border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--line);}
-  .nav-map-wrap{position:relative;}
-  .nav-active-overlay{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none;padding:10px;}
+
+  /* The map fills almost the whole screen, like opening Google Maps —
+     not a small card among several other cards. */
+  .nav-map-wrap{position:relative;height:calc(100vh - var(--topbar-h, 70px) - 130px);min-height:420px;border-radius:var(--radius-lg);overflow:hidden;}
+  .nav-map{width:100%;height:100%;}
+  .nav-map.picking{cursor:crosshair;box-shadow:inset 0 0 0 3px var(--accent);}
+  /* True fullscreen during active navigation — escapes the app's own
+     top bar / bottom nav entirely, same as Google Maps taking over the
+     whole screen once you hit "Avvia". */
+  .nav-map-wrap.nav-fullscreen{
+    position:fixed;inset:0;z-index:200;height:100vh;border-radius:0;
+  }
+
+  .nav-search-bar{
+    position:absolute;top:10px;left:10px;right:10px;z-index:15;
+    background:var(--surface);border-radius:100px;padding:13px 16px;
+    display:flex;align-items:center;gap:10px;box-shadow:0 6px 18px rgba(0,0,0,.15);
+    font-size:14.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;
+  }
+  .nav-search-icon{font-size:15px;}
+  .nav-search-panel{
+    position:absolute;top:60px;left:10px;right:10px;z-index:16;max-height:70%;overflow-y:auto;
+    background:var(--surface);border-radius:var(--radius-lg);padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.2);
+  }
+  .nav-float-controls{position:absolute;right:10px;bottom:100px;z-index:15;display:flex;flex-direction:column;gap:8px;}
+  .nav-float-btn{
+    width:44px;height:44px;border-radius:50%;border:none;background:var(--surface);font-size:18px;
+    box-shadow:0 4px 14px rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center;
+  }
+
+  .nav-active-overlay{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none;padding:10px;padding-top:calc(10px + env(safe-area-inset-top));}
   .nav-instruction-banner{
     pointer-events:auto;background:#1C1B1F;color:#fff;border-radius:14px;padding:12px 14px;
     display:flex;align-items:center;gap:12px;box-shadow:0 6px 20px rgba(0,0,0,.3);
@@ -502,17 +530,19 @@
   .nav-instruction-icon{font-size:28px;flex-shrink:0;width:38px;text-align:center;}
   .nav-instruction-text{font-size:14.5px;font-weight:700;line-height:1.3;}
   .nav-instruction-dist{font-size:12px;color:rgba(255,255,255,.65);margin-top:2px;}
+  .nav-active-float-controls{position:absolute;right:10px;top:50%;transform:translateY(-50%);}
   .nav-active-bottom{
     pointer-events:auto;background:#1C1B1F;color:#fff;border-radius:14px;padding:12px 14px;
     display:flex;align-items:center;justify-content:space-between;box-shadow:0 6px 20px rgba(0,0,0,.3);
+    margin-bottom:env(safe-area-inset-bottom);
   }
   .nav-active-stats b{font-size:16px;font-weight:800;display:block;}
   .nav-active-stats span{font-size:11.5px;color:rgba(255,255,255,.65);}
   .nav-end-btn{background:var(--danger);color:#fff;border:none;border-radius:10px;padding:10px 16px;font-weight:700;font-size:13px;}
+  .nav-heading-arrow div{font-size:26px;color:#4285F4;text-shadow:0 0 0 #fff, 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff;transform-origin:center;}
   .nav-wp-row{display:flex;align-items:flex-end;gap:8px;}
   .nav-wp-remove{flex-shrink:0;width:36px;height:48px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink-soft);font-size:15px;margin-bottom:8px;}
   .nav-wp-pin{flex-shrink:0;width:36px;height:48px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);font-size:16px;margin-bottom:8px;}
-  .nav-map.picking{cursor:crosshair;box-shadow:0 0 0 3px var(--accent);}
   .nav-add-stop-btn{width:100%;padding:11px;border-radius:12px;border:1.5px dashed var(--line);background:none;color:var(--accent);font-weight:700;font-size:13.5px;margin-top:4px;}
   .ac-list{
     position:absolute;left:0;right:0;top:calc(100% + 6px);background:var(--surface);border:1px solid var(--line);
@@ -716,6 +746,32 @@
       <div class="pending-warning-box">Apri l'email e tocca il link per confermare — questa finestra si chiuderà da sola appena confermi. Non puoi chiuderla prima.</div>
       <button type="button" id="account-remind-pending-btn" class="btn btn-outline btn-sm">Invia di nuovo il link</button>
     </div>
+  </div>
+</div>
+
+<!-- Navigator vehicle settings — tucked behind a gear icon, same idea
+     as Google Maps keeping configuration out of the main map view. -->
+<div class="modal-overlay" id="modal-nav-vehicle">
+  <div class="sheet-panel">
+    <button type="button" class="modal-close-x" id="nav-vehicle-close-x" aria-label="Chiudi">×</button>
+    <div class="grabber"></div>
+    <div class="modal-title">Il tuo veicolo</div>
+    <div class="modal-sub">Usati per evitare, dove i dati lo consentono, strade non adatte al tuo mezzo.</div>
+    <div class="field"><label>Tipo veicolo</label><select id="veh-tipo"></select></div>
+    <div class="field-row">
+      <div class="field"><label>Altezza (m)</label><input type="number" step="0.1" id="veh-altezza" placeholder="es. 3.5"></div>
+      <div class="field"><label>Larghezza (m)</label><input type="number" step="0.1" id="veh-larghezza" placeholder="es. 2.3"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Lunghezza (m)</label><input type="number" step="0.1" id="veh-lunghezza" placeholder="es. 8"></div>
+      <div class="field"><label>Massa totale (t)</label><input type="number" step="0.1" id="veh-massa" placeholder="es. 12"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Massa per asse (t)</label><input type="number" step="0.1" id="veh-massaAssi" placeholder="opzionale"></div>
+      <div class="field"><label>Classe emissioni</label><input type="text" id="veh-classeEmissioni" placeholder="es. Euro 6"></div>
+    </div>
+    <label class="nav-checkbox-row"><input type="checkbox" id="veh-rimorchio"> Con rimorchio</label>
+    <button type="button" class="btn btn-accent btn-block" id="nav-vehicle-save">Salva veicolo</button>
   </div>
 </div>
 

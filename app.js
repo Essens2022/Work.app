@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v128") {
+          if (data && data.v && data.v !== "pt-foglio-v129") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v128"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v129"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -991,52 +991,55 @@
 
   function renderNavigatore() {
     var el = document.getElementById('screen-navigatore');
-    var v = state.vehicle;
     var html = '';
-    html += '<div class="nav-header"><h2>Navigatore</h2><p class="nav-sub">Percorso calcolato in base alle dimensioni del tuo veicolo — evita, dove i dati lo consentono, ponti bassi, strade troppo strette o con limiti di peso.</p></div>';
+    // A compact top strip (title + settings gear) — everything else
+    // lives either inside the map itself (floating controls, Google
+    // Maps style) or behind that gear, not stacked above the map taking
+    // up space the map itself should have.
+    html += '<div class="nav-topbar-compact"><h2>Navigatore</h2><button type="button" class="nav-gear-btn" id="nav-gear-btn" aria-label="Impostazioni veicolo">⚙</button></div>';
 
-    html += '<div class="card nav-vehicle-card">';
-    html += '<div class="nav-vehicle-toggle" id="nav-vehicle-toggle"><span>🚛 Il tuo veicolo</span><span id="nav-vehicle-chevron">' + (vehicleIsConfigured(v) ? '✓ configurato' : 'da configurare ›') + '</span></div>';
-    html += '<div class="nav-vehicle-form" id="nav-vehicle-form" style="display:' + (vehicleIsConfigured(v) ? 'none' : 'block') + ';">';
-    html += '<div class="field"><label>Tipo veicolo</label><select id="veh-tipo">';
-    TIPO_VEICOLO_OPTS.forEach(function (o) { html += '<option value="' + o.v + '"' + (v.tipo === o.v ? ' selected' : '') + '>' + o.l + '</option>'; });
-    html += '</select></div>';
-    html += '<div class="field-row">';
-    html += '<div class="field"><label>Altezza (m)</label><input type="number" step="0.1" id="veh-altezza" value="' + escapeHtml(v.altezza) + '" placeholder="es. 3.5"></div>';
-    html += '<div class="field"><label>Larghezza (m)</label><input type="number" step="0.1" id="veh-larghezza" value="' + escapeHtml(v.larghezza) + '" placeholder="es. 2.3"></div>';
-    html += '</div>';
-    html += '<div class="field-row">';
-    html += '<div class="field"><label>Lunghezza (m)</label><input type="number" step="0.1" id="veh-lunghezza" value="' + escapeHtml(v.lunghezza) + '" placeholder="es. 8"></div>';
-    html += '<div class="field"><label>Massa totale (t)</label><input type="number" step="0.1" id="veh-massa" value="' + escapeHtml(v.massa) + '" placeholder="es. 12"></div>';
-    html += '</div>';
-    html += '<div class="field-row">';
-    html += '<div class="field"><label>Massa per asse (t)</label><input type="number" step="0.1" id="veh-massaAssi" value="' + escapeHtml(v.massaAssi) + '" placeholder="opzionale"></div>';
-    html += '<div class="field"><label>Classe emissioni</label><input type="text" id="veh-classeEmissioni" value="' + escapeHtml(v.classeEmissioni) + '" placeholder="es. Euro 6"></div>';
-    html += '</div>';
-    html += '<label class="nav-checkbox-row"><input type="checkbox" id="veh-rimorchio"' + (v.rimorchio ? ' checked' : '') + '> Con rimorchio</label>';
-    html += '<button type="button" class="btn btn-accent btn-block" id="nav-vehicle-save">Salva veicolo</button>';
-    html += '</div>';
-    html += '</div>';
+    html += '<div class="nav-map-wrap">';
+    html += '<div id="nav-map" class="nav-map nav-map-tall"></div>';
 
-    html += '<div class="card" id="nav-waypoints-card">';
+    // A search-bar-style control sitting ON the map, top edge — tapping
+    // it reveals the actual waypoint fields. Closed by default so the
+    // map itself is what fills the screen, same as opening Google Maps.
+    html += '<div class="nav-search-bar" id="nav-search-bar"><span class="nav-search-icon">🔍</span><span id="nav-search-label">Dove vuoi andare?</span></div>';
+    html += '<div class="nav-search-panel" id="nav-search-panel" style="display:none;">';
     html += '<div id="nav-waypoints-list"></div>';
     html += '<button type="button" class="nav-add-stop-btn" id="nav-add-stop">+ Aggiungi tappa</button>';
     html += '<button type="button" class="btn btn-accent btn-block" id="nav-calc-btn" style="margin-top:12px;">Calcola percorso</button>';
     html += '</div>';
 
+    // Floating controls, bottom-right — same spot Google Maps puts its
+    // own layers toggle and "my location" button.
+    html += '<div class="nav-float-controls">';
+    html += '<button type="button" class="nav-float-btn" id="nav-layers-btn" aria-label="Vista satellite">🛰️</button>';
+    html += '<button type="button" class="nav-float-btn" id="nav-locate-btn" aria-label="La mia posizione">📍</button>';
+    html += '</div>';
+
     html += '<div id="nav-result" class="nav-result" style="display:none;"></div>';
-    html += '<div class="nav-map-wrap"><div id="nav-map" class="nav-map"></div>';
+
     html += '<div id="nav-active-overlay" class="nav-active-overlay" style="display:none;">';
     html += '<div class="nav-instruction-banner"><div class="nav-instruction-icon" id="nav-instr-icon">➜</div><div><div class="nav-instruction-text" id="nav-instr-text">—</div><div class="nav-instruction-dist" id="nav-instr-dist"></div></div></div>';
+    html += '<div class="nav-active-float-controls"><button type="button" class="nav-float-btn" id="nav-active-layers-btn" aria-label="Vista satellite">🛰️</button></div>';
     html += '<div class="nav-active-bottom"><div class="nav-active-stats"><b id="nav-active-eta"></b><span id="nav-active-remaining"></span></div><button type="button" class="nav-end-btn" id="nav-end-btn">Termina</button></div>';
-    html += '</div></div>';
+    html += '</div>';
+    html += '</div>';
 
     el.innerHTML = html;
     renderNavWaypointsList();
+    populateNavVehicleForm();
 
-    document.getElementById('nav-vehicle-toggle').addEventListener('click', function () {
-      var form = document.getElementById('nav-vehicle-form');
-      form.style.display = (form.style.display === 'none') ? 'block' : 'none';
+    document.getElementById('nav-search-bar').addEventListener('click', function () {
+      var panel = document.getElementById('nav-search-panel');
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    });
+    document.getElementById('nav-gear-btn').addEventListener('click', function () {
+      document.getElementById('modal-nav-vehicle').classList.add('open');
+    });
+    document.getElementById('nav-vehicle-close-x').addEventListener('click', function () {
+      document.getElementById('modal-nav-vehicle').classList.remove('open');
     });
     document.getElementById('nav-vehicle-save').addEventListener('click', function () {
       state.vehicle = {
@@ -1051,34 +1054,62 @@
       };
       saveVehicle(state.vehicle);
       toast('Veicolo salvato');
-      document.getElementById('nav-vehicle-form').style.display = 'none';
-      document.getElementById('nav-vehicle-chevron').textContent = '✓ configurato';
+      document.getElementById('modal-nav-vehicle').classList.remove('open');
     });
     document.getElementById('nav-calc-btn').addEventListener('click', calculateNavRoute);
     document.getElementById('nav-add-stop').addEventListener('click', addNavWaypointBeforeDest);
+    document.getElementById('nav-layers-btn').addEventListener('click', toggleNavSatelliteView);
+    document.getElementById('nav-active-layers-btn').addEventListener('click', toggleNavSatelliteView);
+    document.getElementById('nav-locate-btn').addEventListener('click', function () {
+      currentPosition().then(function (p) { navMap.setView([p.lat, p.lon], 15); }).catch(function () { toast('Posizione non disponibile'); });
+    });
 
     initNavMap();
+    // If the vehicle isn't configured yet, open settings automatically
+    // once — there's nothing useful to route without it, same as a
+    // first-run prompt.
+    if (!vehicleIsConfigured(state.vehicle)) document.getElementById('modal-nav-vehicle').classList.add('open');
+  }
+
+  function populateNavVehicleForm() {
+    var v = state.vehicle;
+    var sel = document.getElementById('veh-tipo');
+    sel.innerHTML = TIPO_VEICOLO_OPTS.map(function (o) { return '<option value="' + o.v + '"' + (v.tipo === o.v ? ' selected' : '') + '>' + o.l + '</option>'; }).join('');
+    document.getElementById('veh-altezza').value = v.altezza;
+    document.getElementById('veh-larghezza').value = v.larghezza;
+    document.getElementById('veh-lunghezza').value = v.lunghezza;
+    document.getElementById('veh-massa').value = v.massa;
+    document.getElementById('veh-massaAssi').value = v.massaAssi;
+    document.getElementById('veh-classeEmissioni').value = v.classeEmissioni;
+    document.getElementById('veh-rimorchio').checked = !!v.rimorchio;
   }
 
   function vehicleIsConfigured(v) {
     return !!(v.altezza && v.larghezza && v.lunghezza && v.massa);
   }
 
+  var navStreetLayer = null, navSatelliteLayer = null;
   function initNavMap() {
     var mapEl = document.getElementById('nav-map');
     if (!mapEl || typeof L === 'undefined') return;
     if (navMap) { navMap.remove(); navMap = null; }
     navWaypointMarkers = {}; // the old map instance (and any markers on it) is gone
     navRouteLayer = null;
-    navMap = L.map(mapEl).setView([45.4642, 9.19], 6); // centered on Northern Italy by default
+    navMap = L.map(mapEl, { zoomControl: false }).setView([45.4642, 9.19], 6); // centered on Northern Italy by default
     // CARTO's free "Voyager" style — light background, clear road/place
     // labels, closer to the familiar look people already know from
     // Google Maps than the plainer default OpenStreetMap tiles.
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    navStreetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
       attribution: '© OpenStreetMap contributors © CARTO',
       maxZoom: 20,
       subdomains: 'abcd'
     }).addTo(navMap);
+    // Esri's free World Imagery — real satellite/aerial photography, the
+    // same idea as switching Google Maps to satellite view.
+    navSatelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      attribution: 'Tiles © Esri',
+      maxZoom: 19
+    });
     navMap.on('click', function (e) {
       if (navPickingWaypointId) handleNavMapPick(e.latlng);
     });
@@ -1086,6 +1117,14 @@
     // visit to this screen (the map itself is fresh, but the trip plan
     // persists).
     navWaypoints.forEach(function (wp) { if (wp.point) dropNavWaypointMarker(wp.id, wp.point); });
+  }
+
+  var navShowingSatellite = false;
+  function toggleNavSatelliteView() {
+    if (!navMap || !navStreetLayer || !navSatelliteLayer) return;
+    navShowingSatellite = !navShowingSatellite;
+    if (navShowingSatellite) { navMap.removeLayer(navStreetLayer); navSatelliteLayer.addTo(navMap); }
+    else { navMap.removeLayer(navSatelliteLayer); navStreetLayer.addTo(navMap); }
   }
 
   // Tapping the pin (📍) button next to a waypoint field arms "pick from
@@ -1345,7 +1384,7 @@
     var v = state.vehicle;
     if (!vehicleIsConfigured(v)) {
       toast('Configura prima le dimensioni del veicolo');
-      document.getElementById('nav-vehicle-form').style.display = 'block';
+      document.getElementById('modal-nav-vehicle').classList.add('open');
       return;
     }
     var destWp = navWaypoints[navWaypoints.length - 1];
@@ -1618,9 +1657,11 @@
     if (!navigator.geolocation) { toast('Il GPS non è disponibile su questo dispositivo'); return; }
 
     document.getElementById('nav-active-overlay').style.display = 'flex';
-    document.querySelector('.nav-vehicle-card').style.display = 'none';
-    document.getElementById('nav-waypoints-card').style.display = 'none';
+    document.getElementById('nav-search-bar').style.display = 'none';
+    document.getElementById('nav-search-panel').style.display = 'none';
     document.getElementById('nav-result').style.display = 'none';
+    document.querySelector('.nav-map-wrap').classList.add('nav-fullscreen');
+    setTimeout(function () { if (navMap) navMap.invalidateSize(); }, 50);
 
     updateActiveInstructionBanner();
 
@@ -1638,9 +1679,23 @@
     var heading = position.coords.heading;
 
     if (navPositionMarker) navMap.removeLayer(navPositionMarker);
-    navPositionMarker = L.circleMarker([lat, lon], {
-      radius: 9, color: '#fff', weight: 3, fillColor: '#4285F4', fillOpacity: 1
-    }).addTo(navMap);
+    // A directional arrow, rotated to the phone's real heading when the
+    // GPS provides one — same visual language as Google Maps' own blue
+    // "you are here" arrow. Falls back to a plain dot when heading isn't
+    // available yet (common right after GPS lock, or while stationary).
+    if (heading != null && !isNaN(heading)) {
+      navPositionMarker = L.marker([lat, lon], {
+        icon: L.divIcon({
+          className: 'nav-heading-arrow',
+          html: '<div style="transform:rotate(' + heading + 'deg);">➤</div>',
+          iconSize: [30, 30], iconAnchor: [15, 15]
+        })
+      }).addTo(navMap);
+    } else {
+      navPositionMarker = L.circleMarker([lat, lon], {
+        radius: 9, color: '#fff', weight: 3, fillColor: '#4285F4', fillOpacity: 1
+      }).addTo(navMap);
+    }
     navMap.setView([lat, lon], 17, { animate: true });
 
     // Advance through steps as each maneuver point is reached (within
@@ -1683,9 +1738,10 @@
     if (navWatchId != null) { navigator.geolocation.clearWatch(navWatchId); navWatchId = null; }
     if (navPositionMarker) { navMap.removeLayer(navPositionMarker); navPositionMarker = null; }
     document.getElementById('nav-active-overlay').style.display = 'none';
-    document.querySelector('.nav-vehicle-card').style.display = '';
-    document.getElementById('nav-waypoints-card').style.display = '';
+    document.getElementById('nav-search-bar').style.display = '';
+    document.querySelector('.nav-map-wrap').classList.remove('nav-fullscreen');
     if (navActiveFeature) navMap.fitBounds(navRouteLayer.getBounds(), { padding: [24, 24] });
+    setTimeout(function () { if (navMap) navMap.invalidateSize(); }, 50); // the map container's real size changed leaving fullscreen — Leaflet needs to recalculate its own dimensions
   }
 
   function renderPdfScreen() {
