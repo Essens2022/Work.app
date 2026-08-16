@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v168") {
+          if (data && data.v && data.v !== "pt-foglio-v169") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v168"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v169"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1246,18 +1246,20 @@
     navWaypointMarkers = {}; // the old map instance (and any markers on it) is gone
     navRouteLayer = null;
     navLocateMarker = null;
-    // rotate:true / rotateControl:false / touchRotate:false — enables
-    // real map rotation (leaflet-rotate plugin, vendored), but only
-    // ever driven programmatically (setBearing, in
-    // rotateNavMapToHeading) — never by the person's own two-finger
-    // twist gesture, so it can't be triggered by accident while
-    // driving. This replaces the earlier CSS-transform approach, which
-    // was confirmed broken (visible white gaps at certain angles) on a
-    // real device, twice. This plugin rotates the map at Leaflet's own
-    // tile-loading level instead of faking it with a CSS transform on
-    // an oversized container — NOTE: still not verified live by me in
-    // this environment; needs careful on-device testing before trust.
-    navMap = L.map(mapEl, { zoomControl: false, rotate: true, rotateControl: false, touchRotate: false }).setView([45.4642, 9.19], 6); // centered on Northern Italy by default
+    // REVERTED — real map rotation (leaflet-rotate plugin) caused a
+    // cascade of real, confirmed problems while actually driving: the
+    // car icon pointing sideways instead of forward, the recenter
+    // button not working, the position marker drifting off the road,
+    // the camera losing track of the car entirely. The plugin's own
+    // documentation describes itself as a "proof of concept", and this
+    // is now the third confirmed failure of an attempt at rotating the
+    // map (after two earlier CSS-transform attempts also failed).
+    // Fixed north-up, no rotation at all, is what was actually proven
+    // stable before any of these attempts — reliability while driving
+    // matters far more than a rotating camera, so this stays plain
+    // until (if ever) a genuinely solid rotation approach is found and
+    // very carefully verified, not guessed at again.
+    navMap = L.map(mapEl, { zoomControl: false }).setView([45.4642, 9.19], 6); // centered on Northern Italy by default
     // CARTO's free "Voyager" style — light background, clear road/place
     // labels, closer to the familiar look people already know from
     // Google Maps than the plainer default OpenStreetMap tiles.
@@ -2526,7 +2528,13 @@
     navLegPoints = points || null;
     navCurrentLegIndex = 0;
     navArrivalPromptShown = false;
-    if (navLegs.length > 1) drawActiveNavLegs();
+    // Unconditional now (was only for multi-stop trips) — a plain
+    // origin→destination trip needs the SAME progressive trimming as
+    // it's driven, not just multi-stop trips. This uses drawActiveNavLegs
+    // rather than the plain drawColorCodedRoute call from before
+    // starting navigation, specifically because it's the one that knows
+    // how to trim.
+    drawActiveNavLegs();
 
     if (!navigator.geolocation) { toast('Il GPS non è disponibile su questo dispositivo'); return; }
 
@@ -2546,11 +2554,20 @@
     // once the first GPS heading arrives, since heading can stay null
     // for a while if the vehicle hasn't started moving yet.
     rotateNavMapToHeading(0);
-    // Zoom in close right away too, using whatever position is already
-    // known (cached from opening the Navigatore) — rather than staying
-    // at the overview zoom level until the first watchPosition update
-    // arrives, which could take a moment.
-    if (navSearchFocusPoint) navMap.setView([navSearchFocusPoint.lat, navSearchFocusPoint.lon], 18, { animate: true });
+    // Zoom in close right away using a FRESH position fetch — this used
+    // to jump straight to navSearchFocusPoint, which is only ever
+    // captured ONCE, back when the Navigatore screen was first opened.
+    // If any real time passed between opening the screen and actually
+    // pressing "Avvia" — including having already started driving — that
+    // cached position could be meaningfully stale (confirmed in
+    // real-world testing: it showed the trip starting back at home,
+    // even though the driver was already out on the road). A fresh,
+    // high-accuracy read here avoids that; if it's slow or fails, the
+    // very next watchPosition update (started right below) still
+    // corrects the view with real, live data either way.
+    currentPosition().then(function (p) {
+      if (navMap) navMap.setView([p.lat, p.lon], 18, { animate: true });
+    }).catch(function () { /* watchPosition below will catch up with a real fix shortly */ });
 
     updateActiveInstructionBanner();
 
@@ -2576,29 +2593,24 @@
     );
   }
 
-  // Real map rotation, via the vendored leaflet-rotate plugin —
-  // replaces two earlier failed attempts at faking this with CSS
-  // transforms on an oversized container (both confirmed broken on a
-  // real device: visible white gaps, at some angles covering most of
-  // the screen). This plugin rotates the map at Leaflet's own
-  // tile-loading level instead, which should avoid that failure mode
-  // entirely — but it is STILL NOT VERIFIED LIVE by me in this
-  // environment (no browser available here) and needs careful,
-  // deliberate on-device testing before being trusted, especially:
-  // whether the rotation direction is correct (heading should end up
-  // pointing straight up on screen, not upside-down or mirrored), and
-  // whether tiles/markers render correctly at every angle.
-  //
-  // The position marker itself needs NO counter-rotation here (unlike
-  // the old CSS approach) — leaflet-rotate keeps markers screen-upright
-  // by default unless a marker explicitly opts into
-  // rotateWithView/rotation, which ours doesn't, so a marker drawn
-  // "facing up" already reads correctly once the map itself is
-  // rotated to match the heading.
+  // Fixed north-up map, no rotation at all — see the note on
+  // initNavMap for why (a real, confirmed cascade of driving-time bugs
+  // traced back to the rotation plugin, reverted). Since the map
+  // itself no longer turns to match the direction of travel, the
+  // position marker (the car icon) needs to rotate ON ITS OWN to show
+  // which way it's actually facing — this is exactly what was missing
+  // while the rotation plugin was active (the marker was deliberately
+  // left non-rotating back then, relying on the map to do that job
+  // instead) and is very likely why the car appeared to be "facing
+  // sideways" while driving straight.
   var navLastHeading = 0;
   function rotateNavMapToHeading(heading) {
     if (heading != null && !isNaN(heading)) navLastHeading = heading;
-    if (navMap && navMap.setBearing) navMap.setBearing(navLastHeading);
+    if (navPositionMarker) {
+      var iconEl = navPositionMarker.getElement();
+      var innerDiv = iconEl && iconEl.querySelector('div');
+      if (innerDiv) innerDiv.style.transform = 'rotate(' + navLastHeading + 'deg)';
+    }
     // Plain, read-only bearing readout (N/NE/E/…) — informational only,
     // not a button with a mode to toggle.
     var needle = document.getElementById('nav-compass-needle');
@@ -2623,6 +2635,13 @@
     var lat = position.coords.latitude, lon = position.coords.longitude;
     var heading = position.coords.heading;
     navLastPosition = { lat: lat, lon: lon };
+
+    // Trims the already-driven part of the CURRENT leg off the map on
+    // every real position update — not just when a full stop is
+    // reached. Needs navLegs to exist yet (it's set at the very start
+    // of startActiveNavigation, so this is safe from the first fix
+    // onward).
+    if (navLegs) drawActiveNavLegs(lat, lon);
 
     // Real current speed, straight from GPS (m/s → km/h) — shown only
     // when the device actually reports it (many phones return null
@@ -2674,7 +2693,15 @@
       if (nextStopIdx < navLegPoints.length - 1) { // the final destination has its own "sei arrivato" instruction already — this is only for intermediate stops
         var nextStop = navLegPoints[nextStopIdx];
         var distToNextStop = haversineKm({ lat: lat, lon: lon }, { lat: nextStop.lat, lon: nextStop.lon }) * 1000;
-        if (distToNextStop < 80) {
+        // Was 80m — far too generous, per real-world testing (the
+        // prompt appeared with ~50m still to go). Tightened to 25m.
+        // Not pushed all the way down to the 5-10m actually asked for:
+        // ordinary phone GPS accuracy is typically 5-15m even with a
+        // good signal, sometimes worse — a threshold that tight risks
+        // never firing at all if the GPS reading is a little off, which
+        // would be worse than firing a bit early. 25m is a real,
+        // meaningfully tighter improvement while staying reliable.
+        if (distToNextStop < 25) {
           navArrivalPromptShown = true;
           showNavArrivalPrompt(nextStopIdx);
         }
@@ -2733,6 +2760,36 @@
   // own highway/road-type distinction); everything still ahead of that
   // stays the same soft, receded blue — exactly the progressive visual
   // Google Maps uses as a multi-stop trip advances.
+  // Finds the index of the coordinate in a route's own geometry that's
+  // closest to a given lat/lon — a simple nearest-vertex search (not a
+  // full point-to-segment projection), which is precise enough here
+  // since ORS route geometries are already densely sampled.
+  function nearestCoordIndex(coords, lat, lon) {
+    var bestIdx = 0, bestDist = Infinity;
+    for (var i = 0; i < coords.length; i++) {
+      var dx = coords[i][0] - lon, dy = coords[i][1] - lat;
+      var d = dx * dx + dy * dy;
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+    return bestIdx;
+  }
+
+  // Returns a copy of a leg's feature with the already-driven portion
+  // cut off — the part of the line behind the driver's current
+  // position simply isn't there anymore, rather than staying the same
+  // solid color the whole leg through. Matches the real-time trimming
+  // Google Maps does; this app previously only ever dropped a leg
+  // ENTIRELY once a full stop was reached, never trimmed WITHIN a leg
+  // as the driver actually made progress along it.
+  function trimmedLegFeature(feature, lat, lon) {
+    var coords = feature.geometry.coordinates;
+    var idx = nearestCoordIndex(coords, lat, lon);
+    if (idx <= 0) return feature; // nothing driven yet on this leg
+    var trimmedCoords = coords.slice(idx);
+    if (trimmedCoords.length < 2) return feature; // avoid degenerating to an empty/invalid line right at the very end
+    return { type: 'Feature', properties: feature.properties, geometry: { type: 'LineString', coordinates: trimmedCoords } };
+  }
+
   // Draws only the legs from the current one onward — the completed
   // legs behind the driver simply aren't shown anymore. The current
   // (next-to-drive) leg is the strong dark blue, everything still
@@ -2740,12 +2797,18 @@
   // (furthest-ahead leg first, current leg last) so the current leg
   // paints on top wherever it crosses a future one — always the one
   // that's clearly visible.
-  function drawActiveNavLegs() {
+  // lat/lon (optional): the driver's live position — when given, the
+  // CURRENT leg is additionally trimmed back to start from the nearest
+  // point to here, so the stretch already driven disappears in
+  // real time, not just when a full stop is reached.
+  function drawActiveNavLegs(lat, lon) {
     if (navRouteLayer) navMap.removeLayer(navRouteLayer);
     navRouteLayer = L.featureGroup();
     for (var i = navLegs.length - 1; i >= navCurrentLegIndex; i--) {
       var isCurrent = i === navCurrentLegIndex;
-      var legLayer = drawColorCodedRoute(navLegs[i], !isCurrent);
+      var legFeature = navLegs[i];
+      if (isCurrent && lat != null && lon != null) legFeature = trimmedLegFeature(legFeature, lat, lon);
+      var legLayer = drawColorCodedRoute(legFeature, !isCurrent);
       legLayer.addTo(navRouteLayer);
     }
     navRouteLayer.addTo(navMap);
