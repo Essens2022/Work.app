@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v153") {
+          if (data && data.v && data.v !== "pt-foglio-v154") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v153"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v154"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1441,8 +1441,7 @@
       if (!text.trim()) { renderCurrentPosOption(); return; }
       if (text.trim().length < 3) { list.classList.remove('show'); return; }
       debounceTimer = setTimeout(function () {
-        fetch(navGeocodeUrl('autocomplete', text))
-          .then(function (r) { return r.json(); })
+        navGeocodeFetch('autocomplete', text)
           .then(function (data) {
             var features = data.features || [];
             list.innerHTML = features.map(function (f, i) {
@@ -1575,8 +1574,7 @@
       renderNavSuggestions([], list, input, waypointId, matchingFrequent);
       if (text.trim().length < 3) return;
       debounceTimer = setTimeout(function () {
-        fetch(navGeocodeUrl('autocomplete', text))
-          .then(function (r) { return r.json(); })
+        navGeocodeFetch('autocomplete', text)
           .then(function (data) { renderNavSuggestions(data.features || [], list, input, waypointId, matchingFrequent); })
           .catch(function () { /* offline or blocked — the frequent matches (if any) are still shown */ });
       }, 350);
@@ -1692,31 +1690,48 @@
   // matter for finding real addresses reliably in Italy:
   //  - boundary.country=ITA: keeps results to Italy, so a generic
   //    street name doesn't compete with identical ones abroad.
-  //  - layers=address,venue,street,locality: explicitly includes the
-  //    "address" layer (exact civic numbers) and "venue" layer
-  //    (businesses/POIs). Pelias silently EXCLUDES the address layer
-  //    on short/ambiguous queries as a performance optimization unless
-  //    it's asked for explicitly — this is what was likely causing
-  //    civic numbers ("Viale Veneto 2/3") to not show up reliably.
+  //  - layers=address,venue,street,locality (unless opts.noLayers):
+  //    explicitly includes the "address" layer (exact civic numbers)
+  //    and "venue" layer (businesses/POIs). Pelias silently EXCLUDES
+  //    the address layer on short/ambiguous queries as a performance
+  //    optimization unless it's asked for explicitly.
   //  - focus.point.*: biases ranking toward the driver's current GPS
   //    position (cached once per Navigatore visit), so among many
   //    identically-named streets across Italy, the nearby one ranks
   //    first — same effect as Google Maps favoring "near me" results.
-  function navGeocodeUrl(endpoint, text) {
+  function navGeocodeUrl(endpoint, text, opts) {
+    opts = opts || {};
     var url = 'https://api.openrouteservice.org/geocode/' + endpoint + '?api_key=' + encodeURIComponent(ORS_API_KEY) +
       '&text=' + encodeURIComponent(text) + '&size=8' +
-      '&boundary.country=ITA' +
-      '&layers=address,venue,street,locality';
+      '&boundary.country=ITA';
+    if (!opts.noLayers) url += '&layers=address,venue,street,locality';
     if (navSearchFocusPoint) {
       url += '&focus.point.lat=' + navSearchFocusPoint.lat + '&focus.point.lon=' + navSearchFocusPoint.lon;
     }
     return url;
   }
 
+  // Fetches with the tuned layer restriction first (best relevance for
+  // the common case: streets, civic numbers, businesses). If that comes
+  // back completely empty, retries once WITHOUT the layer restriction —
+  // a safety net for whatever Pelias would have classified into a layer
+  // the hardcoded list above didn't happen to include (a neighbourhood,
+  // a larger named area, an unusual venue subtype), rather than the
+  // search silently coming up empty just because of that hardcoded list.
+  function navGeocodeFetch(endpoint, text) {
+    return fetch(navGeocodeUrl(endpoint, text))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.features && data.features.length) return data;
+        return fetch(navGeocodeUrl(endpoint, text, { noLayers: true }))
+          .then(function (r2) { return r2.json(); })
+          .catch(function () { return data; }); // fallback failed too (offline etc.) — surface the original (empty) result rather than throwing
+      });
+  }
+
   function geocodeAddress(text) {
     if (!text || !text.trim()) return Promise.resolve(null);
-    return fetch(navGeocodeUrl('search', text))
-      .then(function (r) { return r.json(); })
+    return navGeocodeFetch('search', text)
       .then(function (data) {
         if (!data.features || !data.features.length) return null;
         var coords = data.features[0].geometry.coordinates; // [lon, lat]
