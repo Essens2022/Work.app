@@ -636,16 +636,15 @@
     transform-origin:50% 78%;
   }
   /* Only while actively navigating (turn-by-turn) does the wrapper need
-     to be oversized — so that when it rotates (and, now, tilts in 3D)
-     to match the direction of travel, the visible rectangle never
-     shows an empty corner. Applied only for that mode, not by default,
-     or the map would render at an absurd, offset size the rest of the
-     time. Sized noticeably bigger than the plain-2D-rotation case used
-     to need, since a 3D tilt reveals much more area toward the "far"
-     edge of the screen — this exact margin is a first estimate and
-     will likely need tuning once seen on a real device. */
+     to be oversized — so that when it rotates to match the direction of
+     travel, the visible rectangle never shows an empty corner. Applied
+     only for that mode, not by default, or the map would render at an
+     absurd, offset size the rest of the time. These margins are back
+     to the proven-safe values for plain 2D rotation (a larger 3D-tilt
+     version of this was tried and confirmed broken — visible white
+     gaps at the edges on a real device — and has been rolled back). */
   .nav-map-wrap.nav-fullscreen .nav-map-rotate-wrap{
-    position:absolute;top:-80%;left:-80%;width:260%;height:260%;
+    position:absolute;top:-30%;left:-30%;width:160%;height:160%;
   }
   .nav-recenter-btn{
     position:absolute;right:10px;bottom:170px;z-index:1000;width:44px;height:44px;border-radius:50%;

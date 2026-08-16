@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v148") {
+          if (data && data.v && data.v !== "pt-foglio-v149") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v148"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v149"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2192,10 +2192,9 @@
     document.getElementById('nav-result').style.display = 'none';
     document.querySelector('.nav-map-wrap').classList.add('nav-fullscreen');
     setTimeout(function () { if (navMap) navMap.invalidateSize(); }, 50);
-    // Tilt into the 3D navigation view immediately on "Avvia" — not
-    // only once the first GPS heading arrives, since heading can stay
-    // null for a while if the vehicle hasn't started moving yet, and
-    // the close, tilted look is meant to be there from the start.
+    // Rotate into heading-up mode immediately on "Avvia" — not only
+    // once the first GPS heading arrives, since heading can stay null
+    // for a while if the vehicle hasn't started moving yet.
     // Always starts in heading-up mode, regardless of how a PREVIOUS
     // navigation session was left (the compass toggle shouldn't carry
     // over silently into a brand new trip).
@@ -2240,21 +2239,12 @@
   }
 
   // Rotates the whole map so "up" always means "the direction of
-  // travel" — the standard look of a real navigation mode — AND tilts
-  // it back in 3D, like a camera looking ahead down the road instead
-  // of straight down from above, same visual language as Google Maps'
-  // own turn-by-turn view. The position arrow itself counter-rotates
-  // by the same heading amount, in the opposite direction, so it stays
-  // pointing straight up on screen throughout, while the map (tiles,
-  // route line) turns and tilts underneath it.
-  // Both effects have to be set in ONE transform string on the SAME
-  // element (an inline style always wins over any CSS class rule, so
-  // splitting rotateX into CSS wouldn't actually apply once this runs).
-  // Leaflet's own coordinate math is untouched either way — it has no
-  // idea its container is visually transformed, and doesn't need to.
-  // NOTE: the tilt angle/scale below is a first attempt, not verified
-  // on a real device — genuinely needs to be eyeballed and likely
-  // tuned once it's actually seen running.
+  // travel" — the standard look of a real navigation mode. The
+  // position arrow itself counter-rotates by the same heading amount,
+  // in the opposite direction, so it stays pointing straight up on
+  // screen throughout, while the map (tiles, route line) turns
+  // underneath it. Leaflet's own coordinate math is untouched — it has
+  // no idea its container is visually rotated, and doesn't need to.
   //
   // navNorthUpMode (toggled by the compass button) flips this into
   // Google Maps' own "north-up" mode instead: the map stops following
@@ -2264,6 +2254,13 @@
   // the two modes — it already produces the right result in both,
   // since it only ever needs to counteract whatever rotation (if any)
   // the map itself currently has.
+  // NOTE: an earlier version of this tilted the map in 3D (rotateX +
+  // an oversized scale) for a closer, Google-Maps-like look. Confirmed
+  // broken on a real device — visible blank/white gaps at the edges
+  // during real turns, which is unacceptable while actually driving.
+  // Rolled back to the simple, proven 2D rotation below. A real 3D
+  // tilt may be worth revisiting later, but only with careful,
+  // incremental on-device tuning — not another blind guess.
   var navNorthUpMode = false;
   var navLastHeading = 0;
   function rotateNavMapToHeading(heading) {
@@ -2272,7 +2269,7 @@
     if (wrap) {
       wrap.style.transform = navNorthUpMode
         ? 'none' // flat, true north up, ignoring travel direction — same as Google Maps' compass-toggled mode
-        : 'rotateX(58deg) scale(2.1) rotate(' + (-navLastHeading) + 'deg)';
+        : 'rotate(' + (-navLastHeading) + 'deg)';
     }
     if (navPositionMarker) {
       var iconEl = navPositionMarker.getElement();
@@ -2500,6 +2497,12 @@
     // flow — this doesn't change that.
     document.getElementById('nav-result').style.display = 'block';
     setTimeout(function () { if (navMap) navMap.invalidateSize(); }, 50); // the map container's real size changed leaving fullscreen — Leaflet needs to recalculate its own dimensions
+    // Deliberately NOT forcing a pending reload here even if one was
+    // deferred during navigation — that would immediately wipe the
+    // "route still calculated, ready for Avvia again" state above,
+    // right after building it. The periodic version check (every 60s)
+    // will pick this moment up naturally, once navigatingActively is
+    // false, without fighting this screen.
   }
 
   function renderPdfScreen() {
@@ -4906,9 +4909,16 @@
     function triggerReload() {
       if (reloadTriggeredThisLoad || recentlyReloaded()) return;
       var modalOpen = document.querySelector('.modal-overlay.open');
-      if (modalOpen) {
+      // Active turn-by-turn navigation is just as disruptive to
+      // interrupt as an open modal — worse, actually: it's a driver
+      // mid-trip. nav-active-overlay isn't a ".modal-overlay", so it
+      // was never covered by the check above; a reload could otherwise
+      // land in the middle of an active trip and silently discard it.
+      var navOverlay = document.getElementById('nav-active-overlay');
+      var navigatingActively = navOverlay && navOverlay.style.display !== 'none';
+      if (modalOpen || navigatingActively) {
         pendingReloadAfterModalClose = true;
-        toast('Nuova versione pronta — verrà applicata alla chiusura di questa finestra');
+        if (!navigatingActively) toast('Nuova versione pronta — verrà applicata alla chiusura di questa finestra');
         return;
       }
       reloadTriggeredThisLoad = true;
