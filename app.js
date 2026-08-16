@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v127") {
+          if (data && data.v && data.v !== "pt-foglio-v128") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,12 +66,13 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v127"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v128"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
   var LS_FUEL = "pt_fuel_v1"; // fuel receipts, keyed by month — independent of any client sheet
   var LS_VEHICLE = "pt_vehicle_v1"; // commercial-vehicle dimensions/weight, used by the Navigatore for restriction-aware routing
+  var LS_NAV_FREQUENT = "pt_nav_frequent_v1"; // addresses actually used in a calculated route, remembered and suggested again — like Chrome's own address bar history
 
   var MESI = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
     "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
@@ -114,6 +115,23 @@
     });
   }
   function saveVehicle(v) { saveJSON(LS_VEHICLE, v); }
+
+  // Addresses actually used to calculate a route — remembered and
+  // proposed again, most-used first, the same idea as Chrome's own
+  // address bar suggesting sites visited often.
+  function loadNavFrequent() { return loadJSON(LS_NAV_FREQUENT, []); }
+  function saveNavFrequent(list) { saveJSON(LS_NAV_FREQUENT, list); }
+  function recordNavFrequentUse(point, text) {
+    if (!point || !text) return;
+    var list = loadNavFrequent();
+    var key = point.lat.toFixed(4) + ',' + point.lon.toFixed(4); // small rounding — the same real place, picked slightly differently, still counts as the same entry
+    var existing = list.filter(function (e) { return e.key === key; })[0];
+    if (existing) { existing.count++; existing.lastUsed = Date.now(); existing.text = text; }
+    else { list.push({ key: key, text: text, lat: point.lat, lon: point.lon, count: 1, lastUsed: Date.now() }); }
+    list.sort(function (a, b) { return b.count - a.count || b.lastUsed - a.lastUsed; });
+    saveNavFrequent(list.slice(0, 20)); // no need to keep more than the addresses that would ever realistically surface as "frequent"
+  }
+
 
   function loadSheets() { return loadJSON(LS_SHEETS, []); }
   function saveSheets(arr) { saveJSON(LS_SHEETS, arr); }
@@ -1180,17 +1198,32 @@
     if (!input || !list) return;
     var debounceTimer = null;
 
+    // Focusing an EMPTY field immediately offers the most-used
+    // addresses — same idea as Chrome showing frequent sites the moment
+    // you click an empty address bar, before typing anything.
+    input.addEventListener('focus', function () {
+      if (!input.value.trim()) renderNavSuggestions([], list, input, waypointId, loadNavFrequent());
+    });
+
     input.addEventListener('input', function () {
       var wp = navWaypoints.filter(function (w) { return w.id === waypointId; })[0];
       if (wp) { wp.text = input.value; wp.point = null; }
       clearTimeout(debounceTimer);
       var text = input.value;
-      if (!text || text.trim().length < 3) { list.classList.remove('show'); return; }
+      if (!text.trim()) { renderNavSuggestions([], list, input, waypointId, loadNavFrequent()); return; }
+      // Frequent addresses matching what's typed so far show immediately
+      // (no network round-trip needed for those) — live geocoding
+      // results, once they arrive, are appended after.
+      var matchingFrequent = loadNavFrequent().filter(function (e) {
+        return e.text.toLowerCase().indexOf(text.toLowerCase()) !== -1;
+      });
+      renderNavSuggestions([], list, input, waypointId, matchingFrequent);
+      if (text.trim().length < 3) return;
       debounceTimer = setTimeout(function () {
         fetch('https://api.openrouteservice.org/geocode/autocomplete?api_key=' + encodeURIComponent(ORS_API_KEY) + '&text=' + encodeURIComponent(text) + '&size=6')
           .then(function (r) { return r.json(); })
-          .then(function (data) { renderNavSuggestions(data.features || [], list, input, waypointId); })
-          .catch(function () { /* offline or blocked — person can still type freely */ });
+          .then(function (data) { renderNavSuggestions(data.features || [], list, input, waypointId, matchingFrequent); })
+          .catch(function () { /* offline or blocked — the frequent matches (if any) are still shown */ });
       }, 350);
     });
     document.addEventListener('click', function (e) {
@@ -1198,13 +1231,29 @@
     });
   }
 
-  function renderNavSuggestions(features, list, input, waypointId) {
-    if (!features.length) { list.classList.remove('show'); return; }
-    list.innerHTML = features.map(function (f, i) {
+  function renderNavSuggestions(features, list, input, waypointId, frequentEntries) {
+    frequentEntries = frequentEntries || [];
+    if (!features.length && !frequentEntries.length) { list.classList.remove('show'); return; }
+    var html = frequentEntries.map(function (e, i) {
+      return '<div class="ac-item ac-frequent" data-freq="' + i + '"><span class="ac-freq-icon">🕐</span><span class="name">' + escapeHtml(e.text) + '</span></div>';
+    }).join('');
+    html += features.map(function (f, i) {
       return '<div class="ac-item" data-idx="' + i + '"><span class="name">' + escapeHtml(f.properties.label) + '</span></div>';
     }).join('');
+    list.innerHTML = html;
     list.classList.add('show');
-    list.querySelectorAll('.ac-item').forEach(function (item) {
+    list.querySelectorAll('[data-freq]').forEach(function (item) {
+      item.addEventListener('click', function () {
+        var e = frequentEntries[Number(item.getAttribute('data-freq'))];
+        var point = { lon: e.lon, lat: e.lat, label: e.text };
+        input.value = e.text;
+        list.classList.remove('show');
+        var wp = navWaypoints.filter(function (w) { return w.id === waypointId; })[0];
+        if (wp) { wp.text = e.text; wp.point = point; }
+        dropNavWaypointMarker(waypointId, point);
+      });
+    });
+    list.querySelectorAll('[data-idx]').forEach(function (item) {
       item.addEventListener('click', function () {
         var f = features[Number(item.getAttribute('data-idx'))];
         var point = { lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], label: f.properties.label };
@@ -1322,6 +1371,10 @@
         if (badIdx !== -1) {
           throw new Error(badIdx === 0 ? 'Impossibile trovare il punto di partenza' : 'Impossibile trovare "' + navWaypoints[badIdx].text + '"');
         }
+        // A route was actually resolved and about to be requested — worth
+        // remembering these addresses for next time, regardless of
+        // whether the directions call itself succeeds afterward.
+        points.forEach(function (p, i) { recordNavFrequentUse(p, navWaypoints[i] ? navWaypoints[i].text : null); });
         return computeMultiStopRoute(points);
       })
       .then(function (route) {
