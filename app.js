@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v125") {
+          if (data && data.v && data.v !== "pt-foglio-v126") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v125"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v126"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1049,9 +1049,13 @@
     navWaypointMarkers = {}; // the old map instance (and any markers on it) is gone
     navRouteLayer = null;
     navMap = L.map(mapEl).setView([45.4642, 9.19], 6); // centered on Northern Italy by default
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap',
-      maxZoom: 19
+    // CARTO's free "Voyager" style — light background, clear road/place
+    // labels, closer to the familiar look people already know from
+    // Google Maps than the plainer default OpenStreetMap tiles.
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      attribution: '© OpenStreetMap contributors © CARTO',
+      maxZoom: 20,
+      subdomains: 'abcd'
     }).addTo(navMap);
     navMap.on('click', function (e) {
       if (navPickingWaypointId) handleNavMapPick(e.latlng);
@@ -1408,6 +1412,7 @@
       // request for "don't leave the highway to save two minutes
       // through a village" — recommended, not steered by ETA alone.
       preference: 'recommended',
+      language: 'it',
       options: { profile_params: { restrictions: restrictions } }
     };
     // Alternatives only requested for a short (single-segment) trip —
@@ -1454,6 +1459,22 @@
     return { alternatives: [merged], origin: origin, dest: dest };
   }
 
+  // ORS's own warning messages come back in English, even when
+  // language:'it' is set for turn-by-turn instructions (that parameter
+  // covers step-by-step directions, not these route-level notices). A
+  // small, known-message translation table covers this — falling back
+  // to a plain, still-useful Italian sentence for anything unrecognized,
+  // rather than silently leaving English text on screen.
+  var NAV_WARNING_TRANSLATIONS = {
+    'There may be restrictions on some roads': 'Alcune strade potrebbero avere restrizioni non completamente verificate',
+    'This route may contain roads which are not suitable for the chosen mode of transport': 'Questo percorso potrebbe includere strade non adatte al veicolo scelto',
+    'This route contains steep hills, so please drive carefully': 'Il percorso include tratti in forte pendenza — guida con prudenza',
+    'The distance of this route may be smaller than expected due to internal simplifications': 'La distanza indicata potrebbe essere leggermente approssimata'
+  };
+  function translateNavWarning(message) {
+    return NAV_WARNING_TRANSLATIONS[message] || 'Attenzione: possibili restrizioni non completamente verificate su questo percorso';
+  }
+
   function displayNavRoute(routeResult) {
     displayNavRouteChoice(routeResult.alternatives, routeResult.points, 0);
   }
@@ -1468,7 +1489,7 @@
     var hours = Math.floor(minutes / 60);
     var mins = minutes % 60;
     var durationText = hours > 0 ? (hours + ' h ' + mins + ' min') : (mins + ' min');
-    var warnings = (feature.properties.warnings || []).map(function (w) { return w.message; });
+    var warnings = (feature.properties.warnings || []).map(function (w) { return translateNavWarning(w.message); });
 
     var resultEl = document.getElementById('nav-result');
     var html = '<div class="nav-result-stats"><div><b>' + km + ' km</b><span>distanza</span></div><div><b>' + durationText + '</b><span>tempo stimato</span></div></div>';
