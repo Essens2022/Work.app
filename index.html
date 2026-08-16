@@ -186,6 +186,21 @@
   .calendar-day.is-today:not(.has-entry){border:1.5px solid var(--accent);font-weight:700;}
   .calendar-legend{display:flex;align-items:center;gap:8px;margin-top:16px;font-size:12px;color:rgba(255,255,255,.6);}
   .calendar-legend-dot{width:10px;height:10px;border-radius:50%;background:var(--accent);flex-shrink:0;}
+
+  .pdfviewer-panel{background:#525659;width:100%;height:100%;display:flex;flex-direction:column;}
+  .pdfviewer-topbar{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;
+    background:#323639;flex-shrink:0;padding-top:calc(12px + env(safe-area-inset-top));
+  }
+  .pdfviewer-close,.pdfviewer-download{
+    width:36px;height:36px;border-radius:10px;border:none;background:rgba(255,255,255,.1);color:#fff;
+    font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;
+  }
+  .pdfviewer-title{color:#fff;font-size:14px;font-weight:600;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .pdfviewer-scroll{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y pinch-zoom;padding:14px 10px;}
+  .pdfviewer-loading{color:#ddd;text-align:center;padding:60px 0;font-size:14px;}
+  .pdfviewer-pages{display:flex;flex-direction:column;align-items:center;gap:14px;}
+  .pdfviewer-pages canvas{max-width:100%;height:auto;box-shadow:0 4px 18px rgba(0,0,0,.4);border-radius:2px;display:block;}
   .calendar-corner-btn{
     position:absolute;top:16px;right:62px;width:38px;height:38px;border-radius:12px;
     background:rgba(255,255,255,.14);color:#fff;border:none;cursor:pointer;z-index:2;
@@ -652,6 +667,24 @@
   </div>
 </div>
 
+<!-- PDF viewer — our own, page-by-page canvas rendering (PDF.js),
+     instead of relying on the phone's native PDF handling, which is
+     unreliable on many Android browsers/WebViews (confirmed structural
+     issue, especially on older devices). Works identically everywhere. -->
+<div class="modal-overlay" id="modal-pdfviewer" style="align-items:stretch;">
+  <div class="pdfviewer-panel">
+    <div class="pdfviewer-topbar">
+      <button type="button" class="pdfviewer-close" id="pdfviewer-close" aria-label="Chiudi">×</button>
+      <div class="pdfviewer-title" id="pdfviewer-title">Anteprima</div>
+      <button type="button" class="pdfviewer-download" id="pdfviewer-download" aria-label="Scarica">⬇</button>
+    </div>
+    <div class="pdfviewer-scroll" id="pdfviewer-scroll">
+      <div class="pdfviewer-loading" id="pdfviewer-loading">Preparazione anteprima…</div>
+      <div class="pdfviewer-pages" id="pdfviewer-pages"></div>
+    </div>
+  </div>
+</div>
+
 <!-- Calendar modal — a real month grid, days with a completed entry
      circled, with prev/next navigation across every month that has data. -->
 <div class="modal-overlay center" id="modal-calendar">
@@ -909,6 +942,7 @@
 
 <script src="vendor/comuni.js"></script>
 <script src="vendor/supabase.js"></script>
+<script src="vendor/pdf.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
