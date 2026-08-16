@@ -112,6 +112,14 @@
     padding-top:calc(18px + var(--topbar-h, 70px));
     padding-bottom:calc(24px + var(--bottomnav-h, 90px));
   }
+  /* Navigator screen only — edge-to-edge, like opening Google Maps
+     itself. The app's own top bar hides, and the screen's own content
+     reaches all the way to the top/sides of the viewport, with only the
+     Navigatore's own floating search bar acting as the header. */
+  body.nav-fullbleed .topbar{display:none;}
+  body.nav-fullbleed #presence-diagnostic{display:none;}
+  body.nav-fullbleed main{padding:0;padding-bottom:calc(24px + var(--bottomnav-h, 90px));}
+  body.nav-fullbleed #screen-navigatore{padding:0;}
   .install-cta-wrap{position:relative;margin-bottom:14px;}
   .install-cta-btn{
     width:100%;display:flex;align-items:center;justify-content:center;gap:10px;
@@ -474,17 +482,15 @@
 
   .autocomplete-wrap{position:relative;}
 
-  .nav-topbar-compact{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
-  .nav-topbar-compact h2{font-size:19px;font-weight:800;}
-  .nav-gear-btn{width:38px;height:38px;border-radius:12px;border:1px solid var(--line);background:var(--surface);font-size:17px;}
   .nav-checkbox-row{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--ink);margin-bottom:14px;}
   .nav-checkbox-row input{width:18px;height:18px;}
   .nav-result{
-    position:absolute;left:10px;right:10px;bottom:10px;z-index:15;
-    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:16px;
-    box-shadow:0 10px 30px rgba(0,0,0,.18);
+    position:absolute;left:0;right:0;bottom:0;z-index:15;
+    background:#fff;border-radius:18px 18px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));
+    box-shadow:0 -4px 20px rgba(0,0,0,.15);
   }
-  .nav-result-stats{display:flex;gap:24px;}
+  .nav-result::before{content:'';position:absolute;top:8px;left:50%;transform:translateX(-50%);width:36px;height:4px;background:var(--line);border-radius:100px;}
+  .nav-result-stats{display:flex;gap:24px;margin-top:6px;}
   .nav-result-stats div{display:flex;flex-direction:column;}
   .nav-result-stats b{font-size:18px;font-weight:800;}
   .nav-result-stats span{font-size:11.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;}
@@ -495,7 +501,11 @@
 
   /* The map fills almost the whole screen, like opening Google Maps —
      not a small card among several other cards. */
-  .nav-map-wrap{position:relative;height:calc(100vh - var(--topbar-h, 70px) - 130px);min-height:420px;border-radius:var(--radius-lg);overflow:hidden;}
+  /* Now that the app's own top bar and the separate title row are both
+     gone on this screen (see body.nav-fullbleed), the map only needs to
+     leave room for the app's bottom tab bar — everything else is the
+     map itself, edge to edge, exactly like opening Google Maps. */
+  .nav-map-wrap{position:relative;height:calc(100vh - var(--bottomnav-h, 90px) - 24px);min-height:420px;overflow:hidden;}
   .nav-map{width:100%;height:100%;}
   .nav-map.picking{cursor:crosshair;box-shadow:inset 0 0 0 3px var(--accent);}
   /* True fullscreen during active navigation — escapes the app's own
@@ -506,20 +516,25 @@
   }
 
   .nav-search-bar{
-    position:absolute;top:10px;left:10px;right:10px;z-index:15;
-    background:var(--surface);border-radius:100px;padding:13px 16px;
-    display:flex;align-items:center;gap:10px;box-shadow:0 6px 18px rgba(0,0,0,.15);
-    font-size:14.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;
+    position:absolute;top:calc(10px + env(safe-area-inset-top));left:10px;right:10px;z-index:15;
+    background:#fff;border-radius:100px;padding:12px 8px 12px 18px;
+    display:flex;align-items:center;gap:10px;box-shadow:0 2px 10px rgba(0,0,0,.2);
+    font-size:14.5px;font-weight:500;color:#3c4043;cursor:pointer;
   }
-  .nav-search-icon{font-size:15px;}
+  .nav-search-icon{font-size:16px;color:#5f6368;}
+  .nav-search-bar span:nth-child(2){flex:1;}
+  .nav-search-gear{
+    flex-shrink:0;width:36px;height:36px;border-radius:50%;border:none;background:var(--accent-soft);
+    color:var(--accent);font-size:16px;display:flex;align-items:center;justify-content:center;
+  }
   .nav-search-panel{
-    position:absolute;top:60px;left:10px;right:10px;z-index:16;max-height:70%;overflow-y:auto;
-    background:var(--surface);border-radius:var(--radius-lg);padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.2);
+    position:absolute;top:calc(70px + env(safe-area-inset-top));left:10px;right:10px;z-index:16;max-height:70%;overflow-y:auto;
+    background:#fff;border-radius:var(--radius-lg);padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.2);
   }
-  .nav-float-controls{position:absolute;right:10px;bottom:100px;z-index:15;display:flex;flex-direction:column;gap:8px;}
+  .nav-float-controls{position:absolute;right:10px;bottom:110px;z-index:15;display:flex;flex-direction:column;gap:10px;}
   .nav-float-btn{
-    width:44px;height:44px;border-radius:50%;border:none;background:var(--surface);font-size:18px;
-    box-shadow:0 4px 14px rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center;
+    width:44px;height:44px;border-radius:50%;border:none;background:#fff;font-size:18px;
+    box-shadow:0 2px 8px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;
   }
 
   .nav-active-overlay{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none;padding:10px;padding-top:calc(10px + env(safe-area-inset-top));}
