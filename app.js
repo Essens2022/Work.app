@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v155") {
+          if (data && data.v && data.v !== "pt-foglio-v156") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v155"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v156"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -564,20 +564,35 @@
       fuel: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="9" height="18" rx="1"/><rect x="6.3" y="5.5" width="4.4" height="4" rx="0.5"/><path d="M13 9h2.5l3 2.5v6.5a1.5 1.5 0 0 1-3 0v-3.5a1 1 0 0 0-1-1h-1.5"/></svg>',
       share: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg>',
       calendar: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg>',
-      // Turn-by-turn navigation glyphs — plain line icons (same family
-      // as the rest of the app's own icons), used specifically because
-      // the plain Unicode arrows they replaced (⬅➡⬆ etc.) render as
-      // full emoji on iOS, each with its own built-in grey/blue box
-      // background that no CSS here can control or restyle.
-      'nav-straight': '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>',
-      'nav-turn-left': '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>',
-      'nav-turn-right': '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>',
-      'nav-slight-left': '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M17 7H7v10"/><path d="M17 17 7 7"/></svg>',
-      'nav-slight-right': '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>',
-      'nav-uturn': '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>',
-      'nav-roundabout': '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>',
-      'nav-finish': '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22V4"/></svg>',
-      'nav-recenter': '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" x2="5" y1="12" y2="12"/><line x1="19" x2="22" y1="12" y2="12"/><line x1="12" x2="12" y1="2" y2="5"/><line x1="12" x2="12" y1="19" y2="22"/><circle cx="12" cy="12" r="7"/></svg>'
+      // Turn-by-turn navigation glyphs, from the "ADB Smart Navigator"
+      // SVG pack ION commissioned — plain line icons on a transparent
+      // background (currentColor, so they take on whatever color the
+      // surrounding button/banner needs). These replace an earlier
+      // hand-drawn set; the exact type-number → icon mapping below
+      // matches ORS's own documented instruction-type table
+      // (giscience.github.io/openrouteservice/.../instruction-types) —
+      // the previous mapping had sharp turns, roundabouts, and the
+      // actual U-turn type pointing at the wrong glyphs.
+      'nav-turn-left': '<svg viewBox="0 0 96 96" width="26" height="26"><path d="M68 66V44c0-10-8-18-18-18H22" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M34 14L22 26l12 12" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      'nav-turn-right': '<svg viewBox="0 0 96 96" width="26" height="26"><path d="M28 66V44c0-10 8-18 18-18h28" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M62 14l12 12-12 12" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      'nav-sharp-left': '<svg viewBox="0 0 96 96" width="26" height="26"><path d="M60 72V48c0-6-3-10-8-14L24 16" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M40 12H20v20" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      'nav-sharp-right': '<svg viewBox="0 0 96 96" width="26" height="26"><path d="M36 72V48c0-6 3-10 8-14l28-18" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M56 12h20v20" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      'nav-slight-left': '<svg viewBox="0 0 96 96" width="26" height="26"><path d="M58 74V38L26 20" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M40 18H24v16" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      'nav-slight-right': '<svg viewBox="0 0 96 96" width="26" height="26"><path d="M38 74V38l32-18" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M56 18h16v16" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      'nav-straight': '<svg viewBox="0 0 96 96" width="26" height="26"><path d="M48 74V20" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/><path d="M34 30l14-14 14 14" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      'nav-roundabout-enter': '<svg viewBox="0 0 96 96" width="26" height="26"><circle cx="48" cy="44" r="18" fill="none" stroke="currentColor" stroke-width="7"/><path d="M48 8v18" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/><path d="M36 18l12-12 12 12" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M30 44H12" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/><path d="M24 32L12 44l12 12" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      'nav-roundabout-exit': '<svg viewBox="0 0 96 96" width="26" height="26"><circle cx="48" cy="44" r="18" fill="none" stroke="currentColor" stroke-width="7"/><path d="M48 8v18" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/><path d="M36 18l12-12 12 12" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M60 44h18" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/><path d="M66 32l12 12-12 12" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      'nav-uturn': '<svg viewBox="0 0 96 96" width="26" height="26"><path d="M62 74V34c0-12-10-22-22-22S18 22 18 34v10" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/><path d="M6 34l12 12 12-12" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      'nav-finish': '<svg viewBox="0 0 96 96" width="26" height="26"><path d="M48 74V20" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/><circle cx="48" cy="12" r="7" fill="currentColor"/></svg>',
+      'nav-keep-left': '<svg viewBox="0 0 96 96" width="26" height="26"><path d="M48 74V24" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/><path d="M48 40L26 18" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/><path d="M18 18h16v16" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      'nav-keep-right': '<svg viewBox="0 0 96 96" width="26" height="26"><path d="M48 74V24" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/><path d="M48 40l22-22" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/><path d="M54 18h16v16" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      // Control-button glyphs, same pack — replace emoji (🛰️🔍✕ etc.)
+      // that were rendering as full-color emoji with their own baked-in
+      // background on iOS, impossible to restyle from CSS.
+      'nav-search': '<svg viewBox="0 0 96 96" width="26" height="26"><circle cx="42" cy="42" r="18" fill="none" stroke="currentColor" stroke-width="6"/><path d="M56 56l14 14" fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round"/></svg>',
+      'nav-layers': '<svg viewBox="0 0 96 96" width="22" height="22"><path d="M48 24l20 10-20 10-20-10z" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/><path d="M28 44l20 10 20-10" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/><path d="M28 54l20 10 20-10" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round"/></svg>',
+      'nav-close': '<svg viewBox="0 0 96 96" width="18" height="18"><path d="M28 28l40 40M68 28L28 68" stroke="currentColor" stroke-width="8" stroke-linecap="round"/></svg>',
+      'nav-recenter': '<svg viewBox="0 0 96 96" width="22" height="22"><circle cx="48" cy="48" r="18" fill="none" stroke="currentColor" stroke-width="6"/><circle cx="48" cy="48" r="5" fill="currentColor"/><path d="M48 12v14M48 70v14M12 48h14M70 48h14" stroke="currentColor" stroke-width="6" stroke-linecap="round"/></svg>',
     };
     return icons[name] || '';
   }
@@ -1027,7 +1042,7 @@
     // map, hamburger-style icon on the left, a round settings icon on
     // the right where Google puts the profile picture.
     html += '<div class="nav-search-bar" id="nav-search-bar">';
-    html += '<span class="nav-search-icon">🔍</span><span id="nav-search-label">Dove vuoi andare?</span>';
+    html += '<span class="nav-search-icon">' + svgIcon('nav-search') + '</span><span id="nav-search-label">Dove vuoi andare?</span>';
     html += '<button type="button" class="nav-search-gear" id="nav-gear-btn" aria-label="Impostazioni veicolo">⚙</button>';
     html += '</div>';
     html += '<div class="nav-search-panel" id="nav-search-panel" style="display:none;">';
@@ -1040,8 +1055,8 @@
     // Floating controls, bottom-right — same spot Google Maps puts its
     // own layers toggle and "my location" button.
     html += '<div class="nav-float-controls" id="nav-float-controls">';
-    html += '<button type="button" class="nav-float-btn" id="nav-layers-btn" aria-label="Vista satellite">🛰️</button>';
-    html += '<button type="button" class="nav-float-btn" id="nav-locate-btn" aria-label="La mia posizione">📍</button>';
+    html += '<button type="button" class="nav-float-btn" id="nav-layers-btn" aria-label="Vista satellite">' + svgIcon('nav-layers') + '</button>';
+    html += '<button type="button" class="nav-float-btn" id="nav-locate-btn" aria-label="La mia posizione"><svg viewBox="0 0 60 60" width="22" height="22"><circle cx="30" cy="30" r="27" fill="#ffffff" stroke="#e4e8ef" stroke-width="2"/><circle cx="30" cy="30" r="10" fill="#6fa3ff"/><circle cx="30" cy="30" r="18" fill="#6fa3ff" fill-opacity="0.18"/></svg></button>';
     html += '</div>';
 
     html += '<div id="nav-result" class="nav-result" style="display:none;"></div>';
@@ -1053,7 +1068,7 @@
       '<div class="nav-instruction-copy"><div class="nav-instruction-dist" id="nav-instr-dist">—</div><div class="nav-instruction-text" id="nav-instr-text"></div></div>' +
       '</div>';
     html += '<div class="nav-active-float-controls">' +
-      '<button type="button" class="nav-float-btn" id="nav-active-layers-btn" aria-label="Vista satellite">🛰️</button>' +
+      '<button type="button" class="nav-float-btn" id="nav-active-layers-btn" aria-label="Vista satellite">' + svgIcon('nav-layers') + '</button>' +
       '<button type="button" class="nav-compass-badge" id="nav-compass-btn" aria-label="Direzione di marcia"><span id="nav-compass-needle">N</span></button>' +
       '</div>';
     html += '<div class="nav-speed-badge" id="nav-speed-badge" style="display:none;"><b id="nav-speed-value">0</b><span>km/h</span></div>';
@@ -2237,15 +2252,29 @@
     navMap.fitBounds(navRouteLayer.getBounds(), { padding: [24, 24] });
   }
 
-  // A numbered pin — exactly the visual Google Maps uses for a
-  // multi-stop trip: origin as a plain dot, every stop (and the final
-  // point, once real stops exist) as a numbered badge in sequence, so
-  // the order is legible at a glance directly on the map, not just in
-  // the list of fields.
+  // Origin gets the same blue "current location" dot Google Maps uses
+  // (from the SVG pack — a soft blue halo behind a solid dot), the
+  // final destination gets the classic red teardrop pin (same pack),
+  // and any real intermediate stop keeps the numbered circle badge —
+  // exactly how Google Maps itself distinguishes "where you are",
+  // "where you're headed", and "everything in between" on a multi-stop
+  // trip, all legible at a glance directly on the map.
   function navNumberedMarkerIcon(wp, displayNumber, hasStops) {
     var isOrigin = wp && wp.role === 'origin';
     if (isOrigin) {
-      return L.divIcon({ className: 'nav-pin-origin', html: '<div></div>', iconSize: [18, 18], iconAnchor: [9, 9] });
+      return L.divIcon({
+        className: 'nav-pin-origin',
+        html: '<svg viewBox="0 0 60 60" width="26" height="26"><circle cx="30" cy="30" r="27" fill="#ffffff" stroke="#e4e8ef" stroke-width="2"/><circle cx="30" cy="30" r="10" fill="#6fa3ff"/><circle cx="30" cy="30" r="18" fill="#6fa3ff" fill-opacity="0.18"/></svg>',
+        iconSize: [26, 26], iconAnchor: [13, 13]
+      });
+    }
+    var isFinalDest = wp && wp.role === 'dest';
+    if (isFinalDest) {
+      return L.divIcon({
+        className: 'nav-pin-destination',
+        html: '<svg viewBox="0 0 72 96" width="34" height="45"><path d="M36 92s24-22 24-46a24 24 0 1 0-48 0c0 24 24 46 24 46z" fill="#e53935"/><circle cx="36" cy="44" r="10" fill="#ffffff"/></svg>',
+        iconSize: [34, 45], iconAnchor: [17, 45]
+      });
     }
     var showNumber = hasStops || (wp && wp.role === 'stop');
     var content = showNumber ? displayNumber : '';
@@ -2266,10 +2295,20 @@
 
   // ORS's numeric maneuver "type" codes, mapped to a simple directional
   // glyph for the instruction banner.
+  // Matches ORS's own documented instruction-type table exactly
+  // (giscience.github.io/openrouteservice/.../instruction-types) — the
+  // previous version of this had sharp turns falling back to plain
+  // turn icons, roundabouts showing a U-turn icon, and the actual
+  // U-turn type (9) not mapped at all.
   var NAV_TURN_ICONS = {
-    0: 'nav-turn-left', 1: 'nav-turn-right', 2: 'nav-turn-left', 3: 'nav-turn-right',
-    4: 'nav-slight-left', 5: 'nav-slight-right', 6: 'nav-straight', 7: 'nav-uturn', 8: 'nav-uturn',
-    10: 'nav-finish', 11: 'nav-roundabout'
+    0: 'nav-turn-left', 1: 'nav-turn-right',
+    2: 'nav-sharp-left', 3: 'nav-sharp-right',
+    4: 'nav-slight-left', 5: 'nav-slight-right',
+    6: 'nav-straight',
+    7: 'nav-roundabout-enter', 8: 'nav-roundabout-exit',
+    9: 'nav-uturn',
+    10: 'nav-finish', 11: 'nav-straight', // 11 = Depart — no dedicated icon exists; straight is the reasonable default for "you're setting off"
+    12: 'nav-keep-left', 13: 'nav-keep-right'
   };
 
   function startActiveNavigation(feature, legs, points) {
@@ -2417,14 +2456,15 @@
     }
 
     if (navPositionMarker) navMap.removeLayer(navPositionMarker);
-    // A directional arrow — same visual language as Google Maps' own
-    // blue "you are here" arrow. The arrow itself always points
-    // straight up on screen; instead, the MAP ITSELF rotates
-    // underneath it (see rotateNavMapToHeading below), so "up" always
-    // means "the direction you're driving", exactly like Google Maps'
-    // own navigation mode.
+    // A top-down car icon (from the SVG pack), rotating to show the
+    // real direction of travel — the map itself stays fixed, north-up
+    // (see rotateNavMapToHeading), only this marker turns.
     navPositionMarker = L.marker([lat, lon], {
-      icon: L.divIcon({ className: 'nav-heading-arrow', html: '<div>➤</div>', iconSize: [30, 30], iconAnchor: [15, 15] })
+      icon: L.divIcon({
+        className: 'nav-heading-arrow',
+        html: '<div><svg viewBox="0 0 96 150" width="26" height="41"><ellipse cx="48" cy="132" rx="24" ry="8" fill="#000" fill-opacity="0.12"/><rect x="24" y="18" width="48" height="112" rx="18" fill="#eef2f7" stroke="#9aa5b1" stroke-width="3"/><rect x="31" y="34" width="34" height="56" rx="8" fill="#ffffff" stroke="#bdc5cf" stroke-width="2"/><path d="M24 36c-8 8-10 16-10 24v28c0 6 3 12 8 16l2 2V44z" fill="#d64242" fill-opacity="0.85"/><path d="M72 36c8 8 10 16 10 24v28c0 6-3 12-8 16l-2 2V44z" fill="#42a5f5" fill-opacity="0.85"/><rect x="38" y="96" width="20" height="20" rx="6" fill="#dde5ee"/></svg></div>',
+        iconSize: [30, 46], iconAnchor: [15, 23]
+      })
     }).addTo(navMap);
 
     // Multi-stop trip — offer to confirm arrival once genuinely close
