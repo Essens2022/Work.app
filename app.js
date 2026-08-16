@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v120") {
+          if (data && data.v && data.v !== "pt-foglio-v121") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v120"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v121"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1045,16 +1045,26 @@
       var mo = selectedPdfMonth();
       var doc = buildPdfForMonth(mo.month, mo.year);
       if (!doc) { toast('Nessun foglio per questo mese'); return; }
+      // Android's various browsers/WebViews have a well-documented,
+      // structural unreliability rendering a blob: PDF inline (often a
+      // blank/black screen, confirmed as a known Chrome-on-Android issue,
+      // not something fixable from this side) — completely unlike iOS
+      // Safari, which handles this natively without trouble. Rather than
+      // keep fighting that, Android gets the SAME proven, reliable path
+      // already used for "Condividi PDF": trigger a real download (or
+      // the share sheet), and let the phone's own PDF app take over from
+      // there — the one thing that's genuinely dependable across every
+      // Android device and browser.
+      var isAndroid = /Android/i.test(navigator.userAgent);
+      if (isAndroid) {
+        downloadCurrentPdf();
+        return;
+      }
       var blobUrl = doc.output('bloburl');
-      // Try opening in a new tab first — this is what actually works
-      // reliably for PDF blob URLs on Android Chrome (a plain
-      // window.location.href navigation to a blob: PDF is known to fail
-      // silently there, even though it works fine on iOS Safari). Since
-      // this whole function runs synchronously from the tap itself, the
-      // browser still recognizes it as a direct user action and won't
-      // treat it as a blocked popup. Only fall back to navigating this
-      // same tab if the new tab genuinely couldn't be opened for some
-      // reason.
+      // iOS: open in a new tab, falling back to navigating this same tab
+      // if that couldn't be opened for some reason. Runs synchronously
+      // from the tap itself, so the browser still recognizes it as a
+      // direct user action and won't treat it as a blocked popup.
       var newTab = window.open(blobUrl, '_blank');
       if (!newTab) window.location.href = blobUrl;
     } catch (err) {
