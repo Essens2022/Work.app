@@ -960,7 +960,7 @@
   // width, length, weight, axle load), not just car routing. Needs a
   // free API key (no payment method required) — set below once ION has
   // registered one at openrouteservice.org/dev/#/signup.
-  var ORS_API_KEY = ""; // TODO: incolla qui la chiave gratuita da openrouteservice.org
+  var ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjA3YzdmZTgwZTc5YjQ0OTliNjYxYzdlZGFiY2JlZDdlIiwiaCI6Im11cm11cjY0In0=";
 
   var TIPO_VEICOLO_OPTS = [
     { v: 'furgone', l: 'Furgone' },
