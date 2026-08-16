@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v121") {
+          if (data && data.v && data.v !== "pt-foglio-v122") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v121"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v122"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1045,33 +1045,70 @@
       var mo = selectedPdfMonth();
       var doc = buildPdfForMonth(mo.month, mo.year);
       if (!doc) { toast('Nessun foglio per questo mese'); return; }
-      // Android's various browsers/WebViews have a well-documented,
-      // structural unreliability rendering a blob: PDF inline (often a
-      // blank/black screen, confirmed as a known Chrome-on-Android issue,
-      // not something fixable from this side) — completely unlike iOS
-      // Safari, which handles this natively without trouble. Rather than
-      // keep fighting that, Android gets the SAME proven, reliable path
-      // already used for "Condividi PDF": trigger a real download (or
-      // the share sheet), and let the phone's own PDF app take over from
-      // there — the one thing that's genuinely dependable across every
-      // Android device and browser.
-      var isAndroid = /Android/i.test(navigator.userAgent);
-      if (isAndroid) {
-        downloadCurrentPdf();
-        return;
-      }
-      var blobUrl = doc.output('bloburl');
-      // iOS: open in a new tab, falling back to navigating this same tab
-      // if that couldn't be opened for some reason. Runs synchronously
-      // from the tap itself, so the browser still recognizes it as a
-      // direct user action and won't treat it as a blocked popup.
-      var newTab = window.open(blobUrl, '_blank');
-      if (!newTab) window.location.href = blobUrl;
+      var filename = 'Foglio_Viaggi_' + MESI[mo.month - 1] + '_' + mo.year;
+      openPdfViewerModal(doc.output('arraybuffer'), filename);
     } catch (err) {
       console.error(err);
       toast('Impossibile aprire l\'anteprima');
     }
   }
+
+  // Our own PDF viewer, rendering each page to a plain <canvas> via
+  // PDF.js — instead of leaning on the phone's own PDF handling, which
+  // varies wildly by device (confirmed structurally unreliable on many
+  // Android browsers/WebViews, especially older ones — often just a
+  // blank/black screen). This looks and feels identical everywhere,
+  // regardless of device age or browser.
+  var pdfViewerOriginalViewport = null;
+  function openPdfViewerModal(pdfArrayBuffer, title) {
+    document.getElementById('pdfviewer-title').textContent = title || 'Anteprima';
+    document.getElementById('pdfviewer-pages').innerHTML = '';
+    document.getElementById('pdfviewer-loading').style.display = '';
+    document.getElementById('modal-pdfviewer').classList.add('open');
+
+    // Pinch-zoom is locked at the page level everywhere else in the app
+    // (see the crop tool for the same pattern) — temporarily allow real
+    // native pinch-to-zoom here, exactly like a proper PDF viewer, then
+    // restore the normal lock on close.
+    var meta = document.getElementById('viewport-meta');
+    pdfViewerOriginalViewport = meta.getAttribute('content');
+    meta.setAttribute('content', 'width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5, user-scalable=yes');
+
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
+    pdfjsLib.getDocument({ data: pdfArrayBuffer }).promise.then(function (pdf) {
+      var container = document.getElementById('pdfviewer-pages');
+      var renderPage = function (pageNum) {
+        return pdf.getPage(pageNum).then(function (page) {
+          var scale = (window.devicePixelRatio > 1.5) ? 2.2 : 1.6; // sharp on retina-class screens without being wasteful on older/lower-res ones
+          var viewport = page.getViewport({ scale: scale });
+          var canvas = document.createElement('canvas');
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          container.appendChild(canvas);
+          return page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
+        });
+      };
+      var chain = Promise.resolve();
+      for (var i = 1; i <= pdf.numPages; i++) {
+        (function (n) { chain = chain.then(function () { return renderPage(n); }); })(i);
+      }
+      return chain;
+    }).then(function () {
+      document.getElementById('pdfviewer-loading').style.display = 'none';
+    }).catch(function (err) {
+      console.error(err);
+      document.getElementById('pdfviewer-loading').textContent = 'Impossibile generare l\'anteprima.';
+    });
+  }
+  function closePdfViewerModal() {
+    document.getElementById('modal-pdfviewer').classList.remove('open');
+    if (pdfViewerOriginalViewport) {
+      document.getElementById('viewport-meta').setAttribute('content', pdfViewerOriginalViewport);
+      pdfViewerOriginalViewport = null;
+    }
+  }
+  document.getElementById('pdfviewer-close').addEventListener('click', closePdfViewerModal);
+  document.getElementById('pdfviewer-download').addEventListener('click', downloadCurrentPdf);
 
   function downloadCurrentPdf() {
     Promise.all([loadPdfLibs(), ensureLogoReady()]).then(function () {
