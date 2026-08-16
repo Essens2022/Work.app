@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v142") {
+          if (data && data.v && data.v !== "pt-foglio-v143") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v142"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v143"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1005,7 +1005,7 @@
     var html = '';
 
     html += '<div class="nav-map-wrap">';
-    html += '<div id="nav-map-rotate-wrap" class="nav-map-rotate-wrap"><div id="nav-map" class="nav-map nav-map-tall"></div></div>';
+    html += '<div id="nav-map-tilt-wrap" class="nav-map-tilt-wrap"><div id="nav-map-rotate-wrap" class="nav-map-rotate-wrap"><div id="nav-map" class="nav-map nav-map-tall"></div></div></div>';
 
     // The search bar itself IS the header — no separate title row above
     // it, same as Google Maps: a rounded pill floating directly on the
@@ -1047,6 +1047,18 @@
     document.getElementById('nav-search-bar').addEventListener('click', function () {
       var panel = document.getElementById('nav-search-panel');
       panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    });
+    // Tapping anywhere else on the map (outside the panel and the
+    // search bar that opens it) closes the trip-planning panel — same
+    // convention as the modals, applied here too since this floating
+    // panel isn't a ".modal-overlay" and wouldn't otherwise get it.
+    document.addEventListener('click', function (e) {
+      var panel = document.getElementById('nav-search-panel');
+      var bar = document.getElementById('nav-search-bar');
+      if (!panel || panel.style.display === 'none') return;
+      if (panel.contains(e.target) || (bar && bar.contains(e.target))) return;
+      if (navPickingWaypointId) return; // map-picking mode already hides the panel on its own and needs the tap for placing the pin
+      panel.style.display = 'none';
     });
     document.getElementById('nav-gear-btn').addEventListener('click', function (e) {
       e.stopPropagation();
@@ -1240,6 +1252,7 @@
         '<div class="field autocomplete-wrap" style="flex:1;margin-bottom:8px;">' +
         '<label>' + label + '</label>' +
         '<input type="text" id="wpinput-' + wp.id + '" value="' + escapeHtml(wp.text) + '" placeholder="' + placeholder + '" autocomplete="off">' +
+        '<button type="button" class="ac-clear-btn" id="wpclear-' + wp.id + '" aria-label="Cancella">✕</button>' +
         '<div class="ac-list" id="wpac-' + wp.id + '"></div>' +
         '</div>' +
         '<button type="button" class="nav-wp-pin" data-pin="' + wp.id + '" aria-label="Scegli sulla mappa">📍</button>' +
@@ -1248,7 +1261,14 @@
     }).join('');
     container.innerHTML = html;
 
-    navWaypoints.forEach(function (wp) { wireNavAddressAutocomplete(wp.id); });
+    navWaypoints.forEach(function (wp) {
+      wireNavAddressAutocomplete(wp.id);
+      wireNavClearButton(
+        document.getElementById('wpinput-' + wp.id),
+        document.getElementById('wpclear-' + wp.id),
+        function () { clearNavWaypointField(wp.id); }
+      );
+    });
     container.querySelectorAll('[data-remove]').forEach(function (btn) {
       btn.addEventListener('click', function () { removeNavWaypoint(btn.getAttribute('data-remove')); });
     });
@@ -1258,6 +1278,33 @@
     container.querySelectorAll('[data-pin]').forEach(function (btn) {
       btn.addEventListener('click', function () { startNavMapPicking(btn.getAttribute('data-pin')); });
     });
+  }
+
+  // Small "×" inside the field itself to instantly empty an address —
+  // separate from the ✕ next to a stop, which removes the whole row;
+  // this only clears the text/point, same idea as the clear button
+  // browsers put inside a search box.
+  function wireNavClearButton(input, clearBtn, onClear) {
+    if (!input || !clearBtn) return;
+    function sync() { clearBtn.classList.toggle('show', input.value.trim().length > 0); }
+    sync();
+    input.addEventListener('input', sync);
+    clearBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      input.value = '';
+      sync();
+      onClear();
+      input.focus();
+    });
+  }
+
+  function clearNavWaypointField(waypointId) {
+    var wp = navWaypoints.filter(function (w) { return w.id === waypointId; })[0];
+    if (wp) { wp.text = ''; wp.point = null; wp.useCurrentPosition = false; }
+    var list = document.getElementById('wpac-' + waypointId);
+    if (list) list.classList.remove('show');
+    if (navWaypointMarkers[waypointId]) { navMap.removeLayer(navWaypointMarkers[waypointId]); delete navWaypointMarkers[waypointId]; }
+    if (navRouteLayer) { navMap.removeLayer(navRouteLayer); navRouteLayer = null; }
   }
 
   // Casa/Lavoro chips, drawn above the waypoints list — tapping a chip
@@ -1310,8 +1357,12 @@
     homeInput.value = hw.home ? hw.home.text : '';
     workInput.value = hw.work ? hw.work.text : '';
     var pickedHome = hw.home, pickedWork = hw.work;
-    wireNavHomeWorkField(homeInput, document.getElementById('hw-home-ac'), function (entry) { pickedHome = entry; });
-    wireNavHomeWorkField(workInput, document.getElementById('hw-work-ac'), function (entry) { pickedWork = entry; });
+    var setPickedHome = function (entry) { pickedHome = entry; };
+    var setPickedWork = function (entry) { pickedWork = entry; };
+    wireNavHomeWorkField(homeInput, document.getElementById('hw-home-ac'), setPickedHome);
+    wireNavHomeWorkField(workInput, document.getElementById('hw-work-ac'), setPickedWork);
+    wireNavClearButton(homeInput, document.getElementById('hw-home-clear'), function () { setPickedHome(null); document.getElementById('hw-home-ac').classList.remove('show'); });
+    wireNavClearButton(workInput, document.getElementById('hw-work-clear'), function () { setPickedWork(null); document.getElementById('hw-work-ac').classList.remove('show'); });
     document.getElementById('modal-nav-homework').classList.add('open');
     document.getElementById('nav-homework-close-x').onclick = function () {
       document.getElementById('modal-nav-homework').classList.remove('open');
@@ -1860,9 +1911,11 @@
     // Alternatives only requested for a short (single-segment) trip —
     // combining them with the multi-leg chain for long trips would
     // multiply requests and complicate stitching, for little real
-    // benefit over a long haul.
+    // benefit over a long haul. target_count: 3 is ORS's own documented
+    // maximum on the free tier (openrouteservice.org/restrictions) —
+    // asking for more would simply be rejected.
     if (requestAlternatives) {
-      body.alternative_routes = { target_count: 2, weight_factor: 1.5, share_factor: 0.6 };
+      body.alternative_routes = { target_count: 3, weight_factor: 1.6, share_factor: 0.6 };
     }
     return fetch('https://api.openrouteservice.org/v2/directions/driving-hgv/geojson', {
       method: 'POST',
@@ -2089,6 +2142,16 @@
     document.getElementById('nav-result').style.display = 'none';
     document.querySelector('.nav-map-wrap').classList.add('nav-fullscreen');
     setTimeout(function () { if (navMap) navMap.invalidateSize(); }, 50);
+    // Tilt into the 3D navigation view immediately on "Avvia" — not
+    // only once the first GPS heading arrives, since heading can stay
+    // null for a while if the vehicle hasn't started moving yet, and
+    // the close, tilted look is meant to be there from the start.
+    rotateNavMapToHeading(0);
+    // Zoom in close right away too, using whatever position is already
+    // known (cached from opening the Navigatore) — rather than staying
+    // at the overview zoom level until the first watchPosition update
+    // arrives, which could take a moment.
+    if (navSearchFocusPoint) navMap.setView([navSearchFocusPoint.lat, navSearchFocusPoint.lon], 18, { animate: true });
 
     updateActiveInstructionBanner();
 
@@ -2118,22 +2181,29 @@
     document.getElementById('nav-recenter-btn').addEventListener('click', function () {
       navFollowingUser = true;
       document.getElementById('nav-recenter-btn').style.display = 'none';
-      if (navLastPosition) navMap.setView([navLastPosition.lat, navLastPosition.lon], 17, { animate: true });
+      if (navLastPosition) navMap.setView([navLastPosition.lat, navLastPosition.lon], 18, { animate: true });
     });
   }
 
   // Rotates the whole map so "up" always means "the direction of
-  // travel" — the standard look of a real navigation mode. The
-  // position arrow itself counter-rotates by the same amount, in the
-  // opposite direction, so it stays pointing straight up on screen
-  // throughout, while the map (tiles, route line) turns underneath it.
-  // Rotating a DEDICATED wrapper around the map (rather than Leaflet's
-  // own internal panes) keeps Leaflet's own coordinate math undisturbed
-  // — Leaflet has no idea its container is visually rotated, and
-  // doesn't need to.
+  // travel" — the standard look of a real navigation mode — AND tilts
+  // it back in 3D, like a camera looking ahead down the road instead
+  // of straight down from above, same visual language as Google Maps'
+  // own turn-by-turn view. The position arrow itself counter-rotates
+  // by the same heading amount, in the opposite direction, so it stays
+  // pointing straight up on screen throughout, while the map (tiles,
+  // route line) turns and tilts underneath it.
+  // Both effects have to be set in ONE transform string on the SAME
+  // element (an inline style always wins over any CSS class rule, so
+  // splitting rotateX into CSS wouldn't actually apply once this runs).
+  // Leaflet's own coordinate math is untouched either way — it has no
+  // idea its container is visually transformed, and doesn't need to.
+  // NOTE: the tilt angle/scale below is a first attempt, not verified
+  // on a real device — genuinely needs to be eyeballed and likely
+  // tuned once it's actually seen running.
   function rotateNavMapToHeading(heading) {
     var wrap = document.getElementById('nav-map-rotate-wrap');
-    if (wrap) wrap.style.transform = 'rotate(' + (-heading) + 'deg)';
+    if (wrap) wrap.style.transform = 'rotateX(58deg) scale(2.1) rotate(' + (-heading) + 'deg)';
     if (navPositionMarker) {
       var iconEl = navPositionMarker.getElement();
       var innerDiv = iconEl && iconEl.querySelector('div');
@@ -2182,7 +2252,7 @@
     }
 
     if (navFollowingUser) {
-      navMap.setView([lat, lon], 17, { animate: true });
+      navMap.setView([lat, lon], 18, { animate: true });
     }
     if (heading != null && !isNaN(heading)) rotateNavMapToHeading(heading);
 
@@ -4603,6 +4673,19 @@
     syncBarHeights();
     window.addEventListener('resize', syncBarHeights);
     window.addEventListener('orientationchange', function () { setTimeout(syncBarHeights, 200); });
+
+    // Tapping the dimmed backdrop (outside the sheet itself) closes
+    // whichever modal is open — same convention as every native picker
+    // and virtually every modal on the web. Wired once, globally, for
+    // every ".modal-overlay" in the app, rather than per-modal, so new
+    // modals get this for free. The one deliberate exception is the
+    // mandatory email-confirmation modal, which by design can't be
+    // dismissed until the email is actually confirmed.
+    document.addEventListener('click', function (e) {
+      if (!e.target.classList || !e.target.classList.contains('modal-overlay')) return;
+      if (e.target.id === 'modal-email-required') return;
+      e.target.classList.remove('open');
+    });
 
     // iOS often "resumes" an installed app from a suspended state instead
     // of doing a real page load — the whole JS context (including the
