@@ -628,39 +628,22 @@
     width:28px;height:28px;border-radius:50%;background:#1C3D8F;color:#fff;font-weight:800;font-size:13.5px;
     display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.35);border:2.5px solid #fff;
   }
-  /* The rotation wrapper is deliberately oversized (60% bigger each
-     side) and centered, so that even at a 45° rotation during
-     navigation mode, the visible rectangle never shows an empty corner
-     — the map itself is always big enough to fully cover it, exactly
-     like Google Maps' own rotating navigation view. */
-  /* Normal (non-navigating) size — matches its container exactly, same
-     as a plain map with no rotation wrapper at all. */
+  /* No longer rotated or oversized — the map stays fixed and north-up
+     throughout navigation now (see the comment on rotateNavMapToHeading
+     in app.js for why). This just fills its container exactly, same as
+     any plain map with no rotation wrapper at all. */
   .nav-map-rotate-wrap{
     position:relative;width:100%;height:100%;
-    transition:transform .3s ease;transform-origin:center center;
   }
   .nav-map-rotate-wrap .nav-map{width:100%;height:100%;}
-  /* 3D perspective wrapper — sits OUTSIDE the existing heading-rotation
-     wrapper. Purely a clipping/sizing container; the actual tilt
-     transform is applied by JS directly on nav-map-rotate-wrap (see
-     rotateNavMapToHeading), combined with the heading rotation in one
-     transform string, since an inline style always overrides a CSS
-     class rule and the two can't be split across two rules. */
   .nav-map-tilt-wrap{width:100%;height:100%;overflow:hidden;}
-  .nav-map-wrap.nav-fullscreen .nav-map-tilt-wrap .nav-map-rotate-wrap{
-    transform-origin:50% 78%;
-  }
-  /* Only while actively navigating (turn-by-turn) does the wrapper need
-     to be oversized — so that when it rotates to match the direction of
-     travel, the visible rectangle never shows an empty corner. Applied
-     only for that mode, not by default, or the map would render at an
-     absurd, offset size the rest of the time. These margins are back
-     to the proven-safe values for plain 2D rotation (a larger 3D-tilt
-     version of this was tried and confirmed broken — visible white
-     gaps at the edges on a real device — and has been rolled back). */
-  .nav-map-wrap.nav-fullscreen .nav-map-rotate-wrap{
-    position:absolute;top:-30%;left:-30%;width:160%;height:160%;
-  }
+  /* The map used to rotate to match the direction of travel, which
+     needed this wrapper oversized so a rotated rectangle would still
+     cover every corner. That rotation is gone now (confirmed broken on
+     a real device — visible white gaps, sometimes covering most of the
+     screen, at certain angles) — the map stays fixed and north-up
+     during navigation, so no special sizing is needed here anymore;
+     it just fills its container normally, same as outside navigation. */
   .nav-recenter-btn{
     position:absolute;right:10px;bottom:170px;z-index:1000;width:44px;height:44px;border-radius:50%;
     border:none;background:#fff;font-size:19px;box-shadow:0 2px 8px rgba(0,0,0,.25);
