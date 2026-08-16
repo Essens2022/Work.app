@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v142") {
+          if (data && data.v && data.v !== "pt-foglio-v143") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v142"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v143"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -999,6 +999,7 @@
   ];
 
   var navMap = null, navRouteLayer = null;
+  var navSearchFocusPoint = null; // driver's GPS position, cached once per Navigatore visit, used to bias/rank geocoding results toward nearby places first — without this, a generic query like "Via Roma 5" ranks results from anywhere in Italy with no sense of which one is actually relevant
 
   function renderNavigatore() {
     var el = document.getElementById('screen-navigatore');
@@ -1335,18 +1336,45 @@
   // to avoid touching that already-working code.
   function wireNavHomeWorkField(input, list, onPick) {
     var debounceTimer = null;
+
+    function renderCurrentPosOption() {
+      list.innerHTML = '<div class="ac-item ac-frequent ac-current-pos" data-current-pos="1"><span class="ac-freq-icon">📍</span><span class="name">La tua posizione</span></div>';
+      list.classList.add('show');
+      list.querySelector('[data-current-pos]').addEventListener('click', function () {
+        list.classList.remove('show');
+        currentPosition().then(function (p) {
+          input.value = 'La tua posizione';
+          onPick({ text: 'La tua posizione', lon: p.lon, lat: p.lat });
+        }).catch(function () { toast('Posizione non disponibile'); });
+      });
+    }
+
+    // Same as any other address field now — "La tua posizione" is
+    // offered the moment an empty Casa/Lavoro field is focused, not
+    // just when typing an actual address.
+    input.addEventListener('focus', function () {
+      if (!input.value.trim()) renderCurrentPosOption();
+    });
+
     input.oninput = function () {
       onPick(null); // typing invalidates whatever was picked before, until a suggestion is chosen again
       clearTimeout(debounceTimer);
       var text = input.value;
+      if (!text.trim()) { renderCurrentPosOption(); return; }
       if (text.trim().length < 3) { list.classList.remove('show'); return; }
       debounceTimer = setTimeout(function () {
-        fetch('https://api.openrouteservice.org/geocode/autocomplete?api_key=' + encodeURIComponent(ORS_API_KEY) + '&text=' + encodeURIComponent(text) + '&size=6')
+        fetch(navGeocodeUrl('autocomplete', text))
           .then(function (r) { return r.json(); })
           .then(function (data) {
             var features = data.features || [];
             list.innerHTML = features.map(function (f, i) {
-              return '<div class="ac-item" data-idx="' + i + '"><span class="name">' + escapeHtml(f.properties.label) + '</span></div>';
+              var p = f.properties;
+              if (p.layer === 'venue' && p.name && p.name !== p.label) {
+                var secondary = [p.street, p.housenumber].filter(Boolean).join(' ') || [p.locality, p.region].filter(Boolean).join(', ');
+                return '<div class="ac-item ac-two-line" data-idx="' + i + '"><span class="name">' + escapeHtml(p.name) + '</span>' +
+                  (secondary ? '<span class="ac-secondary">' + escapeHtml(secondary) + '</span>' : '') + '</div>';
+              }
+              return '<div class="ac-item" data-idx="' + i + '"><span class="name">' + escapeHtml(p.label) + '</span></div>';
             }).join('');
             list.classList.toggle('show', features.length > 0);
             list.querySelectorAll('[data-idx]').forEach(function (item) {
@@ -1457,7 +1485,7 @@
       renderNavSuggestions([], list, input, waypointId, matchingFrequent);
       if (text.trim().length < 3) return;
       debounceTimer = setTimeout(function () {
-        fetch('https://api.openrouteservice.org/geocode/autocomplete?api_key=' + encodeURIComponent(ORS_API_KEY) + '&text=' + encodeURIComponent(text) + '&size=6')
+        fetch(navGeocodeUrl('autocomplete', text))
           .then(function (r) { return r.json(); })
           .then(function (data) { renderNavSuggestions(data.features || [], list, input, waypointId, matchingFrequent); })
           .catch(function () { /* offline or blocked — the frequent matches (if any) are still shown */ });
@@ -1471,7 +1499,11 @@
   function renderNavSuggestions(features, list, input, waypointId, frequentEntries) {
     frequentEntries = frequentEntries || [];
     var wp = navWaypoints.filter(function (w) { return w.id === waypointId; })[0];
-    var showCurrentPositionOption = wp && wp.role === 'origin';
+    // "La tua posizione" is offered on every field now, not just
+    // Partenza — a driver might just as well want "where I am right
+    // now" as a stop or even (rarely, but why not) as the destination,
+    // same flexibility Google Maps itself allows on any field.
+    var showCurrentPositionOption = !!wp;
     if (!features.length && !frequentEntries.length && !showCurrentPositionOption) { list.classList.remove('show'); return; }
     var html = '';
     if (showCurrentPositionOption) {
@@ -1481,7 +1513,17 @@
       return '<div class="ac-item ac-frequent" data-freq="' + i + '"><span class="ac-freq-icon">🕐</span><span class="name">' + escapeHtml(e.text) + '</span></div>';
     }).join('');
     html += features.map(function (f, i) {
-      return '<div class="ac-item" data-idx="' + i + '"><span class="name">' + escapeHtml(f.properties.label) + '</span></div>';
+      var p = f.properties;
+      // Businesses/POIs ("venue" layer) get a two-line look — bold name
+      // on top, address in smaller grey text below — same as Google's
+      // own search results. Plain street/address matches stay one line,
+      // since the full label already reads naturally on its own.
+      if (p.layer === 'venue' && p.name && p.name !== p.label) {
+        var secondary = [p.street, p.housenumber].filter(Boolean).join(' ') || [p.locality, p.region].filter(Boolean).join(', ');
+        return '<div class="ac-item ac-two-line" data-idx="' + i + '"><span class="name">' + escapeHtml(p.name) + '</span>' +
+          (secondary ? '<span class="ac-secondary">' + escapeHtml(secondary) + '</span>' : '') + '</div>';
+      }
+      return '<div class="ac-item" data-idx="' + i + '"><span class="name">' + escapeHtml(p.label) + '</span></div>';
     }).join('');
     list.innerHTML = html;
     list.classList.add('show');
@@ -1556,9 +1598,34 @@
     }, 600);
   }
 
+  // Builds a Pelias/ORS geocoding URL with the parameters that actually
+  // matter for finding real addresses reliably in Italy:
+  //  - boundary.country=ITA: keeps results to Italy, so a generic
+  //    street name doesn't compete with identical ones abroad.
+  //  - layers=address,venue,street,locality: explicitly includes the
+  //    "address" layer (exact civic numbers) and "venue" layer
+  //    (businesses/POIs). Pelias silently EXCLUDES the address layer
+  //    on short/ambiguous queries as a performance optimization unless
+  //    it's asked for explicitly — this is what was likely causing
+  //    civic numbers ("Viale Veneto 2/3") to not show up reliably.
+  //  - focus.point.*: biases ranking toward the driver's current GPS
+  //    position (cached once per Navigatore visit), so among many
+  //    identically-named streets across Italy, the nearby one ranks
+  //    first — same effect as Google Maps favoring "near me" results.
+  function navGeocodeUrl(endpoint, text) {
+    var url = 'https://api.openrouteservice.org/geocode/' + endpoint + '?api_key=' + encodeURIComponent(ORS_API_KEY) +
+      '&text=' + encodeURIComponent(text) + '&size=8' +
+      '&boundary.country=ITA' +
+      '&layers=address,venue,street,locality';
+    if (navSearchFocusPoint) {
+      url += '&focus.point.lat=' + navSearchFocusPoint.lat + '&focus.point.lon=' + navSearchFocusPoint.lon;
+    }
+    return url;
+  }
+
   function geocodeAddress(text) {
     if (!text || !text.trim()) return Promise.resolve(null);
-    return fetch('https://api.openrouteservice.org/geocode/search?api_key=' + encodeURIComponent(ORS_API_KEY) + '&text=' + encodeURIComponent(text) + '&size=1')
+    return fetch(navGeocodeUrl('search', text))
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data.features || !data.features.length) return null;
@@ -1594,6 +1661,7 @@
     navigator.geolocation.getCurrentPosition(
       function (pos) {
         hideNavLocationBanner();
+        navSearchFocusPoint = { lat: pos.coords.latitude, lon: pos.coords.longitude };
         if (navMap) {
           var marker = L.circleMarker([pos.coords.latitude, pos.coords.longitude], {
             radius: 8, color: '#fff', weight: 3, fillColor: '#4285F4', fillOpacity: 1
