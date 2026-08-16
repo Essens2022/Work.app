@@ -572,10 +572,38 @@
   .nav-active-stats b{font-size:16px;font-weight:800;display:block;}
   .nav-active-stats span{font-size:11.5px;color:rgba(255,255,255,.65);}
   .nav-end-btn{background:var(--danger);color:#fff;border:none;border-radius:10px;padding:10px 16px;font-weight:700;font-size:13px;}
-  .nav-heading-arrow div{font-size:26px;color:#4285F4;text-shadow:0 0 0 #fff, 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff;transform-origin:center;}
+  .nav-heading-arrow div{font-size:26px;color:#4285F4;text-shadow:0 0 0 #fff, 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff;transform-origin:center;transition:transform .3s ease;}
+  /* The rotation wrapper is deliberately oversized (60% bigger each
+     side) and centered, so that even at a 45° rotation during
+     navigation mode, the visible rectangle never shows an empty corner
+     — the map itself is always big enough to fully cover it, exactly
+     like Google Maps' own rotating navigation view. */
+  /* Normal (non-navigating) size — matches its container exactly, same
+     as a plain map with no rotation wrapper at all. */
+  .nav-map-rotate-wrap{
+    position:relative;width:100%;height:100%;
+    transition:transform .3s ease;transform-origin:center center;
+  }
+  .nav-map-rotate-wrap .nav-map{width:100%;height:100%;}
+  /* Only while actively navigating (turn-by-turn) does the wrapper need
+     to be oversized — so that when it rotates to match the direction of
+     travel, the visible rectangle never shows an empty corner. Applied
+     only for that mode, not by default, or the map would render at an
+     absurd, offset size the rest of the time. */
+  .nav-map-wrap.nav-fullscreen .nav-map-rotate-wrap{
+    position:absolute;top:-30%;left:-30%;width:160%;height:160%;
+  }
+  .nav-recenter-btn{
+    position:absolute;right:10px;bottom:170px;z-index:1000;width:44px;height:44px;border-radius:50%;
+    border:none;background:#fff;font-size:19px;box-shadow:0 2px 8px rgba(0,0,0,.25);
+    display:flex;align-items:center;justify-content:center;
+  }
   .nav-wp-row{display:flex;align-items:flex-end;gap:8px;}
   .nav-wp-remove{flex-shrink:0;width:36px;height:48px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink-soft);font-size:15px;margin-bottom:8px;}
   .nav-wp-pin{flex-shrink:0;width:36px;height:48px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);font-size:16px;margin-bottom:8px;}
+  .nav-wp-reorder{flex-shrink:0;display:flex;flex-direction:column;gap:2px;margin-bottom:8px;}
+  .nav-wp-reorder-btn{width:22px;height:23px;border-radius:6px;border:1px solid var(--line);background:var(--surface);font-size:9px;color:var(--ink-soft);padding:0;}
+  .nav-wp-reorder-btn:disabled{opacity:.25;}
   .nav-add-stop-btn{width:100%;padding:11px;border-radius:12px;border:1.5px dashed var(--line);background:none;color:var(--accent);font-weight:700;font-size:13.5px;margin-top:4px;}
   .ac-list{
     position:absolute;left:0;right:0;top:calc(100% + 6px);background:var(--surface);border:1px solid var(--line);
@@ -584,6 +612,7 @@
   .ac-list.show{display:block;}
   .ac-item{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;cursor:pointer;border-bottom:1px solid var(--line);}
   .ac-item.ac-frequent{gap:10px;justify-content:flex-start;}
+  .ac-current-pos .ac-freq-icon{color:#1A73E8;}
   .ac-freq-icon{font-size:13px;opacity:.55;flex-shrink:0;}
   .ac-item:last-child{border-bottom:none;}
   .ac-item:active{background:var(--surface-2);}
