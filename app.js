@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v123") {
+          if (data && data.v && data.v !== "pt-foglio-v124") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v123"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v124"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -969,7 +969,7 @@
     { v: 'autoarticolato', l: 'Autoarticolato' }
   ];
 
-  var navMap = null, navRouteLayer = null, navMarkerA = null, navMarkerB = null;
+  var navMap = null, navRouteLayer = null;
 
   function renderNavigatore() {
     var el = document.getElementById('screen-navigatore');
@@ -1001,15 +1001,16 @@
     html += '</div>';
 
     html += '<div class="card">';
-    html += '<div class="field"><label>Partenza</label><input type="text" id="nav-origin" placeholder="Indirizzo, o lascia vuoto per la posizione attuale"></div>';
-    html += '<div class="field"><label>Destinazione</label><input type="text" id="nav-dest" placeholder="Indirizzo di destinazione"></div>';
-    html += '<button type="button" class="btn btn-accent btn-block" id="nav-calc-btn">Calcola percorso</button>';
+    html += '<div id="nav-waypoints-list"></div>';
+    html += '<button type="button" class="nav-add-stop-btn" id="nav-add-stop">+ Aggiungi tappa</button>';
+    html += '<button type="button" class="btn btn-accent btn-block" id="nav-calc-btn" style="margin-top:12px;">Calcola percorso</button>';
     html += '</div>';
 
     html += '<div id="nav-result" class="nav-result" style="display:none;"></div>';
     html += '<div id="nav-map" class="nav-map"></div>';
 
     el.innerHTML = html;
+    renderNavWaypointsList();
 
     document.getElementById('nav-vehicle-toggle').addEventListener('click', function () {
       var form = document.getElementById('nav-vehicle-form');
@@ -1032,6 +1033,7 @@
       document.getElementById('nav-vehicle-chevron').textContent = '✓ configurato';
     });
     document.getElementById('nav-calc-btn').addEventListener('click', calculateNavRoute);
+    document.getElementById('nav-add-stop').addEventListener('click', addNavWaypointBeforeDest);
 
     initNavMap();
   }
@@ -1044,11 +1046,128 @@
     var mapEl = document.getElementById('nav-map');
     if (!mapEl || typeof L === 'undefined') return;
     if (navMap) { navMap.remove(); navMap = null; }
+    navWaypointMarkers = {}; // the old map instance (and any markers on it) is gone
+    navRouteLayer = null;
     navMap = L.map(mapEl).setView([45.4642, 9.19], 6); // centered on Northern Italy by default
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap',
       maxZoom: 19
     }).addTo(navMap);
+    // Re-drop markers for any waypoints already resolved from an earlier
+    // visit to this screen (the map itself is fresh, but the trip plan
+    // persists).
+    navWaypoints.forEach(function (wp) { if (wp.point) dropNavWaypointMarker(wp.id, wp.point); });
+  }
+
+  // The waypoints for this trip, in order — always at least 2 (Partenza,
+  // Destinazione), with any number of stops insertable in between. No
+  // artificial cap on how many. Each one carries its own map marker,
+  // dropped the moment a real place is picked — same as Google Maps.
+  var navWaypoints = [
+    { id: 'wp0', role: 'origin', text: '', point: null },
+    { id: 'wp1', role: 'dest', text: '', point: null }
+  ];
+  var navWaypointCounter = 2;
+  var navWaypointMarkers = {}; // id -> Leaflet marker
+
+  function navWaypointLabel(wp, idx) {
+    if (wp.role === 'origin') return 'Partenza';
+    if (wp.role === 'dest') return 'Destinazione';
+    return 'Tappa ' + idx;
+  }
+
+  function renderNavWaypointsList() {
+    var container = document.getElementById('nav-waypoints-list');
+    if (!container) return;
+    var stopNumber = 0;
+    var html = navWaypoints.map(function (wp, i) {
+      if (wp.role === 'stop') stopNumber++;
+      var label = navWaypointLabel(wp, stopNumber);
+      var placeholder = wp.role === 'origin' ? 'Indirizzo, o lascia vuoto per la posizione attuale' : 'Indirizzo';
+      var removeBtn = wp.role === 'stop' ? '<button type="button" class="nav-wp-remove" data-remove="' + wp.id + '">✕</button>' : '';
+      return '<div class="nav-wp-row">' +
+        '<div class="field autocomplete-wrap" style="flex:1;margin-bottom:8px;">' +
+        '<label>' + label + '</label>' +
+        '<input type="text" id="wpinput-' + wp.id + '" value="' + escapeHtml(wp.text) + '" placeholder="' + placeholder + '" autocomplete="off">' +
+        '<div class="ac-list" id="wpac-' + wp.id + '"></div>' +
+        '</div>' + removeBtn +
+        '</div>';
+    }).join('');
+    container.innerHTML = html;
+
+    navWaypoints.forEach(function (wp) { wireNavAddressAutocomplete(wp.id); });
+    container.querySelectorAll('[data-remove]').forEach(function (btn) {
+      btn.addEventListener('click', function () { removeNavWaypoint(btn.getAttribute('data-remove')); });
+    });
+  }
+
+  function addNavWaypointBeforeDest() {
+    var destIdx = navWaypoints.length - 1; // dest is always last
+    var newId = 'wp' + (navWaypointCounter++);
+    navWaypoints.splice(destIdx, 0, { id: newId, role: 'stop', text: '', point: null });
+    renderNavWaypointsList();
+  }
+
+  function removeNavWaypoint(id) {
+    navWaypoints = navWaypoints.filter(function (wp) { return wp.id !== id; });
+    if (navWaypointMarkers[id]) { navMap.removeLayer(navWaypointMarkers[id]); delete navWaypointMarkers[id]; }
+    renderNavWaypointsList();
+  }
+
+  // Live address suggestions as the person types (ORS's own geocoding
+  // autocomplete, debounced so it doesn't fire on every keystroke), plus
+  // an immediate marker on the map for whichever waypoint is picked.
+  function wireNavAddressAutocomplete(waypointId) {
+    var input = document.getElementById('wpinput-' + waypointId);
+    var list = document.getElementById('wpac-' + waypointId);
+    if (!input || !list) return;
+    var debounceTimer = null;
+
+    input.addEventListener('input', function () {
+      var wp = navWaypoints.filter(function (w) { return w.id === waypointId; })[0];
+      if (wp) { wp.text = input.value; wp.point = null; }
+      clearTimeout(debounceTimer);
+      var text = input.value;
+      if (!text || text.trim().length < 3) { list.classList.remove('show'); return; }
+      debounceTimer = setTimeout(function () {
+        fetch('https://api.openrouteservice.org/geocode/autocomplete?api_key=' + encodeURIComponent(ORS_API_KEY) + '&text=' + encodeURIComponent(text) + '&size=6')
+          .then(function (r) { return r.json(); })
+          .then(function (data) { renderNavSuggestions(data.features || [], list, input, waypointId); })
+          .catch(function () { /* offline or blocked — person can still type freely */ });
+      }, 350);
+    });
+    document.addEventListener('click', function (e) {
+      if (!list.contains(e.target) && e.target !== input) list.classList.remove('show');
+    });
+  }
+
+  function renderNavSuggestions(features, list, input, waypointId) {
+    if (!features.length) { list.classList.remove('show'); return; }
+    list.innerHTML = features.map(function (f, i) {
+      return '<div class="ac-item" data-idx="' + i + '"><span class="name">' + escapeHtml(f.properties.label) + '</span></div>';
+    }).join('');
+    list.classList.add('show');
+    list.querySelectorAll('.ac-item').forEach(function (item) {
+      item.addEventListener('click', function () {
+        var f = features[Number(item.getAttribute('data-idx'))];
+        var point = { lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], label: f.properties.label };
+        input.value = f.properties.label;
+        list.classList.remove('show');
+        var wp = navWaypoints.filter(function (w) { return w.id === waypointId; })[0];
+        if (wp) { wp.text = f.properties.label; wp.point = point; }
+        dropNavWaypointMarker(waypointId, point);
+      });
+    });
+  }
+
+  function dropNavWaypointMarker(waypointId, point) {
+    if (!navMap) return;
+    var wp = navWaypoints.filter(function (w) { return w.id === waypointId; })[0];
+    var stopNumber = navWaypoints.filter(function (w, i) { return w.role === 'stop' && navWaypoints.indexOf(w) <= navWaypoints.indexOf(wp); }).length;
+    if (navWaypointMarkers[waypointId]) navMap.removeLayer(navWaypointMarkers[waypointId]);
+    var marker = L.marker([point.lat, point.lon]).addTo(navMap).bindPopup(navWaypointLabel(wp, stopNumber)).openPopup();
+    navWaypointMarkers[waypointId] = marker;
+    navMap.setView([point.lat, point.lon], 11);
   }
 
   function geocodeAddress(text) {
@@ -1059,6 +1178,7 @@
         if (!data.features || !data.features.length) return null;
         var coords = data.features[0].geometry.coordinates; // [lon, lat]
         return { lon: coords[0], lat: coords[1], label: data.features[0].properties.label };
+
       });
   }
 
@@ -1073,6 +1193,17 @@
     });
   }
 
+  // Straight-line distance (km) — good enough just to decide whether a
+  // trip is likely to be under or over the ~100km limit the free public
+  // OpenRouteService API enforces per single request (a hard server-side
+  // cap, not something adjustable from this side).
+  function haversineKm(a, b) {
+    var R = 6371, toRad = function (d) { return d * Math.PI / 180; };
+    var dLat = toRad(b.lat - a.lat), dLon = toRad(b.lon - a.lon);
+    var s = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+  }
+
   function calculateNavRoute() {
     if (!ORS_API_KEY) {
       toast('Manca la chiave API di OpenRouteService — da configurare');
@@ -1084,21 +1215,30 @@
       document.getElementById('nav-vehicle-form').style.display = 'block';
       return;
     }
-    var originText = document.getElementById('nav-origin').value;
-    var destText = document.getElementById('nav-dest').value;
-    if (!destText || !destText.trim()) { toast('Inserisci una destinazione'); return; }
+    var destWp = navWaypoints[navWaypoints.length - 1];
+    if (!destWp.text.trim()) { toast('Inserisci una destinazione'); return; }
 
     var btn = document.getElementById('nav-calc-btn');
     btn.disabled = true; btn.textContent = 'Calcolo in corso…';
 
-    var originPromise = originText.trim() ? geocodeAddress(originText) : currentPosition().catch(function () { return null; });
+    // Resolve every waypoint to a real point — prefer whatever was
+    // actually picked from the suggestion list over re-geocoding
+    // whatever text happens to be sitting in the field right now. The
+    // very first one, left empty, falls back to the phone's current
+    // position.
+    var resolvePromises = navWaypoints.map(function (wp, i) {
+      if (wp.point) return Promise.resolve(wp.point);
+      if (i === 0 && !wp.text.trim()) return currentPosition().catch(function () { return null; });
+      return geocodeAddress(wp.text);
+    });
 
-    Promise.all([originPromise, geocodeAddress(destText)])
-      .then(function (results) {
-        var origin = results[0], dest = results[1];
-        if (!origin) throw new Error('Impossibile trovare il punto di partenza');
-        if (!dest) throw new Error('Impossibile trovare la destinazione');
-        return fetchTruckRoute(origin, dest);
+    Promise.all(resolvePromises)
+      .then(function (points) {
+        var badIdx = points.indexOf(null);
+        if (badIdx !== -1) {
+          throw new Error(badIdx === 0 ? 'Impossibile trovare il punto di partenza' : 'Impossibile trovare "' + navWaypoints[badIdx].text + '"');
+        }
+        return computeMultiStopRoute(points);
       })
       .then(function (route) {
         displayNavRoute(route);
@@ -1112,7 +1252,72 @@
       });
   }
 
+  var ORS_SEGMENT_LIMIT_KM = 95; // stays safely under the public API's ~100km hard cap per request
+
+  // Resolves a route across EVERY waypoint the person added, in order —
+  // not just origin/destination. Each consecutive pair is routed
+  // separately (reusing the same >100km-safe chaining as a single long
+  // leg), then every leg's geometry/distance/duration is stitched
+  // together into one continuous route for display. Alternatives are
+  // only meaningful for a plain two-point trip — with real stops in
+  // between, there's one path that visits all of them in order.
+  function computeMultiStopRoute(points) {
+    if (points.length === 2) {
+      return fetchTruckRoute(points[0], points[1]).then(function (result) {
+        var alternatives = Array.isArray(result) ? result : result.alternatives;
+        return { alternatives: alternatives, points: points };
+      });
+    }
+    var chain = Promise.resolve([]);
+    for (var i = 0; i < points.length - 1; i++) {
+      (function (from, to) {
+        chain = chain.then(function (acc) {
+          return fetchTruckRoute(from, to).then(function (result) {
+            var alternatives = Array.isArray(result) ? result : result.alternatives;
+            acc.push(alternatives[0]); // the primary route for this leg — no alternatives once there are real stops to honor in order
+            return acc;
+          });
+        });
+      })(points[i], points[i + 1]);
+    }
+    return chain.then(function (legFeatures) {
+      var merged = mergeRouteSegments(legFeatures.map(function (f) { return [f]; }), points[0], points[points.length - 1]);
+      return { alternatives: merged.alternatives, points: points };
+    });
+  }
+
   function fetchTruckRoute(origin, dest) {
+    var straightLineKm = haversineKm(origin, dest);
+    if (straightLineKm <= ORS_SEGMENT_LIMIT_KM) {
+      return fetchTruckRouteSegment(origin, dest, true);
+    }
+    // Longer trip — the free public API refuses any single request whose
+    // route exceeds ~100km, so break the trip into a chain of
+    // intermediate stops (straight-line spaced, well under the limit),
+    // route each leg separately, then stitch the pieces into one
+    // continuous route on the map. Costs more API calls (counts against
+    // the daily free quota) but is the only way to cover a real trucking
+    // distance on the free tier.
+    var legs = Math.ceil(straightLineKm / ORS_SEGMENT_LIMIT_KM);
+    var waypoints = [origin];
+    for (var i = 1; i < legs; i++) {
+      var t = i / legs;
+      waypoints.push({ lon: origin.lon + (dest.lon - origin.lon) * t, lat: origin.lat + (dest.lat - origin.lat) * t });
+    }
+    waypoints.push(dest);
+
+    var chain = Promise.resolve([]);
+    for (var j = 0; j < waypoints.length - 1; j++) {
+      (function (from, to, isLast) {
+        chain = chain.then(function (acc) {
+          return fetchTruckRouteSegment(from, to, isLast).then(function (segment) { acc.push(segment); return acc; });
+        });
+      })(waypoints[j], waypoints[j + 1], j === waypoints.length - 2);
+    }
+    return chain.then(function (segments) { return mergeRouteSegments(segments, origin, dest); });
+  }
+
+  function fetchTruckRouteSegment(origin, dest, requestAlternatives) {
     var v = state.vehicle;
     var restrictions = {
       height: Number(v.altezza) || undefined,
@@ -1129,6 +1334,13 @@
       preference: 'recommended',
       options: { profile_params: { restrictions: restrictions } }
     };
+    // Alternatives only requested for a short (single-segment) trip —
+    // combining them with the multi-leg chain for long trips would
+    // multiply requests and complicate stitching, for little real
+    // benefit over a long haul.
+    if (requestAlternatives) {
+      body.alternative_routes = { target_count: 2, weight_factor: 1.5, share_factor: 0.6 };
+    }
     return fetch('https://api.openrouteservice.org/v2/directions/driving-hgv/geojson', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': ORS_API_KEY },
@@ -1137,37 +1349,82 @@
       if (!r.ok) return r.json().then(function (e) { throw new Error(e.error && e.error.message ? e.error.message : 'Errore nel calcolo del percorso'); });
       return r.json();
     }).then(function (geojson) {
-      var feature = geojson.features && geojson.features[0];
-      if (!feature) throw new Error('Nessun percorso trovato per questo veicolo');
-      return { geojson: feature, origin: origin, dest: dest };
+      if (!geojson.features || !geojson.features.length) throw new Error('Nessun percorso trovato per questo veicolo');
+      return geojson.features; // one feature per alternative, if any were requested
     });
   }
 
-  function displayNavRoute(route) {
-    var props = route.geojson.properties.summary;
+  // Combines the per-leg route segments of a long-distance trip into one
+  // continuous route for display — sums distance/duration, concatenates
+  // the line geometry in order, and merges any restriction warnings from
+  // every leg.
+  function mergeRouteSegments(segmentsList, origin, dest) {
+    var allCoords = [];
+    var totalDistance = 0, totalDuration = 0, allWarnings = [];
+    segmentsList.forEach(function (features) {
+      var f = features[0]; // primary route for each leg — alternatives aren't requested on long-haul legs
+      totalDistance += f.properties.summary.distance;
+      totalDuration += f.properties.summary.duration;
+      (f.properties.warnings || []).forEach(function (w) { allWarnings.push(w.message); });
+      var coords = f.geometry.coordinates;
+      if (allCoords.length && coords.length) coords = coords.slice(1); // avoid a duplicated joint point between legs
+      allCoords = allCoords.concat(coords);
+    });
+    var merged = {
+      type: 'Feature',
+      properties: { summary: { distance: totalDistance, duration: totalDuration }, warnings: allWarnings.map(function (m) { return { message: m }; }) },
+      geometry: { type: 'LineString', coordinates: allCoords }
+    };
+    return { alternatives: [merged], origin: origin, dest: dest };
+  }
+
+  function displayNavRoute(routeResult) {
+    displayNavRouteChoice(routeResult.alternatives, routeResult.points, 0);
+  }
+
+  var navCurrentAlternatives = null, navCurrentPoints = null;
+  function displayNavRouteChoice(alternatives, points, chosenIndex) {
+    navCurrentAlternatives = alternatives; navCurrentPoints = points;
+    var feature = alternatives[chosenIndex];
+    var props = feature.properties.summary;
     var km = (props.distance / 1000).toFixed(1);
     var minutes = Math.round(props.duration / 60);
     var hours = Math.floor(minutes / 60);
     var mins = minutes % 60;
     var durationText = hours > 0 ? (hours + ' h ' + mins + ' min') : (mins + ' min');
-
-    var warnings = (route.geojson.properties.warnings || []).map(function (w) { return w.message; });
+    var warnings = (feature.properties.warnings || []).map(function (w) { return w.message; });
 
     var resultEl = document.getElementById('nav-result');
     var html = '<div class="nav-result-stats"><div><b>' + km + ' km</b><span>distanza</span></div><div><b>' + durationText + '</b><span>tempo stimato</span></div></div>';
-    if (warnings.length) {
-      html += '<div class="nav-warning-box">⚠️ ' + warnings.join('<br>') + '</div>';
+    if (warnings.length) html += '<div class="nav-warning-box">⚠️ ' + warnings.join('<br>') + '</div>';
+    if (alternatives.length > 1) {
+      html += '<div class="nav-alt-row">';
+      alternatives.forEach(function (alt, i) {
+        var altKm = (alt.properties.summary.distance / 1000).toFixed(0);
+        var altMin = Math.round(alt.properties.summary.duration / 60);
+        html += '<button type="button" class="nav-alt-btn' + (i === chosenIndex ? ' active' : '') + '" data-alt="' + i + '">Percorso ' + (i + 1) + ' · ' + altKm + ' km · ' + altMin + ' min</button>';
+      });
+      html += '</div>';
     }
     resultEl.innerHTML = html;
     resultEl.style.display = 'block';
+    resultEl.querySelectorAll('.nav-alt-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { displayNavRouteChoice(alternatives, points, Number(btn.getAttribute('data-alt'))); });
+    });
 
     if (navRouteLayer) navMap.removeLayer(navRouteLayer);
-    if (navMarkerA) navMap.removeLayer(navMarkerA);
-    if (navMarkerB) navMap.removeLayer(navMarkerB);
+    Object.keys(navWaypointMarkers).forEach(function (id) { navMap.removeLayer(navWaypointMarkers[id]); });
+    navWaypointMarkers = {};
 
-    navRouteLayer = L.geoJSON(route.geojson, { style: { color: '#E8542B', weight: 5 } }).addTo(navMap);
-    navMarkerA = L.marker([route.origin.lat, route.origin.lon]).addTo(navMap).bindPopup('Partenza');
-    navMarkerB = L.marker([route.dest.lat, route.dest.lon]).addTo(navMap).bindPopup('Destinazione');
+    navRouteLayer = L.geoJSON(feature, { style: { color: '#E8542B', weight: 5 } }).addTo(navMap);
+    var stopNumber = 0;
+    points.forEach(function (point, i) {
+      var wp = navWaypoints[i];
+      if (wp && wp.role === 'stop') stopNumber++;
+      var label = !wp ? '' : (wp.role === 'origin' ? 'Partenza' : wp.role === 'dest' ? 'Destinazione' : 'Tappa ' + stopNumber);
+      var marker = L.marker([point.lat, point.lon]).addTo(navMap).bindPopup(label);
+      if (wp) navWaypointMarkers[wp.id] = marker;
+    });
     navMap.fitBounds(navRouteLayer.getBounds(), { padding: [24, 24] });
   }
 
