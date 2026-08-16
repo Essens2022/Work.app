@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v143") {
+          if (data && data.v && data.v !== "pt-foglio-v144") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v143"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v144"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1034,7 +1034,7 @@
 
     html += '<div id="nav-active-overlay" class="nav-active-overlay" style="display:none;">';
     html += '<div class="nav-instruction-banner"><button type="button" class="nav-exit-x" id="nav-exit-x" aria-label="Esci dalla navigazione">✕</button><div class="nav-instruction-icon" id="nav-instr-icon">➜</div><div><div class="nav-instruction-text" id="nav-instr-text">—</div><div class="nav-instruction-dist" id="nav-instr-dist"></div></div></div>';
-    html += '<div class="nav-active-float-controls"><button type="button" class="nav-float-btn" id="nav-active-layers-btn" aria-label="Vista satellite">🛰️</button></div>';
+    html += '<div class="nav-active-float-controls"><button type="button" class="nav-float-btn" id="nav-active-layers-btn" aria-label="Vista satellite">🛰️</button><button type="button" class="nav-float-btn nav-compass-btn" id="nav-compass-btn" aria-label="Orientamento bussola"><span id="nav-compass-needle">N</span></button></div>';
     html += '<button type="button" class="nav-recenter-btn" id="nav-recenter-btn" style="display:none;" aria-label="Ricentra">🧭</button>';
     html += '<div class="nav-active-bottom"><div class="nav-active-stats"><b id="nav-active-eta"></b><span id="nav-active-remaining"></span></div><button type="button" class="nav-end-btn" id="nav-end-btn">Termina</button></div>';
     html += '</div>';
@@ -1087,6 +1087,7 @@
     document.getElementById('nav-add-stop').addEventListener('click', addNavWaypointBeforeDest);
     document.getElementById('nav-layers-btn').addEventListener('click', toggleNavSatelliteView);
     document.getElementById('nav-active-layers-btn').addEventListener('click', toggleNavSatelliteView);
+    document.getElementById('nav-compass-btn').addEventListener('click', toggleNavNorthUp);
     document.getElementById('nav-locate-btn').addEventListener('click', function () {
       currentPosition().then(function (p) { navMap.setView([p.lat, p.lon], 15); }).catch(function () { toast('Posizione non disponibile'); });
     });
@@ -2214,6 +2215,10 @@
     // only once the first GPS heading arrives, since heading can stay
     // null for a while if the vehicle hasn't started moving yet, and
     // the close, tilted look is meant to be there from the start.
+    // Always starts in heading-up mode, regardless of how a PREVIOUS
+    // navigation session was left (the compass toggle shouldn't carry
+    // over silently into a brand new trip).
+    navNorthUpMode = false;
     rotateNavMapToHeading(0);
     // Zoom in close right away too, using whatever position is already
     // known (cached from opening the Navigatore) — rather than staying
@@ -2269,14 +2274,47 @@
   // NOTE: the tilt angle/scale below is a first attempt, not verified
   // on a real device — genuinely needs to be eyeballed and likely
   // tuned once it's actually seen running.
+  //
+  // navNorthUpMode (toggled by the compass button) flips this into
+  // Google Maps' own "north-up" mode instead: the map stops following
+  // heading and sits flat, true north always straight up, exactly like
+  // tapping the compass in Google Maps. The position arrow's own
+  // rotation formula (below) is deliberately left untouched between
+  // the two modes — it already produces the right result in both,
+  // since it only ever needs to counteract whatever rotation (if any)
+  // the map itself currently has.
+  var navNorthUpMode = false;
+  var navLastHeading = 0;
   function rotateNavMapToHeading(heading) {
+    if (heading != null && !isNaN(heading)) navLastHeading = heading;
     var wrap = document.getElementById('nav-map-rotate-wrap');
-    if (wrap) wrap.style.transform = 'rotateX(58deg) scale(2.1) rotate(' + (-heading) + 'deg)';
+    if (wrap) {
+      wrap.style.transform = navNorthUpMode
+        ? 'none' // flat, true north up, ignoring travel direction — same as Google Maps' compass-toggled mode
+        : 'rotateX(58deg) scale(2.1) rotate(' + (-navLastHeading) + 'deg)';
+    }
     if (navPositionMarker) {
       var iconEl = navPositionMarker.getElement();
       var innerDiv = iconEl && iconEl.querySelector('div');
-      if (innerDiv) innerDiv.style.transform = 'rotate(' + heading + 'deg)';
+      // Always the raw heading, regardless of mode: with the map
+      // rotated to follow heading, this cancels that rotation out so
+      // the arrow stays pointing straight up; with the map flat and
+      // north-up, this same value is exactly the arrow's real bearing
+      // on that fixed map — no branching needed, the formula already
+      // works for both.
+      if (innerDiv) innerDiv.style.transform = 'rotate(' + navLastHeading + 'deg)';
     }
+    // The compass needle itself always shows where true north
+    // currently is on screen — rotated opposite the map's own
+    // rotation in heading-up mode, upright (pointing straight up) once
+    // switched to north-up.
+    var needle = document.getElementById('nav-compass-needle');
+    if (needle) needle.style.transform = 'rotate(' + (navNorthUpMode ? 0 : -navLastHeading) + 'deg)';
+  }
+
+  function toggleNavNorthUp() {
+    navNorthUpMode = !navNorthUpMode;
+    rotateNavMapToHeading(navLastHeading);
   }
 
   var navFollowingUser = true;
@@ -2437,6 +2475,18 @@
     document.getElementById('nav-search-bar').style.display = '';
     document.querySelector('.nav-map-wrap').classList.remove('nav-fullscreen');
     if (navActiveFeature) navMap.fitBounds(navRouteLayer.getBounds(), { padding: [24, 24] });
+    // Termina / the X during active navigation goes back to the
+    // already-calculated route (distance, time, alternatives, "Avvia
+    // navigazione" again) — NOT all the way back to an empty trip
+    // planner. nav-result's content was never cleared, only hidden
+    // when "Avvia" started, so simply showing it again is enough; the
+    // Avvia button inside it still has its original click handler,
+    // closed over the very same calculated route, ready to reuse
+    // without recalculating. A real recalculation only happens if the
+    // person actually edits the trip (add/change/remove a waypoint),
+    // which already re-triggers "Calcola percorso" through the normal
+    // flow — this doesn't change that.
+    document.getElementById('nav-result').style.display = 'block';
     setTimeout(function () { if (navMap) navMap.invalidateSize(); }, 50); // the map container's real size changed leaving fullscreen — Leaflet needs to recalculate its own dimensions
   }
 
