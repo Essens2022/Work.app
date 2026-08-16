@@ -573,6 +573,11 @@
   .nav-active-stats span{font-size:11.5px;color:rgba(255,255,255,.65);}
   .nav-end-btn{background:var(--danger);color:#fff;border:none;border-radius:10px;padding:10px 16px;font-weight:700;font-size:13px;}
   .nav-heading-arrow div{font-size:26px;color:#4285F4;text-shadow:0 0 0 #fff, 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff;transform-origin:center;transition:transform .3s ease;}
+  .nav-pin-origin div{width:18px;height:18px;border-radius:50%;background:#1A73E8;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);}
+  .nav-pin-numbered div{
+    width:28px;height:28px;border-radius:50%;background:#1C3D8F;color:#fff;font-weight:800;font-size:13.5px;
+    display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.35);border:2.5px solid #fff;
+  }
   /* The rotation wrapper is deliberately oversized (60% bigger each
      side) and centered, so that even at a 45° rotation during
      navigation mode, the visible rectangle never shows an empty corner
@@ -601,9 +606,12 @@
   .nav-wp-row{display:flex;align-items:flex-end;gap:8px;}
   .nav-wp-remove{flex-shrink:0;width:36px;height:48px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);color:var(--ink-soft);font-size:15px;margin-bottom:8px;}
   .nav-wp-pin{flex-shrink:0;width:36px;height:48px;border-radius:10px;border:1.5px solid var(--line);background:var(--surface);font-size:16px;margin-bottom:8px;}
-  .nav-wp-reorder{flex-shrink:0;display:flex;flex-direction:column;gap:2px;margin-bottom:8px;}
-  .nav-wp-reorder-btn{width:22px;height:23px;border-radius:6px;border:1px solid var(--line);background:var(--surface);font-size:9px;color:var(--ink-soft);padding:0;}
-  .nav-wp-reorder-btn:disabled{opacity:.25;}
+  .nav-wp-drag-handle{
+    flex-shrink:0;width:28px;height:48px;margin-bottom:8px;display:flex;align-items:center;justify-content:center;
+    font-size:18px;color:var(--ink-faint);cursor:grab;touch-action:none;
+  }
+  .nav-wp-drag-spacer{flex-shrink:0;width:28px;}
+  .nav-wp-row.nav-wp-dragging{opacity:.5;}
   .nav-add-stop-btn{width:100%;padding:11px;border-radius:12px;border:1.5px dashed var(--line);background:none;color:var(--accent);font-weight:700;font-size:13.5px;margin-top:4px;}
   .ac-list{
     position:absolute;left:0;right:0;top:calc(100% + 6px);background:var(--surface);border:1px solid var(--line);
