@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v161") {
+          if (data && data.v && data.v !== "pt-foglio-v162") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v161"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v162"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2540,17 +2540,28 @@
       }
     }
 
-    if (navPositionMarker) navMap.removeLayer(navPositionMarker);
-    // A top-down car icon (from the SVG pack), rotating to show the
-    // real direction of travel — the map itself stays fixed, north-up
-    // (see rotateNavMapToHeading), only this marker turns.
-    navPositionMarker = L.marker([lat, lon], {
-      icon: L.divIcon({
-        className: 'nav-heading-arrow',
-        html: '<div><svg viewBox="0 0 96 150" width="26" height="41"><ellipse cx="48" cy="132" rx="24" ry="8" fill="#000" fill-opacity="0.12"/><rect x="24" y="18" width="48" height="112" rx="18" fill="#eef2f7" stroke="#9aa5b1" stroke-width="3"/><rect x="31" y="34" width="34" height="56" rx="8" fill="#ffffff" stroke="#bdc5cf" stroke-width="2"/><path d="M24 36c-8 8-10 16-10 24v28c0 6 3 12 8 16l2 2V44z" fill="#d64242" fill-opacity="0.85"/><path d="M72 36c8 8 10 16 10 24v28c0 6-3 12-8 16l-2 2V44z" fill="#42a5f5" fill-opacity="0.85"/><rect x="38" y="96" width="20" height="20" rx="6" fill="#dde5ee"/></svg></div>',
-        iconSize: [30, 46], iconAnchor: [15, 23]
-      })
-    }).addTo(navMap);
+    // Update the EXISTING marker's position instead of destroying and
+    // recreating it on every GPS fix — the previous version tore down
+    // and rebuilt the marker each time, which teleports it instantly
+    // rather than letting it move. Combined with the CSS transition on
+    // .nav-heading-arrow below, setLatLng() here glides smoothly
+    // between real GPS fixes (roughly once every 1-2s) instead of
+    // jumping — this is the single biggest contributor to the
+    // "sacadat" (jerky) feel compared to Google Maps' own fluid camera.
+    if (navPositionMarker) {
+      navPositionMarker.setLatLng([lat, lon]);
+    } else {
+      // A top-down car icon (from the SVG pack), rotating to show the
+      // real direction of travel — the map itself stays fixed, north-up
+      // (see rotateNavMapToHeading), only this marker turns.
+      navPositionMarker = L.marker([lat, lon], {
+        icon: L.divIcon({
+          className: 'nav-heading-arrow',
+          html: '<div><svg viewBox="0 0 96 150" width="26" height="41"><ellipse cx="48" cy="132" rx="24" ry="8" fill="#000" fill-opacity="0.12"/><rect x="24" y="18" width="48" height="112" rx="18" fill="#eef2f7" stroke="#9aa5b1" stroke-width="3"/><rect x="31" y="34" width="34" height="56" rx="8" fill="#ffffff" stroke="#bdc5cf" stroke-width="2"/><path d="M24 36c-8 8-10 16-10 24v28c0 6 3 12 8 16l2 2V44z" fill="#d64242" fill-opacity="0.85"/><path d="M72 36c8 8 10 16 10 24v28c0 6-3 12-8 16l-2 2V44z" fill="#42a5f5" fill-opacity="0.85"/><rect x="38" y="96" width="20" height="20" rx="6" fill="#dde5ee"/></svg></div>',
+          iconSize: [30, 46], iconAnchor: [15, 23]
+        })
+      }).addTo(navMap);
+    }
 
     // Multi-stop trip — offer to confirm arrival once genuinely close
     // to the next stop, rather than auto-completing it silently. Only

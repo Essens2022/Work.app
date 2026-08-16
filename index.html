@@ -647,7 +647,15 @@
   .nav-stat-col span{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:rgba(255,255,255,.55);}
   .nav-stat-eta b{color:#5CE07A;}
   .nav-end-btn{flex-shrink:0;background:var(--danger);color:#fff;border:none;border-radius:10px;padding:10px 14px;font-weight:700;font-size:12.5px;}
-  .nav-heading-arrow div{transform-origin:center;transition:transform .3s ease;}
+  /* Leaflet positions THIS element directly (translate3d) on every
+     setLatLng — this transition is what actually makes the car glide
+     smoothly between real GPS fixes instead of jumping. The earlier
+     rule here targeted the inner wrapper element instead, which
+     Leaflet never moves directly, so it had no real effect on
+     position (it dates from when that wrapper's own rotation was set
+     by JS — no longer the case now that leaflet-rotate handles
+     heading at the map level). */
+  .nav-heading-arrow{transition:transform .35s linear;}
   .nav-pin-numbered div{
     width:28px;height:28px;border-radius:50%;background:#1C3D8F;color:#fff;font-weight:800;font-size:13.5px;
     display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.35);border:2.5px solid #fff;
