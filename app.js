@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v163") {
+          if (data && data.v && data.v !== "pt-foglio-v164") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v163"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v164"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1386,7 +1386,17 @@
       if (wp.role === 'stop') stopNumber++;
       var label = navWaypointLabel(wp, wp.role === 'dest' ? stopNumber + 1 : stopNumber);
       var placeholder = wp.role === 'origin' ? 'Indirizzo, CAP, civico — o lascia vuoto per la posizione attuale' : 'Indirizzo, CAP o numero civico';
-      var removeBtn = wp.role === 'stop' ? '<button type="button" class="nav-wp-remove" data-remove="' + wp.id + '">✕</button>' : '';
+      // The X to remove a row now shows on any real stop, AND on the
+      // final destination itself as long as there's at least one stop
+      // before it to fall back to — this is exactly "undo Aggiungi
+      // tappa": removing the just-added (still empty) destination
+      // slot un-does adding it, and the stop right before it quietly
+      // becomes the destination again (see removeNavWaypoint). Origin
+      // never gets a remove button, and neither does the destination
+      // when it's the only real point left (Partenza + Destinazione)
+      // — there always has to be a destination.
+      var canRemove = wp.role === 'stop' || (wp.role === 'dest' && navWaypoints.length > 2);
+      var removeBtn = canRemove ? '<button type="button" class="nav-wp-remove" data-remove="' + wp.id + '">✕</button>' : '';
       // Reordering: a stop can move up unless the thing right above it
       // is the origin (always first), and down unless the thing right
       // below it is the destination (always last) — matches how Google
@@ -1615,6 +1625,17 @@
   function removeNavWaypoint(id) {
     navWaypoints = navWaypoints.filter(function (wp) { return wp.id !== id; });
     if (navWaypointMarkers[id]) { navMap.removeLayer(navWaypointMarkers[id]); delete navWaypointMarkers[id]; }
+    // If the destination itself was the one removed, the new last item
+    // (whatever was the stop right before it) needs to become the
+    // destination in its place — there always has to be exactly one,
+    // and it's always the last item. Its marker is redrawn right away
+    // so the map reflects "now the final destination" immediately,
+    // same as the equivalent promotion in addNavWaypointBeforeDest.
+    var newLast = navWaypoints[navWaypoints.length - 1];
+    if (newLast && newLast.role !== 'dest') {
+      newLast.role = 'dest';
+      if (newLast.point) dropNavWaypointMarker(newLast.id, newLast.point);
+    }
     renderNavWaypointsList();
   }
 
