@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v146") {
+          if (data && data.v && data.v !== "pt-foglio-v147") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v146"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v147"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -563,7 +563,20 @@
       route: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M5 8v4a4 4 0 0 0 4 4h6" stroke-dasharray="3 3"/></svg>',
       fuel: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="9" height="18" rx="1"/><rect x="6.3" y="5.5" width="4.4" height="4" rx="0.5"/><path d="M13 9h2.5l3 2.5v6.5a1.5 1.5 0 0 1-3 0v-3.5a1 1 0 0 0-1-1h-1.5"/></svg>',
       share: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg>',
-      calendar: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg>'
+      calendar: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg>',
+      // Turn-by-turn navigation glyphs — plain line icons (same family
+      // as the rest of the app's own icons), used specifically because
+      // the plain Unicode arrows they replaced (⬅➡⬆ etc.) render as
+      // full emoji on iOS, each with its own built-in grey/blue box
+      // background that no CSS here can control or restyle.
+      'nav-straight': '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>',
+      'nav-turn-left': '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>',
+      'nav-turn-right': '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14l5-5-5-5"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>',
+      'nav-slight-left': '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M17 7H7v10"/><path d="M17 17 7 7"/></svg>',
+      'nav-slight-right': '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>',
+      'nav-uturn': '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>',
+      'nav-roundabout': '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>',
+      'nav-finish': '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22V4"/></svg>'
     };
     return icons[name] || '';
   }
@@ -1035,7 +1048,7 @@
     html += '<div id="nav-active-overlay" class="nav-active-overlay" style="display:none;">';
     html += '<div class="nav-instruction-banner">' +
       '<button type="button" class="nav-exit-x" id="nav-exit-x" aria-label="Esci dalla navigazione">✕</button>' +
-      '<div class="nav-instruction-icon-wrap"><span id="nav-instr-icon">➜</span></div>' +
+      '<div class="nav-instruction-icon-wrap"><span id="nav-instr-icon">' + svgIcon('nav-straight') + '</span></div>' +
       '<div class="nav-instruction-copy"><div class="nav-instruction-dist" id="nav-instr-dist">—</div><div class="nav-instruction-text" id="nav-instr-text"></div></div>' +
       '</div>';
     html += '<div class="nav-active-float-controls">' +
@@ -2200,7 +2213,9 @@
   // ORS's numeric maneuver "type" codes, mapped to a simple directional
   // glyph for the instruction banner.
   var NAV_TURN_ICONS = {
-    0: '⬅', 1: '➡', 2: '⬉', 3: '⬈', 4: '⬋', 5: '⬊', 6: '⬆', 7: '↩', 8: '↩', 10: '🏁', 11: '🔄'
+    0: 'nav-turn-left', 1: 'nav-turn-right', 2: 'nav-turn-left', 3: 'nav-turn-right',
+    4: 'nav-slight-left', 5: 'nav-slight-right', 6: 'nav-straight', 7: 'nav-uturn', 8: 'nav-uturn',
+    10: 'nav-finish', 11: 'nav-roundabout'
   };
 
   function startActiveNavigation(feature, legs, points) {
@@ -2436,7 +2451,7 @@
   function updateActiveInstructionBanner(lat, lon) {
     var step = navActiveSteps[navActiveStepIndex];
     if (!step) return;
-    document.getElementById('nav-instr-icon').textContent = NAV_TURN_ICONS[step.type] || '➜';
+    document.getElementById('nav-instr-icon').innerHTML = svgIcon(NAV_TURN_ICONS[step.type] || 'nav-straight');
     document.getElementById('nav-instr-text').textContent = step.instruction;
     if (lat != null) {
       var distM = haversineKm({ lat: lat, lon: lon }, { lat: step.lat, lon: step.lon }) * 1000;
