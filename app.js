@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v152") {
+          if (data && data.v && data.v !== "pt-foglio-v153") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v152"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v153"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -576,7 +576,8 @@
       'nav-slight-right': '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7h10v10"/><path d="M7 17 17 7"/></svg>',
       'nav-uturn': '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>',
       'nav-roundabout': '<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>',
-      'nav-finish': '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22V4"/></svg>'
+      'nav-finish': '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><path d="M4 22V4"/></svg>',
+      'nav-recenter': '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" x2="5" y1="12" y2="12"/><line x1="19" x2="22" y1="12" y2="12"/><line x1="12" x2="12" y1="2" y2="5"/><line x1="12" x2="12" y1="19" y2="22"/><circle cx="12" cy="12" r="7"/></svg>'
     };
     return icons[name] || '';
   }
@@ -1038,7 +1039,7 @@
 
     // Floating controls, bottom-right — same spot Google Maps puts its
     // own layers toggle and "my location" button.
-    html += '<div class="nav-float-controls">';
+    html += '<div class="nav-float-controls" id="nav-float-controls">';
     html += '<button type="button" class="nav-float-btn" id="nav-layers-btn" aria-label="Vista satellite">🛰️</button>';
     html += '<button type="button" class="nav-float-btn" id="nav-locate-btn" aria-label="La mia posizione">📍</button>';
     html += '</div>';
@@ -1056,7 +1057,7 @@
       '<button type="button" class="nav-compass-badge" id="nav-compass-btn" aria-label="Direzione di marcia"><span id="nav-compass-needle">N</span></button>' +
       '</div>';
     html += '<div class="nav-speed-badge" id="nav-speed-badge" style="display:none;"><b id="nav-speed-value">0</b><span>km/h</span></div>';
-    html += '<button type="button" class="nav-recenter-btn" id="nav-recenter-btn" style="display:none;" aria-label="Ricentra">🧭</button>';
+    html += '<button type="button" class="nav-recenter-btn" id="nav-recenter-btn" style="display:none;" aria-label="Ricentra">' + svgIcon('nav-recenter') + '</button>';
     html += '<div class="nav-active-bottom">' +
       '<div class="nav-stat-col"><b id="nav-active-arrival"></b><span>arrivo</span></div>' +
       '<div class="nav-stat-col nav-stat-eta"><b id="nav-active-eta"></b><span>tempo</span></div>' +
@@ -2263,6 +2264,12 @@
     document.getElementById('nav-search-bar').style.display = 'none';
     document.getElementById('nav-search-panel').style.display = 'none';
     document.getElementById('nav-result').style.display = 'none';
+    // The pre-navigation floating buttons (satellite, "la mia
+    // posizione") were never hidden here before — they stayed in the
+    // DOM, absolutely positioned, right alongside the active-nav
+    // overlay's own satellite/compass/speed/recenter buttons, visually
+    // piling up together at the bottom of the screen.
+    document.getElementById('nav-float-controls').style.display = 'none';
     document.querySelector('.nav-map-wrap').classList.add('nav-fullscreen');
     setTimeout(function () { if (navMap) navMap.invalidateSize(); }, 50);
     // Rotate into heading-up mode immediately on "Avvia" — not only
@@ -2518,6 +2525,7 @@
     navLegs = null; navLegPoints = null; navCurrentLegIndex = 0; navArrivalPromptShown = false;
     document.getElementById('nav-active-overlay').style.display = 'none';
     document.getElementById('nav-search-bar').style.display = '';
+    document.getElementById('nav-float-controls').style.display = '';
     document.querySelector('.nav-map-wrap').classList.remove('nav-fullscreen');
     if (navActiveFeature) navMap.fitBounds(navRouteLayer.getBounds(), { padding: [24, 24] });
     // Termina / the X during active navigation goes back to the
