@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v157") {
+          if (data && data.v && data.v !== "pt-foglio-v158") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v157"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v158"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1031,6 +1031,23 @@
   var navSearchFocusPoint = null; // driver's GPS position, cached once per Navigatore visit, used to bias/rank geocoding results toward nearby places first — without this, a generic query like "Via Roma 5" ranks results from anywhere in Italy with no sense of which one is actually relevant
 
   function renderNavigatore() {
+    // A RETURN visit — the person switched to another tab (Home,
+    // Foglio, etc.) while actively navigating and has now come back.
+    // Previously this whole function ran unconditionally every time,
+    // rebuilding the entire screen from scratch — including
+    // initNavMap(), which always tears down and recreates the Leaflet
+    // map instance. That silently destroyed the live GPS watch, the
+    // drawn route, and the whole active-navigation overlay the moment
+    // someone came back, ending the trip from their perspective even
+    // though they never pressed Termina. If navigation is already
+    // running (a GPS watch is attached) and the map still exists, skip
+    // the rebuild entirely — the screen's own DOM was only hidden via
+    // CSS while away, never removed, so it's already exactly as it
+    // should be; showScreen's own class toggle handles making it
+    // visible again.
+    if (navWatchId != null && navMap) {
+      return;
+    }
     var el = document.getElementById('screen-navigatore');
     var html = '';
 
