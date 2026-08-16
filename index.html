@@ -485,7 +485,7 @@
   .nav-checkbox-row{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--ink);margin-bottom:14px;}
   .nav-checkbox-row input{width:18px;height:18px;}
   .nav-result{
-    position:absolute;left:0;right:0;bottom:0;z-index:15;
+    position:absolute;left:0;right:0;bottom:0;z-index:1000;
     background:#fff;border-radius:18px 18px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));
     box-shadow:0 -4px 20px rgba(0,0,0,.15);
   }
@@ -516,7 +516,7 @@
   }
 
   .nav-search-bar{
-    position:absolute;top:calc(10px + env(safe-area-inset-top));left:10px;right:10px;z-index:15;
+    position:absolute;top:calc(10px + env(safe-area-inset-top));left:10px;right:10px;z-index:1000;
     background:#fff;border-radius:100px;padding:12px 8px 12px 18px;
     display:flex;align-items:center;gap:10px;box-shadow:0 2px 10px rgba(0,0,0,.2);
     font-size:14.5px;font-weight:500;color:#3c4043;cursor:pointer;
@@ -528,16 +528,16 @@
     color:var(--accent);font-size:16px;display:flex;align-items:center;justify-content:center;
   }
   .nav-search-panel{
-    position:absolute;top:calc(70px + env(safe-area-inset-top));left:10px;right:10px;z-index:16;max-height:70%;overflow-y:auto;
+    position:absolute;top:calc(70px + env(safe-area-inset-top));left:10px;right:10px;z-index:1001;max-height:70%;overflow-y:auto;
     background:#fff;border-radius:var(--radius-lg);padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.2);
   }
-  .nav-float-controls{position:absolute;right:10px;bottom:110px;z-index:15;display:flex;flex-direction:column;gap:10px;}
+  .nav-float-controls{position:absolute;right:10px;bottom:110px;z-index:1000;display:flex;flex-direction:column;gap:10px;}
   .nav-float-btn{
     width:44px;height:44px;border-radius:50%;border:none;background:#fff;font-size:18px;
     box-shadow:0 2px 8px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;
   }
 
-  .nav-active-overlay{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none;padding:10px;padding-top:calc(10px + env(safe-area-inset-top));}
+  .nav-active-overlay{position:absolute;inset:0;z-index:1002;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none;padding:10px;padding-top:calc(10px + env(safe-area-inset-top));}
   .nav-instruction-banner{
     pointer-events:auto;background:#1C1B1F;color:#fff;border-radius:14px;padding:12px 14px;
     display:flex;align-items:center;gap:12px;box-shadow:0 6px 20px rgba(0,0,0,.3);
