@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v151") {
+          if (data && data.v && data.v !== "pt-foglio-v152") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v151"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v152"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2239,41 +2239,24 @@
     });
   }
 
-  // Rotates the whole map so "up" always means "the direction of
-  // travel" — the standard look of a real navigation mode. The
-  // position arrow itself counter-rotates by the same heading amount,
-  // in the opposite direction, so it stays pointing straight up on
-  // screen throughout, while the map (tiles, route line) turns
-  // underneath it. Leaflet's own coordinate math is untouched — it has
-  // no idea its container is visually rotated, and doesn't need to.
-  //
-  // This is now the ONLY mode — an earlier version let the compass
-  // badge toggle into a separate "north-up, flat" mode (like Google
-  // Maps' own compass button), but that turned out more confusing than
-  // useful here: it was easy to tap by accident, and once toggled the
-  // map would sit still (or seem to go "sideways") while the person
-  // was clearly still moving forward, which read as broken rather than
-  // as a deliberate mode. Simpler and safer to always follow the
-  // direction of travel, full stop — the badge is now a plain,
-  // non-interactive bearing readout.
-  //
-  // NOTE: an earlier version of this also tilted the map in 3D
-  // (rotateX + an oversized scale) for a closer, Google-Maps-like
-  // look. Confirmed broken on a real device — visible blank/white gaps
-  // at the edges during real turns, which is unacceptable while
-  // actually driving. Rolled back to the simple, proven 2D rotation
-  // below. A real 3D tilt may be worth revisiting later, but only with
-  // careful, incremental on-device tuning — not another blind guess.
+  // The map used to rotate to match the direction of travel — twice
+  // now, a version of that (first with a 3D tilt, then with plain 2D
+  // rotation) was confirmed broken on a real device: visible white
+  // gaps at the edges, at certain angles nearly the whole screen,
+  // because the oversized rotating container wasn't reliably big
+  // enough to cover every rotation angle on an actual phone. Rather
+  // than guess at yet another set of margins I can't verify live, the
+  // map now stays completely fixed — always north-up, never rotated.
+  // Zero risk of any gap, on any device, at any angle, because no
+  // transform is ever applied to it at all. The position arrow still
+  // rotates to show the real direction of travel on that fixed map —
+  // that part never needed the map itself to move.
   var navLastHeading = 0;
   function rotateNavMapToHeading(heading) {
     if (heading != null && !isNaN(heading)) navLastHeading = heading;
-    var wrap = document.getElementById('nav-map-rotate-wrap');
-    if (wrap) wrap.style.transform = 'rotate(' + (-navLastHeading) + 'deg)';
     if (navPositionMarker) {
       var iconEl = navPositionMarker.getElement();
       var innerDiv = iconEl && iconEl.querySelector('div');
-      // Cancels out the map's own rotation above, so the arrow itself
-      // always stays pointing straight up on screen.
       if (innerDiv) innerDiv.style.transform = 'rotate(' + navLastHeading + 'deg)';
     }
     // Plain, read-only bearing readout (N/NE/E/…) — informational only,
