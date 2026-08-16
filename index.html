@@ -105,6 +105,7 @@
     display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink);
   }
   .icon-btn:active{transform:scale(.94);}
+  .topbar-actions{display:flex;align-items:center;gap:8px;}
   main{
     padding:18px 16px 24px;height:100%;box-sizing:border-box;overflow-y:auto;
     -webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;touch-action:pan-y;
@@ -472,6 +473,23 @@
   .warn-banner.show{display:block;}
 
   .autocomplete-wrap{position:relative;}
+
+  .nav-header{margin-bottom:16px;}
+  .nav-header h2{font-size:20px;font-weight:800;margin-bottom:4px;}
+  .nav-sub{font-size:13px;color:var(--ink-soft);line-height:1.5;}
+  .nav-vehicle-card{margin-bottom:14px;padding:16px;}
+  .nav-vehicle-toggle{display:flex;align-items:center;justify-content:space-between;cursor:pointer;font-weight:700;font-size:14.5px;}
+  .nav-vehicle-toggle span:last-child{font-size:12.5px;color:var(--ink-soft);font-weight:600;}
+  .nav-vehicle-form{margin-top:14px;}
+  .nav-checkbox-row{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--ink);margin-bottom:14px;}
+  .nav-checkbox-row input{width:18px;height:18px;}
+  .nav-result{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-lg);padding:16px;margin:14px 0;}
+  .nav-result-stats{display:flex;gap:24px;}
+  .nav-result-stats div{display:flex;flex-direction:column;}
+  .nav-result-stats b{font-size:18px;font-weight:800;}
+  .nav-result-stats span{font-size:11.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.04em;}
+  .nav-warning-box{margin-top:12px;background:var(--danger-soft);color:var(--danger);font-size:12.5px;font-weight:600;padding:10px 12px;border-radius:10px;line-height:1.5;}
+  .nav-map{width:100%;height:340px;border-radius:var(--radius-lg);overflow:hidden;border:1px solid var(--line);}
   .ac-list{
     position:absolute;left:0;right:0;top:calc(100% + 6px);background:var(--surface);border:1px solid var(--line);
     border-radius:14px;box-shadow:var(--shadow-md);z-index:50;max-height:230px;overflow-y:auto;display:none;touch-action:pan-y;
@@ -515,6 +533,7 @@
   .link-btn{background:none;border:none;color:var(--accent);font-weight:700;font-size:13px;cursor:pointer;font-family:inherit;padding:0;}
   .hidden{display:none !important;}
 </style>
+<link rel="stylesheet" href="vendor/leaflet.css">
 </head>
 <body>
 <div id="app-splash" style="background:#0A0A0B;">
@@ -539,9 +558,14 @@
       </div>
       <div class="brand-text">ADB Smart<small>Foglio Viaggi Digitale</small></div>
     </div>
-    <button class="icon-btn" id="btn-settings" aria-label="Impostazioni">
-      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-    </button>
+    <div class="topbar-actions">
+      <button class="icon-btn" id="btn-navigatore" aria-label="Navigatore">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-settings" aria-label="Impostazioni">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
   </div>
   <div id="presence-diagnostic" style="font-size:10.5px;color:var(--ink-faint);padding:0 16px 6px;"></div>
 
@@ -562,6 +586,8 @@
     <section id="screen-archivio" class="screen"></section>
     <!-- PDF -->
     <section id="screen-pdf" class="screen"></section>
+    <!-- NAVIGATORE -->
+    <section id="screen-navigatore" class="screen"></section>
   </main>
 
   <nav class="bottomnav">
@@ -943,6 +969,7 @@
 <script src="vendor/comuni.js"></script>
 <script src="vendor/supabase.js"></script>
 <script src="vendor/pdf.min.js"></script>
+<script src="vendor/leaflet.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
