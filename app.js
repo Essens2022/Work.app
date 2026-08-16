@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v169") {
+          if (data && data.v && data.v !== "pt-foglio-v170") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v169"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v170"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2483,6 +2483,8 @@
   var navWatchId = null;
   var navLegs = null, navLegPoints = null, navCurrentLegIndex = 0, navArrivalPromptShown = false;
   var navActiveSteps = null; // flattened list of {instruction, coordLat, coordLon, distanceFromStart}
+  var navOffRouteCount = 0; // consecutive position updates where the driver is meaningfully off the current leg's line
+  var navRerouting = false; // guards against firing a second recalculation while one is already in flight
   var navActiveStepIndex = 0;
   var navPositionMarker = null;
   var navActiveFeature = null;
@@ -2505,18 +2507,27 @@
     12: 'nav-keep-left', 13: 'nav-keep-right'
   };
 
-  function startActiveNavigation(feature, legs, points) {
-    navActiveFeature = feature;
+  // Shared between starting navigation fresh and recalculating
+  // mid-trip (rerouteFromCurrentPosition) — flattens a route feature's
+  // turn-by-turn segments into the simple {instruction, type, lat, lon}
+  // list the instruction banner reads from.
+  function buildNavActiveSteps(feature) {
     var coords = feature.geometry.coordinates; // [lon, lat] pairs along the whole route
     var segments = feature.properties.segments || [];
-    navActiveSteps = [];
+    var steps = [];
     segments.forEach(function (seg) {
       (seg.steps || []).forEach(function (step) {
         var wp = step.way_points[0];
         var c = coords[wp];
-        if (c) navActiveSteps.push({ instruction: step.instruction, type: step.type, lat: c[1], lon: c[0] });
+        if (c) steps.push({ instruction: step.instruction, type: step.type, lat: c[1], lon: c[0] });
       });
     });
+    return steps;
+  }
+
+  function startActiveNavigation(feature, legs, points) {
+    navActiveFeature = feature;
+    navActiveSteps = buildNavActiveSteps(feature);
     navActiveStepIndex = 0;
 
     // Per-leg tracking, for a multi-stop trip — lets the map show
@@ -2643,6 +2654,30 @@
     // onward).
     if (navLegs) drawActiveNavLegs(lat, lon);
 
+    // Off-route detection — was completely missing before: if the
+    // driver missed a turn or otherwise left the calculated street,
+    // the app just kept showing the original route and instructions
+    // regardless, with no way back to a correct route short of
+    // stopping and recalculating by hand. Now: how far the driver's
+    // actual position is from the nearest point on the CURRENT leg's
+    // own line is checked on every fix. A single reading over the
+    // threshold isn't enough on its own — ordinary GPS noise can put
+    // you 30-40m off a road you're actually still on — so several
+    // consecutive readings (a real, sustained deviation over a few
+    // seconds) are required before recalculating for real.
+    if (navLegs && navLegs[navCurrentLegIndex] && !navRerouting) {
+      var distOffRoute = distanceToNearestPointOnLine(navLegs[navCurrentLegIndex].geometry.coordinates, lat, lon);
+      if (distOffRoute > 50) {
+        navOffRouteCount++;
+        if (navOffRouteCount >= 4) {
+          navOffRouteCount = 0;
+          rerouteFromCurrentPosition(lat, lon);
+        }
+      } else {
+        navOffRouteCount = 0;
+      }
+    }
+
     // Real current speed, straight from GPS (m/s → km/h) — shown only
     // when the device actually reports it (many phones return null
     // while stationary or with a weak fix), never estimated or
@@ -2733,6 +2768,43 @@
     updateActiveInstructionBanner(lat, lon);
   }
 
+  // Recalculates the rest of the trip from wherever the driver actually
+  // is right now, through every stop still remaining — this is what
+  // was completely missing before: if a turn was missed, the app just
+  // kept showing the original (now wrong) route and instructions with
+  // no way back short of stopping and starting over by hand. Reuses
+  // computeMultiStopRoute exactly as the initial calculation does, just
+  // with the live position standing in for the origin. Any leg already
+  // completed before this point stays completed; only what's still
+  // ahead gets replaced.
+  function rerouteFromCurrentPosition(lat, lon) {
+    if (navRerouting || !navLegPoints) return;
+    navRerouting = true;
+    toast('Fuori percorso — ricalcolo del percorso…');
+    var remainingPoints = [{ lat: lat, lon: lon }].concat(navLegPoints.slice(navCurrentLegIndex + 1));
+    computeMultiStopRoute(remainingPoints)
+      .then(function (result) {
+        navLegs = result.legs;
+        navLegPoints = remainingPoints;
+        navCurrentLegIndex = 0;
+        navArrivalPromptShown = false;
+        navActiveFeature = result.alternatives[0];
+        navActiveSteps = buildNavActiveSteps(navActiveFeature);
+        navActiveStepIndex = 0;
+        drawActiveNavLegs(lat, lon);
+        updateActiveInstructionBanner(lat, lon);
+        toast('Percorso ricalcolato');
+      })
+      .catch(function () {
+        // Couldn't get a fresh route (offline, out of quota, weak
+        // signal) — the old route and instructions just stay as they
+        // were rather than leaving the screen in a broken state; the
+        // off-route counter will simply try again on the next fixes.
+        toast('Impossibile ricalcolare — riprovo al prossimo segnale');
+      })
+      .then(function () { navRerouting = false; });
+  }
+
   function updateActiveInstructionBanner(lat, lon) {
     var step = navActiveSteps[navActiveStepIndex];
     if (!step) return;
@@ -2772,6 +2844,18 @@
       if (d < bestDist) { bestDist = d; bestIdx = i; }
     }
     return bestIdx;
+  }
+
+  // Real distance (meters) from a position to the nearest point on a
+  // route's own line — used for off-route detection. Reuses
+  // nearestCoordIndex to find WHICH point is closest, then measures
+  // the actual distance to it (nearestCoordIndex itself only compares
+  // relative closeness in raw degree-space, fine for finding the
+  // closest vertex but not meaningful as a real distance).
+  function distanceToNearestPointOnLine(coords, lat, lon) {
+    var idx = nearestCoordIndex(coords, lat, lon);
+    var c = coords[idx];
+    return haversineKm({ lat: lat, lon: lon }, { lat: c[1], lon: c[0] }) * 1000;
   }
 
   // Returns a copy of a leg's feature with the already-driven portion
