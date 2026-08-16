@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v140") {
+          if (data && data.v && data.v !== "pt-foglio-v141") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v140"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v141"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1873,7 +1873,7 @@
     resultEl.querySelectorAll('.nav-alt-btn').forEach(function (btn) {
       btn.addEventListener('click', function () { displayNavRouteChoice(alternatives, points, Number(btn.getAttribute('data-alt')), legs); });
     });
-    document.getElementById('nav-avvia-btn').addEventListener('click', function () { startActiveNavigation(feature); });
+    document.getElementById('nav-avvia-btn').addEventListener('click', function () { startActiveNavigation(feature, legs, points); });
 
     if (navRouteLayer) navMap.removeLayer(navRouteLayer);
     Object.keys(navWaypointMarkers).forEach(function (id) { navMap.removeLayer(navWaypointMarkers[id]); });
@@ -1930,6 +1930,7 @@
   // current turn instruction as a banner, advancing automatically as
   // each maneuver point is reached.
   var navWatchId = null;
+  var navLegs = null, navLegPoints = null, navCurrentLegIndex = 0, navArrivalPromptShown = false;
   var navActiveSteps = null; // flattened list of {instruction, coordLat, coordLon, distanceFromStart}
   var navActiveStepIndex = 0;
   var navPositionMarker = null;
@@ -1941,7 +1942,7 @@
     0: '⬅', 1: '➡', 2: '⬉', 3: '⬈', 4: '⬋', 5: '⬊', 6: '⬆', 7: '↩', 8: '↩', 10: '🏁', 11: '🔄'
   };
 
-  function startActiveNavigation(feature) {
+  function startActiveNavigation(feature, legs, points) {
     navActiveFeature = feature;
     var coords = feature.geometry.coordinates; // [lon, lat] pairs along the whole route
     var segments = feature.properties.segments || [];
@@ -1954,6 +1955,17 @@
       });
     });
     navActiveStepIndex = 0;
+
+    // Per-leg tracking, for a multi-stop trip — lets the map show
+    // "the stretch you're on right now" fully colored (with its own
+    // highway/road-type detail) and everything after it fainter, then
+    // progressively drop each leg once its stop is reached and promote
+    // the next one, exactly the visual language Google Maps uses.
+    navLegs = legs || [feature];
+    navLegPoints = points || null;
+    navCurrentLegIndex = 0;
+    navArrivalPromptShown = false;
+    if (navLegs.length > 1) drawActiveNavLegs();
 
     if (!navigator.geolocation) { toast('Il GPS non è disponibile su questo dispositivo'); return; }
 
@@ -2039,6 +2051,22 @@
       icon: L.divIcon({ className: 'nav-heading-arrow', html: '<div>➤</div>', iconSize: [30, 30], iconAnchor: [15, 15] })
     }).addTo(navMap);
 
+    // Multi-stop trip — offer to confirm arrival once genuinely close
+    // to the next stop, rather than auto-completing it silently. Only
+    // prompts once per stop (not on every position update while
+    // sitting there).
+    if (navLegs && navLegs.length > 1 && navLegPoints && !navArrivalPromptShown) {
+      var nextStopIdx = navCurrentLegIndex + 1;
+      if (nextStopIdx < navLegPoints.length - 1) { // the final destination has its own "sei arrivato" instruction already — this is only for intermediate stops
+        var nextStop = navLegPoints[nextStopIdx];
+        var distToNextStop = haversineKm({ lat: lat, lon: lon }, { lat: nextStop.lat, lon: nextStop.lon }) * 1000;
+        if (distToNextStop < 80) {
+          navArrivalPromptShown = true;
+          showNavArrivalPrompt(nextStopIdx);
+        }
+      }
+    }
+
     if (navFollowingUser) {
       navMap.setView([lat, lon], 17, { animate: true });
     }
@@ -2080,6 +2108,69 @@
     document.getElementById('nav-active-remaining').textContent = (props.distance / 1000).toFixed(1) + ' km totali';
   }
 
+  // Draws only the legs from the current one onward — the completed
+  // legs behind the driver simply aren't shown anymore. The current
+  // (next-to-drive) leg gets the full, detailed coloring (including its
+  // own highway/road-type distinction); everything still ahead of that
+  // stays the same soft, receded blue — exactly the progressive visual
+  // Google Maps uses as a multi-stop trip advances.
+  function drawActiveNavLegs() {
+    if (navRouteLayer) navMap.removeLayer(navRouteLayer);
+    navRouteLayer = L.featureGroup();
+    for (var i = navCurrentLegIndex; i < navLegs.length; i++) {
+      var isCurrent = i === navCurrentLegIndex;
+      var legLayer = drawColorCodedRoute(navLegs[i], !isCurrent);
+      legLayer.addTo(navRouteLayer);
+    }
+    navRouteLayer.addTo(navMap);
+  }
+
+  function showNavArrivalPrompt(stopIdx) {
+    var stopNumber = stopIdx; // stops are 1-indexed in the UI (origin is index 0 in navLegPoints)
+    var banner = document.createElement('div');
+    banner.id = 'nav-arrival-prompt';
+    banner.className = 'nav-arrival-prompt';
+    banner.innerHTML =
+      '<span>Sei arrivato alla Tappa ' + stopNumber + '?</span>' +
+      '<button type="button" id="nav-arrival-confirm">✓ Conferma</button>' +
+      '<button type="button" id="nav-arrival-dismiss">✕</button>';
+    document.querySelector('.nav-map-wrap').appendChild(banner);
+    document.getElementById('nav-arrival-confirm').addEventListener('click', function () {
+      banner.remove();
+      confirmNavArrivalAtStop();
+    });
+    document.getElementById('nav-arrival-dismiss').addEventListener('click', function () {
+      banner.remove();
+      navArrivalPromptShown = false; // lets it prompt again if still nearby a bit later — dismissing just means "not yet"
+    });
+  }
+
+  // Advancing to the next leg — the just-completed stretch disappears
+  // from the map entirely, its marker is removed, and the leg that was
+  // "next" becomes the new fully-colored current one. Also nudges the
+  // turn-by-turn instruction index forward to the first step that
+  // belongs to the new current leg, so the banner doesn't keep showing
+  // a stale instruction from the leg just finished.
+  function confirmNavArrivalAtStop() {
+    var reachedWp = navWaypoints[navCurrentLegIndex + 1];
+    if (reachedWp && navWaypointMarkers[reachedWp.id]) {
+      navMap.removeLayer(navWaypointMarkers[reachedWp.id]);
+      delete navWaypointMarkers[reachedWp.id];
+    }
+    navCurrentLegIndex++;
+    navArrivalPromptShown = false;
+    drawActiveNavLegs();
+    if (navLastPosition) {
+      while (navActiveStepIndex < navActiveSteps.length - 1) {
+        var step = navActiveSteps[navActiveStepIndex];
+        var d = haversineKm(navLastPosition, { lat: step.lat, lon: step.lon }) * 1000;
+        if (d < 150) { navActiveStepIndex++; } else { break; }
+      }
+    }
+    updateActiveInstructionBanner(navLastPosition ? navLastPosition.lat : null, navLastPosition ? navLastPosition.lon : null);
+    toast('Tappa raggiunta — prossima tratta');
+  }
+
   function stopActiveNavigation() {
     if (navWatchId != null) { navigator.geolocation.clearWatch(navWatchId); navWatchId = null; }
     if (navPositionMarker) { navMap.removeLayer(navPositionMarker); navPositionMarker = null; }
@@ -2087,6 +2178,9 @@
     var rotateWrap = document.getElementById('nav-map-rotate-wrap');
     if (rotateWrap) rotateWrap.style.transform = 'none';
     document.getElementById('nav-recenter-btn').style.display = 'none';
+    var arrivalPrompt = document.getElementById('nav-arrival-prompt');
+    if (arrivalPrompt) arrivalPrompt.remove();
+    navLegs = null; navLegPoints = null; navCurrentLegIndex = 0; navArrivalPromptShown = false;
     document.getElementById('nav-active-overlay').style.display = 'none';
     document.getElementById('nav-search-bar').style.display = '';
     document.querySelector('.nav-map-wrap').classList.remove('nav-fullscreen');
