@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v136") {
+          if (data && data.v && data.v !== "pt-foglio-v137") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v136"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v137"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1440,22 +1440,45 @@
   // follow rather than a search through unfamiliar settings menus.
   function openNavLocationUnlockGuide() {
     var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    var steps = isIOS ? [
-      'Apri "Impostazioni" sul telefono (l\'app grigia con l\'ingranaggio).',
-      'Scorri e tocca "Safari".',
-      'Tocca "Posizione".',
-      'Scegli "Consenti" (o "Chiedi").',
-      'Torna qui e ricarica la pagina.'
-    ] : [
-      'Tocca l\'icona 🔒 (o "ⓘ") accanto all\'indirizzo, in alto.',
-      'Tocca "Autorizzazioni" o "Permessi".',
-      'Tocca "Posizione".',
-      'Scegli "Consenti".',
-      'Torna qui e ricarica la pagina.'
-    ];
+    // Installed as a home-screen app (standalone) is a completely
+    // different situation from a regular browser tab — Android treats
+    // an installed PWA as its OWN app, with its own separate entry
+    // (and its own separate Location permission) in the phone's own
+    // Settings, nothing to do with Chrome's own address-bar icon,
+    // which doesn't even exist in this mode (no visible address bar at
+    // all). iOS home-screen apps, by contrast, still route their
+    // permission through Safari's own settings.
+    var steps;
+    if (isStandaloneApp && !isIOS) {
+      steps = [
+        'Apri "Impostazioni" sul telefono.',
+        'Tocca "App" (o "App e notifiche").',
+        'Cerca e tocca "ADB Smart" nell\'elenco — è installata come una vera app.',
+        'Tocca "Autorizzazioni" (o "Permessi").',
+        'Tocca "Posizione" e scegli "Consenti".',
+        'Torna qui e ricarica la pagina.'
+      ];
+    } else if (isIOS) {
+      steps = [
+        'Apri "Impostazioni" sul telefono (l\'app grigia con l\'ingranaggio).',
+        'Scorri e tocca "Safari".',
+        'Tocca "Posizione".',
+        'Scegli "Consenti" (o "Chiedi").',
+        'Torna qui e ricarica la pagina.'
+      ];
+    } else {
+      steps = [
+        'Tocca l\'icona 🔒 (o "ⓘ") accanto all\'indirizzo, in alto.',
+        'Tocca "Autorizzazioni" o "Permessi".',
+        'Tocca "Posizione".',
+        'Scegli "Consenti".',
+        'Torna qui e ricarica la pagina.'
+      ];
+    }
+    var subLabel = isStandaloneApp && !isIOS ? 'App installata su Android' : (isIOS ? 'Su iPhone' : 'Su Android, nel browser');
     var html = '<div class="nav-unlock-modal-inner">';
     html += '<div class="modal-title">Sblocca la posizione</div>';
-    html += '<div class="modal-sub">' + (isIOS ? 'Su iPhone' : 'Su Android') + ', in pochi passaggi:</div>';
+    html += '<div class="modal-sub">' + subLabel + ', in pochi passaggi:</div>';
     html += '<ol class="nav-unlock-steps">' + steps.map(function (s) { return '<li>' + escapeHtml(s) + '</li>'; }).join('') + '</ol>';
     html += '<button type="button" class="btn btn-accent btn-block" id="nav-unlock-guide-close">Ho capito</button>';
     html += '</div>';
