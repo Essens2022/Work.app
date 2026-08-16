@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v167") {
+          if (data && data.v && data.v !== "pt-foglio-v168") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v167"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v168"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1283,8 +1283,20 @@
     });
     // Re-drop markers for any waypoints already resolved from an earlier
     // visit to this screen (the map itself is fresh, but the trip plan
-    // persists).
-    navWaypoints.forEach(function (wp) { if (wp.point) dropNavWaypointMarker(wp.id, wp.point); });
+    // persists). Uses the lightweight icon-only refresh (not the full
+    // dropNavWaypointMarker) so the map doesn't visibly jump from one
+    // waypoint to the next while restoring several at once — instead,
+    // it fits the view to all of them together, once, at the end.
+    var resolvedForBounds = [];
+    navWaypoints.forEach(function (wp) {
+      if (wp.point) { refreshNavWaypointMarkerIcon(wp.id, wp.point); resolvedForBounds.push([wp.point.lat, wp.point.lon]); }
+    });
+    if (resolvedForBounds.length === 1) {
+      navMap.setView(resolvedForBounds[0], 11);
+    } else if (resolvedForBounds.length > 1) {
+      navMap.fitBounds(L.latLngBounds(resolvedForBounds), { padding: [32, 32] });
+    }
+    if (resolvedForBounds.length > 1) updateLiveRoutePreview();
   }
 
   var navShowingSatellite = false;
@@ -1628,14 +1640,19 @@
     // If the destination itself was the one removed, the new last item
     // (whatever was the stop right before it) needs to become the
     // destination in its place — there always has to be exactly one,
-    // and it's always the last item. Its marker is redrawn right away
-    // so the map reflects "now the final destination" immediately,
-    // same as the equivalent promotion in addNavWaypointBeforeDest.
+    // and it's always the last item.
     var newLast = navWaypoints[navWaypoints.length - 1];
-    if (newLast && newLast.role !== 'dest') {
-      newLast.role = 'dest';
-      if (newLast.point) dropNavWaypointMarker(newLast.id, newLast.point);
-    }
+    if (newLast && newLast.role !== 'dest') newLast.role = 'dest';
+    // Every stop AFTER the removed one shifts down a number (what was
+    // "Tappa 3" becomes "Tappa 2", etc.) — same underlying issue as the
+    // drag-reorder fix: refreshing every marker icon here, not just the
+    // promoted destination, keeps every number on the map matching
+    // what's actually being routed, instead of showing stale numbers
+    // that no longer match the real order.
+    navWaypoints.forEach(function (w) {
+      if (w.point) refreshNavWaypointMarkerIcon(w.id, w.point);
+    });
+    updateLiveRoutePreview();
     renderNavWaypointsList();
   }
 
@@ -1666,6 +1683,22 @@
         var moved = navWaypoints.splice(fromIdx, 1)[0];
         navWaypoints.splice(toIdx, 0, moved);
         renderNavWaypointsList();
+        // The text fields above already relabel themselves correctly
+        // (Tappa 1/2/3) via renderNavWaypointsList — but the NUMBERED
+        // MARKERS on the map itself were never being refreshed here,
+        // so they kept showing the pre-drag numbers/positions after a
+        // reorder. The route recalculates correctly for the new order
+        // (updateLiveRoutePreview, on drag end, reads navWaypoints in
+        // its real array order), but the stale marker numbers made it
+        // look like the route was looping nonsensically — it wasn't;
+        // the map just hadn't caught up to what order the stops were
+        // actually in. refreshNavWaypointMarkerIcon recomputes each
+        // marker's correct number from the CURRENT navWaypoints order
+        // without recentring the map or opening a popup for each one —
+        // just the icon itself, so this stays smooth mid-drag.
+        navWaypoints.forEach(function (w) {
+          if (w.point) refreshNavWaypointMarkerIcon(w.id, w.point);
+        });
         // Re-wiring the list just replaced this row — reattach dragging
         // state to the same logical stop so the gesture continues
         // smoothly instead of ending abruptly mid-drag.
@@ -1793,14 +1826,31 @@
 
   function dropNavWaypointMarker(waypointId, point) {
     if (!navMap) return;
-    var wp = navWaypoints.filter(function (w) { return w.id === waypointId; })[0];
-    var stopNumber = navWaypoints.filter(function (w, i) { return w.role === 'stop' && navWaypoints.indexOf(w) <= navWaypoints.indexOf(wp); }).length;
-    var hasStops = navWaypoints.some(function (w) { return w.role === 'stop'; });
-    if (navWaypointMarkers[waypointId]) navMap.removeLayer(navWaypointMarkers[waypointId]);
-    var marker = L.marker([point.lat, point.lon], { icon: navNumberedMarkerIcon(wp, stopNumber, hasStops) }).addTo(navMap).bindPopup(navWaypointLabel(wp, stopNumber)).openPopup();
-    navWaypointMarkers[waypointId] = marker;
+    var marker = refreshNavWaypointMarkerIcon(waypointId, point);
+    if (marker) marker.openPopup();
     navMap.setView([point.lat, point.lon], 11);
     updateLiveRoutePreview();
+  }
+
+  // Just the marker icon itself (correct number, correct pin style for
+  // its role) — no recentring, no live-preview trigger, no popup
+  // opened. Used when refreshing MULTIPLE markers at once (after a
+  // reorder or a removal shifts everyone's numbers) so the map doesn't
+  // visibly jump from waypoint to waypoint, or pop open several
+  // bubbles at once; the caller recentres/refreshes once, after the
+  // whole batch, instead. dropNavWaypointMarker (above) still does the
+  // full version for the single-waypoint case (a fresh pick from
+  // autocomplete or the map) where snapping the view to it, and
+  // showing its label, is exactly what's wanted.
+  function refreshNavWaypointMarkerIcon(waypointId, point) {
+    if (!navMap) return null;
+    var wp = navWaypoints.filter(function (w) { return w.id === waypointId; })[0];
+    var stopNumber = navWaypoints.filter(function (w) { return w.role === 'stop' && navWaypoints.indexOf(w) <= navWaypoints.indexOf(wp); }).length;
+    var hasStops = navWaypoints.some(function (w) { return w.role === 'stop'; });
+    if (navWaypointMarkers[waypointId]) navMap.removeLayer(navWaypointMarkers[waypointId]);
+    var marker = L.marker([point.lat, point.lon], { icon: navNumberedMarkerIcon(wp, stopNumber, hasStops) }).addTo(navMap).bindPopup(navWaypointLabel(wp, stopNumber));
+    navWaypointMarkers[waypointId] = marker;
+    return marker;
   }
 
   // Draws the real, road-following path on the map the moment there are
