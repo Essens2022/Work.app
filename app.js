@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v166") {
+          if (data && data.v && data.v !== "pt-foglio-v167") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v166"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v167"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1833,6 +1833,12 @@
   // matter for finding real addresses reliably in Italy:
   //  - boundary.country=ITA: keeps results to Italy, so a generic
   //    street name doesn't compete with identical ones abroad.
+  //  - opts.nearbyKm: restricts results to within this many km of the
+  //    driver's own GPS position (boundary.circle) — this is the "near
+  //    me first" pass: a search for something generic ("tabaccheria",
+  //    "supermercato") should surface what's actually close before
+  //    anything further away even gets considered, the same instinct
+  //    Google Maps has when you search near your own blue dot.
   //  - layers=address,venue,street,locality (unless opts.noLayers):
   //    explicitly includes the "address" layer (exact civic numbers)
   //    and "venue" layer (businesses/POIs). Pelias silently EXCLUDES
@@ -1845,9 +1851,10 @@
   //    combined text over the business-name one; asking for venue
   //    results exclusively forces it to match on the name instead.
   //  - focus.point.*: biases ranking toward the driver's current GPS
-  //    position (cached once per Navigatore visit), so among many
-  //    identically-named streets across Italy, the nearby one ranks
-  //    first — same effect as Google Maps favoring "near me" results.
+  //    position (cached once per Navigatore visit) even when NOT
+  //    restricting by boundary.circle — so among many identically-named
+  //    streets across Italy, the nearby one still ranks first once the
+  //    search widens past the immediate area.
   function navGeocodeUrl(endpoint, text, opts) {
     opts = opts || {};
     var url = 'https://api.openrouteservice.org/geocode/' + endpoint + '?api_key=' + encodeURIComponent(ORS_API_KEY) +
@@ -1857,41 +1864,48 @@
     else if (!opts.noLayers) url += '&layers=address,venue,street,locality';
     if (navSearchFocusPoint) {
       url += '&focus.point.lat=' + navSearchFocusPoint.lat + '&focus.point.lon=' + navSearchFocusPoint.lon;
+      if (opts.nearbyKm) {
+        url += '&boundary.circle.lat=' + navSearchFocusPoint.lat + '&boundary.circle.lon=' + navSearchFocusPoint.lon + '&boundary.circle.radius=' + opts.nearbyKm;
+      }
     }
     return url;
   }
 
-  // Fetches with the tuned layer restriction first (best relevance for
-  // the common case: streets, civic numbers, businesses). If that comes
-  // back completely empty, retries once WITHOUT the layer restriction —
-  // a safety net for whatever Pelias would have classified into a layer
-  // the hardcoded list above didn't happen to include (a neighbourhood,
-  // a larger named area, an unusual venue subtype). If THAT still comes
-  // back empty and the driver's own GPS position is known, tries once
-  // more restricted to venues only, strongly biased by that position —
-  // meant for "business name + town" typed as one string (no comma),
-  // where Pelias's own free-text parsing can favor reading the town
-  // name as the main subject instead of the business.
+  // Widening search: tries the driver's immediate area FIRST (within
+  // 20km), so a generic search ("tabaccheria", "supermercato") surfaces
+  // what's actually nearby before anything further away is even
+  // considered — matching how Google Maps itself favors "near me"
+  // results first. Only widens to the rest of Italy if genuinely
+  // nothing turns up close by; from there, the same layer-relaxing
+  // fallbacks as before (no layer restriction, then venue-only) still
+  // apply, each pass a little less strict than the last.
   // NOTE: none of this can find a business that simply isn't in
   // OpenStreetMap yet (a very recently opened shop, in a small town
   // with few local contributors) — that's a real gap in the free data
   // itself, not something any query tuning can work around.
   function navGeocodeFetch(endpoint, text) {
-    return fetch(navGeocodeUrl(endpoint, text))
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        if (data.features && data.features.length) return data;
-        return fetch(navGeocodeUrl(endpoint, text, { noLayers: true }))
-          .then(function (r2) { return r2.json(); })
-          .then(function (data2) {
-            if (data2.features && data2.features.length) return data2;
-            if (!navSearchFocusPoint) return data2;
-            return fetch(navGeocodeUrl(endpoint, text, { venueOnly: true }))
-              .then(function (r3) { return r3.json(); })
-              .catch(function () { return data2; });
-          })
-          .catch(function () { return data; }); // fallback failed too (offline etc.) — surface the original (empty) result rather than throwing
-      });
+    var attempts = [];
+    // 5km is the documented hard cap for boundary.circle.radius on
+    // Pelias's own free public API — asking for more risks the request
+    // being rejected outright rather than just returning less; even at
+    // 5km, this still meaningfully favors "what's actually close by"
+    // for a generic search before anything farther gets considered.
+    if (navSearchFocusPoint) attempts.push({ nearbyKm: 5 }); // near me first
+    attempts.push({}); // then the whole country
+    attempts.push({ noLayers: true }); // then relax the layer restriction
+    if (navSearchFocusPoint) attempts.push({ venueOnly: true }); // last resort: business-name-only, still biased nearby
+
+    function tryNext(i) {
+      if (i >= attempts.length) return Promise.resolve({ features: [] });
+      return fetch(navGeocodeUrl(endpoint, text, attempts[i]))
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.features && data.features.length) return data;
+          return tryNext(i + 1);
+        })
+        .catch(function () { return tryNext(i + 1); }); // this attempt failed outright (offline etc.) — still worth trying the next, less strict one
+    }
+    return tryNext(0);
   }
 
   function geocodeAddress(text) {
