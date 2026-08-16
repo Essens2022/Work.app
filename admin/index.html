@@ -100,6 +100,7 @@
 
   <div id="login-screen" class="card show">
     <div id="login-error" class="error" style="display:none;">Password errata.</div>
+    <button id="faceid-unlock-btn" class="btn-block" style="display:none;margin-bottom:12px;background:var(--accent);">🔓 Sblocca con Face ID</button>
     <input id="password-input" type="password" placeholder="Password" autocomplete="current-password">
     <button id="login-btn" class="btn-block">Accedi</button>
   </div>
@@ -488,6 +489,69 @@
 
   var lastGroupsRaw = [];
 
+  // Face ID / Touch ID unlock — a real WebAuthn platform-authenticator
+  // credential, so the phone's own biometric sensor gates access,
+  // instead of retyping the password every time. WebAuthn itself only
+  // ever proves "this device/person was verified" — it doesn't carry
+  // any data — so the actual password is kept locally (in this
+  // browser's storage) and only released once that verification
+  // succeeds. Worth being upfront about: this means the password IS
+  // sitting in this browser's local storage either way — Face ID adds
+  // real convenience and blocks casual glance-access, but isn't a
+  // vault against someone with full access to the unlocked device
+  // itself.
+  var WEBAUTHN_CRED_KEY = 'fv_admin_webauthn_cred';
+  var WEBAUTHN_PW_KEY = 'fv_admin_webauthn_pw';
+  function webauthnSupported() { return !!(window.PublicKeyCredential && navigator.credentials); }
+  function randomChallenge() { var a = new Uint8Array(32); crypto.getRandomValues(a); return a; }
+  function bufToB64(buf) { return btoa(String.fromCharCode.apply(null, new Uint8Array(buf))); }
+  function b64ToBuf(b64) { return Uint8Array.from(atob(b64), function (c) { return c.charCodeAt(0); }); }
+
+  function registerFaceId(password) {
+    if (!webauthnSupported()) return Promise.reject(new Error('not supported'));
+    var userId = new Uint8Array(16);
+    crypto.getRandomValues(userId);
+    return navigator.credentials.create({
+      publicKey: {
+        challenge: randomChallenge(),
+        rp: { name: 'ADB Smart Admin' },
+        user: { id: userId, name: 'admin', displayName: 'Admin' },
+        pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
+        authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },
+        timeout: 60000
+      }
+    }).then(function (cred) {
+      localStorage.setItem(WEBAUTHN_CRED_KEY, bufToB64(cred.rawId));
+      localStorage.setItem(WEBAUTHN_PW_KEY, password);
+    });
+  }
+
+  function unlockWithFaceId() {
+    var credIdB64 = localStorage.getItem(WEBAUTHN_CRED_KEY);
+    if (!credIdB64) return Promise.resolve(null);
+    return navigator.credentials.get({
+      publicKey: {
+        challenge: randomChallenge(),
+        allowCredentials: [{ id: b64ToBuf(credIdB64), type: 'public-key' }],
+        userVerification: 'required',
+        timeout: 60000
+      }
+    }).then(function (assertion) {
+      return assertion ? localStorage.getItem(WEBAUTHN_PW_KEY) : null;
+    });
+  }
+
+  function offerFaceIdIfSensible() {
+    if (localStorage.getItem(WEBAUTHN_CRED_KEY) || !webauthnSupported()) return;
+    if (!(window.PublicKeyCredential && PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable)) return;
+    PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().then(function (available) {
+      if (!available) return;
+      if (window.confirm('Vuoi sbloccare con Face ID/Touch ID la prossima volta, invece di digitare la password?')) {
+        registerFaceId(currentPassword).catch(function () { /* declined or failed — password login still works normally */ });
+      }
+    });
+  }
+
   function login() {
     var pw = document.getElementById('password-input').value;
     var errEl = document.getElementById('login-error');
@@ -502,6 +566,7 @@
         setRefreshedNow();
         showScreen('data-screen');
         startAdminPresenceWatch();
+        offerFaceIdIfSensible();
         if (refreshTimer) clearInterval(refreshTimer);
         refreshTimer = setInterval(function () {
           fetchDrivers().then(function (r) {
@@ -511,6 +576,15 @@
       })
       .catch(function () { errEl.textContent = 'Errore di connessione.'; errEl.style.display = 'block'; });
   }
+
+  if (localStorage.getItem(WEBAUTHN_CRED_KEY)) {
+    document.getElementById('faceid-unlock-btn').style.display = 'block';
+  }
+  document.getElementById('faceid-unlock-btn').addEventListener('click', function () {
+    unlockWithFaceId().then(function (pw) {
+      if (pw) { document.getElementById('password-input').value = pw; login(); }
+    }).catch(function () { /* cancelled or failed — person can still type the password normally */ });
+  });
 
   document.getElementById('login-btn').addEventListener('click', login);
   document.getElementById('password-input').addEventListener('keydown', function (e) {
