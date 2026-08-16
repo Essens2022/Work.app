@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v162") {
+          if (data && data.v && data.v !== "pt-foglio-v163") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v162"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v163"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2125,11 +2125,26 @@
 
     var chain = Promise.resolve([]);
     for (var j = 0; j < waypoints.length - 1; j++) {
-      (function (from, to, isLast) {
+      (function (from, to) {
         chain = chain.then(function (acc) {
-          return fetchTruckRouteSegment(from, to, isLast).then(function (segment) { acc.push(segment); return acc; });
+          // Alternatives deliberately NEVER requested for any leg of a
+          // chained long-haul route (matches the comment in
+          // fetchTruckRouteSegment) — this used to pass `isLast` here
+          // by mistake, which meant the FINAL leg of every multi-leg
+          // trip silently asked for alternate routes anyway. ORS only
+          // allows alternative_routes on a leg whose actual DRIVEN
+          // distance (not straight-line) stays under 100km — real
+          // roads curve, so a leg capped at 95km straight-line could
+          // easily drive out past that limit, and ORS would reject the
+          // whole request outright. That's very likely exactly what
+          // happened on a long trip like Vilatora → Trieste: the last
+          // leg tipped past the alternatives limit and the entire
+          // chain failed with an error, instead of just that one leg
+          // quietly not getting alternatives it was never supposed to
+          // request in the first place.
+          return fetchTruckRouteSegment(from, to, false).then(function (segment) { acc.push(segment); return acc; });
         });
-      })(waypoints[j], waypoints[j + 1], j === waypoints.length - 2);
+      })(waypoints[j], waypoints[j + 1]);
     }
     return chain.then(function (segments) { return mergeRouteSegments(segments, origin, dest); });
   }
