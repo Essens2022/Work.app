@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v132") {
+          if (data && data.v && data.v !== "pt-foglio-v133") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v132"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v133"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1025,7 +1025,7 @@
     html += '<div id="nav-result" class="nav-result" style="display:none;"></div>';
 
     html += '<div id="nav-active-overlay" class="nav-active-overlay" style="display:none;">';
-    html += '<div class="nav-instruction-banner"><div class="nav-instruction-icon" id="nav-instr-icon">➜</div><div><div class="nav-instruction-text" id="nav-instr-text">—</div><div class="nav-instruction-dist" id="nav-instr-dist"></div></div></div>';
+    html += '<div class="nav-instruction-banner"><button type="button" class="nav-exit-x" id="nav-exit-x" aria-label="Esci dalla navigazione">✕</button><div class="nav-instruction-icon" id="nav-instr-icon">➜</div><div><div class="nav-instruction-text" id="nav-instr-text">—</div><div class="nav-instruction-dist" id="nav-instr-dist"></div></div></div>';
     html += '<div class="nav-active-float-controls"><button type="button" class="nav-float-btn" id="nav-active-layers-btn" aria-label="Vista satellite">🛰️</button></div>';
     html += '<div class="nav-active-bottom"><div class="nav-active-stats"><b id="nav-active-eta"></b><span id="nav-active-remaining"></span></div><button type="button" class="nav-end-btn" id="nav-end-btn">Termina</button></div>';
     html += '</div>';
@@ -1382,6 +1382,7 @@
       showNavLocationBanner('Il GPS non è disponibile su questo dispositivo — la navigazione richiede la posizione.');
       return;
     }
+    showNavLocationBanner('Ricerca della posizione in corso…', true);
     navigator.geolocation.getCurrentPosition(
       function (pos) {
         hideNavLocationBanner();
@@ -1394,25 +1395,32 @@
         }
       },
       function (err) {
-        // code 1 = PERMISSION_DENIED specifically — anything else
-        // (timeout, position unavailable) isn't a permission problem,
-        // so it doesn't need this particular banner.
+        // code 1 = PERMISSION_DENIED, 2 = POSITION_UNAVAILABLE, 3 =
+        // TIMEOUT — a GPS cold start (especially indoors, or the very
+        // first time) can genuinely take longer than a few seconds, so
+        // a timeout here isn't necessarily a permission problem, but
+        // the person still deserves to see SOMETHING rather than
+        // silence, so every case gets a clear, distinct message.
         if (err.code === 1) {
           showNavLocationBanner('Posizione non attiva — per navigare, consenti l\'accesso alla posizione nelle impostazioni del telefono per questo sito.');
+        } else if (err.code === 3) {
+          showNavLocationBanner('Ricerca della posizione ancora in corso — può richiedere più tempo la prima volta, specialmente al chiuso.');
+        } else {
+          showNavLocationBanner('Impossibile determinare la posizione al momento — riprova tra poco.');
         }
       },
-      { timeout: 8000 }
+      { timeout: 25000, enableHighAccuracy: true, maximumAge: 0 }
     );
   }
 
-  function showNavLocationBanner(message) {
+  function showNavLocationBanner(message, isLoading) {
     var mapWrap = document.querySelector('.nav-map-wrap');
     if (!mapWrap) return;
     var existing = document.getElementById('nav-location-banner');
     if (existing) existing.remove();
     var banner = document.createElement('div');
     banner.id = 'nav-location-banner';
-    banner.className = 'nav-location-banner';
+    banner.className = 'nav-location-banner' + (isLoading ? ' nav-location-banner-loading' : '');
     banner.textContent = message;
     mapWrap.appendChild(banner);
   }
@@ -1771,6 +1779,7 @@
     );
 
     document.getElementById('nav-end-btn').addEventListener('click', stopActiveNavigation);
+    document.getElementById('nav-exit-x').addEventListener('click', stopActiveNavigation);
   }
 
   function onActiveNavPosition(position) {
