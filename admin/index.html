@@ -461,8 +461,23 @@
   }
 
   document.getElementById('refresh-btn').addEventListener('click', function () {
+    var btn = this;
+    var originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '⟳ Aggiornamento...';
     fetchDrivers().then(function (res) {
-      if (res.ok) { renderDrivers(res.data.drivers); setRefreshedNow(); }
+      if (res.ok) {
+        lastGroupsRaw = res.data.drivers;
+        renderDrivers(lastGroupsRaw);
+        setRefreshedNow();
+        btn.textContent = '✓ Aggiornato';
+      } else {
+        btn.textContent = '✗ Errore — riprova';
+      }
+    }).catch(function () {
+      btn.textContent = '✗ Errore — riprova';
+    }).then(function () {
+      setTimeout(function () { btn.disabled = false; btn.textContent = originalText; }, 1200);
     });
   });
   document.getElementById('toggle-hidden-btn').addEventListener('click', function () {
