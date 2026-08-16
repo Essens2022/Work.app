@@ -512,7 +512,19 @@
      gone on this screen (see body.nav-fullbleed), the map only needs to
      leave room for the app's bottom tab bar — everything else is the
      map itself, edge to edge, exactly like opening Google Maps. */
-  .nav-map-wrap{position:relative;height:calc(100vh - var(--bottomnav-h, 90px) - 24px);min-height:420px;overflow:hidden;}
+  .nav-map-wrap{
+    position:relative;min-height:420px;overflow:hidden;
+    height:calc(100vh - var(--bottomnav-h, 90px) - 24px);
+    /* 100vh on iOS Safari measures as if the address bar were fully
+       collapsed, even while it's actually showing — so content
+       anchored near the top (the "Dove vuoi andare" search bar) can
+       end up genuinely hidden behind the real, currently-visible
+       address bar, not just visually low. 100dvh tracks the actual
+       visible viewport instead; this second declaration overrides the
+       one above in any browser that supports it, with the vh version
+       staying as the fallback for the few that don't. */
+    height:calc(100dvh - var(--bottomnav-h, 90px) - 24px);
+  }
   .nav-map{width:100%;height:100%;}
   .nav-map.picking{cursor:crosshair;box-shadow:inset 0 0 0 3px var(--accent);}
   /* True fullscreen during active navigation — escapes the app's own
