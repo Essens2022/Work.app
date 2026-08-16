@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v150") {
+          if (data && data.v && data.v !== "pt-foglio-v151") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v150"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v151"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1053,7 +1053,7 @@
       '</div>';
     html += '<div class="nav-active-float-controls">' +
       '<button type="button" class="nav-float-btn" id="nav-active-layers-btn" aria-label="Vista satellite">🛰️</button>' +
-      '<button type="button" class="nav-compass-badge" id="nav-compass-btn" aria-label="Orientamento bussola"><span id="nav-compass-needle">N</span></button>' +
+      '<button type="button" class="nav-compass-badge" id="nav-compass-btn" aria-label="Direzione di marcia"><span id="nav-compass-needle">N</span></button>' +
       '</div>';
     html += '<div class="nav-speed-badge" id="nav-speed-badge" style="display:none;"><b id="nav-speed-value">0</b><span>km/h</span></div>';
     html += '<button type="button" class="nav-recenter-btn" id="nav-recenter-btn" style="display:none;" aria-label="Ricentra">🧭</button>';
@@ -1113,7 +1113,6 @@
     document.getElementById('nav-add-stop').addEventListener('click', addNavWaypointBeforeDest);
     document.getElementById('nav-layers-btn').addEventListener('click', toggleNavSatelliteView);
     document.getElementById('nav-active-layers-btn').addEventListener('click', toggleNavSatelliteView);
-    document.getElementById('nav-compass-btn').addEventListener('click', toggleNavNorthUp);
     document.getElementById('nav-locate-btn').addEventListener('click', function () {
       currentPosition().then(function (p) { navMap.setView([p.lat, p.lon], 15); }).catch(function () { toast('Posizione non disponibile'); });
     });
@@ -2097,11 +2096,15 @@
     // which matters most for the stretch actually being driven right
     // now. Matches how Google Maps visually recedes the parts of a
     // multi-stop trip that aren't the current leg.
+    // Weights bumped up and rounded joins/caps added — the previous,
+    // thinner line with sharp joints was a real part of why the map
+    // read as "flimsy" compared to Google Maps' own bold, smooth route
+    // line.
     if (lighter) {
-      return L.geoJSON(feature, { style: { color: '#8AB4F8', weight: 5, opacity: 0.7 } });
+      return L.geoJSON(feature, { style: { color: '#8AB4F8', weight: 6, opacity: 0.7, lineCap: 'round', lineJoin: 'round' } });
     }
     if (!waytypeInfo || !waytypeInfo.values || !waytypeInfo.values.length) {
-      return L.geoJSON(feature, { style: { color: '#E8542B', weight: 5 } });
+      return L.geoJSON(feature, { style: { color: '#E8542B', weight: 7, lineCap: 'round', lineJoin: 'round' } });
     }
     var coords = feature.geometry.coordinates;
     var group = L.featureGroup(); // (not a plain layerGroup) — needs its own getBounds() for the fitBounds call right after this
@@ -2112,7 +2115,9 @@
       if (segCoords.length < 2) return;
       L.polyline(segCoords, {
         color: isHighway ? '#1A73E8' : '#E8542B', // Google's own highway blue vs. the app's usual accent for ordinary roads
-        weight: isHighway ? 6 : 5
+        weight: isHighway ? 8 : 7,
+        lineCap: 'round',
+        lineJoin: 'round'
       }).addTo(group);
     });
     return group;
@@ -2263,10 +2268,6 @@
     // Rotate into heading-up mode immediately on "Avvia" — not only
     // once the first GPS heading arrives, since heading can stay null
     // for a while if the vehicle hasn't started moving yet.
-    // Always starts in heading-up mode, regardless of how a PREVIOUS
-    // navigation session was left (the compass toggle shouldn't carry
-    // over silently into a brand new trip).
-    navNorthUpMode = false;
     rotateNavMapToHeading(0);
     // Zoom in close right away too, using whatever position is already
     // known (cached from opening the Navigatore) — rather than staying
@@ -2314,61 +2315,45 @@
   // underneath it. Leaflet's own coordinate math is untouched — it has
   // no idea its container is visually rotated, and doesn't need to.
   //
-  // navNorthUpMode (toggled by the compass button) flips this into
-  // Google Maps' own "north-up" mode instead: the map stops following
-  // heading and sits flat, true north always straight up, exactly like
-  // tapping the compass in Google Maps. The position arrow's own
-  // rotation formula (below) is deliberately left untouched between
-  // the two modes — it already produces the right result in both,
-  // since it only ever needs to counteract whatever rotation (if any)
-  // the map itself currently has.
-  // NOTE: an earlier version of this tilted the map in 3D (rotateX +
-  // an oversized scale) for a closer, Google-Maps-like look. Confirmed
-  // broken on a real device — visible blank/white gaps at the edges
-  // during real turns, which is unacceptable while actually driving.
-  // Rolled back to the simple, proven 2D rotation below. A real 3D
-  // tilt may be worth revisiting later, but only with careful,
-  // incremental on-device tuning — not another blind guess.
-  var navNorthUpMode = false;
+  // This is now the ONLY mode — an earlier version let the compass
+  // badge toggle into a separate "north-up, flat" mode (like Google
+  // Maps' own compass button), but that turned out more confusing than
+  // useful here: it was easy to tap by accident, and once toggled the
+  // map would sit still (or seem to go "sideways") while the person
+  // was clearly still moving forward, which read as broken rather than
+  // as a deliberate mode. Simpler and safer to always follow the
+  // direction of travel, full stop — the badge is now a plain,
+  // non-interactive bearing readout.
+  //
+  // NOTE: an earlier version of this also tilted the map in 3D
+  // (rotateX + an oversized scale) for a closer, Google-Maps-like
+  // look. Confirmed broken on a real device — visible blank/white gaps
+  // at the edges during real turns, which is unacceptable while
+  // actually driving. Rolled back to the simple, proven 2D rotation
+  // below. A real 3D tilt may be worth revisiting later, but only with
+  // careful, incremental on-device tuning — not another blind guess.
   var navLastHeading = 0;
   function rotateNavMapToHeading(heading) {
     if (heading != null && !isNaN(heading)) navLastHeading = heading;
     var wrap = document.getElementById('nav-map-rotate-wrap');
-    if (wrap) {
-      wrap.style.transform = navNorthUpMode
-        ? 'none' // flat, true north up, ignoring travel direction — same as Google Maps' compass-toggled mode
-        : 'rotate(' + (-navLastHeading) + 'deg)';
-    }
+    if (wrap) wrap.style.transform = 'rotate(' + (-navLastHeading) + 'deg)';
     if (navPositionMarker) {
       var iconEl = navPositionMarker.getElement();
       var innerDiv = iconEl && iconEl.querySelector('div');
-      // Always the raw heading, regardless of mode: with the map
-      // rotated to follow heading, this cancels that rotation out so
-      // the arrow stays pointing straight up; with the map flat and
-      // north-up, this same value is exactly the arrow's real bearing
-      // on that fixed map — no branching needed, the formula already
-      // works for both.
+      // Cancels out the map's own rotation above, so the arrow itself
+      // always stays pointing straight up on screen.
       if (innerDiv) innerDiv.style.transform = 'rotate(' + navLastHeading + 'deg)';
     }
-    // The compass badge shows the driver's real current heading as a
-    // letter (N/NE/E/…), same reading as the small bearing badge in
-    // Google Maps/CarPlay navigation — independent of whichever mode
-    // the map itself is in.
+    // Plain, read-only bearing readout (N/NE/E/…) — informational only,
+    // not a button with a mode to toggle.
     var needle = document.getElementById('nav-compass-needle');
     if (needle) needle.textContent = headingToCompassLabel(navLastHeading);
-    var badge = document.getElementById('nav-compass-btn');
-    if (badge) badge.classList.toggle('active', navNorthUpMode);
   }
 
   function headingToCompassLabel(heading) {
     var dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
     var normalized = ((heading % 360) + 360) % 360;
     return dirs[Math.round(normalized / 45) % 8];
-  }
-
-  function toggleNavNorthUp() {
-    navNorthUpMode = !navNorthUpMode;
-    rotateNavMapToHeading(navLastHeading);
   }
 
   var navFollowingUser = true;
