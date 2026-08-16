@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v139") {
+          if (data && data.v && data.v !== "pt-foglio-v140") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v139"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v140"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1195,7 +1195,16 @@
 
   function navWaypointLabel(wp, idx) {
     if (wp.role === 'origin') return 'Partenza';
-    if (wp.role === 'dest') return 'Destinazione';
+    if (wp.role === 'dest') {
+      // "Destinazione" only makes sense when the trip is a plain
+      // origin→destination with nothing in between — once real stops
+      // exist, the last point is just the final stop in that sequence,
+      // same as how Google Maps numbers every waypoint through to the
+      // end rather than singling out a "destination" once there's a
+      // real multi-stop itinerary.
+      var hasStops = navWaypoints.some(function (w) { return w.role === 'stop'; });
+      return hasStops ? 'Tappa ' + idx : 'Destinazione';
+    }
     return 'Tappa ' + idx;
   }
 
@@ -1205,23 +1214,20 @@
     var stopNumber = 0;
     var html = navWaypoints.map(function (wp, i) {
       if (wp.role === 'stop') stopNumber++;
-      var label = navWaypointLabel(wp, stopNumber);
+      var label = navWaypointLabel(wp, wp.role === 'dest' ? stopNumber + 1 : stopNumber);
       var placeholder = wp.role === 'origin' ? 'Indirizzo, CAP, civico — o lascia vuoto per la posizione attuale' : 'Indirizzo, CAP o numero civico';
       var removeBtn = wp.role === 'stop' ? '<button type="button" class="nav-wp-remove" data-remove="' + wp.id + '">✕</button>' : '';
       // Reordering: a stop can move up unless the thing right above it
       // is the origin (always first), and down unless the thing right
       // below it is the destination (always last) — matches how Google
       // Maps keeps start/end fixed while letting stops be reordered.
-      var reorderBtns = '';
-      if (wp.role === 'stop') {
-        var canMoveUp = navWaypoints[i - 1] && navWaypoints[i - 1].role === 'stop';
-        var canMoveDown = navWaypoints[i + 1] && navWaypoints[i + 1].role === 'stop';
-        reorderBtns = '<div class="nav-wp-reorder">' +
-          '<button type="button" class="nav-wp-reorder-btn" data-move-up="' + wp.id + '"' + (canMoveUp ? '' : ' disabled') + '>▲</button>' +
-          '<button type="button" class="nav-wp-reorder-btn" data-move-down="' + wp.id + '"' + (canMoveDown ? '' : ' disabled') + '>▼</button>' +
-          '</div>';
-      }
-      return '<div class="nav-wp-row">' +
+      // A real drag handle (⠿) instead of small tap-to-move arrows —
+      // matches how Google Maps itself lets you reorder stops, by
+      // grabbing and dragging a row, rather than tapping tiny buttons.
+      var reorderBtns = wp.role === 'stop'
+        ? '<div class="nav-wp-drag-handle" data-drag-handle="' + wp.id + '">⠿</div>'
+        : '<div class="nav-wp-drag-spacer"></div>';
+      return '<div class="nav-wp-row" data-wp-row="' + wp.id + '">' +
         reorderBtns +
         '<div class="field autocomplete-wrap" style="flex:1;margin-bottom:8px;">' +
         '<label>' + label + '</label>' +
@@ -1238,11 +1244,8 @@
     container.querySelectorAll('[data-remove]').forEach(function (btn) {
       btn.addEventListener('click', function () { removeNavWaypoint(btn.getAttribute('data-remove')); });
     });
-    container.querySelectorAll('[data-move-up]').forEach(function (btn) {
-      btn.addEventListener('click', function () { moveNavWaypoint(btn.getAttribute('data-move-up'), -1); });
-    });
-    container.querySelectorAll('[data-move-down]').forEach(function (btn) {
-      btn.addEventListener('click', function () { moveNavWaypoint(btn.getAttribute('data-move-down'), 1); });
+    container.querySelectorAll('[data-drag-handle]').forEach(function (handle) {
+      wireNavWaypointDrag(handle);
     });
     container.querySelectorAll('[data-pin]').forEach(function (btn) {
       btn.addEventListener('click', function () { startNavMapPicking(btn.getAttribute('data-pin')); });
@@ -1262,21 +1265,51 @@
     renderNavWaypointsList();
   }
 
-  // Reorders a stop by swapping it with its neighbor — origin and
-  // destination never move, matching Google Maps' own behavior of
-  // keeping the start and end fixed while stops in between can be
-  // freely reordered.
-  function moveNavWaypoint(id, direction) {
-    var idx = navWaypoints.findIndex(function (wp) { return wp.id === id; });
-    if (idx === -1) return;
-    var targetIdx = idx + direction;
-    if (targetIdx < 0 || targetIdx >= navWaypoints.length) return;
-    if (navWaypoints[idx].role !== 'stop' || navWaypoints[targetIdx].role !== 'stop') return;
-    var tmp = navWaypoints[idx];
-    navWaypoints[idx] = navWaypoints[targetIdx];
-    navWaypoints[targetIdx] = tmp;
-    renderNavWaypointsList();
-    updateLiveRoutePreview();
+  // Real drag-to-reorder for stops — grabbing the handle (⠿) and
+  // dragging up or down swaps it past whichever stop it's currently
+  // over, live, the same interaction Google Maps itself uses. Pointer
+  // events (not HTML5 drag-and-drop, which is mouse-oriented) work
+  // consistently for a real finger on a touchscreen.
+  function wireNavWaypointDrag(handle) {
+    var waypointId = handle.getAttribute('data-drag-handle');
+    handle.addEventListener('pointerdown', function (startEvent) {
+      startEvent.preventDefault();
+      var container = document.getElementById('nav-waypoints-list');
+      var row = handle.closest('.nav-wp-row');
+      row.classList.add('nav-wp-dragging');
+      handle.setPointerCapture(startEvent.pointerId);
+
+      function onMove(moveEvent) {
+        var overEl = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
+        var overRow = overEl && overEl.closest('.nav-wp-row');
+        if (!overRow || overRow === row) return;
+        var overId = overRow.getAttribute('data-wp-row');
+        var overWp = navWaypoints.filter(function (w) { return w.id === overId; })[0];
+        if (!overWp || overWp.role !== 'stop') return; // only ever swaps with another real stop — origin/destination stay fixed
+        var fromIdx = navWaypoints.findIndex(function (w) { return w.id === waypointId; });
+        var toIdx = navWaypoints.findIndex(function (w) { return w.id === overId; });
+        if (fromIdx === -1 || toIdx === -1) return;
+        var moved = navWaypoints.splice(fromIdx, 1)[0];
+        navWaypoints.splice(toIdx, 0, moved);
+        renderNavWaypointsList();
+        // Re-wiring the list just replaced this row — reattach dragging
+        // state to the same logical stop so the gesture continues
+        // smoothly instead of ending abruptly mid-drag.
+        var newHandle = document.querySelector('[data-drag-handle="' + waypointId + '"]');
+        if (newHandle) {
+          newHandle.closest('.nav-wp-row').classList.add('nav-wp-dragging');
+          try { newHandle.setPointerCapture(moveEvent.pointerId); } catch (e) { /* already captured elsewhere mid-gesture — fine to ignore */ }
+        }
+      }
+      function onUp() {
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        document.querySelectorAll('.nav-wp-dragging').forEach(function (el) { el.classList.remove('nav-wp-dragging'); });
+        updateLiveRoutePreview();
+      }
+      document.addEventListener('pointermove', onMove);
+      document.addEventListener('pointerup', onUp);
+    });
   }
 
   // Live address suggestions as the person types (ORS's own geocoding
@@ -1375,8 +1408,9 @@
     if (!navMap) return;
     var wp = navWaypoints.filter(function (w) { return w.id === waypointId; })[0];
     var stopNumber = navWaypoints.filter(function (w, i) { return w.role === 'stop' && navWaypoints.indexOf(w) <= navWaypoints.indexOf(wp); }).length;
+    var hasStops = navWaypoints.some(function (w) { return w.role === 'stop'; });
     if (navWaypointMarkers[waypointId]) navMap.removeLayer(navWaypointMarkers[waypointId]);
-    var marker = L.marker([point.lat, point.lon]).addTo(navMap).bindPopup(navWaypointLabel(wp, stopNumber)).openPopup();
+    var marker = L.marker([point.lat, point.lon], { icon: navNumberedMarkerIcon(wp, stopNumber, hasStops) }).addTo(navMap).bindPopup(navWaypointLabel(wp, stopNumber)).openPopup();
     navWaypointMarkers[waypointId] = marker;
     navMap.setView([point.lat, point.lon], 11);
     updateLiveRoutePreview();
@@ -1628,7 +1662,7 @@
     if (points.length === 2) {
       return fetchTruckRoute(points[0], points[1]).then(function (result) {
         var alternatives = Array.isArray(result) ? result : result.alternatives;
-        return { alternatives: alternatives, points: points };
+        return { alternatives: alternatives, points: points, legs: [alternatives[0]] };
       });
     }
     var chain = Promise.resolve([]);
@@ -1644,8 +1678,12 @@
       })(points[i], points[i + 1]);
     }
     return chain.then(function (legFeatures) {
+      // Kept as SEPARATE per-leg features (not merged into one line) —
+      // this is what lets the map render the first, current leg more
+      // vividly and the rest lighter, same as Google Maps distinguishes
+      // "the stretch you're on now" from "what comes after".
       var merged = mergeRouteSegments(legFeatures.map(function (f) { return [f]; }), points[0], points[points.length - 1]);
-      return { alternatives: merged.alternatives, points: points };
+      return { alternatives: merged.alternatives, points: points, legs: legFeatures };
     });
   }
 
@@ -1766,7 +1804,7 @@
   }
 
   function displayNavRoute(routeResult) {
-    displayNavRouteChoice(routeResult.alternatives, routeResult.points, 0);
+    displayNavRouteChoice(routeResult.alternatives, routeResult.points, 0, routeResult.legs);
   }
 
   var navCurrentAlternatives = null, navCurrentPoints = null;
@@ -1778,10 +1816,18 @@
   // single-color line when road-type data isn't available for this
   // particular route (e.g. a long, multi-leg trip, where that detail
   // isn't preserved across the merge).
-  function drawColorCodedRoute(feature) {
+  function drawColorCodedRoute(feature, lighter) {
     var waytypeInfo = feature.properties.extras && feature.properties.extras.waytype;
+    // Legs after the first one (future stops on a multi-stop trip) use
+    // a single, softer shade — not the highway/road-type distinction,
+    // which matters most for the stretch actually being driven right
+    // now. Matches how Google Maps visually recedes the parts of a
+    // multi-stop trip that aren't the current leg.
+    if (lighter) {
+      return L.geoJSON(feature, { style: { color: '#8AB4F8', weight: 5, opacity: 0.7 } });
+    }
     if (!waytypeInfo || !waytypeInfo.values || !waytypeInfo.values.length) {
-      return L.geoJSON(feature, { style: { color: '#E8542B', weight: 5 } }).addTo(navMap);
+      return L.geoJSON(feature, { style: { color: '#E8542B', weight: 5 } });
     }
     var coords = feature.geometry.coordinates;
     var group = L.featureGroup(); // (not a plain layerGroup) — needs its own getBounds() for the fitBounds call right after this
@@ -1795,11 +1841,10 @@
         weight: isHighway ? 6 : 5
       }).addTo(group);
     });
-    group.addTo(navMap);
     return group;
   }
 
-  function displayNavRouteChoice(alternatives, points, chosenIndex) {
+  function displayNavRouteChoice(alternatives, points, chosenIndex, legs) {
     navCurrentAlternatives = alternatives; navCurrentPoints = points;
     var feature = alternatives[chosenIndex];
     var props = feature.properties.summary;
@@ -1826,7 +1871,7 @@
     resultEl.innerHTML = html;
     resultEl.style.display = 'block';
     resultEl.querySelectorAll('.nav-alt-btn').forEach(function (btn) {
-      btn.addEventListener('click', function () { displayNavRouteChoice(alternatives, points, Number(btn.getAttribute('data-alt'))); });
+      btn.addEventListener('click', function () { displayNavRouteChoice(alternatives, points, Number(btn.getAttribute('data-alt')), legs); });
     });
     document.getElementById('nav-avvia-btn').addEventListener('click', function () { startActiveNavigation(feature); });
 
@@ -1834,16 +1879,49 @@
     Object.keys(navWaypointMarkers).forEach(function (id) { navMap.removeLayer(navWaypointMarkers[id]); });
     navWaypointMarkers = {};
 
-    navRouteLayer = drawColorCodedRoute(feature);
+    // With real stops (more than one leg), draw each leg separately —
+    // the first, current stretch fully vivid (with its own
+    // highway/road-type coloring), everything after it progressively
+    // lighter, same as how Google Maps visually distinguishes "the road
+    // you're on now" from the rest of a multi-stop trip. A simple
+    // origin→destination trip (one leg) just uses the normal coloring.
+    if (legs && legs.length > 1 && chosenIndex === 0) {
+      navRouteLayer = L.featureGroup(); // needs getBounds() for the fitBounds call below — a plain layerGroup doesn't have it
+      legs.forEach(function (legFeature, i) {
+        var legLayer = (i === 0) ? drawColorCodedRoute(legFeature, false) : drawColorCodedRoute(legFeature, true);
+        legLayer.addTo(navRouteLayer);
+      });
+      navRouteLayer.addTo(navMap);
+    } else {
+      navRouteLayer = drawColorCodedRoute(feature);
+      navRouteLayer.addTo(navMap);
+    }
     var stopNumber = 0;
+    var hasStops = navWaypoints.some(function (w) { return w.role === 'stop'; });
     points.forEach(function (point, i) {
       var wp = navWaypoints[i];
       if (wp && wp.role === 'stop') stopNumber++;
-      var label = !wp ? '' : (wp.role === 'origin' ? 'Partenza' : wp.role === 'dest' ? 'Destinazione' : 'Tappa ' + stopNumber);
-      var marker = L.marker([point.lat, point.lon]).addTo(navMap).bindPopup(label);
+      var displayNumber = wp && wp.role === 'dest' ? stopNumber + 1 : stopNumber;
+      var label = !wp ? '' : navWaypointLabel(wp, displayNumber);
+      var marker = L.marker([point.lat, point.lon], { icon: navNumberedMarkerIcon(wp, displayNumber, hasStops) }).addTo(navMap).bindPopup(label);
       if (wp) navWaypointMarkers[wp.id] = marker;
     });
     navMap.fitBounds(navRouteLayer.getBounds(), { padding: [24, 24] });
+  }
+
+  // A numbered pin — exactly the visual Google Maps uses for a
+  // multi-stop trip: origin as a plain dot, every stop (and the final
+  // point, once real stops exist) as a numbered badge in sequence, so
+  // the order is legible at a glance directly on the map, not just in
+  // the list of fields.
+  function navNumberedMarkerIcon(wp, displayNumber, hasStops) {
+    var isOrigin = wp && wp.role === 'origin';
+    if (isOrigin) {
+      return L.divIcon({ className: 'nav-pin-origin', html: '<div></div>', iconSize: [18, 18], iconAnchor: [9, 9] });
+    }
+    var showNumber = hasStops || (wp && wp.role === 'stop');
+    var content = showNumber ? displayNumber : '';
+    return L.divIcon({ className: 'nav-pin-numbered', html: '<div>' + content + '</div>', iconSize: [28, 28], iconAnchor: [14, 14] });
   }
 
   // Live, turn-by-turn active navigation — "Avvia navigazione" starts
