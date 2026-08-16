@@ -652,22 +652,17 @@
     width:28px;height:28px;border-radius:50%;background:#1C3D8F;color:#fff;font-weight:800;font-size:13.5px;
     display:flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.35);border:2.5px solid #fff;
   }
-  /* No longer rotated or oversized — the map stays fixed and north-up
-     throughout navigation now (see the comment on rotateNavMapToHeading
-     in app.js for why). This just fills its container exactly, same as
-     any plain map with no rotation wrapper at all. */
+  /* These wrapper divs no longer do any transform work themselves —
+     real map rotation is now handled internally by the vendored
+     leaflet-rotate plugin (see rotateNavMapToHeading in app.js), which
+     rotates within #nav-map's own Leaflet panes. Left in place as
+     plain 100%-filling pass-through containers; harmless, and saves
+     restructuring the DOM. */
   .nav-map-rotate-wrap{
     position:relative;width:100%;height:100%;
   }
   .nav-map-rotate-wrap .nav-map{width:100%;height:100%;}
   .nav-map-tilt-wrap{width:100%;height:100%;overflow:hidden;}
-  /* The map used to rotate to match the direction of travel, which
-     needed this wrapper oversized so a rotated rectangle would still
-     cover every corner. That rotation is gone now (confirmed broken on
-     a real device — visible white gaps, sometimes covering most of the
-     screen, at certain angles) — the map stays fixed and north-up
-     during navigation, so no special sizing is needed here anymore;
-     it just fills its container normally, same as outside navigation. */
   .nav-recenter-btn{
     position:absolute;right:10px;bottom:170px;z-index:1000;width:44px;height:44px;border-radius:50%;
     border:none;background:#fff;color:#1C1B1F;box-shadow:0 2px 8px rgba(0,0,0,.25);
@@ -1246,6 +1241,7 @@
 <script src="vendor/supabase.js"></script>
 <script src="vendor/pdf.min.js"></script>
 <script src="vendor/leaflet.js"></script>
+<script src="vendor/leaflet-rotate.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

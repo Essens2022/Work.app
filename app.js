@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v156") {
+          if (data && data.v && data.v !== "pt-foglio-v157") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v156"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v157"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1174,7 +1174,18 @@
     if (navMap) { navMap.remove(); navMap = null; }
     navWaypointMarkers = {}; // the old map instance (and any markers on it) is gone
     navRouteLayer = null;
-    navMap = L.map(mapEl, { zoomControl: false }).setView([45.4642, 9.19], 6); // centered on Northern Italy by default
+    // rotate:true / rotateControl:false / touchRotate:false — enables
+    // real map rotation (leaflet-rotate plugin, vendored), but only
+    // ever driven programmatically (setBearing, in
+    // rotateNavMapToHeading) — never by the person's own two-finger
+    // twist gesture, so it can't be triggered by accident while
+    // driving. This replaces the earlier CSS-transform approach, which
+    // was confirmed broken (visible white gaps at certain angles) on a
+    // real device, twice. This plugin rotates the map at Leaflet's own
+    // tile-loading level instead of faking it with a CSS transform on
+    // an oversized container — NOTE: still not verified live by me in
+    // this environment; needs careful on-device testing before trust.
+    navMap = L.map(mapEl, { zoomControl: false, rotate: true, rotateControl: false, touchRotate: false }).setView([45.4642, 9.19], 6); // centered on Northern Italy by default
     // CARTO's free "Voyager" style — light background, clear road/place
     // labels, closer to the familiar look people already know from
     // Google Maps than the plainer default OpenStreetMap tiles.
@@ -2392,26 +2403,29 @@
     });
   }
 
-  // The map used to rotate to match the direction of travel — twice
-  // now, a version of that (first with a 3D tilt, then with plain 2D
-  // rotation) was confirmed broken on a real device: visible white
-  // gaps at the edges, at certain angles nearly the whole screen,
-  // because the oversized rotating container wasn't reliably big
-  // enough to cover every rotation angle on an actual phone. Rather
-  // than guess at yet another set of margins I can't verify live, the
-  // map now stays completely fixed — always north-up, never rotated.
-  // Zero risk of any gap, on any device, at any angle, because no
-  // transform is ever applied to it at all. The position arrow still
-  // rotates to show the real direction of travel on that fixed map —
-  // that part never needed the map itself to move.
+  // Real map rotation, via the vendored leaflet-rotate plugin —
+  // replaces two earlier failed attempts at faking this with CSS
+  // transforms on an oversized container (both confirmed broken on a
+  // real device: visible white gaps, at some angles covering most of
+  // the screen). This plugin rotates the map at Leaflet's own
+  // tile-loading level instead, which should avoid that failure mode
+  // entirely — but it is STILL NOT VERIFIED LIVE by me in this
+  // environment (no browser available here) and needs careful,
+  // deliberate on-device testing before being trusted, especially:
+  // whether the rotation direction is correct (heading should end up
+  // pointing straight up on screen, not upside-down or mirrored), and
+  // whether tiles/markers render correctly at every angle.
+  //
+  // The position marker itself needs NO counter-rotation here (unlike
+  // the old CSS approach) — leaflet-rotate keeps markers screen-upright
+  // by default unless a marker explicitly opts into
+  // rotateWithView/rotation, which ours doesn't, so a marker drawn
+  // "facing up" already reads correctly once the map itself is
+  // rotated to match the heading.
   var navLastHeading = 0;
   function rotateNavMapToHeading(heading) {
     if (heading != null && !isNaN(heading)) navLastHeading = heading;
-    if (navPositionMarker) {
-      var iconEl = navPositionMarker.getElement();
-      var innerDiv = iconEl && iconEl.querySelector('div');
-      if (innerDiv) innerDiv.style.transform = 'rotate(' + navLastHeading + 'deg)';
-    }
+    if (navMap && navMap.setBearing) navMap.setBearing(navLastHeading);
     // Plain, read-only bearing readout (N/NE/E/…) — informational only,
     // not a button with a mode to toggle.
     var needle = document.getElementById('nav-compass-needle');
@@ -2596,8 +2610,7 @@
     if (navWatchId != null) { navigator.geolocation.clearWatch(navWatchId); navWatchId = null; }
     if (navPositionMarker) { navMap.removeLayer(navPositionMarker); navPositionMarker = null; }
     navMap.off('dragstart', navOnManualMapDrag);
-    var rotateWrap = document.getElementById('nav-map-rotate-wrap');
-    if (rotateWrap) rotateWrap.style.transform = 'none';
+    if (navMap.setBearing) navMap.setBearing(0); // back to plain north-up once navigation ends
     document.getElementById('nav-recenter-btn').style.display = 'none';
     var arrivalPrompt = document.getElementById('nav-arrival-prompt');
     if (arrivalPrompt) arrivalPrompt.remove();
