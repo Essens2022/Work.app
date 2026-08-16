@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v164") {
+          if (data && data.v && data.v !== "pt-foglio-v165") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v164"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v165"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1838,6 +1838,12 @@
   //    and "venue" layer (businesses/POIs). Pelias silently EXCLUDES
   //    the address layer on short/ambiguous queries as a performance
   //    optimization unless it's asked for explicitly.
+  //  - opts.venueOnly: restricts to ONLY the venue (business) layer —
+  //    used as a last-resort retry for a "business name + town name"
+  //    query typed as one string with no comma. Pelias's own parser
+  //    can end up favoring a locality/street interpretation of that
+  //    combined text over the business-name one; asking for venue
+  //    results exclusively forces it to match on the name instead.
   //  - focus.point.*: biases ranking toward the driver's current GPS
   //    position (cached once per Navigatore visit), so among many
   //    identically-named streets across Italy, the nearby one ranks
@@ -1847,7 +1853,8 @@
     var url = 'https://api.openrouteservice.org/geocode/' + endpoint + '?api_key=' + encodeURIComponent(ORS_API_KEY) +
       '&text=' + encodeURIComponent(text) + '&size=8' +
       '&boundary.country=ITA';
-    if (!opts.noLayers) url += '&layers=address,venue,street,locality';
+    if (opts.venueOnly) url += '&layers=venue';
+    else if (!opts.noLayers) url += '&layers=address,venue,street,locality';
     if (navSearchFocusPoint) {
       url += '&focus.point.lat=' + navSearchFocusPoint.lat + '&focus.point.lon=' + navSearchFocusPoint.lon;
     }
@@ -1859,8 +1866,16 @@
   // back completely empty, retries once WITHOUT the layer restriction —
   // a safety net for whatever Pelias would have classified into a layer
   // the hardcoded list above didn't happen to include (a neighbourhood,
-  // a larger named area, an unusual venue subtype), rather than the
-  // search silently coming up empty just because of that hardcoded list.
+  // a larger named area, an unusual venue subtype). If THAT still comes
+  // back empty and the driver's own GPS position is known, tries once
+  // more restricted to venues only, strongly biased by that position —
+  // meant for "business name + town" typed as one string (no comma),
+  // where Pelias's own free-text parsing can favor reading the town
+  // name as the main subject instead of the business.
+  // NOTE: none of this can find a business that simply isn't in
+  // OpenStreetMap yet (a very recently opened shop, in a small town
+  // with few local contributors) — that's a real gap in the free data
+  // itself, not something any query tuning can work around.
   function navGeocodeFetch(endpoint, text) {
     return fetch(navGeocodeUrl(endpoint, text))
       .then(function (r) { return r.json(); })
@@ -1868,6 +1883,13 @@
         if (data.features && data.features.length) return data;
         return fetch(navGeocodeUrl(endpoint, text, { noLayers: true }))
           .then(function (r2) { return r2.json(); })
+          .then(function (data2) {
+            if (data2.features && data2.features.length) return data2;
+            if (!navSearchFocusPoint) return data2;
+            return fetch(navGeocodeUrl(endpoint, text, { venueOnly: true }))
+              .then(function (r3) { return r3.json(); })
+              .catch(function () { return data2; });
+          })
           .catch(function () { return data; }); // fallback failed too (offline etc.) — surface the original (empty) result rather than throwing
       });
   }
