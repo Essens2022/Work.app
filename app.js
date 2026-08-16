@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v131") {
+          if (data && data.v && data.v !== "pt-foglio-v132") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v131"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v132"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1074,6 +1074,7 @@
     // once — there's nothing useful to route without it, same as a
     // first-run prompt.
     if (!vehicleIsConfigured(state.vehicle)) document.getElementById('modal-nav-vehicle').classList.add('open');
+    requestNavLocationPermission();
   }
 
   function populateNavVehicleForm() {
@@ -1368,6 +1369,56 @@
         { timeout: 8000 }
       );
     });
+  }
+
+  // Actively asks for location permission the moment the Navigatore
+  // screen opens — not waiting until "Avvia" is pressed — so the
+  // phone's own permission prompt appears right away, and by the time
+  // navigation is actually needed, it's already granted and ready to
+  // use. Also drops a "you are here" marker as soon as it's confirmed,
+  // so there's a clear, visible sign the permission worked.
+  function requestNavLocationPermission() {
+    if (!navigator.geolocation) {
+      showNavLocationBanner('Il GPS non è disponibile su questo dispositivo — la navigazione richiede la posizione.');
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      function (pos) {
+        hideNavLocationBanner();
+        if (navMap) {
+          var marker = L.circleMarker([pos.coords.latitude, pos.coords.longitude], {
+            radius: 8, color: '#fff', weight: 3, fillColor: '#4285F4', fillOpacity: 1
+          }).addTo(navMap);
+          navMap.setView([pos.coords.latitude, pos.coords.longitude], 13);
+          setTimeout(function () { if (navMap) navMap.removeLayer(marker); }, 4000); // just a brief confirmation the permission worked — the real live marker only appears once "Avvia" actually starts tracking
+        }
+      },
+      function (err) {
+        // code 1 = PERMISSION_DENIED specifically — anything else
+        // (timeout, position unavailable) isn't a permission problem,
+        // so it doesn't need this particular banner.
+        if (err.code === 1) {
+          showNavLocationBanner('Posizione non attiva — per navigare, consenti l\'accesso alla posizione nelle impostazioni del telefono per questo sito.');
+        }
+      },
+      { timeout: 8000 }
+    );
+  }
+
+  function showNavLocationBanner(message) {
+    var mapWrap = document.querySelector('.nav-map-wrap');
+    if (!mapWrap) return;
+    var existing = document.getElementById('nav-location-banner');
+    if (existing) existing.remove();
+    var banner = document.createElement('div');
+    banner.id = 'nav-location-banner';
+    banner.className = 'nav-location-banner';
+    banner.textContent = message;
+    mapWrap.appendChild(banner);
+  }
+  function hideNavLocationBanner() {
+    var existing = document.getElementById('nav-location-banner');
+    if (existing) existing.remove();
   }
 
   // Straight-line distance (km) — good enough just to decide whether a
@@ -1672,7 +1723,14 @@
 
     navWatchId = navigator.geolocation.watchPosition(
       onActiveNavPosition,
-      function () { /* GPS signal lost momentarily — keep the last known instruction visible rather than clearing it */ },
+      function (err) {
+        // Permission denied specifically — worth a clear message, since
+        // silently doing nothing would leave the person staring at a
+        // navigation screen that never shows their position. Any other
+        // error (brief signal loss, timeout) just keeps the last known
+        // instruction visible instead.
+        if (err.code === 1) toast('Posizione non consentita — attiva l\'accesso alla posizione per navigare');
+      },
       { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
     );
 
