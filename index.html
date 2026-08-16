@@ -581,7 +581,23 @@
   .nav-float-btn{
     width:44px;height:44px;border-radius:50%;border:none;background:#fff;font-size:18px;
     box-shadow:0 2px 8px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;
+    transition:transform .1s ease,background .15s ease;
   }
+  /* Every tappable button in the Navigator gets the same instant,
+     visible feedback the rest of the app already uses elsewhere
+     (.icon-btn, .btn) — shrinks slightly the moment a finger is down,
+     so there's no doubt a tap actually registered, even mid-drive at a
+     glance. Previously NONE of these had any pressed-state feedback at
+     all. */
+  .nav-float-btn:active,.nav-search-gear:active,.nav-recenter-btn:active,.nav-exit-x:active,.nav-end-btn:active,.nav-avvia-btn:active,.nav-alt-btn:active{
+    transform:scale(.90);
+  }
+  /* The satellite toggle also needs to show its CURRENT state, not
+     just react to being tapped — otherwise the only feedback is the
+     map itself changing, easy to miss at a glance. "on" (satellite
+     view showing) gets a dark, inverted look; "off" stays the normal
+     white circle. */
+  .nav-float-btn.on{background:#1C1B1F;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.4);}
 
   .nav-active-overlay{position:absolute;inset:0;z-index:1002;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none;padding:10px;padding-top:calc(10px + env(safe-area-inset-top));}
   /* Deep green nav card, same family Google Maps itself uses for its
