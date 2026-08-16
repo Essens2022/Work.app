@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v154") {
+          if (data && data.v && data.v !== "pt-foglio-v155") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v154"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v155"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1114,6 +1114,15 @@
     document.getElementById('nav-add-stop').addEventListener('click', addNavWaypointBeforeDest);
     document.getElementById('nav-layers-btn').addEventListener('click', toggleNavSatelliteView);
     document.getElementById('nav-active-layers-btn').addEventListener('click', toggleNavSatelliteView);
+    // The screen's whole HTML is rebuilt fresh every time Navigatore is
+    // (re-)opened, so any earlier "on" class from a previous visit is
+    // gone from the DOM even though navShowingSatellite itself (and the
+    // actual map layer) may still be true — sync the button's own look
+    // to match reality right away, not just the next time it's tapped.
+    ['nav-layers-btn', 'nav-active-layers-btn'].forEach(function (id) {
+      var btn = document.getElementById(id);
+      if (btn) btn.classList.toggle('on', navShowingSatellite);
+    });
     document.getElementById('nav-locate-btn').addEventListener('click', function () {
       currentPosition().then(function (p) { navMap.setView([p.lat, p.lon], 15); }).catch(function () { toast('Posizione non disponibile'); });
     });
@@ -1158,13 +1167,19 @@
       attribution: '© OpenStreetMap contributors © CARTO',
       maxZoom: 20,
       subdomains: 'abcd'
-    }).addTo(navMap);
+    });
     // Esri's free World Imagery — real satellite/aerial photography, the
     // same idea as switching Google Maps to satellite view.
     navSatelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       attribution: 'Tiles © Esri',
       maxZoom: 19
     });
+    // The whole map gets torn down and rebuilt from scratch every time
+    // Navigatore is (re-)opened — always defaulting back to street tiles
+    // regardless of navShowingSatellite would silently reset the view
+    // (and desync it from the satellite button's own "on" state) every
+    // single time. Add whichever one actually matches the current mode.
+    (navShowingSatellite ? navSatelliteLayer : navStreetLayer).addTo(navMap);
     navMap.on('click', function (e) {
       if (navPickingWaypointId) handleNavMapPick(e.latlng);
     });
@@ -1180,6 +1195,15 @@
     navShowingSatellite = !navShowingSatellite;
     if (navShowingSatellite) { navMap.removeLayer(navStreetLayer); navSatelliteLayer.addTo(navMap); }
     else { navMap.removeLayer(navSatelliteLayer); navStreetLayer.addTo(navMap); }
+    // Both satellite buttons (the one shown before navigation starts,
+    // and the separate one inside the active-navigation overlay) stay
+    // in sync, whichever is currently visible — previously neither
+    // ever showed whether satellite view was actually on, only the map
+    // itself changing gave any indication.
+    ['nav-layers-btn', 'nav-active-layers-btn'].forEach(function (id) {
+      var btn = document.getElementById(id);
+      if (btn) btn.classList.toggle('on', navShowingSatellite);
+    });
   }
 
   // Tapping the pin (📍) button next to a waypoint field arms "pick from
