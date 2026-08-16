@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v131") {
+          if (data && data.v && data.v !== "pt-foglio-v132") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v131"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v132"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1509,11 +1509,18 @@
     if (v.massaAssi) restrictions.axleload = Number(v.massaAssi);
     var body = {
       coordinates: [[origin.lon, origin.lat], [dest.lon, dest.lat]],
-      // Prefer highways/major roads when reasonable, matching the
-      // request for "don't leave the highway to save two minutes
-      // through a village" — recommended, not steered by ETA alone.
-      preference: 'recommended',
+      // "fastest" (rather than "recommended") is the lever ORS actually
+      // offers for genuinely favoring motorways/tangenziali/superstrade
+      // when they save real time — recommended sometimes trades a
+      // faster highway stretch for a marginally shorter secondary road.
+      preference: 'fastest',
       language: 'it',
+      // Road classification per stretch of the route — value 1 ("State
+      // Road") is ORS's own category for motorway/trunk/primary roads,
+      // i.e. exactly autostrade, tangenziali, superstrade. Used to draw
+      // those stretches in a distinct color on the map, the same visual
+      // language Google Maps uses for its own highways.
+      extra_info: ['waytype'],
       options: { profile_params: { restrictions: restrictions } }
     };
     // Alternatives only requested for a short (single-segment) trip —
@@ -1581,6 +1588,35 @@
   }
 
   var navCurrentAlternatives = null, navCurrentPoints = null;
+  // Draws the route with motorway/trunk/primary stretches (ORS's own
+  // "State Road" classification — exactly autostrade, tangenziali,
+  // superstrade) in a distinct highway color, the rest in the app's
+  // usual accent — the same visual language Google Maps uses to make
+  // its own highways stand out from ordinary streets. Falls back to a
+  // single-color line when road-type data isn't available for this
+  // particular route (e.g. a long, multi-leg trip, where that detail
+  // isn't preserved across the merge).
+  function drawColorCodedRoute(feature) {
+    var waytypeInfo = feature.properties.extras && feature.properties.extras.waytype;
+    if (!waytypeInfo || !waytypeInfo.values || !waytypeInfo.values.length) {
+      return L.geoJSON(feature, { style: { color: '#E8542B', weight: 5 } }).addTo(navMap);
+    }
+    var coords = feature.geometry.coordinates;
+    var group = L.featureGroup(); // (not a plain layerGroup) — needs its own getBounds() for the fitBounds call right after this
+    waytypeInfo.values.forEach(function (seg) {
+      var startIdx = seg[0], endIdx = seg[1], waytype = seg[2];
+      var isHighway = waytype === 1; // ORS "State Road" — motorway/trunk/primary
+      var segCoords = coords.slice(startIdx, endIdx + 1).map(function (c) { return [c[1], c[0]]; });
+      if (segCoords.length < 2) return;
+      L.polyline(segCoords, {
+        color: isHighway ? '#1A73E8' : '#E8542B', // Google's own highway blue vs. the app's usual accent for ordinary roads
+        weight: isHighway ? 6 : 5
+      }).addTo(group);
+    });
+    group.addTo(navMap);
+    return group;
+  }
+
   function displayNavRouteChoice(alternatives, points, chosenIndex) {
     navCurrentAlternatives = alternatives; navCurrentPoints = points;
     var feature = alternatives[chosenIndex];
@@ -1616,7 +1652,7 @@
     Object.keys(navWaypointMarkers).forEach(function (id) { navMap.removeLayer(navWaypointMarkers[id]); });
     navWaypointMarkers = {};
 
-    navRouteLayer = L.geoJSON(feature, { style: { color: '#E8542B', weight: 5 } }).addTo(navMap);
+    navRouteLayer = drawColorCodedRoute(feature);
     var stopNumber = 0;
     points.forEach(function (point, i) {
       var wp = navWaypoints[i];
