@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v119") {
+          if (data && data.v && data.v !== "pt-foglio-v120") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v119"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v120"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -455,6 +455,20 @@
     var latest = latestSheet();
     state.currentSheetId = latest ? latest.id : null;
     setCurrentSheetId(state.currentSheetId);
+    // The local copy is gone, but the server's own row for this sheet
+    // (used by admin) never gets touched by an ordinary sync — sync only
+    // ever upserts sheets that still exist locally, it never notices one
+    // that's disappeared. Tell the server explicitly, so admin doesn't
+    // keep showing a sheet the driver deleted, with data that's now
+    // permanently stuck at whatever it was the moment before deletion.
+    var deviceId = getDeviceId();
+    fetch(SUPABASE_URL + '/rest/v1/driver_sheets_summary?device_id=eq.' + encodeURIComponent(deviceId) + '&sheet_id=eq.' + encodeURIComponent(id), {
+      method: 'DELETE',
+      headers: {
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY
+      }
+    }).catch(function () { /* offline or blocked — the row just lingers until the next successful attempt */ });
   }
 
   /* ---------------------------------------------------------------- */
