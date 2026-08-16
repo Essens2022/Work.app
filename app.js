@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v124") {
+          if (data && data.v && data.v !== "pt-foglio-v125") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v124"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v125"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1053,10 +1053,54 @@
       attribution: '© OpenStreetMap',
       maxZoom: 19
     }).addTo(navMap);
+    navMap.on('click', function (e) {
+      if (navPickingWaypointId) handleNavMapPick(e.latlng);
+    });
     // Re-drop markers for any waypoints already resolved from an earlier
     // visit to this screen (the map itself is fresh, but the trip plan
     // persists).
     navWaypoints.forEach(function (wp) { if (wp.point) dropNavWaypointMarker(wp.id, wp.point); });
+  }
+
+  // Tapping the pin (📍) button next to a waypoint field arms "pick from
+  // map" mode for it — the next tap anywhere on the map sets that exact
+  // point, reverse-geocoded into a readable address for the field, same
+  // as dropping a pin in Google Maps.
+  var navPickingWaypointId = null;
+  function startNavMapPicking(waypointId) {
+    navPickingWaypointId = waypointId;
+    var mapEl = document.getElementById('nav-map');
+    if (mapEl) mapEl.classList.add('picking');
+    toast('Tocca la mappa per scegliere il punto');
+  }
+
+  function handleNavMapPick(latlng) {
+    var waypointId = navPickingWaypointId;
+    navPickingWaypointId = null;
+    var mapEl = document.getElementById('nav-map');
+    if (mapEl) mapEl.classList.remove('picking');
+    var point = { lon: latlng.lng, lat: latlng.lat, label: null };
+    var input = document.getElementById('wpinput-' + waypointId);
+    if (input) input.value = 'Ricerca indirizzo…';
+    var wp = navWaypoints.filter(function (w) { return w.id === waypointId; })[0];
+    if (wp) { wp.point = point; }
+    dropNavWaypointMarker(waypointId, point);
+
+    // Best-effort reverse geocoding, just to show a readable label — the
+    // point itself is already set and usable even if this fails or is
+    // slow (offline, rate-limited, etc.).
+    fetch('https://api.openrouteservice.org/geocode/reverse?api_key=' + encodeURIComponent(ORS_API_KEY) + '&point.lon=' + latlng.lng + '&point.lat=' + latlng.lat + '&size=1')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var label = (data.features && data.features[0] && data.features[0].properties.label) || (latlng.lat.toFixed(5) + ', ' + latlng.lng.toFixed(5));
+        if (wp) wp.text = label;
+        if (input) input.value = label;
+      })
+      .catch(function () {
+        var fallback = latlng.lat.toFixed(5) + ', ' + latlng.lng.toFixed(5);
+        if (wp) wp.text = fallback;
+        if (input) input.value = fallback;
+      });
   }
 
   // The waypoints for this trip, in order — always at least 2 (Partenza,
@@ -1083,14 +1127,16 @@
     var html = navWaypoints.map(function (wp, i) {
       if (wp.role === 'stop') stopNumber++;
       var label = navWaypointLabel(wp, stopNumber);
-      var placeholder = wp.role === 'origin' ? 'Indirizzo, o lascia vuoto per la posizione attuale' : 'Indirizzo';
+      var placeholder = wp.role === 'origin' ? 'Indirizzo, CAP, civico — o lascia vuoto per la posizione attuale' : 'Indirizzo, CAP o numero civico';
       var removeBtn = wp.role === 'stop' ? '<button type="button" class="nav-wp-remove" data-remove="' + wp.id + '">✕</button>' : '';
       return '<div class="nav-wp-row">' +
         '<div class="field autocomplete-wrap" style="flex:1;margin-bottom:8px;">' +
         '<label>' + label + '</label>' +
         '<input type="text" id="wpinput-' + wp.id + '" value="' + escapeHtml(wp.text) + '" placeholder="' + placeholder + '" autocomplete="off">' +
         '<div class="ac-list" id="wpac-' + wp.id + '"></div>' +
-        '</div>' + removeBtn +
+        '</div>' +
+        '<button type="button" class="nav-wp-pin" data-pin="' + wp.id + '" aria-label="Scegli sulla mappa">📍</button>' +
+        removeBtn +
         '</div>';
     }).join('');
     container.innerHTML = html;
@@ -1098,6 +1144,9 @@
     navWaypoints.forEach(function (wp) { wireNavAddressAutocomplete(wp.id); });
     container.querySelectorAll('[data-remove]').forEach(function (btn) {
       btn.addEventListener('click', function () { removeNavWaypoint(btn.getAttribute('data-remove')); });
+    });
+    container.querySelectorAll('[data-pin]').forEach(function (btn) {
+      btn.addEventListener('click', function () { startNavMapPicking(btn.getAttribute('data-pin')); });
     });
   }
 
@@ -1168,6 +1217,33 @@
     var marker = L.marker([point.lat, point.lon]).addTo(navMap).bindPopup(navWaypointLabel(wp, stopNumber)).openPopup();
     navWaypointMarkers[waypointId] = marker;
     navMap.setView([point.lat, point.lon], 11);
+    updateLiveRoutePreview();
+  }
+
+  // Draws the real, road-following path on the map the moment there are
+  // at least two resolved points — updating live as stops are added or
+  // picked, same as Google Maps does while building a trip, instead of
+  // waiting for an explicit "Calcola percorso" tap. Debounced, since
+  // picking several stops in quick succession would otherwise fire one
+  // request per point.
+  var liveRoutePreviewTimer = null;
+  function updateLiveRoutePreview() {
+    clearTimeout(liveRoutePreviewTimer);
+    liveRoutePreviewTimer = setTimeout(function () {
+      if (!ORS_API_KEY || !vehicleIsConfigured(state.vehicle)) return;
+      var resolvedPoints = navWaypoints.map(function (wp) { return wp.point; }).filter(Boolean);
+      if (resolvedPoints.length < 2) return;
+      computeMultiStopRoute(resolvedPoints)
+        .then(function (result) {
+          // A live preview just draws the line — no stats panel, no
+          // alternative-route buttons, so it doesn't fight with
+          // whatever's already shown from a previous "Calcola percorso".
+          var feature = result.alternatives[0];
+          if (navRouteLayer) navMap.removeLayer(navRouteLayer);
+          navRouteLayer = L.geoJSON(feature, { style: { color: '#E8542B', weight: 4, opacity: 0.75, dashArray: '2 6' } }).addTo(navMap);
+        })
+        .catch(function () { /* offline, out of quota, or not enough info yet — the markers alone are still useful */ });
+    }, 600);
   }
 
   function geocodeAddress(text) {
