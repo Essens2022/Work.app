@@ -622,6 +622,18 @@
   .nav-wp-drag-spacer{flex-shrink:0;width:28px;}
   .nav-wp-row.nav-wp-dragging{opacity:.5;}
   .nav-add-stop-btn{width:100%;padding:11px;border-radius:12px;border:1.5px dashed var(--line);background:none;color:var(--accent);font-weight:700;font-size:13.5px;margin-top:4px;}
+  .nav-shortcuts-row{display:flex;gap:8px;margin-bottom:12px;}
+  .nav-shortcut-chip{
+    flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 6px;border-radius:12px;
+    border:1.5px solid var(--line);background:var(--surface);font-size:12px;font-weight:700;color:var(--ink);
+  }
+  .nav-shortcut-chip:active{background:var(--surface-2);}
+  .nav-shortcut-chip .icon{font-size:19px;}
+  .nav-shortcut-chip.unset{color:var(--ink-faint);font-weight:600;}
+  .nav-shortcut-edit-btn{
+    flex:0 0 auto;width:36px;display:flex;align-items:center;justify-content:center;border-radius:12px;
+    border:1.5px solid var(--line);background:var(--surface);font-size:15px;color:var(--ink-soft);
+  }
   .ac-list{
     position:absolute;left:0;right:0;top:calc(100% + 6px);background:var(--surface);border:1px solid var(--line);
     border-radius:14px;box-shadow:var(--shadow-md);z-index:50;max-height:230px;overflow-y:auto;display:none;touch-action:pan-y;
@@ -825,6 +837,28 @@
       <div class="pending-warning-box">Apri l'email e tocca il link per confermare — questa finestra si chiuderà da sola appena confermi. Non puoi chiuderla prima.</div>
       <button type="button" id="account-remind-pending-btn" class="btn btn-outline btn-sm">Invia di nuovo il link</button>
     </div>
+  </div>
+</div>
+
+<!-- Casa/Lavoro shortcuts — same idea as Google Maps' own Home/Work
+     chips, set once and reused as one-tap destinations. -->
+<div class="modal-overlay" id="modal-nav-homework">
+  <div class="sheet-panel">
+    <button type="button" class="modal-close-x" id="nav-homework-close-x" aria-label="Chiudi">×</button>
+    <div class="grabber"></div>
+    <div class="modal-title">Indirizzi preferiti</div>
+    <div class="modal-sub">Salvati solo su questo dispositivo, per accesso rapido dal Navigatore.</div>
+    <div class="field autocomplete-wrap">
+      <label>🏠 Casa</label>
+      <input type="text" id="hw-home-input" placeholder="Indirizzo di casa" autocomplete="off">
+      <div class="ac-list" id="hw-home-ac"></div>
+    </div>
+    <div class="field autocomplete-wrap" style="margin-top:10px;">
+      <label>💼 Lavoro</label>
+      <input type="text" id="hw-work-input" placeholder="Indirizzo di lavoro" autocomplete="off">
+      <div class="ac-list" id="hw-work-ac"></div>
+    </div>
+    <button type="button" class="btn btn-accent btn-block" id="nav-homework-save" style="margin-top:14px;">Salva</button>
   </div>
 </div>
 

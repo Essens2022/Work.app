@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v141") {
+          if (data && data.v && data.v !== "pt-foglio-v142") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,13 +66,14 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v141"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v142"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
   var LS_FUEL = "pt_fuel_v1"; // fuel receipts, keyed by month — independent of any client sheet
   var LS_VEHICLE = "pt_vehicle_v1"; // commercial-vehicle dimensions/weight, used by the Navigatore for restriction-aware routing
   var LS_NAV_FREQUENT = "pt_nav_frequent_v1"; // addresses actually used in a calculated route, remembered and suggested again — like Chrome's own address bar history
+  var LS_NAV_HOMEWORK = "pt_nav_homework_v1"; // Casa/Lavoro shortcuts, set once by the driver — same idea as Google Maps' own Home/Work shortcuts, stored locally only (no sync, per ION's decision)
 
   var MESI = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
     "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
@@ -131,6 +132,11 @@
     list.sort(function (a, b) { return b.count - a.count || b.lastUsed - a.lastUsed; });
     saveNavFrequent(list.slice(0, 20)); // no need to keep more than the addresses that would ever realistically surface as "frequent"
   }
+
+  // Casa/Lavoro — set once by the driver, then offered as one-tap
+  // shortcuts every time, same as Google Maps' own Home/Work chips.
+  function loadNavHomeWork() { return loadJSON(LS_NAV_HOMEWORK, { home: null, work: null }); }
+  function saveNavHomeWork(hw) { saveJSON(LS_NAV_HOMEWORK, hw); }
 
 
   function loadSheets() { return loadJSON(LS_SHEETS, []); }
@@ -1010,6 +1016,7 @@
     html += '<button type="button" class="nav-search-gear" id="nav-gear-btn" aria-label="Impostazioni veicolo">⚙</button>';
     html += '</div>';
     html += '<div class="nav-search-panel" id="nav-search-panel" style="display:none;">';
+    html += '<div class="nav-shortcuts-row" id="nav-shortcuts-row"></div>';
     html += '<div id="nav-waypoints-list"></div>';
     html += '<button type="button" class="nav-add-stop-btn" id="nav-add-stop">+ Aggiungi tappa</button>';
     html += '<button type="button" class="btn btn-accent btn-block" id="nav-calc-btn" style="margin-top:12px;">Calcola percorso</button>';
@@ -1034,6 +1041,7 @@
 
     el.innerHTML = html;
     renderNavWaypointsList();
+    renderNavShortcuts();
     populateNavVehicleForm();
 
     document.getElementById('nav-search-bar').addEventListener('click', function () {
@@ -1249,6 +1257,112 @@
     });
     container.querySelectorAll('[data-pin]').forEach(function (btn) {
       btn.addEventListener('click', function () { startNavMapPicking(btn.getAttribute('data-pin')); });
+    });
+  }
+
+  // Casa/Lavoro chips, drawn above the waypoints list — tapping a chip
+  // that's already set fills the destination straight away (same as
+  // tapping "Casa" in Google Maps); tapping one that isn't set yet
+  // opens the small "Indirizzi preferiti" sheet to configure it first.
+  function renderNavShortcuts() {
+    var row = document.getElementById('nav-shortcuts-row');
+    if (!row) return;
+    var hw = loadNavHomeWork();
+    function chipHtml(kind, icon, label, entry) {
+      var cls = entry ? 'nav-shortcut-chip' : 'nav-shortcut-chip unset';
+      return '<button type="button" class="' + cls + '" data-shortcut="' + kind + '">' +
+        '<span class="icon">' + icon + '</span><span>' + (entry ? label : label + ' —') + '</span></button>';
+    }
+    row.innerHTML =
+      chipHtml('home', '🏠', 'Casa', hw.home) +
+      chipHtml('work', '💼', 'Lavoro', hw.work) +
+      '<button type="button" class="nav-shortcut-edit-btn" id="nav-shortcut-edit-btn" aria-label="Modifica indirizzi preferiti">✎</button>';
+    row.querySelectorAll('[data-shortcut]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var kind = btn.getAttribute('data-shortcut');
+        var entry = hw[kind];
+        if (entry) { fillNavDestinationWithEntry(entry); }
+        else { openNavHomeWorkModal(); }
+      });
+    });
+    var editBtn = document.getElementById('nav-shortcut-edit-btn');
+    if (editBtn) editBtn.addEventListener('click', openNavHomeWorkModal);
+  }
+
+  // Fills the last waypoint (always the trip's final destination) with
+  // a saved Casa/Lavoro entry and updates the map/preview — the same
+  // handling already used when picking a frequent or searched address.
+  function fillNavDestinationWithEntry(entry) {
+    var destWp = navWaypoints[navWaypoints.length - 1];
+    var point = { lon: entry.lon, lat: entry.lat, label: entry.text };
+    destWp.text = entry.text;
+    destWp.point = point;
+    destWp.useCurrentPosition = false;
+    var input = document.getElementById('wpinput-' + destWp.id);
+    if (input) input.value = entry.text;
+    dropNavWaypointMarker(destWp.id, point);
+  }
+
+  function openNavHomeWorkModal() {
+    var hw = loadNavHomeWork();
+    var homeInput = document.getElementById('hw-home-input');
+    var workInput = document.getElementById('hw-work-input');
+    homeInput.value = hw.home ? hw.home.text : '';
+    workInput.value = hw.work ? hw.work.text : '';
+    var pickedHome = hw.home, pickedWork = hw.work;
+    wireNavHomeWorkField(homeInput, document.getElementById('hw-home-ac'), function (entry) { pickedHome = entry; });
+    wireNavHomeWorkField(workInput, document.getElementById('hw-work-ac'), function (entry) { pickedWork = entry; });
+    document.getElementById('modal-nav-homework').classList.add('open');
+    document.getElementById('nav-homework-close-x').onclick = function () {
+      document.getElementById('modal-nav-homework').classList.remove('open');
+    };
+    document.getElementById('nav-homework-save').onclick = function () {
+      // If the field still matches what was typed for a resolved pick,
+      // keep it; if the person cleared the field, that address is
+      // removed instead of keeping a stale saved point.
+      if (!homeInput.value.trim()) pickedHome = null;
+      if (!workInput.value.trim()) pickedWork = null;
+      saveNavHomeWork({ home: pickedHome, work: pickedWork });
+      renderNavShortcuts();
+      document.getElementById('modal-nav-homework').classList.remove('open');
+      toast('Indirizzi salvati');
+    };
+  }
+
+  // A small, self-contained ORS geocoding autocomplete for the
+  // Casa/Lavoro fields — deliberately separate from
+  // wireNavAddressAutocomplete (which is tightly bound to navWaypoints)
+  // to avoid touching that already-working code.
+  function wireNavHomeWorkField(input, list, onPick) {
+    var debounceTimer = null;
+    input.oninput = function () {
+      onPick(null); // typing invalidates whatever was picked before, until a suggestion is chosen again
+      clearTimeout(debounceTimer);
+      var text = input.value;
+      if (text.trim().length < 3) { list.classList.remove('show'); return; }
+      debounceTimer = setTimeout(function () {
+        fetch('https://api.openrouteservice.org/geocode/autocomplete?api_key=' + encodeURIComponent(ORS_API_KEY) + '&text=' + encodeURIComponent(text) + '&size=6')
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            var features = data.features || [];
+            list.innerHTML = features.map(function (f, i) {
+              return '<div class="ac-item" data-idx="' + i + '"><span class="name">' + escapeHtml(f.properties.label) + '</span></div>';
+            }).join('');
+            list.classList.toggle('show', features.length > 0);
+            list.querySelectorAll('[data-idx]').forEach(function (item) {
+              item.addEventListener('click', function () {
+                var f = features[Number(item.getAttribute('data-idx'))];
+                input.value = f.properties.label;
+                list.classList.remove('show');
+                onPick({ text: f.properties.label, lon: f.geometry.coordinates[0], lat: f.geometry.coordinates[1] });
+              });
+            });
+          })
+          .catch(function () { /* offline or blocked — the person can still save once a suggestion loads */ });
+      }, 350);
+    };
+    document.addEventListener('click', function (e) {
+      if (!list.contains(e.target) && e.target !== input) list.classList.remove('show');
     });
   }
 
