@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v118") {
+          if (data && data.v && data.v !== "pt-foglio-v119") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v118"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v119"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2876,17 +2876,19 @@
       var kt = sheetKmAndTrips(sheet);
       var client = (sheet.perContoDi || '').trim().toUpperCase() || '(nessuno)';
       var payload = {
-        device_id: deviceId, month: sheet.month, year: sheet.year, client: client,
+        device_id: deviceId, sheet_id: sheet.id, month: sheet.month, year: sheet.year, client: client,
         total_km: kt.km || 0,
         giorni_count: kt.viaggi || 0,
         daily_rate: dailyRate,
         account_email: currentAccountEmail(),
         updated_at: new Date().toISOString()
       };
-      // A genuine, native upsert, matched on the full primary key —
-      // reliable now that anon has SELECT permission on this table (see
-      // reportActivity() for the full explanation).
-      fetch(SUPABASE_URL + '/rest/v1/driver_sheets_summary?on_conflict=device_id,month,year,client', {
+      // Matched on the sheet's own stable local id, NOT on the client
+      // name — a client name is just data on the sheet, and can be
+      // edited later (fixing a typo, or genuinely renaming it) without
+      // that turning into a brand-new phantom row in admin alongside the
+      // old one. The one real sheet stays the one real row, always.
+      fetch(SUPABASE_URL + '/rest/v1/driver_sheets_summary?on_conflict=device_id,sheet_id', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
