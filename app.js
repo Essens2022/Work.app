@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v145") {
+          if (data && data.v && data.v !== "pt-foglio-v146") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v145"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v146"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1459,10 +1459,22 @@
     });
   }
 
+  // "Aggiungi tappa" always adds the NEW EMPTY field at the very END —
+  // whatever was already the destination (address, point, marker) just
+  // becomes the next intermediate stop, keeping everything it already
+  // had, and a fresh empty field becomes the new final destination to
+  // fill in. Doing it again repeats the same shift: the field just
+  // filled becomes another stop, a new empty one appears after it —
+  // exactly the ordering Google Maps itself uses when you add a stop.
   function addNavWaypointBeforeDest() {
-    var destIdx = navWaypoints.length - 1; // dest is always last
+    var oldDest = navWaypoints[navWaypoints.length - 1];
+    oldDest.role = 'stop';
     var newId = 'wp' + (navWaypointCounter++);
-    navWaypoints.splice(destIdx, 0, { id: newId, role: 'stop', text: '', point: null });
+    navWaypoints.push({ id: newId, role: 'dest', text: '', point: null });
+    // Redraws oldDest's own marker right away so its icon/label on the
+    // map reflects "now a numbered stop" immediately, rather than
+    // waiting for the next "Calcola percorso" to catch up.
+    if (oldDest.point) dropNavWaypointMarker(oldDest.id, oldDest.point);
     renderNavWaypointsList();
   }
 
