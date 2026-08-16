@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v159") {
+          if (data && data.v && data.v !== "pt-foglio-v161") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v159"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v161"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1176,6 +1176,41 @@
         })
         .catch(function () { toast('Posizione non disponibile — verifica i permessi di localizzazione'); })
         .then(function () { btn.classList.remove('on'); });
+    });
+
+    // Wired ONCE here, at render time — not inside startActiveNavigation,
+    // which runs again every time "Avvia" is pressed (including a
+    // restart after "Termina", per the "route stays ready" behavior).
+    // These three buttons live in the DOM for the whole visit to this
+    // screen without ever being rebuilt, so attaching their listeners
+    // inside startActiveNavigation meant a SECOND (third, fourth…)
+    // click listener stacked on the very same button element every
+    // time navigation restarted — several handlers firing on one tap,
+    // which is exactly the kind of thing that can net out to "nothing
+    // visibly happens" (this was reported broken even before the
+    // rotate plugin existed, so it isn't that; this stacking bug fits
+    // the symptom directly and is a real, structural bug regardless).
+    document.getElementById('nav-end-btn').addEventListener('click', stopActiveNavigation);
+    document.getElementById('nav-exit-x').addEventListener('click', stopActiveNavigation);
+    document.getElementById('nav-recenter-btn').addEventListener('click', function () {
+      navFollowingUser = true;
+      document.getElementById('nav-recenter-btn').style.display = 'none';
+      // Instant jump using whatever position is already known — no
+      // waiting on anything, so there's immediate visual feedback the
+      // tap did something, even before a fresh GPS read comes back.
+      if (navLastPosition) navMap.setView([navLastPosition.lat, navLastPosition.lon], 18, { animate: false });
+      // navLastPosition only updates whenever the background watch
+      // happens to fire next — it can genuinely be several seconds
+      // stale (this was very likely why recentering felt like it took
+      // ~10s: the map wasn't actually slow, it was waiting on the
+      // NEXT natural GPS update to arrive before it had anything more
+      // current to show). Requesting a fresh, high-accuracy fix
+      // directly — same call the "la mia posizione" button already
+      // uses — refines the view immediately instead of waiting on that.
+      currentPosition().then(function (p) {
+        navLastPosition = { lat: p.lat, lon: p.lon };
+        if (navFollowingUser) navMap.setView([p.lat, p.lon], 18, { animate: false });
+      }).catch(function () { /* the instant jump above already used the best position available — nothing more to do if a fresh read fails */ });
     });
 
     initNavMap();
@@ -2437,14 +2472,6 @@
       },
       { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
     );
-
-    document.getElementById('nav-end-btn').addEventListener('click', stopActiveNavigation);
-    document.getElementById('nav-exit-x').addEventListener('click', stopActiveNavigation);
-    document.getElementById('nav-recenter-btn').addEventListener('click', function () {
-      navFollowingUser = true;
-      document.getElementById('nav-recenter-btn').style.display = 'none';
-      if (navLastPosition) navMap.setView([navLastPosition.lat, navLastPosition.lon], 18, { animate: true });
-    });
   }
 
   // Real map rotation, via the vendored leaflet-rotate plugin —
