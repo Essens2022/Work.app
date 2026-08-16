@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v117") {
+          if (data && data.v && data.v !== "pt-foglio-v118") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v117"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v118"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1032,13 +1032,17 @@
       var doc = buildPdfForMonth(mo.month, mo.year);
       if (!doc) { toast('Nessun foglio per questo mese'); return; }
       var blobUrl = doc.output('bloburl');
-      // Navigate this same tab straight to the PDF — the phone's own
-      // viewer takes over from here. No new tab/window involved, so
-      // there's nothing for the browser to block; the person uses the
-      // back button/gesture to return to the app afterwards, and all
-      // their data is still exactly as they left it (nothing is lost —
-      // it's all saved locally as they type, not just on this screen).
-      window.location.href = blobUrl;
+      // Try opening in a new tab first — this is what actually works
+      // reliably for PDF blob URLs on Android Chrome (a plain
+      // window.location.href navigation to a blob: PDF is known to fail
+      // silently there, even though it works fine on iOS Safari). Since
+      // this whole function runs synchronously from the tap itself, the
+      // browser still recognizes it as a direct user action and won't
+      // treat it as a blocked popup. Only fall back to navigating this
+      // same tab if the new tab genuinely couldn't be opened for some
+      // reason.
+      var newTab = window.open(blobUrl, '_blank');
+      if (!newTab) window.location.href = blobUrl;
     } catch (err) {
       console.error(err);
       toast('Impossibile aprire l\'anteprima');
