@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v129") {
+          if (data && data.v && data.v !== "pt-foglio-v130") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v129"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v130"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -518,6 +518,11 @@
     document.querySelectorAll('.navbtn[data-nav]').forEach(function (b) {
       b.classList.toggle('active', b.getAttribute('data-nav') === name);
     });
+    // The navigator wants to feel exactly like opening Google Maps —
+    // edge-to-edge, with only its own floating search bar as the
+    // "header", not this app's own title bar sitting above it. Hidden
+    // only for this one screen, restored everywhere else.
+    document.body.classList.toggle('nav-fullbleed', name === 'navigatore');
     if (name === 'foglio') {
       scrollToLastDayPending = true;
       render();
@@ -992,19 +997,18 @@
   function renderNavigatore() {
     var el = document.getElementById('screen-navigatore');
     var html = '';
-    // A compact top strip (title + settings gear) — everything else
-    // lives either inside the map itself (floating controls, Google
-    // Maps style) or behind that gear, not stacked above the map taking
-    // up space the map itself should have.
-    html += '<div class="nav-topbar-compact"><h2>Navigatore</h2><button type="button" class="nav-gear-btn" id="nav-gear-btn" aria-label="Impostazioni veicolo">⚙</button></div>';
 
     html += '<div class="nav-map-wrap">';
     html += '<div id="nav-map" class="nav-map nav-map-tall"></div>';
 
-    // A search-bar-style control sitting ON the map, top edge — tapping
-    // it reveals the actual waypoint fields. Closed by default so the
-    // map itself is what fills the screen, same as opening Google Maps.
-    html += '<div class="nav-search-bar" id="nav-search-bar"><span class="nav-search-icon">🔍</span><span id="nav-search-label">Dove vuoi andare?</span></div>';
+    // The search bar itself IS the header — no separate title row above
+    // it, same as Google Maps: a rounded pill floating directly on the
+    // map, hamburger-style icon on the left, a round settings icon on
+    // the right where Google puts the profile picture.
+    html += '<div class="nav-search-bar" id="nav-search-bar">';
+    html += '<span class="nav-search-icon">🔍</span><span id="nav-search-label">Dove vuoi andare?</span>';
+    html += '<button type="button" class="nav-search-gear" id="nav-gear-btn" aria-label="Impostazioni veicolo">⚙</button>';
+    html += '</div>';
     html += '<div class="nav-search-panel" id="nav-search-panel" style="display:none;">';
     html += '<div id="nav-waypoints-list"></div>';
     html += '<button type="button" class="nav-add-stop-btn" id="nav-add-stop">+ Aggiungi tappa</button>';
@@ -1035,7 +1039,8 @@
       var panel = document.getElementById('nav-search-panel');
       panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
     });
-    document.getElementById('nav-gear-btn').addEventListener('click', function () {
+    document.getElementById('nav-gear-btn').addEventListener('click', function (e) {
+      e.stopPropagation();
       document.getElementById('modal-nav-vehicle').classList.add('open');
     });
     document.getElementById('nav-vehicle-close-x').addEventListener('click', function () {
