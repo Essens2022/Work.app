@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v165") {
+          if (data && data.v && data.v !== "pt-foglio-v166") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v165"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v166"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2209,12 +2209,6 @@
       // faster highway stretch for a marginally shorter secondary road.
       preference: 'fastest',
       language: 'it',
-      // Road classification per stretch of the route — value 1 ("State
-      // Road") is ORS's own category for motorway/trunk/primary roads,
-      // i.e. exactly autostrade, tangenziali, superstrade. Used to draw
-      // those stretches in a distinct color on the map, the same visual
-      // language Google Maps uses for its own highways.
-      extra_info: ['waytype'],
       options: { profile_params: { restrictions: restrictions } }
     };
     // Alternatives only requested for a short (single-segment) trip —
@@ -2292,38 +2286,19 @@
   // single-color line when road-type data isn't available for this
   // particular route (e.g. a long, multi-leg trip, where that detail
   // isn't preserved across the merge).
+  // One color rule, simple and consistent: the street being driven
+  // RIGHT NOW is always a strong, clearly visible dark blue — no
+  // exceptions for road type. Anything still ahead (the 2nd, 3rd…
+  // stop of a multi-stop trip) is the same blue family, just lighter/
+  // more transparent, so the two read as "same route, different
+  // urgency" rather than two unrelated colors. The previous version
+  // additionally colored ordinary roads orange (vs. blue highways),
+  // which read as confusing/inconsistent — removed entirely.
   function drawColorCodedRoute(feature, lighter) {
-    var waytypeInfo = feature.properties.extras && feature.properties.extras.waytype;
-    // Legs after the first one (future stops on a multi-stop trip) use
-    // a single, softer shade — not the highway/road-type distinction,
-    // which matters most for the stretch actually being driven right
-    // now. Matches how Google Maps visually recedes the parts of a
-    // multi-stop trip that aren't the current leg.
-    // Weights bumped up and rounded joins/caps added — the previous,
-    // thinner line with sharp joints was a real part of why the map
-    // read as "flimsy" compared to Google Maps' own bold, smooth route
-    // line.
     if (lighter) {
       return L.geoJSON(feature, { style: { color: '#8AB4F8', weight: 6, opacity: 0.7, lineCap: 'round', lineJoin: 'round' } });
     }
-    if (!waytypeInfo || !waytypeInfo.values || !waytypeInfo.values.length) {
-      return L.geoJSON(feature, { style: { color: '#E8542B', weight: 7, lineCap: 'round', lineJoin: 'round' } });
-    }
-    var coords = feature.geometry.coordinates;
-    var group = L.featureGroup(); // (not a plain layerGroup) — needs its own getBounds() for the fitBounds call right after this
-    waytypeInfo.values.forEach(function (seg) {
-      var startIdx = seg[0], endIdx = seg[1], waytype = seg[2];
-      var isHighway = waytype === 1; // ORS "State Road" — motorway/trunk/primary
-      var segCoords = coords.slice(startIdx, endIdx + 1).map(function (c) { return [c[1], c[0]]; });
-      if (segCoords.length < 2) return;
-      L.polyline(segCoords, {
-        color: isHighway ? '#1A73E8' : '#E8542B', // Google's own highway blue vs. the app's usual accent for ordinary roads
-        weight: isHighway ? 8 : 7,
-        lineCap: 'round',
-        lineJoin: 'round'
-      }).addTo(group);
-    });
-    return group;
+    return L.geoJSON(feature, { style: { color: '#1A73E8', weight: 8, lineCap: 'round', lineJoin: 'round' } });
   }
 
   function displayNavRouteChoice(alternatives, points, chosenIndex, legs) {
@@ -2371,17 +2346,22 @@
     navWaypointMarkers = {};
 
     // With real stops (more than one leg), draw each leg separately —
-    // the first, current stretch fully vivid (with its own
-    // highway/road-type coloring), everything after it progressively
-    // lighter, same as how Google Maps visually distinguishes "the road
-    // you're on now" from the rest of a multi-stop trip. A simple
-    // origin→destination trip (one leg) just uses the normal coloring.
+    // the first, current stretch a strong, visible dark blue,
+    // everything after it a lighter shade of the same blue, same as
+    // how Google Maps visually distinguishes "the road you're on now"
+    // from the rest of a multi-stop trip. A simple origin→destination
+    // trip (one leg) just uses the normal coloring.
+    // Legs are added to the map in REVERSE order (future stops first,
+    // current leg LAST) — Leaflet paints later-added layers on top, so
+    // wherever the current street crosses one you'll drive later, the
+    // one you're actually on right now stays clearly visible above it,
+    // not hidden underneath.
     if (legs && legs.length > 1 && chosenIndex === 0) {
       navRouteLayer = L.featureGroup(); // needs getBounds() for the fitBounds call below — a plain layerGroup doesn't have it
-      legs.forEach(function (legFeature, i) {
-        var legLayer = (i === 0) ? drawColorCodedRoute(legFeature, false) : drawColorCodedRoute(legFeature, true);
+      for (var li = legs.length - 1; li >= 0; li--) {
+        var legLayer = (li === 0) ? drawColorCodedRoute(legs[li], false) : drawColorCodedRoute(legs[li], true);
         legLayer.addTo(navRouteLayer);
-      });
+      }
       navRouteLayer.addTo(navMap);
     } else {
       navRouteLayer = drawColorCodedRoute(feature);
@@ -2689,10 +2669,17 @@
   // own highway/road-type distinction); everything still ahead of that
   // stays the same soft, receded blue — exactly the progressive visual
   // Google Maps uses as a multi-stop trip advances.
+  // Draws only the legs from the current one onward — the completed
+  // legs behind the driver simply aren't shown anymore. The current
+  // (next-to-drive) leg is the strong dark blue, everything still
+  // ahead of that stays the lighter shade. Added in REVERSE order
+  // (furthest-ahead leg first, current leg last) so the current leg
+  // paints on top wherever it crosses a future one — always the one
+  // that's clearly visible.
   function drawActiveNavLegs() {
     if (navRouteLayer) navMap.removeLayer(navRouteLayer);
     navRouteLayer = L.featureGroup();
-    for (var i = navCurrentLegIndex; i < navLegs.length; i++) {
+    for (var i = navLegs.length - 1; i >= navCurrentLegIndex; i--) {
       var isCurrent = i === navCurrentLegIndex;
       var legLayer = drawColorCodedRoute(navLegs[i], !isCurrent);
       legLayer.addTo(navRouteLayer);
