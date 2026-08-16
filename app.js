@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v144") {
+          if (data && data.v && data.v !== "pt-foglio-v145") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v144"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v145"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1032,10 +1032,23 @@
     html += '<div id="nav-result" class="nav-result" style="display:none;"></div>';
 
     html += '<div id="nav-active-overlay" class="nav-active-overlay" style="display:none;">';
-    html += '<div class="nav-instruction-banner"><button type="button" class="nav-exit-x" id="nav-exit-x" aria-label="Esci dalla navigazione">✕</button><div class="nav-instruction-icon" id="nav-instr-icon">➜</div><div><div class="nav-instruction-text" id="nav-instr-text">—</div><div class="nav-instruction-dist" id="nav-instr-dist"></div></div></div>';
-    html += '<div class="nav-active-float-controls"><button type="button" class="nav-float-btn" id="nav-active-layers-btn" aria-label="Vista satellite">🛰️</button><button type="button" class="nav-float-btn nav-compass-btn" id="nav-compass-btn" aria-label="Orientamento bussola"><span id="nav-compass-needle">N</span></button></div>';
+    html += '<div class="nav-instruction-banner">' +
+      '<button type="button" class="nav-exit-x" id="nav-exit-x" aria-label="Esci dalla navigazione">✕</button>' +
+      '<div class="nav-instruction-icon-wrap"><span id="nav-instr-icon">➜</span></div>' +
+      '<div class="nav-instruction-copy"><div class="nav-instruction-dist" id="nav-instr-dist">—</div><div class="nav-instruction-text" id="nav-instr-text"></div></div>' +
+      '</div>';
+    html += '<div class="nav-active-float-controls">' +
+      '<button type="button" class="nav-float-btn" id="nav-active-layers-btn" aria-label="Vista satellite">🛰️</button>' +
+      '<button type="button" class="nav-compass-badge" id="nav-compass-btn" aria-label="Orientamento bussola"><span id="nav-compass-needle">N</span></button>' +
+      '</div>';
+    html += '<div class="nav-speed-badge" id="nav-speed-badge" style="display:none;"><b id="nav-speed-value">0</b><span>km/h</span></div>';
     html += '<button type="button" class="nav-recenter-btn" id="nav-recenter-btn" style="display:none;" aria-label="Ricentra">🧭</button>';
-    html += '<div class="nav-active-bottom"><div class="nav-active-stats"><b id="nav-active-eta"></b><span id="nav-active-remaining"></span></div><button type="button" class="nav-end-btn" id="nav-end-btn">Termina</button></div>';
+    html += '<div class="nav-active-bottom">' +
+      '<div class="nav-stat-col"><b id="nav-active-arrival"></b><span>arrivo</span></div>' +
+      '<div class="nav-stat-col nav-stat-eta"><b id="nav-active-eta"></b><span>tempo</span></div>' +
+      '<div class="nav-stat-col"><b id="nav-active-remaining"></b><span>distanza</span></div>' +
+      '<button type="button" class="nav-end-btn" id="nav-end-btn" aria-label="Termina navigazione">Termina</button>' +
+      '</div>';
     html += '</div>';
     html += '</div>';
 
@@ -2236,12 +2249,20 @@
       // works for both.
       if (innerDiv) innerDiv.style.transform = 'rotate(' + navLastHeading + 'deg)';
     }
-    // The compass needle itself always shows where true north
-    // currently is on screen — rotated opposite the map's own
-    // rotation in heading-up mode, upright (pointing straight up) once
-    // switched to north-up.
+    // The compass badge shows the driver's real current heading as a
+    // letter (N/NE/E/…), same reading as the small bearing badge in
+    // Google Maps/CarPlay navigation — independent of whichever mode
+    // the map itself is in.
     var needle = document.getElementById('nav-compass-needle');
-    if (needle) needle.style.transform = 'rotate(' + (navNorthUpMode ? 0 : -navLastHeading) + 'deg)';
+    if (needle) needle.textContent = headingToCompassLabel(navLastHeading);
+    var badge = document.getElementById('nav-compass-btn');
+    if (badge) badge.classList.toggle('active', navNorthUpMode);
+  }
+
+  function headingToCompassLabel(heading) {
+    var dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    var normalized = ((heading % 360) + 360) % 360;
+    return dirs[Math.round(normalized / 45) % 8];
   }
 
   function toggleNavNorthUp() {
@@ -2261,6 +2282,24 @@
     var lat = position.coords.latitude, lon = position.coords.longitude;
     var heading = position.coords.heading;
     navLastPosition = { lat: lat, lon: lon };
+
+    // Real current speed, straight from GPS (m/s → km/h) — shown only
+    // when the device actually reports it (many phones return null
+    // while stationary or with a weak fix), never estimated or
+    // guessed. This is deliberately NOT a speed-limit sign like
+    // Google's own — that would need real speed-limit data per road
+    // segment, which no free source used here provides, and inventing
+    // a number would be worse than not showing one.
+    var speedBadge = document.getElementById('nav-speed-badge');
+    if (speedBadge) {
+      var speedMs = position.coords.speed;
+      if (speedMs != null && !isNaN(speedMs) && speedMs >= 0) {
+        document.getElementById('nav-speed-value').textContent = Math.round(speedMs * 3.6);
+        speedBadge.style.display = 'flex';
+      } else {
+        speedBadge.style.display = 'none';
+      }
+    }
 
     if (navPositionMarker) navMap.removeLayer(navPositionMarker);
     // A directional arrow — same visual language as Google Maps' own
@@ -2327,7 +2366,12 @@
     var minutes = Math.round(props.duration / 60);
     var hours = Math.floor(minutes / 60), mins = minutes % 60;
     document.getElementById('nav-active-eta').textContent = (hours > 0 ? hours + ' h ' : '') + mins + ' min';
-    document.getElementById('nav-active-remaining').textContent = (props.distance / 1000).toFixed(1) + ' km totali';
+    document.getElementById('nav-active-remaining').textContent = (props.distance / 1000).toFixed(1) + ' km';
+    // Estimated clock time of arrival — "arrivo" column, same idea as
+    // Google Maps' own nav bar always showing a real clock time
+    // alongside the remaining minutes, not just a countdown.
+    var arrival = new Date(Date.now() + props.duration * 1000);
+    document.getElementById('nav-active-arrival').textContent = arrival.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
   }
 
   // Draws only the legs from the current one onward — the completed

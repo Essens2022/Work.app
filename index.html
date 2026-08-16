@@ -559,29 +559,54 @@
   }
 
   .nav-active-overlay{position:absolute;inset:0;z-index:1002;display:flex;flex-direction:column;justify-content:space-between;pointer-events:none;padding:10px;padding-top:calc(10px + env(safe-area-inset-top));}
+  /* Deep green nav card, same family Google Maps itself uses for its
+     turn-by-turn banner — distance is the primary, largest thing (a
+     driver glancing up needs "how far" before "which street"), the
+     instruction text is the secondary line underneath it. */
   .nav-instruction-banner{
-    pointer-events:auto;background:#1C1B1F;color:#fff;border-radius:14px;padding:12px 14px;
-    display:flex;align-items:center;gap:12px;box-shadow:0 6px 20px rgba(0,0,0,.3);
+    pointer-events:auto;background:linear-gradient(155deg,#0E8345,#0B6B38);color:#fff;border-radius:16px;padding:14px 16px;
+    display:flex;align-items:center;gap:14px;box-shadow:0 8px 24px rgba(0,0,0,.35);
   }
   .nav-exit-x{
-    flex-shrink:0;width:32px;height:32px;border-radius:50%;border:none;background:rgba(255,255,255,.12);
+    flex-shrink:0;width:32px;height:32px;border-radius:50%;border:none;background:rgba(255,255,255,.16);
     color:#fff;font-size:16px;display:flex;align-items:center;justify-content:center;order:-1;
   }
-  .nav-instruction-icon{font-size:28px;flex-shrink:0;width:38px;text-align:center;}
-  .nav-instruction-text{font-size:14.5px;font-weight:700;line-height:1.3;}
-  .nav-instruction-dist{font-size:12px;color:rgba(255,255,255,.65);margin-top:2px;}
-  .nav-active-float-controls{position:absolute;right:10px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:10px;}
-  .nav-compass-btn #nav-compass-needle{
-    display:inline-block;font-weight:800;font-size:13px;color:var(--danger);transition:transform .25s ease;
+  .nav-instruction-icon-wrap{
+    flex-shrink:0;width:48px;height:48px;border-radius:14px;background:rgba(255,255,255,.16);
+    display:flex;align-items:center;justify-content:center;font-size:26px;
   }
+  .nav-instruction-copy{min-width:0;}
+  .nav-instruction-dist{font-size:26px;font-weight:800;letter-spacing:-.01em;line-height:1.15;}
+  .nav-instruction-text{font-size:13.5px;font-weight:600;color:rgba(255,255,255,.85);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .nav-active-float-controls{position:absolute;right:10px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:10px;}
+  /* Small dark pill showing the driver's real current bearing as a
+     letter (N/NE/E…) — same reading as the bearing badge in Google
+     Maps/CarPlay navigation. Doubles as the north-up toggle button;
+     "active" (north-up engaged) gets a subtle accent ring so it's
+     clear the mode is on. */
+  .nav-compass-badge{
+    pointer-events:auto;width:40px;height:32px;border-radius:10px;border:none;background:#1C1B1F;color:#fff;
+    font-weight:800;font-size:12.5px;display:flex;align-items:center;justify-content:center;
+    box-shadow:0 2px 8px rgba(0,0,0,.3);
+  }
+  .nav-compass-badge.active{box-shadow:0 0 0 2px var(--accent),0 2px 8px rgba(0,0,0,.3);}
+  .nav-speed-badge{
+    position:absolute;left:10px;bottom:110px;z-index:1000;pointer-events:none;
+    width:58px;height:58px;border-radius:50%;background:#fff;border:3px solid #1C1B1F;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.3);
+  }
+  .nav-speed-badge b{font-size:19px;font-weight:800;color:#1C1B1F;line-height:1;}
+  .nav-speed-badge span{font-size:8.5px;font-weight:700;color:var(--ink-faint);letter-spacing:.02em;}
   .nav-active-bottom{
-    pointer-events:auto;background:#1C1B1F;color:#fff;border-radius:14px;padding:12px 14px;
-    display:flex;align-items:center;justify-content:space-between;box-shadow:0 6px 20px rgba(0,0,0,.3);
+    pointer-events:auto;background:#1C1B1F;color:#fff;border-radius:16px;padding:12px 14px;
+    display:flex;align-items:center;gap:4px;box-shadow:0 8px 24px rgba(0,0,0,.35);
     margin-bottom:env(safe-area-inset-bottom);
   }
-  .nav-active-stats b{font-size:16px;font-weight:800;display:block;}
-  .nav-active-stats span{font-size:11.5px;color:rgba(255,255,255,.65);}
-  .nav-end-btn{background:var(--danger);color:#fff;border:none;border-radius:10px;padding:10px 16px;font-weight:700;font-size:13px;}
+  .nav-stat-col{flex:1;text-align:center;min-width:0;}
+  .nav-stat-col b{font-size:17px;font-weight:800;display:block;letter-spacing:-.01em;}
+  .nav-stat-col span{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:rgba(255,255,255,.55);}
+  .nav-stat-eta b{color:#5CE07A;}
+  .nav-end-btn{flex-shrink:0;background:var(--danger);color:#fff;border:none;border-radius:10px;padding:10px 14px;font-weight:700;font-size:12.5px;}
   .nav-heading-arrow div{font-size:26px;color:#4285F4;text-shadow:0 0 0 #fff, 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff;transform-origin:center;transition:transform .3s ease;}
   .nav-pin-origin div{width:18px;height:18px;border-radius:50%;background:#1A73E8;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4);}
   .nav-pin-numbered div{
