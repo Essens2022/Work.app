@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v147") {
+          if (data && data.v && data.v !== "pt-foglio-v148") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v147"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v148"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2120,6 +2120,15 @@
 
   function displayNavRouteChoice(alternatives, points, chosenIndex, legs) {
     navCurrentAlternatives = alternatives; navCurrentPoints = points;
+    // The trip-planning panel (Partenza/Destinazione/Calcola percorso)
+    // closes itself the moment a route is ready — otherwise it stays
+    // open on top of the map, pushing the result (km/tempo/Avvia) out
+    // of view and making it look like it needs a swipe up to reach.
+    // With it closed, the search bar up top, the map with the route
+    // drawn, and the result card at the bottom are all visible together
+    // at once, same as Google Maps itself right after calculating.
+    var panel = document.getElementById('nav-search-panel');
+    if (panel) panel.style.display = 'none';
     var feature = alternatives[chosenIndex];
     var props = feature.properties.summary;
     var km = (props.distance / 1000).toFixed(1);
