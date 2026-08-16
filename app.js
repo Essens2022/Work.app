@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v138") {
+          if (data && data.v && data.v !== "pt-foglio-v139") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v138"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v139"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -999,7 +999,7 @@
     var html = '';
 
     html += '<div class="nav-map-wrap">';
-    html += '<div id="nav-map" class="nav-map nav-map-tall"></div>';
+    html += '<div id="nav-map-rotate-wrap" class="nav-map-rotate-wrap"><div id="nav-map" class="nav-map nav-map-tall"></div></div>';
 
     // The search bar itself IS the header — no separate title row above
     // it, same as Google Maps: a rounded pill floating directly on the
@@ -1027,6 +1027,7 @@
     html += '<div id="nav-active-overlay" class="nav-active-overlay" style="display:none;">';
     html += '<div class="nav-instruction-banner"><button type="button" class="nav-exit-x" id="nav-exit-x" aria-label="Esci dalla navigazione">✕</button><div class="nav-instruction-icon" id="nav-instr-icon">➜</div><div><div class="nav-instruction-text" id="nav-instr-text">—</div><div class="nav-instruction-dist" id="nav-instr-dist"></div></div></div>';
     html += '<div class="nav-active-float-controls"><button type="button" class="nav-float-btn" id="nav-active-layers-btn" aria-label="Vista satellite">🛰️</button></div>';
+    html += '<button type="button" class="nav-recenter-btn" id="nav-recenter-btn" style="display:none;" aria-label="Ricentra">🧭</button>';
     html += '<div class="nav-active-bottom"><div class="nav-active-stats"><b id="nav-active-eta"></b><span id="nav-active-remaining"></span></div><button type="button" class="nav-end-btn" id="nav-end-btn">Termina</button></div>';
     html += '</div>';
     html += '</div>';
@@ -1142,6 +1143,12 @@
     navPickingWaypointId = waypointId;
     var mapEl = document.getElementById('nav-map');
     if (mapEl) mapEl.classList.add('picking');
+    // Close the search panel first — it sits on top of the map (needed
+    // for the fields themselves), but would otherwise block the exact
+    // spot the person is trying to tap, right when they need the whole
+    // map visible to choose a point.
+    document.getElementById('nav-search-panel').style.display = 'none';
+    document.getElementById('nav-search-bar').style.display = 'flex';
     toast('Tocca la mappa per scegliere il punto');
   }
 
@@ -1150,6 +1157,7 @@
     navPickingWaypointId = null;
     var mapEl = document.getElementById('nav-map');
     if (mapEl) mapEl.classList.remove('picking');
+    document.getElementById('nav-search-panel').style.display = 'block'; // back to filling in the rest of the trip, now that the point is chosen
     var point = { lon: latlng.lng, lat: latlng.lat, label: null };
     var input = document.getElementById('wpinput-' + waypointId);
     if (input) input.value = 'Ricerca indirizzo…';
@@ -1200,7 +1208,21 @@
       var label = navWaypointLabel(wp, stopNumber);
       var placeholder = wp.role === 'origin' ? 'Indirizzo, CAP, civico — o lascia vuoto per la posizione attuale' : 'Indirizzo, CAP o numero civico';
       var removeBtn = wp.role === 'stop' ? '<button type="button" class="nav-wp-remove" data-remove="' + wp.id + '">✕</button>' : '';
+      // Reordering: a stop can move up unless the thing right above it
+      // is the origin (always first), and down unless the thing right
+      // below it is the destination (always last) — matches how Google
+      // Maps keeps start/end fixed while letting stops be reordered.
+      var reorderBtns = '';
+      if (wp.role === 'stop') {
+        var canMoveUp = navWaypoints[i - 1] && navWaypoints[i - 1].role === 'stop';
+        var canMoveDown = navWaypoints[i + 1] && navWaypoints[i + 1].role === 'stop';
+        reorderBtns = '<div class="nav-wp-reorder">' +
+          '<button type="button" class="nav-wp-reorder-btn" data-move-up="' + wp.id + '"' + (canMoveUp ? '' : ' disabled') + '>▲</button>' +
+          '<button type="button" class="nav-wp-reorder-btn" data-move-down="' + wp.id + '"' + (canMoveDown ? '' : ' disabled') + '>▼</button>' +
+          '</div>';
+      }
       return '<div class="nav-wp-row">' +
+        reorderBtns +
         '<div class="field autocomplete-wrap" style="flex:1;margin-bottom:8px;">' +
         '<label>' + label + '</label>' +
         '<input type="text" id="wpinput-' + wp.id + '" value="' + escapeHtml(wp.text) + '" placeholder="' + placeholder + '" autocomplete="off">' +
@@ -1215,6 +1237,12 @@
     navWaypoints.forEach(function (wp) { wireNavAddressAutocomplete(wp.id); });
     container.querySelectorAll('[data-remove]').forEach(function (btn) {
       btn.addEventListener('click', function () { removeNavWaypoint(btn.getAttribute('data-remove')); });
+    });
+    container.querySelectorAll('[data-move-up]').forEach(function (btn) {
+      btn.addEventListener('click', function () { moveNavWaypoint(btn.getAttribute('data-move-up'), -1); });
+    });
+    container.querySelectorAll('[data-move-down]').forEach(function (btn) {
+      btn.addEventListener('click', function () { moveNavWaypoint(btn.getAttribute('data-move-down'), 1); });
     });
     container.querySelectorAll('[data-pin]').forEach(function (btn) {
       btn.addEventListener('click', function () { startNavMapPicking(btn.getAttribute('data-pin')); });
@@ -1232,6 +1260,23 @@
     navWaypoints = navWaypoints.filter(function (wp) { return wp.id !== id; });
     if (navWaypointMarkers[id]) { navMap.removeLayer(navWaypointMarkers[id]); delete navWaypointMarkers[id]; }
     renderNavWaypointsList();
+  }
+
+  // Reorders a stop by swapping it with its neighbor — origin and
+  // destination never move, matching Google Maps' own behavior of
+  // keeping the start and end fixed while stops in between can be
+  // freely reordered.
+  function moveNavWaypoint(id, direction) {
+    var idx = navWaypoints.findIndex(function (wp) { return wp.id === id; });
+    if (idx === -1) return;
+    var targetIdx = idx + direction;
+    if (targetIdx < 0 || targetIdx >= navWaypoints.length) return;
+    if (navWaypoints[idx].role !== 'stop' || navWaypoints[targetIdx].role !== 'stop') return;
+    var tmp = navWaypoints[idx];
+    navWaypoints[idx] = navWaypoints[targetIdx];
+    navWaypoints[targetIdx] = tmp;
+    renderNavWaypointsList();
+    updateLiveRoutePreview();
   }
 
   // Live address suggestions as the person types (ORS's own geocoding
@@ -1278,8 +1323,14 @@
 
   function renderNavSuggestions(features, list, input, waypointId, frequentEntries) {
     frequentEntries = frequentEntries || [];
-    if (!features.length && !frequentEntries.length) { list.classList.remove('show'); return; }
-    var html = frequentEntries.map(function (e, i) {
+    var wp = navWaypoints.filter(function (w) { return w.id === waypointId; })[0];
+    var showCurrentPositionOption = wp && wp.role === 'origin';
+    if (!features.length && !frequentEntries.length && !showCurrentPositionOption) { list.classList.remove('show'); return; }
+    var html = '';
+    if (showCurrentPositionOption) {
+      html += '<div class="ac-item ac-frequent ac-current-pos" data-current-pos="1"><span class="ac-freq-icon">📍</span><span class="name">La tua posizione</span></div>';
+    }
+    html += frequentEntries.map(function (e, i) {
       return '<div class="ac-item ac-frequent" data-freq="' + i + '"><span class="ac-freq-icon">🕐</span><span class="name">' + escapeHtml(e.text) + '</span></div>';
     }).join('');
     html += features.map(function (f, i) {
@@ -1287,6 +1338,15 @@
     }).join('');
     list.innerHTML = html;
     list.classList.add('show');
+    var currentPosItem = list.querySelector('[data-current-pos]');
+    if (currentPosItem) {
+      currentPosItem.addEventListener('click', function () {
+        input.value = 'La tua posizione';
+        list.classList.remove('show');
+        if (wp) { wp.text = 'La tua posizione'; wp.point = null; wp.useCurrentPosition = true; }
+        currentPosition().then(function (p) { dropNavWaypointMarker(waypointId, p); if (wp) wp.point = p; }).catch(function () { /* resolved again, freshly, at calc time */ });
+      });
+    }
     list.querySelectorAll('[data-freq]').forEach(function (item) {
       item.addEventListener('click', function () {
         var e = frequentEntries[Number(item.getAttribute('data-freq'))];
@@ -1294,7 +1354,7 @@
         input.value = e.text;
         list.classList.remove('show');
         var wp = navWaypoints.filter(function (w) { return w.id === waypointId; })[0];
-        if (wp) { wp.text = e.text; wp.point = point; }
+        if (wp) { wp.text = e.text; wp.point = point; wp.useCurrentPosition = false; }
         dropNavWaypointMarker(waypointId, point);
       });
     });
@@ -1305,7 +1365,7 @@
         input.value = f.properties.label;
         list.classList.remove('show');
         var wp = navWaypoints.filter(function (w) { return w.id === waypointId; })[0];
-        if (wp) { wp.text = f.properties.label; wp.point = point; }
+        if (wp) { wp.text = f.properties.label; wp.point = point; wp.useCurrentPosition = false; }
         dropNavWaypointMarker(waypointId, point);
       });
     });
@@ -1527,7 +1587,7 @@
     // position.
     var resolvePromises = navWaypoints.map(function (wp, i) {
       if (wp.point) return Promise.resolve(wp.point);
-      if (i === 0 && !wp.text.trim()) return currentPosition().catch(function () { return null; });
+      if (wp.useCurrentPosition || (i === 0 && !wp.text.trim())) return currentPosition().catch(function () { return null; });
       return geocodeAddress(wp.text);
     });
 
@@ -1828,6 +1888,14 @@
 
     updateActiveInstructionBanner();
 
+    // Auto-follow starts on — the map re-centers on the driver as they
+    // move. Dragging the map manually (checking to the side, looking
+    // ahead at an upcoming junction) turns it off, same as Google Maps
+    // — a "recenter" button then appears to turn it back on.
+    navFollowingUser = true;
+    document.getElementById('nav-recenter-btn').style.display = 'none';
+    navMap.on('dragstart', navOnManualMapDrag);
+
     navWatchId = navigator.geolocation.watchPosition(
       onActiveNavPosition,
       function (err) {
@@ -1843,31 +1911,60 @@
 
     document.getElementById('nav-end-btn').addEventListener('click', stopActiveNavigation);
     document.getElementById('nav-exit-x').addEventListener('click', stopActiveNavigation);
+    document.getElementById('nav-recenter-btn').addEventListener('click', function () {
+      navFollowingUser = true;
+      document.getElementById('nav-recenter-btn').style.display = 'none';
+      if (navLastPosition) navMap.setView([navLastPosition.lat, navLastPosition.lon], 17, { animate: true });
+    });
+  }
+
+  // Rotates the whole map so "up" always means "the direction of
+  // travel" — the standard look of a real navigation mode. The
+  // position arrow itself counter-rotates by the same amount, in the
+  // opposite direction, so it stays pointing straight up on screen
+  // throughout, while the map (tiles, route line) turns underneath it.
+  // Rotating a DEDICATED wrapper around the map (rather than Leaflet's
+  // own internal panes) keeps Leaflet's own coordinate math undisturbed
+  // — Leaflet has no idea its container is visually rotated, and
+  // doesn't need to.
+  function rotateNavMapToHeading(heading) {
+    var wrap = document.getElementById('nav-map-rotate-wrap');
+    if (wrap) wrap.style.transform = 'rotate(' + (-heading) + 'deg)';
+    if (navPositionMarker) {
+      var iconEl = navPositionMarker.getElement();
+      var innerDiv = iconEl && iconEl.querySelector('div');
+      if (innerDiv) innerDiv.style.transform = 'rotate(' + heading + 'deg)';
+    }
+  }
+
+  var navFollowingUser = true;
+  var navLastPosition = null;
+  function navOnManualMapDrag() {
+    if (!navFollowingUser) return; // already off, nothing to do
+    navFollowingUser = false;
+    document.getElementById('nav-recenter-btn').style.display = 'flex';
   }
 
   function onActiveNavPosition(position) {
     var lat = position.coords.latitude, lon = position.coords.longitude;
     var heading = position.coords.heading;
+    navLastPosition = { lat: lat, lon: lon };
 
     if (navPositionMarker) navMap.removeLayer(navPositionMarker);
-    // A directional arrow, rotated to the phone's real heading when the
-    // GPS provides one — same visual language as Google Maps' own blue
-    // "you are here" arrow. Falls back to a plain dot when heading isn't
-    // available yet (common right after GPS lock, or while stationary).
-    if (heading != null && !isNaN(heading)) {
-      navPositionMarker = L.marker([lat, lon], {
-        icon: L.divIcon({
-          className: 'nav-heading-arrow',
-          html: '<div style="transform:rotate(' + heading + 'deg);">➤</div>',
-          iconSize: [30, 30], iconAnchor: [15, 15]
-        })
-      }).addTo(navMap);
-    } else {
-      navPositionMarker = L.circleMarker([lat, lon], {
-        radius: 9, color: '#fff', weight: 3, fillColor: '#4285F4', fillOpacity: 1
-      }).addTo(navMap);
+    // A directional arrow — same visual language as Google Maps' own
+    // blue "you are here" arrow. The arrow itself always points
+    // straight up on screen; instead, the MAP ITSELF rotates
+    // underneath it (see rotateNavMapToHeading below), so "up" always
+    // means "the direction you're driving", exactly like Google Maps'
+    // own navigation mode.
+    navPositionMarker = L.marker([lat, lon], {
+      icon: L.divIcon({ className: 'nav-heading-arrow', html: '<div>➤</div>', iconSize: [30, 30], iconAnchor: [15, 15] })
+    }).addTo(navMap);
+
+    if (navFollowingUser) {
+      navMap.setView([lat, lon], 17, { animate: true });
     }
-    navMap.setView([lat, lon], 17, { animate: true });
+    if (heading != null && !isNaN(heading)) rotateNavMapToHeading(heading);
 
     // Advance through steps as each maneuver point is reached (within
     // ~40m — GPS on a phone isn't precise enough to require reaching
@@ -1908,6 +2005,10 @@
   function stopActiveNavigation() {
     if (navWatchId != null) { navigator.geolocation.clearWatch(navWatchId); navWatchId = null; }
     if (navPositionMarker) { navMap.removeLayer(navPositionMarker); navPositionMarker = null; }
+    navMap.off('dragstart', navOnManualMapDrag);
+    var rotateWrap = document.getElementById('nav-map-rotate-wrap');
+    if (rotateWrap) rotateWrap.style.transform = 'none';
+    document.getElementById('nav-recenter-btn').style.display = 'none';
     document.getElementById('nav-active-overlay').style.display = 'none';
     document.getElementById('nav-search-bar').style.display = '';
     document.querySelector('.nav-map-wrap').classList.remove('nav-fullscreen');
