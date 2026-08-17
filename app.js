@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v219") {
+          if (data && data.v && data.v !== "pt-foglio-v220") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v219"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v220"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -3827,7 +3827,33 @@
   }
 
   var navFinalArrivalShown = false;
+  // DIAGNOSTIC BUILD — measures the OTHER half of the story: this
+  // runs on every REAL GPS tick (not every animation frame), doing
+  // off-route detection (a FULL, unwindowed search through the whole
+  // route — deliberately left unoptimized for correctness, unlike the
+  // trim search), reroute checks, arrival checks, step advancement.
+  // The earlier profiler only ever measured the animation loop —
+  // never this — so "our code isn't the bottleneck" was only ever a
+  // half-true conclusion. This closes that gap.
+  var navGpsTickProf = { totalMs: 0, ticks: 0 };
   function onActiveNavPosition(position) {
+    var tGpsStart = performance.now();
+    onActiveNavPositionInner(position);
+    var tGpsEnd = performance.now();
+    navGpsTickProf.totalMs += (tGpsEnd - tGpsStart);
+    navGpsTickProf.ticks++;
+    var el = navShowProfileOverlay();
+    var existing = el.textContent || '';
+    var gpsLine = 'GPS tick: ' + (tGpsEnd - tGpsStart).toFixed(1) + 'ms (avg ' + (navGpsTickProf.totalMs / navGpsTickProf.ticks).toFixed(1) + 'ms over ' + navGpsTickProf.ticks + ')';
+    // Appended as its own persistent line, separate from the
+    // frame-loop stats above (which overwrite the whole block every
+    // 500ms) — this one updates once per real GPS tick instead, so it
+    // needs to survive those overwrites rather than being wiped by
+    // them.
+    el.textContent = existing.split('\n').filter(function (l) { return l.indexOf('GPS tick') !== 0; }).join('\n') + '\n' + gpsLine;
+  }
+
+  function onActiveNavPositionInner(position) {
     var lat = position.coords.latitude, lon = position.coords.longitude;
     var heading = position.coords.heading;
     navLastPosition = { lat: lat, lon: lon };
