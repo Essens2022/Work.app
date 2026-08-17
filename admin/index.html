@@ -260,9 +260,40 @@
         }
         // Sum across devices for the same sheet — covers the case where a
         // reinstall split one real sheet's data across two device rows.
+        //
+        // REAL DATA BUG, confirmed with ION directly: this sum assumes
+        // every extra device row represents ADDITIONAL days worked (the
+        // genuine reinstall case — old device stops, new device
+        // continues, together they add up to the true total). But
+        // restoring a saved backup file onto a new device/browser
+        // instead copies the FULL existing day count, not just new
+        // days — multiple access points (computer, phone home-screen
+        // icon, phone browser tab, a second phone) each getting their
+        // own device_id via localStorage, then a backup restore
+        // duplicating the same already-recorded days into each one,
+        // produces exactly what was reported: 50 giorni summed here
+        // when the real number was 10 — 5 device rows, each an
+        // identical copy, not 5 genuinely different contributions.
+        // There's no reliable way to tell "genuinely additional days"
+        // and "duplicated-via-backup days" apart from the device rows
+        // alone. What CAN be checked for certain: a month cannot have
+        // more worked days than it has calendar days at all — capped
+        // here as a hard sanity ceiling, with a flag so the UI can
+        // show that a cap was applied rather than silently hiding it.
         g.sheetsByKey[sKey].total_km += Number(s.total_km) || 0;
         g.sheetsByKey[sKey].giorni_count += Number(s.giorni_count) || 0;
         if (s.daily_rate != null) g.dailyRate = Number(s.daily_rate);
+      });
+    });
+    Object.keys(groups).forEach(function (k) {
+      Object.keys(groups[k].sheetsByKey).forEach(function (sk) {
+        var sheet = groups[k].sheetsByKey[sk];
+        var maxDays = daysInMonthAdmin(sheet.month, sheet.year);
+        if (sheet.giorni_count > maxDays) {
+          sheet.giorni_count_raw = sheet.giorni_count; // kept for anyone who wants the unfiltered number
+          sheet.giorni_count = maxDays;
+          sheet.giorni_count_capped = true;
+        }
       });
     });
     return Object.keys(groups).map(function (k) {
@@ -276,6 +307,8 @@
     });
   }
 
+  function daysInMonthAdmin(month, year) { return new Date(year, month, 0).getDate(); }
+
   function sheetDetailHtml(s, dailyRate) {
     var monthLabel = MESI[s.month - 1] + ' ' + s.year;
     var earnings = dailyRate ? (s.giorni_count * dailyRate) : null;
@@ -283,7 +316,20 @@
     html += '<div class="sheet-item-top"><span>' + s.client + '</span><span>' + monthLabel + '</span></div>';
     html += '<div class="sheet-item-meta">';
     html += '<span>' + Math.round(s.total_km) + ' km</span>';
-    html += '<span>' + s.giorni_count + ' giri</span>';
+    // Flagged visibly, not hidden — a capped count means the raw
+    // device-summed number was impossible for a real month (more
+    // worked days than calendar days exist), almost certainly from
+    // the same days being duplicated across multiple device rows
+    // (backup restore onto a new browser/device, multiple access
+    // points) rather than genuinely additional days worked. Shows the
+    // real, unfiltered sum on tap/hover via the title attribute, so
+    // the raw number is never actually lost, just not presented as if
+    // it were trustworthy on its own.
+    if (s.giorni_count_capped) {
+      html += '<span title="Numar brut (probabil duplicat pe mai multe dispozitive): ' + s.giorni_count_raw + '" style="color:#e67e22;">' + s.giorni_count + ' giri ⚠️</span>';
+    } else {
+      html += '<span>' + s.giorni_count + ' giri</span>';
+    }
     if (earnings !== null) html += '<span>~€' + earnings.toFixed(0) + '</span>';
     html += '</div></div>';
     return html;
