@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v178") {
+          if (data && data.v && data.v !== "pt-foglio-v179") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v178"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v179"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1272,50 +1272,336 @@
     return !!(v.altezza && v.larghezza && v.lunghezza && v.massa);
   }
 
-  var navStreetLayer = null, navSatelliteLayer = null;
+  // ------------------------------------------------------------------
+  // MapLibre GL compatibility shim
+  // ------------------------------------------------------------------
+  // The Navigator was originally built on Leaflet + raster tiles
+  // (CARTO for streets, Esri for satellite). Migrated here to MapLibre
+  // GL JS + OpenFreeMap vector tiles — both genuinely free, no API key,
+  // no card, same as before — specifically to get real map tilt/pitch
+  // (a proper 3D driving camera) and native bearing rotation, neither
+  // of which is achievable with flat pre-rendered raster tiles no
+  // matter what CSS tricks are applied (confirmed broken, twice,
+  // earlier in this app's history).
+  //
+  // Rather than rewrite every single call site that used Leaflet's API
+  // throughout this file, this shim defines an `L` object (Leaflet's
+  // own global is no longer loaded at all) and a navMap wrapper that
+  // expose the SAME method names/shapes the existing code already
+  // calls (L.marker, L.divIcon, L.geoJSON, L.featureGroup,
+  // L.latLngBounds, navMap.setView, .removeLayer, .fitBounds, etc.) —
+  // internally driving MapLibre instead. This keeps the (very large)
+  // amount of existing, already-tested application logic untouched,
+  // and confines all of the actual engine-swap risk to this one
+  // section.
+  var navShimLayerCounter = 0;
+
+  function navShimBoundsFromGeoJSON(feature) {
+    var coords = feature.geometry.coordinates;
+    var minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+    coords.forEach(function (c) {
+      if (c[1] < minLat) minLat = c[1]; if (c[1] > maxLat) maxLat = c[1];
+      if (c[0] < minLon) minLon = c[0]; if (c[0] > maxLon) maxLon = c[0];
+    });
+    return { sw: [minLat, minLon], ne: [maxLat, maxLon] };
+  }
+  function navShimUnionBounds(a, b) {
+    return { sw: [Math.min(a.sw[0], b.sw[0]), Math.min(a.sw[1], b.sw[1])], ne: [Math.max(a.ne[0], b.ne[0]), Math.max(a.ne[1], b.ne[1])] };
+  }
+
+  // A marker — wraps maplibregl.Marker. latlng is [lat, lon], matching
+  // every existing call site (unchanged from the Leaflet convention).
+  function navMarkerShim(latlng, opts) {
+    opts = opts || {};
+    var el = document.createElement('div');
+    if (opts.icon) {
+      el.className = opts.icon.className || '';
+      el.innerHTML = opts.icon.html || '';
+    }
+    var markerOpts = { element: el };
+    if (opts.icon && opts.icon.iconAnchor && opts.icon.iconSize) {
+      // Leaflet's iconAnchor is the point WITHIN the icon that sits on
+      // the coordinate; MapLibre's offset is a pixel shift away from
+      // its own default anchor (icon center). Converting one into the
+      // other keeps every existing icon definition's iconAnchor value
+      // meaning the same thing it always did.
+      var iw = opts.icon.iconSize[0], ih = opts.icon.iconSize[1];
+      var ax = opts.icon.iconAnchor[0], ay = opts.icon.iconAnchor[1];
+      markerOpts.anchor = 'center';
+      markerOpts.offset = [iw / 2 - ax, ih / 2 - ay];
+    }
+    var mlMarker = new maplibregl.Marker(markerOpts).setLngLat([latlng[1], latlng[0]]);
+    var popup = null;
+    var wrapper = {
+      addTo: function (target) {
+        var realMap = (target && target._maplibre) ? target._maplibre : target;
+        mlMarker.addTo(realMap);
+        return wrapper;
+      },
+      bindPopup: function (html) {
+        popup = new maplibregl.Popup({ offset: 14, closeButton: false }).setHTML(html);
+        mlMarker.setPopup(popup);
+        return wrapper;
+      },
+      openPopup: function () { if (popup && !popup.isOpen()) mlMarker.togglePopup(); return wrapper; },
+      setLatLng: function (ll) { mlMarker.setLngLat([ll[1], ll[0]]); return wrapper; },
+      getElement: function () { return el; },
+      remove: function () { mlMarker.remove(); }
+    };
+    return wrapper;
+  }
+
+  // A styled line from a GeoJSON LineString feature — wraps a MapLibre
+  // GeoJSON source + line layer pair. Deferred until the style has
+  // actually finished loading if it hasn't yet (addSource/addLayer
+  // throw otherwise) — matters right at initial map creation, never
+  // again after that.
+  function navGeoJSONShim(feature, opts) {
+    opts = opts || {};
+    var style = opts.style || {};
+    var id = 'navlyr-' + (navShimLayerCounter++);
+    var clickHandler = null;
+    var addedToMap = null;
+    var mouseEnterHandler = null, mouseLeaveHandler = null;
+    var wrapper = {
+      addTo: function (target) {
+        if (target && target._isFeatureGroup) { target._children.push(wrapper); return wrapper; }
+        var realMap = (target && target._maplibre) ? target._maplibre : target;
+        var doAdd = function () {
+          addedToMap = realMap;
+          if (realMap.getSource(id)) return; // already added (e.g. re-entrant during a fast toggle)
+          realMap.addSource(id, { type: 'geojson', data: feature });
+          realMap.addLayer({
+            id: id, type: 'line', source: id,
+            layout: { 'line-cap': style.lineCap === 'round' ? 'round' : 'butt', 'line-join': style.lineJoin === 'round' ? 'round' : 'miter' },
+            paint: {
+              'line-color': style.color || '#1A73E8',
+              'line-width': style.weight || 6,
+              'line-opacity': style.opacity != null ? style.opacity : 1
+            }
+          });
+          if (style.dashArray) realMap.setPaintProperty(id, 'line-dasharray', style.dashArray.split(' ').map(Number));
+          // Named handler references (not anonymous functions) so
+          // remove() below can properly un-register them — this layer
+          // gets destroyed and recreated with a brand new id on every
+          // single GPS position update while actively navigating
+          // (drawActiveNavLegs), so leaving stale listeners behind
+          // uncleaned would grow without bound over a long drive.
+          mouseEnterHandler = function () { realMap.getCanvas().style.cursor = 'pointer'; };
+          mouseLeaveHandler = function () { realMap.getCanvas().style.cursor = ''; };
+          realMap.on('mouseenter', id, mouseEnterHandler);
+          realMap.on('mouseleave', id, mouseLeaveHandler);
+          if (clickHandler) realMap.on('click', id, clickHandler);
+        };
+        if (realMap.isStyleLoaded()) doAdd(); else realMap.once('load', doAdd);
+        return wrapper;
+      },
+      on: function (evt, fn) {
+        if (evt === 'click') {
+          clickHandler = fn;
+          if (addedToMap) addedToMap.on('click', id, fn);
+        }
+        return wrapper;
+      },
+      remove: function () {
+        if (!addedToMap) return;
+        if (mouseEnterHandler) addedToMap.off('mouseenter', id, mouseEnterHandler);
+        if (mouseLeaveHandler) addedToMap.off('mouseleave', id, mouseLeaveHandler);
+        if (clickHandler) addedToMap.off('click', id, clickHandler);
+        if (addedToMap.getLayer(id)) addedToMap.removeLayer(id);
+        if (addedToMap.getSource(id)) addedToMap.removeSource(id);
+      },
+      getBounds: function () { return navShimBoundsFromGeoJSON(feature); }
+    };
+    return wrapper;
+  }
+
+  // A group of the above (markers are never grouped in this codebase,
+  // only geoJSON line layers) — deferred addTo() until the group
+  // itself is added to the real map, so children added to a group
+  // before the group is on the map don't try to touch MapLibre too
+  // early. getBounds() unions every child's bounds, same as Leaflet's
+  // featureGroup.
+  function navFeatureGroupShim() {
+    var children = [];
+    var addedTarget = null;
+    var wrapper = {
+      _isFeatureGroup: true,
+      _children: children,
+      addTo: function (target) {
+        addedTarget = target;
+        children.forEach(function (child) { child.addTo(target); });
+        return wrapper;
+      },
+      remove: function () { children.forEach(function (child) { child.remove(); }); },
+      getBounds: function () {
+        var b = null;
+        children.forEach(function (child) {
+          var cb = child.getBounds ? child.getBounds() : null;
+          if (cb) b = b ? navShimUnionBounds(b, cb) : cb;
+        });
+        return b;
+      }
+    };
+    return wrapper;
+  }
+
+  // A raster tile layer (used for the Esri satellite imagery only now
+  // — the street basemap itself comes from the OpenFreeMap vector
+  // style directly, not a separate raster layer, which is the whole
+  // point of this migration). urlTemplate can contain {s} for
+  // subdomain rotation, matching how it was already written.
+  function navTileLayerShim(urlTemplate, opts) {
+    opts = opts || {};
+    var id = 'navtiles-' + (navShimLayerCounter++);
+    var tiles = opts.subdomains
+      ? opts.subdomains.split('').map(function (s) { return urlTemplate.replace('{s}', s); })
+      : [urlTemplate];
+    var addedToMap = null;
+    var wrapper = {
+      addTo: function (target) {
+        var realMap = (target && target._maplibre) ? target._maplibre : target;
+        var doAdd = function () {
+          addedToMap = realMap;
+          if (!realMap.getSource(id)) realMap.addSource(id, { type: 'raster', tiles: tiles, tileSize: 256, attribution: opts.attribution || '' });
+          if (!realMap.getLayer(id)) realMap.addLayer({ id: id, type: 'raster', source: id });
+        };
+        if (realMap.isStyleLoaded()) doAdd(); else realMap.once('load', doAdd);
+        return wrapper;
+      },
+      remove: function () {
+        if (!addedToMap) return;
+        if (addedToMap.getLayer(id)) addedToMap.removeLayer(id);
+        if (addedToMap.getSource(id)) addedToMap.removeSource(id);
+      }
+    };
+    return wrapper;
+  }
+
+  function navLatLngBoundsShim(points) {
+    var minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
+    points.forEach(function (p) {
+      var lat = Array.isArray(p) ? p[0] : p.lat, lon = Array.isArray(p) ? p[1] : p.lon;
+      if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
+      if (lon < minLon) minLon = lon; if (lon > maxLon) maxLon = lon;
+    });
+    return { sw: [minLat, minLon], ne: [maxLat, maxLon] };
+  }
+
+  // A simple round dot marker (used only for the brief "permission
+  // confirmed" flash before active navigation actually starts) —
+  // implemented the same way as navMarkerShim (a styled DOM element),
+  // just with the circle drawn via CSS instead of an SVG icon string.
+  function navCircleMarkerShim(latlng, opts) {
+    opts = opts || {};
+    var el = document.createElement('div');
+    var d = (opts.radius || 8) * 2;
+    el.style.width = d + 'px';
+    el.style.height = d + 'px';
+    el.style.borderRadius = '50%';
+    el.style.background = opts.fillColor || '#4285F4';
+    el.style.opacity = opts.fillOpacity != null ? opts.fillOpacity : 1;
+    el.style.border = (opts.weight || 3) + 'px solid ' + (opts.color || '#fff');
+    el.style.boxSizing = 'border-box';
+    var mlMarker = new maplibregl.Marker({ element: el }).setLngLat([latlng[1], latlng[0]]);
+    return {
+      addTo: function (target) { mlMarker.addTo((target && target._maplibre) ? target._maplibre : target); return this; },
+      remove: function () { mlMarker.remove(); }
+    };
+  }
+
+  var L = {
+    marker: navMarkerShim,
+    circleMarker: navCircleMarkerShim,
+    divIcon: function (opts) { return opts; }, // just a descriptor consumed by navMarkerShim — MapLibre markers take a real DOM element, not a Leaflet Icon instance
+    geoJSON: navGeoJSONShim,
+    featureGroup: navFeatureGroupShim,
+    latLngBounds: navLatLngBoundsShim,
+    tileLayer: navTileLayerShim
+  };
+
+  // Wraps a real maplibregl.Map so every existing navMap.* call
+  // elsewhere in this file keeps working unchanged.
+  function navMapShim(realMap) {
+    return {
+      _maplibre: realMap,
+      setView: function (latlng, zoom, opts) {
+        var center = [latlng[1], latlng[0]];
+        if (opts && opts.animate === false) realMap.jumpTo({ center: center, zoom: zoom });
+        else realMap.easeTo({ center: center, zoom: zoom, duration: 300 });
+      },
+      removeLayer: function (layer) { if (layer && layer.remove) layer.remove(); },
+      fitBounds: function (bounds, opts) {
+        if (!bounds) return;
+        var pad = (opts && opts.padding) ? opts.padding[0] : 24;
+        realMap.fitBounds([[bounds.sw[1], bounds.sw[0]], [bounds.ne[1], bounds.ne[0]]], { padding: pad, duration: 300 });
+      },
+      invalidateSize: function () { realMap.resize(); },
+      on: function (evt, fn) { realMap.on(evt, fn); },
+      off: function (evt, fn) { realMap.off(evt, fn); },
+      // Native in MapLibre — no shimming needed, but exposed here so
+      // rotateNavMapToHeading's existing `navMap.setBearing` call (and
+      // the new setPitch for the 3D driving tilt) keep working the
+      // same way every other navMap.* method does.
+      setBearing: function (deg) { realMap.setBearing(deg); },
+      setPitch: function (deg) { realMap.setPitch(deg); },
+      remove: function () { realMap.remove(); }
+    };
+  }
+
+  var navSatelliteLayer = null; // no separate street layer anymore — the base MapLibre style itself IS the street map now
   function initNavMap() {
     var mapEl = document.getElementById('nav-map');
-    if (!mapEl || typeof L === 'undefined') return;
+    // maplibregl is the real external dependency now (L is this file's
+    // own shim, always defined) — this guards against the vendored
+    // script somehow failing to load, same intent as the original
+    // check had for Leaflet.
+    if (!mapEl || typeof maplibregl === 'undefined') return;
     if (navMap) { navMap.remove(); navMap = null; }
     navWaypointMarkers = {}; // the old map instance (and any markers on it) is gone
     navRouteLayer = null;
     navLocateMarker = null;
-    // REVERTED — real map rotation (leaflet-rotate plugin) caused a
-    // cascade of real, confirmed problems while actually driving: the
-    // car icon pointing sideways instead of forward, the recenter
-    // button not working, the position marker drifting off the road,
-    // the camera losing track of the car entirely. The plugin's own
-    // documentation describes itself as a "proof of concept", and this
-    // is now the third confirmed failure of an attempt at rotating the
-    // map (after two earlier CSS-transform attempts also failed).
-    // Fixed north-up, no rotation at all, is what was actually proven
-    // stable before any of these attempts — reliability while driving
-    // matters far more than a rotating camera, so this stays plain
-    // until (if ever) a genuinely solid rotation approach is found and
-    // very carefully verified, not guessed at again.
-    navMap = L.map(mapEl, { zoomControl: false }).setView([45.4642, 9.19], 6); // centered on Northern Italy by default
-    // CARTO's free "Voyager" style — light background, clear road/place
-    // labels, closer to the familiar look people already know from
-    // Google Maps than the plainer default OpenStreetMap tiles.
-    navStreetLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      attribution: '© OpenStreetMap contributors © CARTO',
-      maxZoom: 20,
-      subdomains: 'abcd'
+    // REVERTED, THEN RE-ENABLED — real map rotation was tried three
+    // times before this migration (two CSS-transform hacks, then the
+    // leaflet-rotate plugin) and confirmed broken on real devices each
+    // time — the car icon pointing sideways, the recenter button dying,
+    // the camera losing the car entirely. All three of those were
+    // trying to fake rotation on top of flat, pre-rendered raster
+    // tiles, which is fundamentally the wrong tool for it. MapLibre's
+    // bearing/pitch are native, first-class map properties — not a
+    // visual hack — which is the actual reason this is being tried
+    // again, on a genuinely different foundation, rather than a fourth
+    // attempt at the same broken approach. Still genuinely NOT verified
+    // live by me in this environment (no browser here) — needs real,
+    // careful on-device testing before being trusted, same as
+    // everything rotation-related always has in this app's history.
+    var realMlMap = new maplibregl.Map({
+      container: mapEl,
+      // OpenFreeMap's "liberty" style — free, no API key, no account,
+      // no card, no request limits (openfreemap.org) — the vector-tile
+      // equivalent of the CARTO Voyager raster tiles used before:
+      // light background, clear roads and labels.
+      style: 'https://tiles.openfreemap.org/styles/liberty',
+      center: [9.19, 45.4642], // MapLibre uses [lon, lat] — note the reversed order from every navMap.* call in this file, which all keep the [lat, lon] convention Leaflet used
+      zoom: 6,
+      pitch: 0,
+      bearing: 0,
+      attributionControl: { compact: true }
     });
-    // Esri's free World Imagery — real satellite/aerial photography, the
-    // same idea as switching Google Maps to satellite view.
+    navMap = navMapShim(realMlMap);
+    // Esri's free World Imagery — real satellite/aerial photography,
+    // added as a raster layer ON TOP of the vector street style when
+    // satellite mode is toggled on, rather than switching the whole
+    // style out — switching styles would wipe every route line/marker
+    // layer added afterward, needing them all rebuilt; layering
+    // satellite on top avoids that entirely.
     navSatelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
       attribution: 'Tiles © Esri',
       maxZoom: 19
     });
-    // The whole map gets torn down and rebuilt from scratch every time
-    // Navigatore is (re-)opened — always defaulting back to street tiles
-    // regardless of navShowingSatellite would silently reset the view
-    // (and desync it from the satellite button's own "on" state) every
-    // single time. Add whichever one actually matches the current mode.
-    (navShowingSatellite ? navSatelliteLayer : navStreetLayer).addTo(navMap);
+    if (navShowingSatellite) navSatelliteLayer.addTo(navMap);
     navMap.on('click', function (e) {
-      if (navPickingWaypointId) handleNavMapPick(e.latlng);
+      if (navPickingWaypointId) handleNavMapPick(e.lngLat);
     });
     // Re-drop markers for any waypoints already resolved from an earlier
     // visit to this screen (the map itself is fresh, but the trip plan
@@ -1337,10 +1623,24 @@
 
   var navShowingSatellite = false;
   function toggleNavSatelliteView() {
-    if (!navMap || !navStreetLayer || !navSatelliteLayer) return;
+    if (!navMap || !navSatelliteLayer) return;
     navShowingSatellite = !navShowingSatellite;
-    if (navShowingSatellite) { navMap.removeLayer(navStreetLayer); navSatelliteLayer.addTo(navMap); }
-    else { navMap.removeLayer(navSatelliteLayer); navStreetLayer.addTo(navMap); }
+    // No street layer to swap back in anymore — the base MapLibre style
+    // itself IS the street map, always underneath. Just add/remove the
+    // satellite raster layer on top of it.
+    if (navShowingSatellite) {
+      navSatelliteLayer.addTo(navMap);
+      // If a route is already drawn, bring it back above the satellite
+      // layer just added — MapLibre stacks layers in the order they
+      // were added, so without this, a route drawn BEFORE toggling
+      // satellite on would end up hidden underneath it.
+      if (navRouteLayer) { navRouteLayer.remove(); navRouteLayer.addTo(navMap); }
+      // Markers are DOM overlays, not MapLibre layers — they're always
+      // above raster/vector map layers regardless of add order, so no
+      // re-adding needed for them here, unlike the route line above.
+    } else {
+      navMap.removeLayer(navSatelliteLayer);
+    }
     // Both satellite buttons (the one shown before navigation starts,
     // and the separate one inside the active-navigation overlay) stay
     // in sync, whichever is currently visible — previously neither
@@ -2624,6 +2924,12 @@
     // once the first GPS heading arrives, since heading can stay null
     // for a while if the vehicle hasn't started moving yet.
     rotateNavMapToHeading(0);
+    // The 3D driving tilt — a genuine angled camera, not a flat
+    // top-down view, matching Google Maps' own look while actively
+    // navigating. Only during active navigation; the trip-planning map
+    // stays flat (pitch 0), same as Google Maps itself only tilts once
+    // you actually start driving, not while still picking a route.
+    if (navMap) navMap.setPitch(55);
     // Zoom in close right away using a FRESH position fetch — this used
     // to jump straight to navSearchFocusPoint, which is only ever
     // captured ONCE, back when the Navigatore screen was first opened.
@@ -2665,22 +2971,20 @@
 
   // Fixed north-up map, no rotation at all — see the note on
   // initNavMap for why (a real, confirmed cascade of driving-time bugs
-  // traced back to the rotation plugin, reverted). Since the map
-  // itself no longer turns to match the direction of travel, the
-  // position marker (the car icon) needs to rotate ON ITS OWN to show
-  // which way it's actually facing — this is exactly what was missing
-  // while the rotation plugin was active (the marker was deliberately
-  // left non-rotating back then, relying on the map to do that job
-  // instead) and is very likely why the car appeared to be "facing
-  // sideways" while driving straight.
+  // Now genuinely native (MapLibre's own setBearing/setPitch), not a
+  // hack — the map itself rotates to match the direction of travel
+  // (heading always points "up" on screen), same as Google Maps. This
+  // is exactly what three earlier attempts (two CSS transforms, then
+  // the leaflet-rotate plugin) tried and failed at on flat raster
+  // tiles; MapLibre supports this as a first-class, core map property,
+  // which is the entire reason for this migration. The position marker
+  // no longer needs its own rotation — it stays visually "facing up"
+  // on screen by default, which is now correct since the MAP is what
+  // turns underneath it.
   var navLastHeading = 0;
   function rotateNavMapToHeading(heading) {
     if (heading != null && !isNaN(heading)) navLastHeading = heading;
-    if (navPositionMarker) {
-      var iconEl = navPositionMarker.getElement();
-      var innerDiv = iconEl && iconEl.querySelector('div');
-      if (innerDiv) innerDiv.style.transform = 'rotate(' + navLastHeading + 'deg)';
-    }
+    if (navMap) navMap.setBearing(navLastHeading);
     // Plain, read-only bearing readout (N/NE/E/…) — informational only,
     // not a button with a mode to toggle.
     var needle = document.getElementById('nav-compass-needle');
@@ -3145,6 +3449,7 @@
     if (navPositionMarker) { navMap.removeLayer(navPositionMarker); navPositionMarker = null; }
     navMap.off('dragstart', navOnManualMapDrag);
     if (navMap.setBearing) navMap.setBearing(0); // back to plain north-up once navigation ends
+    if (navMap.setPitch) navMap.setPitch(0); // and back to flat, top-down — the tilt is only for actively driving
     document.getElementById('nav-recenter-btn').style.display = 'none';
     var arrivalPrompt = document.getElementById('nav-arrival-prompt');
     if (arrivalPrompt) arrivalPrompt.remove();
