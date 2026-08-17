@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v220") {
+          if (data && data.v && data.v !== "pt-foglio-v221") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v220"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v221"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1131,7 +1131,7 @@
   // twice a second (not every frame — that would make the overlay
   // itself the bottleneck). TEMPORARY — remove once the real cause is
   // confirmed.
-  var navProf = { jumpToMs: 0, trimMs: 0, otherMs: 0, frames: 0, lastReport: 0 };
+  var navProf = { jumpToMs: 0, trimMs: 0, otherMs: 0, frames: 0, lastReport: 0, frameStatsText: null };
   function navShowProfileOverlay() {
     var el = document.getElementById('nav-profile-overlay');
     if (!el) {
@@ -1225,14 +1225,23 @@
     if (needle) needle.textContent = headingToCompassLabel(navSmooth.bearing);
 
     // DIAGNOSTIC — accumulate real timing, report twice a second.
+    // BUG FOUND in this diagnostic code itself (not the app): this
+    // used to fully overwrite el.textContent every 500ms, wiping out
+    // whatever the separate GPS-tick line (added by
+    // onActiveNavPosition, on its own real-GPS-tick cadence) had just
+    // written — meaning that line was only ever visible for a brief
+    // instant right after a GPS tick, before this 500ms refresh wiped
+    // it again. That's why it never showed up in a screenshot. Fixed
+    // by keeping the two pieces (frame stats here, GPS-tick line
+    // separately) in their own tracked variables and always rendering
+    // BOTH together, regardless of which one just changed.
     navProf.jumpToMs += (tAfterJump - tBeforeJump);
     navProf.trimMs += (tAfterTrim - tAfterJump);
     navProf.otherMs += (tBeforeJump - tStart);
     navProf.frames++;
     if (!navProf.lastReport || timestamp - navProf.lastReport > 500) {
-      var el = navShowProfileOverlay();
       var fps = navProf.frames / ((timestamp - navProf.lastReport) / 1000 || 0.5);
-      el.textContent =
+      navProf.frameStatsText =
         'FPS: ' + fps.toFixed(0) + '\n' +
         'jumpTo avg: ' + (navProf.jumpToMs / navProf.frames).toFixed(2) + 'ms\n' +
         'trim avg: ' + (navProf.trimMs / navProf.frames).toFixed(2) + 'ms\n' +
@@ -1240,7 +1249,18 @@
         'frame total: ' + ((navProf.jumpToMs + navProf.trimMs + navProf.otherMs) / navProf.frames).toFixed(2) + 'ms';
       navProf.jumpToMs = navProf.trimMs = navProf.otherMs = navProf.frames = 0;
       navProf.lastReport = timestamp;
+      navRenderProfileOverlay();
     }
+  }
+
+  // Renders BOTH pieces together every time — see the bug note above
+  // for why this can't just be "whoever updates last wins".
+  function navRenderProfileOverlay() {
+    var el = navShowProfileOverlay();
+    var parts = [];
+    if (navProf.frameStatsText) parts.push(navProf.frameStatsText);
+    if (navGpsTickProf.lastLine) parts.push(navGpsTickProf.lastLine);
+    el.textContent = parts.join('\n');
   }
 
   function navStartSmoothCamera() {
@@ -3835,22 +3855,20 @@
   // The earlier profiler only ever measured the animation loop —
   // never this — so "our code isn't the bottleneck" was only ever a
   // half-true conclusion. This closes that gap.
-  var navGpsTickProf = { totalMs: 0, ticks: 0 };
+  var navGpsTickProf = { totalMs: 0, ticks: 0, lastLine: null };
   function onActiveNavPosition(position) {
     var tGpsStart = performance.now();
     onActiveNavPositionInner(position);
     var tGpsEnd = performance.now();
     navGpsTickProf.totalMs += (tGpsEnd - tGpsStart);
     navGpsTickProf.ticks++;
-    var el = navShowProfileOverlay();
-    var existing = el.textContent || '';
-    var gpsLine = 'GPS tick: ' + (tGpsEnd - tGpsStart).toFixed(1) + 'ms (avg ' + (navGpsTickProf.totalMs / navGpsTickProf.ticks).toFixed(1) + 'ms over ' + navGpsTickProf.ticks + ')';
-    // Appended as its own persistent line, separate from the
-    // frame-loop stats above (which overwrite the whole block every
-    // 500ms) — this one updates once per real GPS tick instead, so it
-    // needs to survive those overwrites rather than being wiped by
-    // them.
-    el.textContent = existing.split('\n').filter(function (l) { return l.indexOf('GPS tick') !== 0; }).join('\n') + '\n' + gpsLine;
+    // Stored, then rendered through the SAME shared function the
+    // frame loop uses (navRenderProfileOverlay) — see the bug note
+    // there for why blindly overwriting textContent from two
+    // independent places was silently erasing this line before it
+    // could ever be seen.
+    navGpsTickProf.lastLine = 'GPS tick: ' + (tGpsEnd - tGpsStart).toFixed(1) + 'ms (avg ' + (navGpsTickProf.totalMs / navGpsTickProf.ticks).toFixed(1) + 'ms over ' + navGpsTickProf.ticks + ')';
+    navRenderProfileOverlay();
   }
 
   function onActiveNavPositionInner(position) {
