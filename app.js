@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v205") {
+          if (data && data.v && data.v !== "pt-foglio-v206") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v205"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v206"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1090,11 +1090,18 @@
     var dt = navSmooth.lastFrameTime ? Math.min((timestamp - navSmooth.lastFrameTime) / 1000, 0.25) : 0.016; // capped, in case the tab was backgrounded a moment
     navSmooth.lastFrameTime = timestamp;
     if (navSmooth.lat == null) { navSmooth.lat = navSmooth.targetLat; navSmooth.lon = navSmooth.targetLon; navSmooth.bearing = navSmooth.targetBearing || 0; }
-    // Exponential smoothing — settles toward a new target over roughly
-    // a quarter-second of continuous motion, framerate-independent
-    // (uses real elapsed time, not a fixed per-frame step, so it
-    // behaves the same on a 60Hz or 120Hz screen).
-    var rate = 5;
+    // Exponential smoothing — settling too FAST relative to how often
+    // real GPS fixes actually arrive (roughly once every 1-2s) was
+    // exactly the remaining "moves, then pauses" pattern reported: at
+    // the old rate (5), the interpolation reached each new target in
+    // well under half a second, then sat completely still for the
+    // rest of that 1-2s gap waiting on the next real fix — indistinguishable
+    // from stop-start motion despite running every frame. Slowed
+    // down so it's still visibly, continuously easing toward the
+    // target for close to the whole real gap between fixes, rather
+    // than arriving early and idling. Framerate-independent either
+    // way (uses real elapsed time, not a fixed per-frame step).
+    var rate = 2;
     var t = 1 - Math.exp(-rate * dt);
     navSmooth.lat += (navSmooth.targetLat - navSmooth.lat) * t;
     navSmooth.lon += (navSmooth.targetLon - navSmooth.lon) * t;
@@ -1108,7 +1115,18 @@
       // every frame; layering MapLibre's own eased transition on top
       // of a value that's already being smoothly interpolated here
       // would just be double-smoothing against a moving target.
-      navMap._maplibre.jumpTo({ center: [navSmooth.lon, navSmooth.lat], bearing: navSmooth.bearing });
+      // padding pushes the driver's position down toward the lower
+      // portion of the screen instead of dead-center — was reported
+      // sitting too high, with too little of the road ahead visible.
+      // A large bottom padding biases MapLibre's own "center" toward
+      // the top of the remaining space, so the marker itself lands
+      // noticeably lower — more lookahead up top, matching how every
+      // real turn-by-turn navigation app frames the driver's position.
+      navMap._maplibre.jumpTo({
+        center: [navSmooth.lon, navSmooth.lat],
+        bearing: navSmooth.bearing,
+        padding: { top: 0, bottom: 260, left: 0, right: 0 }
+      });
     }
     // The already-driven part of the route line only used to erase
     // itself on real GPS ticks (roughly once every 1-2s) — while the
@@ -1116,13 +1134,14 @@
     // same loop. That mismatch is exactly what reads as the blue line
     // "lagging behind" the arrow — the marker visibly pulls ahead of
     // where the line has actually been trimmed to, for up to a couple
-    // of real seconds at a time. Throttled to every ~250ms (not every
-    // single frame — that would mean 60 setData calls/sec on the
-    // route source, real, avoidable GPU/CPU cost for no visible
-    // benefit past a point) using the same continuously-interpolated
+    // of real seconds at a time. Throttled (not every single frame —
+    // that would mean 60 setData calls/sec on the route source, real,
+    // avoidable GPU/CPU cost for no visible benefit past a point) to
+    // every ~120ms now (was 250ms — still visibly steppy at that rate,
+    // tightened further) using the same continuously-interpolated
     // position already driving the marker, so the trimmed line keeps
     // much closer pace with what's actually on screen.
-    if (!navSmooth.lastTrimTime || timestamp - navSmooth.lastTrimTime > 250) {
+    if (!navSmooth.lastTrimTime || timestamp - navSmooth.lastTrimTime > 120) {
       navSmooth.lastTrimTime = timestamp;
       if (typeof updateCurrentLegTrim === 'function') updateCurrentLegTrim(navSmooth.lat, navSmooth.lon);
     }
