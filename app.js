@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v184") {
+          if (data && data.v && data.v !== "pt-foglio-v185") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v184"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v185"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1041,6 +1041,65 @@
   ];
 
   var navMap = null, navRouteLayer = null;
+
+  // Continuous smoothing for the marker + camera during active
+  // navigation — real GPS fixes only arrive every 1-2 real seconds no
+  // matter what, but this runs every animation frame (~60/sec),
+  // gliding the DISPLAYED position toward each new fix using
+  // exponential smoothing, rather than only moving when a real fix
+  // lands. Genuinely closer to Google/Waze-level fluidity than
+  // periodic eased jumps ever can be, since those always have to
+  // choose between "fast but stops between fixes" and "long but still
+  // discretely re-triggered each time" — this instead is ALWAYS
+  // moving, continuously, chasing wherever the latest real fix says
+  // to go. navSmooth.targetLat/Lon/Bearing are set from real GPS data
+  // (see onActiveNavPosition); navSmooth.lat/lon/bearing are what's
+  // actually drawn on screen each frame.
+  var navSmooth = { lat: null, lon: null, bearing: null, targetLat: null, targetLon: null, targetBearing: null, rafId: null, lastFrameTime: 0 };
+
+  function navSmoothCameraFrame(timestamp) {
+    navSmooth.rafId = requestAnimationFrame(navSmoothCameraFrame);
+    if (navSmooth.targetLat == null || !navMap || !navMap._maplibre) return;
+    var dt = navSmooth.lastFrameTime ? Math.min((timestamp - navSmooth.lastFrameTime) / 1000, 0.25) : 0.016; // capped, in case the tab was backgrounded a moment
+    navSmooth.lastFrameTime = timestamp;
+    if (navSmooth.lat == null) { navSmooth.lat = navSmooth.targetLat; navSmooth.lon = navSmooth.targetLon; navSmooth.bearing = navSmooth.targetBearing || 0; }
+    // Exponential smoothing — settles toward a new target over roughly
+    // a quarter-second of continuous motion, framerate-independent
+    // (uses real elapsed time, not a fixed per-frame step, so it
+    // behaves the same on a 60Hz or 120Hz screen).
+    var rate = 5;
+    var t = 1 - Math.exp(-rate * dt);
+    navSmooth.lat += (navSmooth.targetLat - navSmooth.lat) * t;
+    navSmooth.lon += (navSmooth.targetLon - navSmooth.lon) * t;
+    if (navSmooth.targetBearing != null) {
+      var diff = ((navSmooth.targetBearing - navSmooth.bearing + 540) % 360) - 180; // shortest signed angle, so it never spins the "long way round" through 0/360
+      navSmooth.bearing = (navSmooth.bearing + diff * t + 360) % 360;
+    }
+    if (navPositionMarker) navPositionMarker.setLatLng([navSmooth.lat, navSmooth.lon]);
+    if (navFollowingUser) {
+      // jumpTo, not easeTo — this loop IS the animation now, running
+      // every frame; layering MapLibre's own eased transition on top
+      // of a value that's already being smoothly interpolated here
+      // would just be double-smoothing against a moving target.
+      navMap._maplibre.jumpTo({ center: [navSmooth.lon, navSmooth.lat], bearing: navSmooth.bearing });
+    }
+    var needle = document.getElementById('nav-compass-needle');
+    if (needle) needle.textContent = headingToCompassLabel(navSmooth.bearing);
+  }
+
+  function navStartSmoothCamera() {
+    if (navSmooth.rafId) return; // already running
+    navSmooth.lat = navSmooth.lon = navSmooth.bearing = null; // re-seed from the next real fix, not wherever a previous session left off
+    navSmooth.lastFrameTime = 0;
+    navSmooth.rafId = requestAnimationFrame(navSmoothCameraFrame);
+  }
+
+  function navStopSmoothCamera() {
+    if (navSmooth.rafId) cancelAnimationFrame(navSmooth.rafId);
+    navSmooth.rafId = null;
+    navSmooth.targetLat = navSmooth.targetLon = navSmooth.targetBearing = null;
+  }
+
   var navLocateMarker = null; // "you are here" marker dropped by the standalone locate button, kept separate from the active-navigation position marker
   var navSearchFocusPoint = null; // driver's GPS position, cached once per Navigatore visit, used to bias/rank geocoding results toward nearby places first — without this, a generic query like "Via Roma 5" ranks results from anywhere in Italy with no sense of which one is actually relevant
 
@@ -1232,7 +1291,16 @@
       // Instant jump using whatever position is already known — no
       // waiting on anything, so there's immediate visual feedback the
       // tap did something, even before a fresh GPS read comes back.
-      if (navLastPosition) navMap.setView([navLastPosition.lat, navLastPosition.lon], 18, { animate: false });
+      // Sets navSmooth.lat/lon directly (not just the target) — the
+      // continuous smoothing loop runs every frame regardless, and
+      // without this, it would immediately start gliding BACK from
+      // wherever the driver had manually dragged to, toward the OLD
+      // target, fighting this instant jump on the very next frame.
+      if (navLastPosition) {
+        navMap.setView([navLastPosition.lat, navLastPosition.lon], 18, { animate: false });
+        navSmooth.lat = navSmooth.targetLat = navLastPosition.lat;
+        navSmooth.lon = navSmooth.targetLon = navLastPosition.lon;
+      }
       // navLastPosition only updates whenever the background watch
       // happens to fire next — it can genuinely be several seconds
       // stale (this was very likely why recentering felt like it took
@@ -1243,7 +1311,11 @@
       // uses — refines the view immediately instead of waiting on that.
       currentPosition().then(function (p) {
         navLastPosition = { lat: p.lat, lon: p.lon };
-        if (navFollowingUser) navMap.setView([p.lat, p.lon], 18, { animate: false });
+        if (navFollowingUser) {
+          navMap.setView([p.lat, p.lon], 18, { animate: false });
+          navSmooth.lat = navSmooth.targetLat = p.lat;
+          navSmooth.lon = navSmooth.targetLon = p.lon;
+        }
       }).catch(function () { /* the instant jump above already used the best position available — nothing more to do if a fresh read fails */ });
     });
 
@@ -1630,31 +1702,15 @@
         if (opts && opts.animate === false) realMap.jumpTo({ center: center, zoom: zoom });
         else realMap.easeTo({ center: center, zoom: zoom, duration: 300 });
       },
-      // Updates center + zoom + bearing all together, in ONE camera
-      // transition, instead of two separate calls (setView, then
-      // setBearing right after) — this is what the live-tracking
-      // camera-follow uses on every GPS update during active
-      // navigation. Two separate easeTo/setBearing calls on the same
-      // tick meant the camera visibly moved in two small discrete
-      // steps rather than one smooth motion, and cost an extra
-      // internal render pass every single tick.
-      //
-      // Duration: real GPS fixes during navigation arrive roughly once
-      // every 1-2 real seconds — no camera transition, however fast,
-      // changes that. A SHORT transition (180ms, tried first) actually
-      // made this feel WORSE, not better: the camera would snap
-      // through its move quickly and then sit completely still for
-      // most of the ~1-2s gap until the next fix, which reads as
-      // exactly the "jumping between still images" feeling reported —
-      // motion, then a stall, repeating. A LONGER duration (900ms) that
-      // spans nearly the whole real gap between fixes means the camera
-      // is continuously, visibly moving the entire time, right up until
-      // the next fix arrives and the next transition picks up smoothly
-      // from wherever the previous one currently is — reads as one
-      // continuous glide rather than a series of small hops.
-      easeCameraTo: function (latlng, zoom, bearing) {
-        realMap.easeTo({ center: [latlng[1], latlng[0]], zoom: zoom, bearing: bearing, duration: 900 });
-      },
+      // Superseded by the continuous per-frame smoothing loop
+      // (navSmoothCameraFrame) — that runs every animation frame
+      // rather than only reacting to each discrete GPS tick, which
+      // turned out to be genuinely more fluid than any fixed-duration
+      // eased transition could be (tried both a short 180ms and a
+      // longer 900ms version of this before replacing it entirely).
+      // Kept removed rather than left as dead code so there's no
+      // confusion about which mechanism is actually driving the
+      // camera during active navigation.
       removeLayer: function (layer) { if (layer && layer.remove) layer.remove(); },
       fitBounds: function (bounds, opts) {
         if (!bounds) return;
@@ -3095,6 +3151,12 @@
       if (navMap) navMap.setView([p.lat, p.lon], 18, { animate: true });
     }).catch(function () { /* watchPosition below will catch up with a real fix shortly */ });
 
+    // Starts the continuous per-frame smoothing loop for the marker +
+    // camera — see navSmoothCameraFrame above for why this is what
+    // actually makes movement feel fluid, not just periodic eased
+    // jumps on each GPS tick.
+    navStartSmoothCamera();
+
     updateActiveInstructionBanner();
 
     // Auto-follow starts on — the map re-centers on the driver as they
@@ -3132,16 +3194,13 @@
   // on screen by default, which is now correct since the MAP is what
   // turns underneath it.
   var navLastHeading = 0;
-  // skipMapBearing (optional): updates navLastHeading and the compass
-  // needle label WITHOUT touching the map's actual bearing — used by
-  // the live camera-follow tick, which already sets bearing itself as
-  // part of ONE combined easeCameraTo (position+zoom+bearing together,
-  // a single camera transition, not two separate ones) — calling
-  // setBearing here too would just be a redundant second call doing
-  // the same thing the combined transition already did.
-  function rotateNavMapToHeading(heading, skipMapBearing) {
+  // Only called once now, at the very start of active navigation
+  // (setting bearing to 0 before the first real fix arrives) — the
+  // continuous per-frame smoothing loop (navSmoothCameraFrame) owns
+  // bearing updates for the rest of the trip.
+  function rotateNavMapToHeading(heading) {
     if (heading != null && !isNaN(heading)) navLastHeading = heading;
-    if (navMap && !skipMapBearing) navMap.setBearing(navLastHeading);
+    if (navMap) navMap.setBearing(navLastHeading);
     // Plain, read-only bearing readout (N/NE/E/…) — informational only,
     // not a button with a mode to toggle.
     var needle = document.getElementById('nav-compass-needle');
@@ -3307,20 +3366,20 @@
       }
     }
 
-    // Update the EXISTING marker's position instead of destroying and
-    // recreating it on every GPS fix — the previous version tore down
-    // and rebuilt the marker each time, which teleports it instantly
-    // rather than letting it move. Combined with the CSS transition on
-    // .nav-heading-arrow below, setLatLng() here glides smoothly
-    // between real GPS fixes (roughly once every 1-2s) instead of
-    // jumping — this is the single biggest contributor to the
-    // "sacadat" (jerky) feel compared to Google Maps' own fluid camera.
-    // Uses displayLat/displayLon (map-matched when confidently on the
-    // route, raw GPS otherwise) — not the raw lat/lon — so the icon
-    // sits ON the road instead of visibly wobbling beside it.
-    if (navPositionMarker) {
-      navPositionMarker.setLatLng([displayLat, displayLon]);
-    } else {
+    // Marker + camera no longer moved directly here — instead, this
+    // just sets the TARGET the continuous smoothing loop
+    // (navSmoothCameraFrame, running every animation frame) is
+    // chasing. That loop is what actually calls setLatLng/jumpTo, at
+    // ~60fps, gliding continuously toward whatever the latest real fix
+    // says, rather than only moving in discrete steps once per GPS
+    // update. Uses displayLat/displayLon (map-matched when confidently
+    // on the route, raw GPS otherwise) — not the raw lat/lon — so the
+    // icon and camera track the road instead of wobbling with raw GPS
+    // noise.
+    navSmooth.targetLat = displayLat;
+    navSmooth.targetLon = displayLon;
+    if (heading != null && !isNaN(heading)) navSmooth.targetBearing = heading;
+    if (!navPositionMarker) {
       // A top-down icon matching the actually-configured vehicle —
       // furgone gets a van silhouette, camion/cassonato/autoarticolato
       // get a truck-with-trailer silhouette (a visibly separate cab and
@@ -3363,21 +3422,9 @@
       }
     }
 
-    // Follows the map-matched position, same reasoning as the marker —
-    // otherwise the camera itself would visibly wobble in sync with
-    // raw GPS noise even while the icon on top of it stays snapped to
-    // the road. Position AND bearing updated together, in one
-    // transition (easeCameraTo) — not two separate calls — for a
-    // single smooth camera motion instead of two small discrete steps.
-    var followingWithBearing = navFollowingUser && navMap;
-    if (followingWithBearing) {
-      navMap.easeCameraTo([displayLat, displayLon], 18, (heading != null && !isNaN(heading)) ? heading : navLastHeading);
-    }
-    // skipMapBearing=true here when the combined call above already
-    // set it, so this only updates navLastHeading + the compass label
-    // text — never a second, redundant navMap.setBearing() call on
-    // the same tick.
-    if (heading != null && !isNaN(heading)) rotateNavMapToHeading(heading, followingWithBearing);
+    // Camera + bearing are handled continuously by navSmoothCameraFrame
+    // now (see navSmooth.targetLat/Lon/Bearing set above) — nothing
+    // else to do here on this tick.
 
     // Advance through steps as each maneuver point is reached (within
     // ~40m — GPS on a phone isn't precise enough to require reaching
@@ -3638,6 +3685,7 @@
   }
 
   function stopActiveNavigation() {
+    navStopSmoothCamera();
     if (navWatchId != null) { navigator.geolocation.clearWatch(navWatchId); navWatchId = null; }
     if (navPositionMarker) { navMap.removeLayer(navPositionMarker); navPositionMarker = null; }
     navMap.off('dragstart', navOnManualMapDrag);
