@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v194") {
+          if (data && data.v && data.v !== "pt-foglio-v195") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v194"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v195"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1846,6 +1846,19 @@
     navWaypointMarkers = {}; // the old map instance (and any markers on it) is gone
     navRouteLayer = null;
     navLocateMarker = null;
+    // REAL BUG, confirmed: this was the one marker NOT reset here,
+    // unlike every other one on this screen. Whenever the map gets
+    // rebuilt from scratch (e.g. navigating away from Navigatore and
+    // back while a trip was already active) navPositionMarker kept
+    // pointing at the OLD marker object, now orphaned on a map
+    // instance that no longer exists — invisible, but still truthy.
+    // The very next GPS update's `if (!navPositionMarker) { …create a
+    // fresh one… }` check then saw something already "there" and
+    // never created a real replacement on the NEW map at all — the
+    // actual root cause of the arrow never showing, confirmed after
+    // ruling out caching (retested fresh via browser, still missing)
+    // and the SVG rendering itself (verified correct on main).
+    navPositionMarker = null;
     // REVERTED, THEN RE-ENABLED — real map rotation was tried three
     // times before this migration (two CSS-transform hacks, then the
     // leaflet-rotate plugin) and confirmed broken on real devices each
