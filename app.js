@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v193") {
+          if (data && data.v && data.v !== "pt-foglio-v194") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v193"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v194"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -6376,7 +6376,27 @@
 
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('sw.js').then(function (registration) {
+        // sw.js itself tied to APP_VERSION as a query string — a real,
+        // confirmed case where a driver kept seeing genuinely old
+        // behavior (an old marker icon) even after force-stopping the
+        // installed app AND clearing its cache from Android's own
+        // Settings screen. That "clear cache" action clears the
+        // installed shortcut's OWN minimal storage, but NOT Chrome's
+        // separate, underlying Cache Storage for the site itself
+        // (where the actual cached sw.js/app.js live) — a real,
+        // documented Android/Chrome WebAPK quirk, not something a
+        // driver using the app normally would know to work around.
+        // registration.update() (below) checks whether sw.js's BYTES
+        // changed, but that check can still be defeated by an
+        // intermediate cache (GitHub Pages' own CDN, an ISP or
+        // corporate proxy, anything sitting between the phone and the
+        // origin server) serving a stale copy of sw.js itself with
+        // caching headers that make it look unchanged. Registering
+        // with a version-tagged URL instead means an actual version
+        // bump always requests a genuinely DIFFERENT URL, which no
+        // cache anywhere can satisfy from a stale entry — it has to
+        // hit the real origin.
+        navigator.serviceWorker.register('sw.js?v=' + APP_VERSION).then(function (registration) {
           function checkForUpdate() { registration.update().catch(function () { /* offline, ignore */ }); }
 
           checkForUpdate();
