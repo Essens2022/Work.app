@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v210") {
+          if (data && data.v && data.v !== "pt-foglio-v211") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v210"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v211"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1776,7 +1776,22 @@
         var doAdd = function () {
           addedToMap = realMap;
           var resolvedBeforeId = typeof beforeId === 'function' ? beforeId(realMap) : beforeId;
-          if (!realMap.getSource(id)) realMap.addSource(id, { type: 'raster', tiles: tiles, tileSize: 256, attribution: opts.attribution || '' });
+          // REAL BUG, confirmed: opts.maxZoom was accepted as a
+          // parameter but never actually passed through to the real
+          // MapLibre source — addSource had no maxzoom at all, so
+          // MapLibre used its own default (22) instead of the actual
+          // limit of what Esri's imagery serves in a given area.
+          // Without an explicit maxzoom, MapLibre doesn't know to
+          // "overzoom" (keep showing the last available zoom level's
+          // tile, scaled up, once past it) — it just keeps requesting
+          // brand new tiles at every zoom level the user reaches, and
+          // once those requests come back empty for a zoom Esri
+          // doesn't actually have data at, the map shows exactly the
+          // "Map data not yet available" placeholder that was
+          // reported. Setting maxzoom here is what tells MapLibre
+          // "stop requesting new tiles past this point, reuse what
+          // you already have" — genuine overzoom, not a blank gap.
+          if (!realMap.getSource(id)) realMap.addSource(id, { type: 'raster', tiles: tiles, tileSize: 256, attribution: opts.attribution || '', maxzoom: opts.maxZoom || 19 });
           if (!realMap.getLayer(id)) realMap.addLayer({ id: id, type: 'raster', source: id }, resolvedBeforeId);
         };
         navRunWhenStyleReady(realMap, doAdd);
