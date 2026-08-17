@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v197") {
+          if (data && data.v && data.v !== "pt-foglio-v198") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v197"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v198"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1702,6 +1702,27 @@
           if (cb) b = b ? navShimUnionBounds(b, cb) : cb;
         });
         return b;
+      },
+      // THE REAL BUG, finally confirmed via a live error report:
+      // drawColorCodedRoute (PR #225, the Google-style two-tone route
+      // line) started returning a featureGroup of TWO layers (casing +
+      // fill) instead of a single geoJSON layer — but
+      // updateCurrentLegTrim (PR #217's performance optimization)
+      // still called .setData() directly on that return value every
+      // single GPS tick, expecting the OLD single-layer shape.
+      // featureGroups never had a setData() method at all — every
+      // single position update threw "navCurrentLegLayer.setData is
+      // not a function", ending onActiveNavPosition right there,
+      // before it ever got as far as the position-marker code that
+      // came after it in the function. This is what the arrow being
+      // missing actually was the whole time — not a rendering bug, not
+      // a caching issue, a plain crash. Fixed here at the shim level:
+      // forwards setData to every child that has one (both the casing
+      // and fill layers), keeping them in sync together.
+      setData: function (newFeature) {
+        children.forEach(function (child) {
+          if (child.setData) child.setData(newFeature);
+        });
       }
     };
     return wrapper;
@@ -3310,7 +3331,6 @@
     // auto-reload while a driver is actively mid-navigation — see the
     // comment there for why.
     window.__navActiveNavigationRunning = true;
-    window.__navDebugSkipToastShown = false; // DIAGNOSTIC BUILD — reset each fresh Avvia so the one-time "already existed" toast can fire again for this new session
     // The "la mia posizione" button's own marker (a plain dot) was
     // never being removed here — if it had been tapped while still
     // planning the trip, it just stayed on the map, showing alongside
@@ -3487,24 +3507,7 @@
       '</svg>';
   }
 
-  // DIAGNOSTIC BUILD — the position-marker toasts added in a previous
-  // diagnostic pass never fired AT ALL (not "created OK", not an
-  // error, not "already existed") — meaning execution never even
-  // reached that code, which can only happen if something EARLIER in
-  // this same function throws first. This wraps the WHOLE function
-  // body (renamed to onActiveNavPositionInner below) in one top-level
-  // try/catch, so whatever is actually failing — wherever it is —
-  // gets reported directly via toast() instead of failing silently.
-  // TEMPORARY — remove once the real cause is confirmed.
   function onActiveNavPosition(position) {
-    try {
-      onActiveNavPositionInner(position);
-    } catch (e) {
-      toast('DEBUG ERRORE onActiveNavPosition: ' + (e && e.message ? e.message : String(e)) + ' | riga: ' + (e && e.stack ? e.stack.split('\n')[1] : '?'));
-    }
-  }
-
-  function onActiveNavPositionInner(position) {
     var lat = position.coords.latitude, lon = position.coords.longitude;
     var heading = position.coords.heading;
     navLastPosition = { lat: lat, lon: lon };
@@ -3630,36 +3633,17 @@
     navSmooth.targetLon = displayLon;
     if (heading != null && !isNaN(heading)) navSmooth.targetBearing = heading;
     if (!navPositionMarker) {
-      // DIAGNOSTIC BUILD — the arrow icon has been reported missing
-      // (a plain circle shows instead) across multiple already-merged
-      // fix attempts, none of which resolved it when actually tested.
-      // Rather than guess a fourth time with no way to verify, this
-      // wraps marker creation in try/catch and reports directly via
-      // toast() — the one channel available to see what's actually
-      // happening on the real device, with no console/devtools access
-      // otherwise. Meant to be temporary; remove once the real cause
-      // is confirmed.
-      try {
-        navPositionMarker = L.marker([displayLat, displayLon], {
-          icon: L.divIcon({
-            className: 'nav-heading-arrow',
-            html: '<div>' + navPositionMarkerSvg() + '</div>',
-            iconSize: [34, 34], iconAnchor: [17, 17]
-          })
-        }).addTo(navMap);
-        toast('DEBUG: marker creato OK');
-      } catch (markerErr) {
-        toast('DEBUG ERRORE marker: ' + (markerErr && markerErr.message ? markerErr.message : String(markerErr)));
-      }
-    } else if (!window.__navDebugSkipToastShown) {
-      // Only once per session (not every GPS tick) — confirms the
-      // OTHER branch: a marker object already existed, so creation was
-      // skipped entirely. If this shows instead of "marker creato OK",
-      // the fix in PR #230 (resetting navPositionMarker in initNavMap)
-      // either didn't take effect or there's still another path
-      // leaving a stale reference behind.
-      window.__navDebugSkipToastShown = true;
-      toast('DEBUG: marker gia esistente, skip creazione');
+      // A directional arrow marking the driver's live position — the
+      // map itself rotates to match heading (see rotateNavMapToHeading
+      // / the smoothing loop), so this stays visually "pointing up" on
+      // screen at all times, same as Google Maps' own convention.
+      navPositionMarker = L.marker([displayLat, displayLon], {
+        icon: L.divIcon({
+          className: 'nav-heading-arrow',
+          html: '<div>' + navPositionMarkerSvg() + '</div>',
+          iconSize: [34, 34], iconAnchor: [17, 17]
+        })
+      }).addTo(navMap);
     }
 
     // Multi-stop trip — offer to confirm arrival once genuinely close
