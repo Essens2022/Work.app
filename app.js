@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v175") {
+          if (data && data.v && data.v !== "pt-foglio-v176") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v175"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v176"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2531,8 +2531,11 @@
 
   // Shared between starting navigation fresh and recalculating
   // mid-trip (rerouteFromCurrentPosition) — flattens a route feature's
-  // turn-by-turn segments into the simple {instruction, type, lat, lon}
-  // list the instruction banner reads from.
+  // turn-by-turn segments into the simple
+  // {instruction, type, lat, lon, distance, duration} list the
+  // instruction banner reads from. distance/duration (ORS provides
+  // both per step) are what make a genuinely LIVE eta/remaining-distance
+  // possible — see updateActiveInstructionBanner.
   function buildNavActiveSteps(feature) {
     var coords = feature.geometry.coordinates; // [lon, lat] pairs along the whole route
     var segments = feature.properties.segments || [];
@@ -2541,7 +2544,7 @@
       (seg.steps || []).forEach(function (step) {
         var wp = step.way_points[0];
         var c = coords[wp];
-        if (c) steps.push({ instruction: step.instruction, type: step.type, lat: c[1], lon: c[0] });
+        if (c) steps.push({ instruction: step.instruction, type: step.type, lat: c[1], lon: c[0], distance: step.distance || 0, duration: step.duration || 0 });
       });
     });
     return steps;
@@ -2900,15 +2903,34 @@
       var distM = haversineKm({ lat: lat, lon: lon }, { lat: step.lat, lon: step.lon }) * 1000;
       document.getElementById('nav-instr-dist').textContent = distM < 1000 ? Math.round(distM) + ' m' : (distM / 1000).toFixed(1) + ' km';
     }
-    var props = navActiveFeature.properties.summary;
-    var minutes = Math.round(props.duration / 60);
+    // LIVE remaining eta/distance — sum of the distance+duration of
+    // every step from here to the end, not the fixed full-trip total
+    // from when the route was first calculated. Previously "tempo" and
+    // "distanza" never actually decreased during a trip — they showed
+    // the same number the whole way, even five minutes from arrival.
+    // This is a real-world approximation, not perfectly to the meter:
+    // it counts the CURRENT step's full remaining length even though
+    // some of it may already be behind the driver (progress WITHIN a
+    // single step, before the next maneuver point, isn't tracked) — but
+    // that's a small, steadily-shrinking-anyway margin, and an
+    // approximate live countdown is a large improvement over one that
+    // never moves at all.
+    var remainingDistance = 0, remainingDuration = 0;
+    for (var i = navActiveStepIndex; i < navActiveSteps.length; i++) {
+      remainingDistance += navActiveSteps[i].distance;
+      remainingDuration += navActiveSteps[i].duration;
+    }
+    var minutes = Math.round(remainingDuration / 60);
     var hours = Math.floor(minutes / 60), mins = minutes % 60;
     document.getElementById('nav-active-eta').textContent = (hours > 0 ? hours + ' h ' : '') + mins + ' min';
-    document.getElementById('nav-active-remaining').textContent = (props.distance / 1000).toFixed(1) + ' km';
+    document.getElementById('nav-active-remaining').textContent = (remainingDistance / 1000).toFixed(1) + ' km';
     // Estimated clock time of arrival — "arrivo" column, same idea as
     // Google Maps' own nav bar always showing a real clock time
-    // alongside the remaining minutes, not just a countdown.
-    var arrival = new Date(Date.now() + props.duration * 1000);
+    // alongside the remaining minutes, not just a countdown. Now based
+    // on the same live remaining duration, so it also shifts forward
+    // or back as the trip actually progresses, rather than staying
+    // fixed at the original estimate from before setting off.
+    var arrival = new Date(Date.now() + remainingDuration * 1000);
     document.getElementById('nav-active-arrival').textContent = arrival.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
   }
 
