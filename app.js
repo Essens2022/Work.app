@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v216") {
+          if (data && data.v && data.v !== "pt-foglio-v217") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v216"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v217"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -4120,6 +4120,42 @@
   // (routeDeviation, snapping the marker to the road) and progressive
   // trimming (trimmedLegFeature) are built on — a real, meaningful
   // fix for both at once, not a guess.
+  // A windowed variant of nearestCoordIndex, used ONLY for the
+  // per-frame trim search below — NOT for off-route detection
+  // (routeDeviation), which still needs the full, correct search
+  // every time (a driver going genuinely off-route could end up
+  // anywhere, not just near wherever the last search happened to
+  // land). REAL PERFORMANCE BUG, found after a fresh look: once the
+  // per-frame line-trim sync landed, this ran a full linear scan
+  // through EVERY coordinate of the current leg — 60 TO 120 TIMES A
+  // SECOND on a ProMotion iPhone — enough by itself to bottleneck the
+  // main thread and cause exactly the "constant jolts, even on
+  // powerful hardware" reported, despite setData() itself genuinely
+  // being cheap (the earlier assumption that made this seem safe to
+  // do every frame). Since the vehicle only ever advances gradually
+  // along the route (never teleports), searching a small window
+  // around the LAST match found is enough — falls back to the full
+  // scan only when there's no established window yet (leg just
+  // started) or the windowed search comes up empty.
+  var navLastTrimIndex = -1;
+  function navNearestCoordIndexWindowed(coords, lat, lon) {
+    if (navLastTrimIndex < 0 || navLastTrimIndex >= coords.length) {
+      navLastTrimIndex = nearestCoordIndex(coords, lat, lon);
+      return navLastTrimIndex;
+    }
+    var lonScale = Math.cos(lat * Math.PI / 180);
+    var windowStart = Math.max(0, navLastTrimIndex - 5);
+    var windowEnd = Math.min(coords.length, navLastTrimIndex + 60);
+    var bestIdx = -1, bestDist = Infinity;
+    for (var i = windowStart; i < windowEnd; i++) {
+      var dx = (coords[i][0] - lon) * lonScale, dy = coords[i][1] - lat;
+      var d = dx * dx + dy * dy;
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+    navLastTrimIndex = bestIdx;
+    return bestIdx;
+  }
+
   function nearestCoordIndex(coords, lat, lon) {
     var lonScale = Math.cos(lat * Math.PI / 180);
     var bestIdx = 0, bestDist = Infinity;
@@ -4170,7 +4206,7 @@
   // as the driver actually made progress along it.
   function trimmedLegFeature(feature, lat, lon) {
     var coords = feature.geometry.coordinates;
-    var idx = nearestCoordIndex(coords, lat, lon);
+    var idx = navNearestCoordIndexWindowed(coords, lat, lon);
     if (idx <= 0) return feature; // nothing driven yet on this leg
     var trimmedCoords = coords.slice(idx);
     if (trimmedCoords.length < 2) return feature; // avoid degenerating to an empty/invalid line right at the very end
@@ -4198,6 +4234,7 @@
   // in place rather than rebuilding every layer on the screen.
   var navCurrentLegLayer = null; // persists across ticks, only replaced by a real full rebuild
   function drawActiveNavLegs(lat, lon) {
+    navLastTrimIndex = -1; // a full rebuild means the leg (and its coordinate array) may have changed — the old windowed search position is meaningless against a different array
     if (navRouteLayer) navMap.removeLayer(navRouteLayer);
     navRouteLayer = L.featureGroup();
     navCurrentLegLayer = null;
