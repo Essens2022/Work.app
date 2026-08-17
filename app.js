@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v188") {
+          if (data && data.v && data.v !== "pt-foglio-v189") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v188"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v189"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -3234,6 +3234,24 @@
     // — a "recenter" button then appears to turn it back on.
     navFollowingUser = true;
     document.getElementById('nav-recenter-btn').style.display = 'none';
+    // 'dragstart' alone isn't fired the instant a finger touches the
+    // map — MapLibre waits until the movement clearly reads as a real
+    // pan (past a small pixel threshold) before deciding that's what's
+    // happening, not a tap. During that short window, the continuous
+    // ~60fps camera-follow loop (navSmoothCameraFrame) was STILL
+    // actively calling jumpTo() every frame, since navFollowingUser
+    // hadn't flipped to false yet — meaning the very touch/drag a
+    // driver started was being fought and reset by the loop itself,
+    // several times a second, making the whole map feel completely
+    // frozen no matter how hard they dragged. This was a real,
+    // confirmed regression from the smooth-camera work — genuinely
+    // dangerous if a driver can't manually look around the map while
+    // actively navigating. touchstart/mousedown fire IMMEDIATELY on
+    // contact, before any drag-vs-tap determination, so this now stops
+    // the loop from touching the camera at all the instant a finger
+    // lands on the map — well before 'dragstart' would otherwise fire.
+    navMap.on('touchstart', navOnManualMapDrag);
+    navMap.on('mousedown', navOnManualMapDrag);
     navMap.on('dragstart', navOnManualMapDrag);
 
     navWatchId = navigator.geolocation.watchPosition(
@@ -3739,6 +3757,8 @@
     navStopSmoothCamera();
     if (navWatchId != null) { navigator.geolocation.clearWatch(navWatchId); navWatchId = null; }
     if (navPositionMarker) { navMap.removeLayer(navPositionMarker); navPositionMarker = null; }
+    navMap.off('touchstart', navOnManualMapDrag);
+    navMap.off('mousedown', navOnManualMapDrag);
     navMap.off('dragstart', navOnManualMapDrag);
     if (navMap.setBearing) navMap.setBearing(0); // back to plain north-up once navigation ends
     if (navMap.setPitch) navMap.setPitch(0); // and back to flat, top-down — the tilt is only for actively driving

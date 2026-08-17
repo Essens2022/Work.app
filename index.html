@@ -525,7 +525,19 @@
        staying as the fallback for the few that don't. */
     height:calc(100dvh - var(--bottomnav-h, 90px) - 24px);
   }
-  .nav-map{width:100%;height:100%;}
+  /* touch-action:none is essential here, not optional — without it,
+     the browser is free to apply its OWN native touch gestures (page
+     scroll, rubber-banding, pinch-zoom of the whole page) to this
+     element instead of fully handing the gesture to MapLibre's own JS
+     pan/zoom handling. Confirmed as a real, iOS-Safari-specific bug:
+     iOS applies its own native touch behavior far more aggressively
+     than Android Chrome does by default, which is why dragging the
+     map during active navigation felt completely frozen on iPhone
+     specifically while working fine on Android the whole time — this
+     was never actually about the JS logic driving the camera, it was
+     the browser intercepting the touch gesture before MapLibre ever
+     saw it move. */
+  .nav-map{width:100%;height:100%;touch-action:none;}
   .nav-map.picking{cursor:crosshair;box-shadow:inset 0 0 0 3px var(--accent);}
   /* True fullscreen during active navigation — escapes the app's own
      top bar / bottom nav entirely, same as Google Maps taking over the
@@ -698,7 +710,7 @@
   .nav-map-rotate-wrap{
     position:relative;width:100%;height:100%;
   }
-  .nav-map-rotate-wrap .nav-map{width:100%;height:100%;}
+  .nav-map-rotate-wrap .nav-map{width:100%;height:100%;touch-action:none;}
   .nav-map-tilt-wrap{width:100%;height:100%;overflow:hidden;}
   .nav-recenter-btn{
     position:absolute;right:10px;bottom:170px;z-index:1000;width:44px;height:44px;border-radius:50%;
