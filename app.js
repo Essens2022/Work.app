@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v218") {
+          if (data && data.v && data.v !== "pt-foglio-v219") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v218"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v219"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1081,6 +1081,7 @@
   // (not just interpolated toward a static point that goes stale
   // between real fixes); navSmooth.lat/lon/bearing are what's
   // actually drawn on screen each frame.
+  var navLastAppliedBearing = null, navLastBearingApplyTime = null; // throttles how often the (expensive to render) map rotation actually changes — see navSmoothCameraFrame for why
   var navSmooth = {
     lat: null, lon: null, bearing: null,
     // Dead-reckoning baseline — the last REAL GPS fix's own data, used
@@ -1175,6 +1176,34 @@
 
     var tBeforeJump = performance.now();
     if (navFollowingUser && !navSmooth.paused) {
+      // EXPERIMENT, based on real measured data: the profiler showed
+      // this code taking only ~1.5ms/frame total, while actual FPS
+      // was still just 26 — meaning the bottleneck isn't this JS at
+      // all, it's what happens AFTER jumpTo(), inside MapLibre's own
+      // WebGL paint of the new frame, which this timing can't see
+      // (jumpTo only schedules the redraw; the real GPU work happens
+      // on the browser's own paint cycle). Continuously changing
+      // BEARING (rotating the whole map) is a well-known, genuinely
+      // expensive case for vector rendering specifically — every
+      // visible label needs its placement/orientation recomputed,
+      // line geometry needs re-tessellating relative to the new
+      // angle, far more work than a plain pan. Also matches what was
+      // reported: even plain MANUAL dragging (native MapLibre
+      // panning, never touching this loop at all) got slow recently
+      // too — pointing at map rendering cost in general, not
+      // anything specific to this JS.
+      //
+      // Testing that theory directly: position (center) still updates
+      // EVERY frame — that's the more visually important one to keep
+      // perfectly smooth. Bearing (the expensive one) is throttled to
+      // roughly 5 times a second instead of 60-120 — still turns
+      // smoothly enough to read as continuous rotation, while cutting
+      // however much of the actual rendering cost was going into
+      // constant re-rotation.
+      if (navLastBearingApplyTime == null || timestamp - navLastBearingApplyTime > 200) {
+        navLastAppliedBearing = navSmooth.bearing;
+        navLastBearingApplyTime = timestamp;
+      }
       // jumpTo, not easeTo — this loop IS the animation now, running
       // every frame; layering MapLibre's own eased transition on top
       // of a value that's already being smoothly interpolated here
@@ -1183,7 +1212,7 @@
       // portion of the screen instead of dead-center.
       navMap._maplibre.jumpTo({
         center: [navSmooth.lon, navSmooth.lat],
-        bearing: navSmooth.bearing,
+        bearing: navLastAppliedBearing,
         padding: { top: 260, bottom: 0, left: 0, right: 0 }
       });
     }
@@ -1219,6 +1248,7 @@
     navSmooth.lat = navSmooth.lon = navSmooth.bearing = null; // re-seed from the next real fix, not wherever a previous session left off
     navSmooth.lastFrameTime = 0;
     navSmooth.paused = false;
+    navLastAppliedBearing = navLastBearingApplyTime = null;
     navSmooth.rafId = requestAnimationFrame(navSmoothCameraFrame);
   }
 
