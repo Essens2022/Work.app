@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v207") {
+          if (data && data.v && data.v !== "pt-foglio-v208") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v207"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v208"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -3186,15 +3186,17 @@
   function drawColorCodedRoute(feature, lighter) {
     var group = L.featureGroup();
     if (lighter) {
-      L.geoJSON(feature, { style: { color: '#7BA7E0', weight: 9, opacity: 0.55, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
-      L.geoJSON(feature, { style: { color: '#AEC9F0', weight: 6, opacity: 0.7, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
+      L.geoJSON(feature, { style: { color: '#5B8DD6', weight: 10, opacity: 0.6, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
+      L.geoJSON(feature, { style: { color: '#8FB3E8', weight: 7, opacity: 0.75, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
     } else {
-      // Google's own actual route-line colors — a darker casing
-      // (#1967D2) under the familiar bright "Google Blue" fill
-      // (#4285F4), each a bit wider than the flat single-color line
-      // this used to be.
-      L.geoJSON(feature, { style: { color: '#1967D2', weight: 11, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
-      L.geoJSON(feature, { style: { color: '#4285F4', weight: 7, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
+      // Darkened from the earlier "Google Blue" (#4285F4) attempt —
+      // reported as too thin and too light. Deep navy casing
+      // (#0B3D91) under a richer, darker fill (#1557B0) than before —
+      // closer to how Google's own ACTIVE turn-by-turn route reads
+      // (noticeably more saturated/darker than their general-purpose
+      // "directions preview" blue) — plus both meaningfully thicker.
+      L.geoJSON(feature, { style: { color: '#0B3D91', weight: 13, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
+      L.geoJSON(feature, { style: { color: '#1557B0', weight: 8, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
     }
     return group;
   }
@@ -3663,7 +3665,7 @@
   // index.html) achieves the same visual drop-shadow without touching
   // SVG filters at all, universally supported.
   function navPositionMarkerSvg() {
-    return '<svg viewBox="0 0 128 128" width="34" height="34">' +
+    return '<svg viewBox="0 0 128 128" width="46" height="46">' +
       '<path d="M64 12 L102 108 L64 88 L26 108 Z" fill="#0B4DFF" stroke="#FFFFFF" stroke-width="5" stroke-linejoin="round"/>' +
       '</svg>';
   }
@@ -3813,7 +3815,7 @@
         icon: L.divIcon({
           className: 'nav-heading-arrow',
           html: '<div>' + navPositionMarkerSvg() + '</div>',
-          iconSize: [34, 34], iconAnchor: [17, 17]
+          iconSize: [46, 46], iconAnchor: [23, 23]
         })
       }).addTo(navMap);
     }
