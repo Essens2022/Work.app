@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v214") {
+          if (data && data.v && data.v !== "pt-foglio-v215") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v214"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v215"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1098,6 +1098,12 @@
     // frame, the same way a real car keeps moving between a
     // navigation app's own GPS reads.
     fixLat: null, fixLon: null, fixHeading: 0, fixSpeedMps: 0, fixTimestamp: 0,
+    // The PREVIOUS real fix (one before fixLat/fixLon above) — used
+    // only to compute a fallback speed (distance/time between the two
+    // most recent real fixes) when the device's own
+    // position.coords.speed isn't available, which happens often
+    // enough on some Android GPS chips to matter.
+    prevFixLat: null, prevFixLon: null, prevFixTimestamp: 0,
     rafId: null, lastFrameTime: 0, paused: false, lastTrimTime: 0
   };
 
@@ -1184,6 +1190,7 @@
     if (navSmooth.rafId) cancelAnimationFrame(navSmooth.rafId);
     navSmooth.rafId = null;
     navSmooth.fixLat = navSmooth.fixLon = null;
+    navSmooth.prevFixLat = navSmooth.prevFixLon = null; // don't let a stale reading from a previous, unrelated session feed a bogus fallback-speed calculation on the next one
   }
 
   var navLocateMarker = null; // "you are here" marker dropped by the standalone locate button, kept separate from the active-navigation position marker
@@ -3887,11 +3894,41 @@
     navSmooth.fixLon = displayLon;
     navSmooth.fixTimestamp = performance.now();
     if (heading != null && !isNaN(heading)) navSmooth.fixHeading = heading;
-    // A real, valid speed reading is essential for the extrapolation
-    // above to mean anything at all — falls back to 0 (no
-    // extrapolated movement beyond the last known point) if the
-    // device doesn't report one right now, rather than guessing.
-    navSmooth.fixSpeedMps = (position.coords.speed != null && !isNaN(position.coords.speed) && position.coords.speed > 0) ? position.coords.speed : 0;
+    // A real, valid speed reading is IDEAL for the extrapolation above
+    // to work — but position.coords.speed is genuinely unreliable on
+    // many Android devices/GPS chips specifically, frequently coming
+    // back null even while the vehicle is clearly moving (confirmed:
+    // this was very likely THE actual reason dead-reckoning didn't
+    // visibly fix anything when tested — falling back to 0 whenever
+    // the device didn't report a speed silently disabled the whole
+    // feature for exactly those ticks, reproducing the original
+    // "frozen until the next real fix" pattern despite the new code
+    // being genuinely in place and running). Computed as a fallback
+    // now from the distance and time between the last TWO real fixes
+    // — a real, independent velocity estimate that doesn't depend on
+    // the device's own speed field being populated at all.
+    var reportedSpeed = (position.coords.speed != null && !isNaN(position.coords.speed) && position.coords.speed > 0) ? position.coords.speed : null;
+    var fallbackSpeed = 0;
+    if (navSmooth.prevFixLat != null && navSmooth.fixTimestamp) {
+      var elapsedSincePrev = (navSmooth.fixTimestamp - navSmooth.prevFixTimestamp) / 1000;
+      if (elapsedSincePrev > 0.2) { // ignores implausibly-tiny gaps between fixes, which would wildly exaggerate a speed estimate
+        var distKm = haversineKm({ lat: navSmooth.prevFixLat, lon: navSmooth.prevFixLon }, { lat: displayLat, lon: displayLon });
+        fallbackSpeed = (distKm * 1000) / elapsedSincePrev;
+        // Sanity clamp — ordinary GPS jitter between two closely-spaced
+        // real fixes could otherwise compute an absurd speed spike
+        // (a few meters of noise over a very short gap looks like
+        // hundreds of km/h), which would send the extrapolation
+        // shooting the marker far past where it should actually be.
+        // 55 m/s (~200 km/h) is comfortably above any real driving
+        // speed this app needs to handle, while still rejecting
+        // clearly bogus noise-driven spikes.
+        if (fallbackSpeed > 55) fallbackSpeed = 55;
+      }
+    }
+    navSmooth.fixSpeedMps = reportedSpeed != null ? reportedSpeed : fallbackSpeed;
+    navSmooth.prevFixLat = displayLat;
+    navSmooth.prevFixLon = displayLon;
+    navSmooth.prevFixTimestamp = navSmooth.fixTimestamp;
     if (!navPositionMarker) {
       // A directional arrow marking the driver's live position — the
       // map itself rotates to match heading (see rotateNavMapToHeading
