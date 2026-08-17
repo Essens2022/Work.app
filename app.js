@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v189") {
+          if (data && data.v && data.v !== "pt-foglio-v190") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v189"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v190"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2966,11 +2966,29 @@
   // urgency" rather than two unrelated colors. The previous version
   // additionally colored ordinary roads orange (vs. blue highways),
   // which read as confusing/inconsistent — removed entirely.
+  // Two layers per route line now — a wider, darker "casing" UNDER a
+  // narrower, brighter fill on top — instead of one flat-colored line.
+  // This is what actually gives Google Maps' own route line its
+  // familiar "tube with a border" look; a single flat color (what this
+  // used to be) reads as visibly thinner and flatter by comparison,
+  // even at the same pixel width. Returns a featureGroup of the two
+  // layers together, acting as one cohesive route line for every
+  // existing caller (.addTo(), .remove(), .getBounds() all still work
+  // the same as a single-layer return used to).
   function drawColorCodedRoute(feature, lighter) {
+    var group = L.featureGroup();
     if (lighter) {
-      return L.geoJSON(feature, { style: { color: '#8AB4F8', weight: 6, opacity: 0.7, lineCap: 'round', lineJoin: 'round' } });
+      L.geoJSON(feature, { style: { color: '#7BA7E0', weight: 9, opacity: 0.55, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
+      L.geoJSON(feature, { style: { color: '#AEC9F0', weight: 6, opacity: 0.7, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
+    } else {
+      // Google's own actual route-line colors — a darker casing
+      // (#1967D2) under the familiar bright "Google Blue" fill
+      // (#4285F4), each a bit wider than the flat single-color line
+      // this used to be.
+      L.geoJSON(feature, { style: { color: '#1967D2', weight: 11, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
+      L.geoJSON(feature, { style: { color: '#4285F4', weight: 7, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
     }
-    return L.geoJSON(feature, { style: { color: '#1A73E8', weight: 8, lineCap: 'round', lineJoin: 'round' } });
+    return group;
   }
 
   function displayNavRouteChoice(alternatives, points, chosenIndex, legs) {
