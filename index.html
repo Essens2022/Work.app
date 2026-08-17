@@ -605,10 +605,26 @@
      turn-by-turn banner — distance is the primary, largest thing (a
      driver glancing up needs "how far" before "which street"), the
      instruction text is the secondary line underneath it. */
+  .nav-top-stack{display:flex;flex-direction:column;gap:10px;}
   .nav-instruction-banner{
     pointer-events:auto;background:linear-gradient(155deg,#0E8345,#0B6B38);color:#fff;border-radius:16px;padding:14px 16px;
     display:flex;align-items:center;gap:14px;box-shadow:0 8px 24px rgba(0,0,0,.35);
   }
+  /* Sits right under the instruction banner (see nav-top-stack) rather
+     than down by the bottom stats bar, where the app's regular toast()
+     would otherwise land during active navigation — right where a
+     driver's eyes already are, and never overlapping the arrivo/tempo/
+     distanza text. Collapsed to nothing when not shown (max-height
+     transition, not just opacity) so it doesn't leave a visible empty
+     gap under the banner the rest of the time. */
+  .nav-toast{
+    pointer-events:none;max-height:0;opacity:0;overflow:hidden;
+    background:var(--ink);color:#fff;border-radius:14px;padding:0 16px;font-size:13px;font-weight:700;
+    display:flex;align-items:center;gap:8px;box-shadow:var(--shadow-md);
+    transition:max-height .25s ease,opacity .2s ease,padding .25s ease;
+  }
+  .nav-toast.show{max-height:60px;opacity:1;padding:11px 16px;}
+  .nav-toast .dot{width:6px;height:6px;border-radius:50%;background:var(--teal);flex-shrink:0;}
   .nav-exit-x{
     flex-shrink:0;width:32px;height:32px;border-radius:50%;border:none;background:rgba(255,255,255,.16);
     color:#fff;font-size:16px;display:flex;align-items:center;justify-content:center;order:-1;
