@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v181") {
+          if (data && data.v && data.v !== "pt-foglio-v182") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v181"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v182"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1446,7 +1446,19 @@
         if (addedToMap.getLayer(id)) addedToMap.removeLayer(id);
         if (addedToMap.getSource(id)) addedToMap.removeSource(id);
       },
-      getBounds: function () { return navShimBoundsFromGeoJSON(feature); }
+      getBounds: function () { return navShimBoundsFromGeoJSON(feature); },
+      // Updates this layer's geometry in place — MUCH cheaper than
+      // remove() + a fresh addTo(), which tears down and rebuilds the
+      // GL buffers from scratch. Used for the current leg's progressive
+      // trim (drawActiveNavLegs), which used to fully recreate every
+      // route layer on EVERY single GPS tick during active navigation
+      // — real, avoidable overhead on every update, a real contributor
+      // to sluggish-feeling camera/map response after the MapLibre
+      // migration.
+      setData: function (newFeature) {
+        feature = newFeature; // keep getBounds() correct against the current geometry too
+        if (addedToMap && addedToMap.getSource(id)) addedToMap.getSource(id).setData(newFeature);
+      }
     };
     return wrapper;
   }
@@ -1579,6 +1591,23 @@
         var center = [latlng[1], latlng[0]];
         if (opts && opts.animate === false) realMap.jumpTo({ center: center, zoom: zoom });
         else realMap.easeTo({ center: center, zoom: zoom, duration: 300 });
+      },
+      // Updates center + zoom + bearing all together, in ONE camera
+      // transition, instead of two separate calls (setView, then
+      // setBearing right after) — this is what the live-tracking
+      // camera-follow uses on every GPS update during active
+      // navigation. Two separate easeTo/setBearing calls on the same
+      // tick meant the camera visibly moved in two small discrete
+      // steps rather than one smooth motion, and cost an extra
+      // internal render pass every single tick — a real, avoidable
+      // source of the sluggish "camera reacts slowly" feeling reported
+      // after the MapLibre migration. Deliberately a short duration
+      // (180ms, down from 300ms) — GPS fixes during navigation arrive
+      // roughly every 1-2s, so a snappier transition means the camera
+      // has fully settled well before the next update arrives, rather
+      // than still easing when the next one lands.
+      easeCameraTo: function (latlng, zoom, bearing) {
+        realMap.easeTo({ center: [latlng[1], latlng[0]], zoom: zoom, bearing: bearing, duration: 180 });
       },
       removeLayer: function (layer) { if (layer && layer.remove) layer.remove(); },
       fitBounds: function (bounds, opts) {
@@ -3043,9 +3072,16 @@
   // on screen by default, which is now correct since the MAP is what
   // turns underneath it.
   var navLastHeading = 0;
-  function rotateNavMapToHeading(heading) {
+  // skipMapBearing (optional): updates navLastHeading and the compass
+  // needle label WITHOUT touching the map's actual bearing — used by
+  // the live camera-follow tick, which already sets bearing itself as
+  // part of ONE combined easeCameraTo (position+zoom+bearing together,
+  // a single camera transition, not two separate ones) — calling
+  // setBearing here too would just be a redundant second call doing
+  // the same thing the combined transition already did.
+  function rotateNavMapToHeading(heading, skipMapBearing) {
     if (heading != null && !isNaN(heading)) navLastHeading = heading;
-    if (navMap) navMap.setBearing(navLastHeading);
+    if (navMap && !skipMapBearing) navMap.setBearing(navLastHeading);
     // Plain, read-only bearing readout (N/NE/E/…) — informational only,
     // not a button with a mode to toggle.
     var needle = document.getElementById('nav-compass-needle');
@@ -3187,7 +3223,11 @@
     // of startActiveNavigation, so this is safe from the first fix
     // onward). Uses the raw position — trimming is measured against
     // the true GPS point, same reasoning as off-route detection.
-    if (navLegs) drawActiveNavLegs(lat, lon);
+    // Tries the cheap path first (update the current leg's geometry in
+    // place) — only falls back to a full rebuild of every leg layer if
+    // there's no persistent layer yet to update (the very first tick
+    // after starting navigation or a reroute).
+    if (navLegs && !updateCurrentLegTrim(lat, lon)) drawActiveNavLegs(lat, lon);
 
     // Real current speed, straight from GPS (m/s → km/h) — shown only
     // when the device actually reports it (many phones return null
@@ -3266,11 +3306,18 @@
     // Follows the map-matched position, same reasoning as the marker —
     // otherwise the camera itself would visibly wobble in sync with
     // raw GPS noise even while the icon on top of it stays snapped to
-    // the road.
-    if (navFollowingUser) {
-      navMap.setView([displayLat, displayLon], 18, { animate: true });
+    // the road. Position AND bearing updated together, in one
+    // transition (easeCameraTo) — not two separate calls — for a
+    // single smooth camera motion instead of two small discrete steps.
+    var followingWithBearing = navFollowingUser && navMap;
+    if (followingWithBearing) {
+      navMap.easeCameraTo([displayLat, displayLon], 18, (heading != null && !isNaN(heading)) ? heading : navLastHeading);
     }
-    if (heading != null && !isNaN(heading)) rotateNavMapToHeading(heading);
+    // skipMapBearing=true here when the combined call above already
+    // set it, so this only updates navLastHeading + the compass label
+    // text — never a second, redundant navMap.setBearing() call on
+    // the same tick.
+    if (heading != null && !isNaN(heading)) rotateNavMapToHeading(heading, followingWithBearing);
 
     // Advance through steps as each maneuver point is reached (within
     // ~40m — GPS on a phone isn't precise enough to require reaching
@@ -3446,17 +3493,42 @@
   // CURRENT leg is additionally trimmed back to start from the nearest
   // point to here, so the stretch already driven disappears in
   // real time, not just when a full stop is reached.
+  //
+  // This is the FULL rebuild — every leg layer torn down and recreated
+  // — used only when the actual set of legs changes (starting
+  // navigation, arriving at a stop, a reroute). For the FREQUENT case
+  // (a plain GPS tick during an unchanged leg, just trimming the
+  // current one a little further), use updateCurrentLegTrim below
+  // instead — much cheaper, since it updates one existing layer's data
+  // in place rather than rebuilding every layer on the screen.
+  var navCurrentLegLayer = null; // persists across ticks, only replaced by a real full rebuild
   function drawActiveNavLegs(lat, lon) {
     if (navRouteLayer) navMap.removeLayer(navRouteLayer);
     navRouteLayer = L.featureGroup();
+    navCurrentLegLayer = null;
     for (var i = navLegs.length - 1; i >= navCurrentLegIndex; i--) {
       var isCurrent = i === navCurrentLegIndex;
       var legFeature = navLegs[i];
       if (isCurrent && lat != null && lon != null) legFeature = trimmedLegFeature(legFeature, lat, lon);
       var legLayer = drawColorCodedRoute(legFeature, !isCurrent);
       legLayer.addTo(navRouteLayer);
+      if (isCurrent) navCurrentLegLayer = legLayer;
     }
     navRouteLayer.addTo(navMap);
+  }
+
+  // The cheap, frequent path — called on every GPS tick while the leg
+  // set itself hasn't changed. Just refreshes the current leg's own
+  // trimmed geometry via setData (no layer/source recreation at all);
+  // everything else on the map (future legs, markers) is untouched,
+  // since none of it needed to change. Returns false (meaning: do a
+  // real drawActiveNavLegs instead) if there's no persistent current-leg
+  // layer yet to update — e.g. the very first tick right after
+  // starting navigation or a reroute.
+  function updateCurrentLegTrim(lat, lon) {
+    if (!navCurrentLegLayer || !navLegs || !navLegs[navCurrentLegIndex]) return false;
+    navCurrentLegLayer.setData(trimmedLegFeature(navLegs[navCurrentLegIndex], lat, lon));
+    return true;
   }
 
   function showNavArrivalPrompt(stopIdx) {
