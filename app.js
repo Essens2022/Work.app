@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v179") {
+          if (data && data.v && data.v !== "pt-foglio-v180") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v179"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v180"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1296,6 +1296,28 @@
   // section.
   var navShimLayerCounter = 0;
 
+  // Runs fn once the map's style has genuinely finished loading — fully
+  // self-tracked (realMap._navStyleReady / ._navPendingQueue, set up in
+  // initNavMap's realMlMap.on('load', …)) rather than relying on
+  // MapLibre's own isStyleLoaded()/once('load', …). That combination
+  // has a real, known gotcha: once('load', …) only fires on the NEXT
+  // occurrence of the event — if 'load' already fired earlier (which
+  // it normally has, by the time a route actually gets drawn, well
+  // after the map was first created), registering AFTER that point
+  // means the callback never runs at all. This was very likely why
+  // the very first leg of a multi-stop trip's route sometimes didn't
+  // draw at all: several legs' addTo() calls can land in the exact
+  // same synchronous pass, and if the timing happened to fall on
+  // exactly the wrong side of that gotcha for any one of them, that
+  // one leg would simply never appear, with no error to point to why.
+  // A queue this file owns and drains itself removes that ambiguity
+  // entirely, regardless of exactly when 'load' happens to fire.
+  function navRunWhenStyleReady(realMap, fn) {
+    if (realMap._navStyleReady) { fn(); return; }
+    if (!realMap._navPendingQueue) realMap._navPendingQueue = [];
+    realMap._navPendingQueue.push(fn);
+  }
+
   function navShimBoundsFromGeoJSON(feature) {
     var coords = feature.geometry.coordinates;
     var minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
@@ -1393,7 +1415,7 @@
           realMap.on('mouseleave', id, mouseLeaveHandler);
           if (clickHandler) realMap.on('click', id, clickHandler);
         };
-        if (realMap.isStyleLoaded()) doAdd(); else realMap.once('load', doAdd);
+        navRunWhenStyleReady(realMap, doAdd);
         return wrapper;
       },
       on: function (evt, fn) {
@@ -1466,7 +1488,7 @@
           if (!realMap.getSource(id)) realMap.addSource(id, { type: 'raster', tiles: tiles, tileSize: 256, attribution: opts.attribution || '' });
           if (!realMap.getLayer(id)) realMap.addLayer({ id: id, type: 'raster', source: id });
         };
-        if (realMap.isStyleLoaded()) doAdd(); else realMap.once('load', doAdd);
+        navRunWhenStyleReady(realMap, doAdd);
         return wrapper;
       },
       remove: function () {
@@ -1589,6 +1611,18 @@
       attributionControl: { compact: true }
     });
     navMap = navMapShim(realMlMap);
+    // Drives navRunWhenStyleReady above — a real, always-fires 'load'
+    // listener (not once, though it only matters once in practice: the
+    // flag makes every call after the first a no-op anyway), draining
+    // whatever queued up before the style finished loading.
+    realMlMap._navStyleReady = false;
+    realMlMap._navPendingQueue = [];
+    realMlMap.on('load', function () {
+      realMlMap._navStyleReady = true;
+      var queue = realMlMap._navPendingQueue;
+      realMlMap._navPendingQueue = [];
+      queue.forEach(function (fn) { fn(); });
+    });
     // Esri's free World Imagery — real satellite/aerial photography,
     // added as a raster layer ON TOP of the vector street style when
     // satellite mode is toggled on, rather than switching the whole
