@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v213") {
+          if (data && data.v && data.v !== "pt-foglio-v214") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v213"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v214"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1916,7 +1916,13 @@
       // the new setPitch for the 3D driving tilt) keep working the
       // same way every other navMap.* method does.
       setBearing: function (deg) { realMap.setBearing(deg); },
-      setPitch: function (deg) { realMap.setPitch(deg); },
+      // Eased (not an instant jump) — this only ever fires twice per
+      // trip (tilting in at Avvia, flattening back out at Termina),
+      // so there's no continuous-loop cost concern here the way there
+      // would be for something called every frame; a smooth, brief
+      // transition instead of a hard snap into/out of the 3D driving
+      // angle is a clear, easy win with no real downside.
+      setPitch: function (deg) { realMap.easeTo({ pitch: deg, duration: 800 }); },
       remove: function () { realMap.remove(); }
     };
   }
@@ -1971,7 +1977,24 @@
       zoom: 6,
       pitch: 0,
       bearing: 0,
-      attributionControl: { compact: true }
+      attributionControl: { compact: true },
+      // Explicit inertial/kinetic panning tuning — MapLibre has this
+      // NATIVE and on by default (never disabled here), but the
+      // default feel is fairly subtle. Nudged toward a more
+      // pronounced, Google-Maps-like momentum. Property names
+      // confirmed against MapLibre's own DragPanHandler docs
+      // (linearity/easing/maxSpeed/deceleration); exact exchange rate
+      // between the numbers and how far a flick carries is genuinely
+      // best tuned by feel on a real device, not something to claim
+      // false precision about here. This governs MANUAL dragging
+      // only — entirely separate from, and doesn't affect, the
+      // GPS-driven camera during active navigation (that's its own
+      // continuous dead-reckoning loop, not this).
+      dragPan: {
+        deceleration: 3400,
+        maxSpeed: 3200,
+        linearity: 0.15
+      }
     });
     navMap = navMapShim(realMlMap);
     // Drives navRunWhenStyleReady above — a real, always-fires 'load'
