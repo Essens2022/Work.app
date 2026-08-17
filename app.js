@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v180") {
+          if (data && data.v && data.v !== "pt-foglio-v181") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v180"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v181"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1318,6 +1318,19 @@
     realMap._navPendingQueue.push(fn);
   }
 
+  // The id of the base style's own first road-line or label layer —
+  // where satellite imagery gets inserted BELOW, so those stay drawn
+  // over the imagery (matches Google's own hybrid satellite view)
+  // instead of the imagery covering everything including labels.
+  // Meant to be called only once the style has actually loaded (see
+  // navTileLayerShim's beforeId, which accepts this as a deferred
+  // function for exactly that reason).
+  function navSatelliteBeforeLayerId(realMap) {
+    var layers = realMap.getStyle().layers;
+    var found = layers.filter(function (l) { return l.type === 'line' || l.type === 'symbol'; })[0];
+    return found ? found.id : undefined;
+  }
+
   function navShimBoundsFromGeoJSON(feature) {
     var coords = feature.geometry.coordinates;
     var minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
@@ -1481,12 +1494,27 @@
       : [urlTemplate];
     var addedToMap = null;
     var wrapper = {
-      addTo: function (target) {
+      // beforeId (optional): inserts this raster layer BELOW an
+      // existing layer instead of appending it at the very top —
+      // used for satellite imagery specifically, so it sits under the
+      // base vector style's own road lines and labels rather than
+      // covering them. Without this, satellite mode was completely
+      // bare imagery with no streets drawn over it at all, unlike
+      // Google's own hybrid satellite view. Accepts either a plain
+      // layer id, or a FUNCTION that returns one — needed because
+      // finding "the base style's first line/label layer" requires
+      // the style to have already loaded, which often isn't true yet
+      // at the exact moment addTo() is first called (right at map
+      // creation); a function defers that lookup to when it's
+      // actually safe to run, same as navRunWhenStyleReady already
+      // does for the add itself.
+      addTo: function (target, beforeId) {
         var realMap = (target && target._maplibre) ? target._maplibre : target;
         var doAdd = function () {
           addedToMap = realMap;
+          var resolvedBeforeId = typeof beforeId === 'function' ? beforeId(realMap) : beforeId;
           if (!realMap.getSource(id)) realMap.addSource(id, { type: 'raster', tiles: tiles, tileSize: 256, attribution: opts.attribution || '' });
-          if (!realMap.getLayer(id)) realMap.addLayer({ id: id, type: 'raster', source: id });
+          if (!realMap.getLayer(id)) realMap.addLayer({ id: id, type: 'raster', source: id }, resolvedBeforeId);
         };
         navRunWhenStyleReady(realMap, doAdd);
         return wrapper;
@@ -1633,7 +1661,7 @@
       attribution: 'Tiles © Esri',
       maxZoom: 19
     });
-    if (navShowingSatellite) navSatelliteLayer.addTo(navMap);
+    if (navShowingSatellite) navSatelliteLayer.addTo(navMap, navSatelliteBeforeLayerId);
     navMap.on('click', function (e) {
       if (navPickingWaypointId) handleNavMapPick(e.lngLat);
     });
@@ -1659,19 +1687,18 @@
   function toggleNavSatelliteView() {
     if (!navMap || !navSatelliteLayer) return;
     navShowingSatellite = !navShowingSatellite;
-    // No street layer to swap back in anymore — the base MapLibre style
-    // itself IS the street map, always underneath. Just add/remove the
-    // satellite raster layer on top of it.
     if (navShowingSatellite) {
-      navSatelliteLayer.addTo(navMap);
-      // If a route is already drawn, bring it back above the satellite
-      // layer just added — MapLibre stacks layers in the order they
-      // were added, so without this, a route drawn BEFORE toggling
-      // satellite on would end up hidden underneath it.
-      if (navRouteLayer) { navRouteLayer.remove(); navRouteLayer.addTo(navMap); }
-      // Markers are DOM overlays, not MapLibre layers — they're always
-      // above raster/vector map layers regardless of add order, so no
-      // re-adding needed for them here, unlike the route line above.
+      // Inserted BELOW the vector style's own road lines and labels —
+      // not appended on top of everything — so those stay visible
+      // drawn over the imagery, matching how Google's own satellite
+      // view works (real aerial photography, with streets and place
+      // names still legible over it), instead of bare, unlabeled
+      // imagery. Because of this, satellite now sits UNDER our own
+      // route lines/markers automatically too (they're always added
+      // afterward, at the true top) — no longer needs the extra
+      // "bring the route back above it" step this used to require
+      // when satellite was simply appended on top of everything.
+      navSatelliteLayer.addTo(navMap, navSatelliteBeforeLayerId);
     } else {
       navMap.removeLayer(navSatelliteLayer);
     }
