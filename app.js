@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v206") {
+          if (data && data.v && data.v !== "pt-foglio-v207") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v206"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v207"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1118,14 +1118,20 @@
       // padding pushes the driver's position down toward the lower
       // portion of the screen instead of dead-center — was reported
       // sitting too high, with too little of the road ahead visible.
-      // A large bottom padding biases MapLibre's own "center" toward
-      // the top of the remaining space, so the marker itself lands
-      // noticeably lower — more lookahead up top, matching how every
-      // real turn-by-turn navigation app frames the driver's position.
+      // FIXED — the PREVIOUS version of this had the padding side
+      // backwards (bottom padding, confirmed via MapLibre's own docs:
+      // padding EXCLUDES that edge's space from where "center" gets
+      // placed, pushing the marker toward the OPPOSITE edge — bottom
+      // padding pushes the marker UP, not down, which is exactly why
+      // that first attempt made no visible difference). Padding the
+      // TOP instead excludes the top space from centering, correctly
+      // pushing the marker down into the lower portion of the screen —
+      // more lookahead room above it, matching every real turn-by-turn
+      // navigation app's framing of the driver's position.
       navMap._maplibre.jumpTo({
         center: [navSmooth.lon, navSmooth.lat],
         bearing: navSmooth.bearing,
-        padding: { top: 0, bottom: 260, left: 0, right: 0 }
+        padding: { top: 260, bottom: 0, left: 0, right: 0 }
       });
     }
     // The already-driven part of the route line only used to erase
