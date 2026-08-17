@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v204") {
+          if (data && data.v && data.v !== "pt-foglio-v205") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v204"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v205"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1060,6 +1060,7 @@
   var ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjA3YzdmZTgwZTc5YjQ0OTliNjYxYzdlZGFiY2JlZDdlIiwiaCI6Im11cm11cjY0In0=";
 
   var TIPO_VEICOLO_OPTS = [
+    { v: 'auto', l: 'Auto' },
     { v: 'furgone', l: 'Furgone' },
     { v: 'cassonato', l: 'Cassonato' },
     { v: 'camion', l: 'Camion' },
@@ -1379,6 +1380,11 @@
   }
 
   function vehicleIsConfigured(v) {
+    // A plain car has no meaningful height/width/length/weight
+    // restrictions to configure at all — requiring those fields before
+    // considering it "configured" would keep popping the vehicle setup
+    // modal open for 'auto' users who have nothing left to fill in.
+    if (v.tipo === 'auto') return true;
     return !!(v.altezza && v.larghezza && v.lunghezza && v.massa);
   }
 
@@ -3012,6 +3018,20 @@
 
   function fetchTruckRouteSegment(origin, dest, requestAlternatives) {
     var v = state.vehicle;
+    // REAL BUG, confirmed: this always queried ORS's driving-hgv
+    // (truck) profile, for EVERY vehicle type, even a plain car with
+    // no height/width/weight restrictions actually set. ORS's HGV
+    // profile assumes meaningfully slower baseline speeds than its
+    // car profile — a real, separate thing from the specific
+    // restrictions object below, which only affects which ROADS are
+    // usable, not how fast the profile assumes travel is on the roads
+    // that remain. Confirmed directly: same exact road, same distance
+    // (11.7-12km either way), but 19 min here vs Google's 12 min for
+    // the identical path — a real ~35% speed underestimate, not a
+    // routing/road-choice difference. driving-car for 'auto', the
+    // truck-specific profile only for the actual commercial vehicle
+    // types this app is otherwise built for.
+    var orsProfile = v.tipo === 'auto' ? 'driving-car' : 'driving-hgv';
     var restrictions = {
       height: Number(v.altezza) || undefined,
       width: Number(v.larghezza) || undefined,
@@ -3040,6 +3060,12 @@
       language: 'it',
       options: { profile_params: { restrictions: restrictions } }
     };
+    // The restrictions object is only meaningful for driving-hgv —
+    // ORS's driving-car profile doesn't accept vehicle dimension
+    // restrictions at all (there's nothing to restrict a car's access
+    // by), so it's omitted entirely for that profile rather than sent
+    // as a set of undefined-valued fields it wouldn't understand.
+    if (orsProfile === 'driving-car') delete body.options;
     // Alternatives only requested for a short (single-segment) trip —
     // combining them with the multi-leg chain for long trips would
     // multiply requests and complicate stitching, for little real
@@ -3049,7 +3075,7 @@
     if (requestAlternatives) {
       body.alternative_routes = { target_count: 3, weight_factor: 1.6, share_factor: 0.6 };
     }
-    return fetch('https://api.openrouteservice.org/v2/directions/driving-hgv/geojson', {
+    return fetch('https://api.openrouteservice.org/v2/directions/' + orsProfile + '/geojson', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': ORS_API_KEY },
       body: JSON.stringify(body)
