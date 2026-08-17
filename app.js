@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v211") {
+          if (data && data.v && data.v !== "pt-foglio-v212") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v211"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v212"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1559,6 +1559,24 @@
           !(l.filter && JSON.stringify(l.filter).indexOf('"trunk"') !== -1);
       })
       .map(function (l) { return l.id; });
+
+    // 3D building extrusions disabled entirely — genuinely expensive
+    // to render (thousands of extruded polygons, recomputed every
+    // single frame while panning or driving) compared to a flat map,
+    // and a real, likely candidate for exactly what was reported:
+    // even plain manual dragging (handled entirely by MapLibre's own
+    // native panning, never touching any of this app's own JS camera
+    // code at all) not feeling fluid — if raw map rendering itself
+    // can't keep up on a given device, no amount of tuning the JS-side
+    // camera logic driving WHERE the map points can fix that, since
+    // the bottleneck is in drawing the pixels themselves, not in how
+    // often a new frame is requested. Buildings add visual richness
+    // but nothing functionally necessary for turn-by-turn guidance,
+    // unlike the map's own pitch/tilt (kept) — a reasonable trade
+    // given the real fluidity cost.
+    style.layers
+      .filter(function (l) { return l.type === 'fill-extrusion'; })
+      .forEach(function (l) { realMap.setLayoutProperty(l.id, 'visibility', 'none'); });
   }
 
   function navShimBoundsFromGeoJSON(feature) {
