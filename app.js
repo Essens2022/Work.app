@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v189") {
+          if (data && data.v && data.v !== "pt-foglio-v192") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v189"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v192"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1430,6 +1430,64 @@
     return found ? found.id : undefined;
   }
 
+  // Colored "shield" badges for motorway/trunk route numbers (A4, A13,
+  // SR308…) — matching the real Italian road-sign convention Google
+  // Maps also follows: green for autostrade, blue for statali/
+  // regionali. The base OpenFreeMap style already draws these route
+  // numbers (confirmed directly by ION: the "A13" text and its box
+  // outline were already showing), but as a plain white box with no
+  // color-coding — this hides JUST that plain version for
+  // motorway/trunk specifically and draws a colored replacement using
+  // the same underlying data. An earlier attempt at road styling here
+  // colored the ROAD LINES themselves green/blue, which turned out not
+  // to be wanted (reverted) — this is deliberately narrower: only the
+  // route-number badge itself changes, the road line stays whatever
+  // color it already was.
+  function navSetupHighwayShields(realMap) {
+    var style = realMap.getStyle();
+    var vectorSourceId = Object.keys(style.sources).filter(function (id) { return style.sources[id].type === 'vector'; })[0];
+    if (!vectorSourceId) return;
+
+    // OpenMapTiles' standard schema keeps route-number labels in their
+    // own source-layer, separate from the road lines themselves —
+    // "transportation_name" is the universal name for it across
+    // OpenMapTiles-based styles, same as "transportation" already was
+    // for the lines.
+    var shieldLayerIds = style.layers
+      .filter(function (l) {
+        return l.type === 'symbol' && l['source-layer'] === 'transportation_name' &&
+          l.filter && (JSON.stringify(l.filter).indexOf('"motorway"') !== -1 || JSON.stringify(l.filter).indexOf('"trunk"') !== -1);
+      })
+      .map(function (l) { return l.id; });
+    shieldLayerIds.forEach(function (id) { realMap.setLayoutProperty(id, 'visibility', 'none'); });
+
+    ['motorway', 'trunk'].forEach(function (roadClass) {
+      realMap.addLayer({
+        id: 'nav-shield-' + roadClass,
+        type: 'symbol',
+        source: vectorSourceId,
+        'source-layer': 'transportation_name',
+        filter: ['==', ['get', 'class'], roadClass],
+        layout: {
+          'text-field': ['get', 'ref'],
+          'text-font': ['Noto Sans Bold'],
+          'text-size': 11,
+          'symbol-placement': 'line',
+          'symbol-spacing': 350
+        },
+        paint: {
+          'text-color': '#ffffff',
+          // The halo is what reads as a solid colored "badge" behind
+          // the text at this size, without needing a custom sprite
+          // image — green for autostrade, blue for statali/regionali,
+          // matching real Italian road signage.
+          'text-halo-color': roadClass === 'motorway' ? '#1B8A3C' : '#1565C0',
+          'text-halo-width': 3
+        }
+      });
+    });
+  }
+
   // Tracks which of the base style's own road-line layers are minor
   // roads (secondary/tertiary/residential/service/etc, as opposed to
   // motorway/trunk/primary) — populated once by navSetupRoadHighlights,
@@ -1441,14 +1499,7 @@
   var navMinorRoadLayerIds = [];
 
   // Finds and remembers the base style's own MINOR road layers (see
-  // navMinorRoadLayerIds above), for satellite decluttering. Does NOT
-  // add any colored overlay of its own — an earlier version of this
-  // also drew green/blue highlight lines over motorway/trunk roads,
-  // which turned out not to be what was actually wanted (route-number
-  // shields like "A4"/"A13" — which the base OpenFreeMap style already
-  // draws on its own, for free, no extra code needed here); removed
-  // again, keeping just the minor-road bookkeeping this function was
-  // always also responsible for.
+  // navMinorRoadLayerIds above), for satellite decluttering.
   function navSetupRoadHighlights(realMap) {
     var style = realMap.getStyle();
 
@@ -1809,6 +1860,7 @@
       realMlMap._navPendingQueue = [];
       queue.forEach(function (fn) { fn(); });
       navSetupRoadHighlights(realMlMap);
+      navSetupHighwayShields(realMlMap);
     });
     // Esri's free World Imagery — real satellite/aerial photography,
     // added as a raster layer ON TOP of the vector street style when
@@ -3010,11 +3062,29 @@
   // urgency" rather than two unrelated colors. The previous version
   // additionally colored ordinary roads orange (vs. blue highways),
   // which read as confusing/inconsistent — removed entirely.
+  // Two layers per route line now — a wider, darker "casing" UNDER a
+  // narrower, brighter fill on top — instead of one flat-colored line.
+  // This is what actually gives Google Maps' own route line its
+  // familiar "tube with a border" look; a single flat color (what this
+  // used to be) reads as visibly thinner and flatter by comparison,
+  // even at the same pixel width. Returns a featureGroup of the two
+  // layers together, acting as one cohesive route line for every
+  // existing caller (.addTo(), .remove(), .getBounds() all still work
+  // the same as a single-layer return used to).
   function drawColorCodedRoute(feature, lighter) {
+    var group = L.featureGroup();
     if (lighter) {
-      return L.geoJSON(feature, { style: { color: '#8AB4F8', weight: 6, opacity: 0.7, lineCap: 'round', lineJoin: 'round' } });
+      L.geoJSON(feature, { style: { color: '#7BA7E0', weight: 9, opacity: 0.55, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
+      L.geoJSON(feature, { style: { color: '#AEC9F0', weight: 6, opacity: 0.7, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
+    } else {
+      // Google's own actual route-line colors — a darker casing
+      // (#1967D2) under the familiar bright "Google Blue" fill
+      // (#4285F4), each a bit wider than the flat single-color line
+      // this used to be.
+      L.geoJSON(feature, { style: { color: '#1967D2', weight: 11, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
+      L.geoJSON(feature, { style: { color: '#4285F4', weight: 7, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
     }
-    return L.geoJSON(feature, { style: { color: '#1A73E8', weight: 8, lineCap: 'round', lineJoin: 'round' } });
+    return group;
   }
 
   function displayNavRouteChoice(alternatives, points, chosenIndex, legs) {
@@ -3278,6 +3348,24 @@
     // — a "recenter" button then appears to turn it back on.
     navFollowingUser = true;
     document.getElementById('nav-recenter-btn').style.display = 'none';
+    // 'dragstart' alone isn't fired the instant a finger touches the
+    // map — MapLibre waits until the movement clearly reads as a real
+    // pan (past a small pixel threshold) before deciding that's what's
+    // happening, not a tap. During that short window, the continuous
+    // ~60fps camera-follow loop (navSmoothCameraFrame) was STILL
+    // actively calling jumpTo() every frame, since navFollowingUser
+    // hadn't flipped to false yet — meaning the very touch/drag a
+    // driver started was being fought and reset by the loop itself,
+    // several times a second, making the whole map feel completely
+    // frozen no matter how hard they dragged. This was a real,
+    // confirmed regression from the smooth-camera work — genuinely
+    // dangerous if a driver can't manually look around the map while
+    // actively navigating. touchstart/mousedown fire IMMEDIATELY on
+    // contact, before any drag-vs-tap determination, so this now stops
+    // the loop from touching the camera at all the instant a finger
+    // lands on the map — well before 'dragstart' would otherwise fire.
+    navMap.on('touchstart', navOnManualMapDrag);
+    navMap.on('mousedown', navOnManualMapDrag);
     navMap.on('dragstart', navOnManualMapDrag);
 
     navWatchId = navigator.geolocation.watchPosition(
@@ -3783,6 +3871,8 @@
     navStopSmoothCamera();
     if (navWatchId != null) { navigator.geolocation.clearWatch(navWatchId); navWatchId = null; }
     if (navPositionMarker) { navMap.removeLayer(navPositionMarker); navPositionMarker = null; }
+    navMap.off('touchstart', navOnManualMapDrag);
+    navMap.off('mousedown', navOnManualMapDrag);
     navMap.off('dragstart', navOnManualMapDrag);
     if (navMap.setBearing) navMap.setBearing(0); // back to plain north-up once navigation ends
     if (navMap.setPitch) navMap.setPitch(0); // and back to flat, top-down — the tilt is only for actively driving
