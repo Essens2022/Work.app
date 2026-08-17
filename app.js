@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v198") {
+          if (data && data.v && data.v !== "pt-foglio-v199") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v198"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v199"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2756,7 +2756,23 @@
       function (pos) {
         hideNavLocationBanner();
         navSearchFocusPoint = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-        if (navMap) {
+        // Guards against a real race condition: this whole callback is
+        // async (waiting on a real GPS fix), and if the driver presses
+        // Avvia quickly — before it resolves — active navigation can
+        // already be running by the time this finally fires. The brief
+        // confirmation dot would then get created DURING active
+        // navigation, with nothing left to clean it up (the "remove
+        // navLocateMarker" step in startActiveNavigation already ran
+        // and found nothing yet, since this hadn't created it yet) —
+        // it would just sit there for its own 4s timer, showing
+        // alongside the real position arrow, at a single frozen GPS
+        // reading rather than the arrow's continuously updated one
+        // (confirmed exactly this in real testing — both visible
+        // together, the frozen dot looking more "stable" simply
+        // because it wasn't moving at all). Skipping entirely once
+        // navigation has already started — the real arrow is already
+        // doing this job by then, a second confirmation is meaningless.
+        if (navMap && !window.__navActiveNavigationRunning) {
           var marker = L.circleMarker([pos.coords.latitude, pos.coords.longitude], {
             radius: 8, color: '#fff', weight: 3, fillColor: '#4285F4', fillOpacity: 1
           }).addTo(navMap);
