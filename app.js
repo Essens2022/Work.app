@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v171") {
+          if (data && data.v && data.v !== "pt-foglio-v172") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v171"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v172"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2477,6 +2477,7 @@
   var navLegs = null, navLegPoints = null, navCurrentLegIndex = 0, navArrivalPromptShown = false;
   var navActiveSteps = null; // flattened list of {instruction, coordLat, coordLon, distanceFromStart}
   var navOffRouteCount = 0; // consecutive position updates where the driver is meaningfully off the current leg's line
+  var navLastRerouteTime = 0; // Date.now() of the last recalculation — cooldown guard, see onActiveNavPosition
   var navRerouting = false; // guards against firing a second recalculation while one is already in flight
   var navActiveStepIndex = 0;
   var navPositionMarker = null;
@@ -2651,18 +2652,43 @@
     // driver missed a turn or otherwise left the calculated street,
     // the app just kept showing the original route and instructions
     // regardless, with no way back to a correct route short of
-    // stopping and recalculating by hand. Now: how far the driver's
-    // actual position is from the nearest point on the CURRENT leg's
-    // own line is checked on every fix. A single reading over the
-    // threshold isn't enough on its own — ordinary GPS noise can put
-    // you 30-40m off a road you're actually still on — so several
-    // consecutive readings (a real, sustained deviation over a few
-    // seconds) are required before recalculating for real.
-    if (navLegs && navLegs[navCurrentLegIndex] && !navRerouting) {
-      var distOffRoute = distanceToNearestPointOnLine(navLegs[navCurrentLegIndex].geometry.coordinates, lat, lon);
-      if (distOffRoute > 50) {
+    // stopping and recalculating by hand.
+    //
+    // Two ways to trigger, matching the two real-world cases:
+    // 1) SUSTAINED distance — off the line by more than 30m for 3
+    //    consecutive fixes. A single reading over the threshold isn't
+    //    enough on its own (ordinary GPS noise can put you 20-30m off
+    //    a road you're actually still on), but a sustained deviation
+    //    over a few real seconds is a genuine signal.
+    // 2) FAST heading-based trigger — off the line by more than 20m
+    //    AND heading a clearly different direction than the route
+    //    itself goes there (>70°) AND actually moving at a meaningful
+    //    speed (>10 km/h, so this never fires while stopped or
+    //    crawling, where heading is unreliable anyway). This one
+    //    doesn't wait for consecutive fixes — heading mismatch this
+    //    large while genuinely moving is already a strong, fast signal
+    //    of a real wrong turn, not GPS noise, so there's no reason to
+    //    wait several more seconds to confirm it.
+    //
+    // Cooldown: even once triggered, won't fire again within 30s of the
+    // last reroute — recalculating repeatedly in a tight loop (e.g.
+    // while the fresh route is still catching up to a slightly-still-off
+    // position right after a reroute) would be worse than just waiting
+    // a moment.
+    var REROUTE_COOLDOWN_MS = 30000;
+    if (navLegs && navLegs[navCurrentLegIndex] && !navRerouting &&
+        (!navLastRerouteTime || Date.now() - navLastRerouteTime > REROUTE_COOLDOWN_MS)) {
+      var deviation = routeDeviation(navLegs[navCurrentLegIndex].geometry.coordinates, lat, lon);
+      var speedKmh = (position.coords.speed != null && !isNaN(position.coords.speed)) ? position.coords.speed * 3.6 : 0;
+      var headingMismatch = (heading != null && !isNaN(heading) && deviation.routeBearing != null)
+        ? angleDifference(heading, deviation.routeBearing) : 0;
+      var fastTrigger = deviation.distance > 20 && headingMismatch > 70 && speedKmh > 10;
+      if (fastTrigger) {
+        navOffRouteCount = 0;
+        rerouteFromCurrentPosition(lat, lon);
+      } else if (deviation.distance > 30) {
         navOffRouteCount++;
-        if (navOffRouteCount >= 4) {
+        if (navOffRouteCount >= 3) {
           navOffRouteCount = 0;
           rerouteFromCurrentPosition(lat, lon);
         }
@@ -2795,7 +2821,7 @@
         // off-route counter will simply try again on the next fixes.
         toast('Impossibile ricalcolare — riprovo al prossimo segnale');
       })
-      .then(function () { navRerouting = false; });
+      .then(function () { navRerouting = false; navLastRerouteTime = Date.now(); });
   }
 
   function updateActiveInstructionBanner(lat, lon) {
@@ -2839,16 +2865,35 @@
     return bestIdx;
   }
 
-  // Real distance (meters) from a position to the nearest point on a
-  // route's own line — used for off-route detection. Reuses
-  // nearestCoordIndex to find WHICH point is closest, then measures
-  // the actual distance to it (nearestCoordIndex itself only compares
-  // relative closeness in raw degree-space, fine for finding the
-  // closest vertex but not meaningful as a real distance).
-  function distanceToNearestPointOnLine(coords, lat, lon) {
+  // Compass bearing (0-360°) from point a to point b.
+  function bearingBetween(a, b) {
+    var lat1 = a.lat * Math.PI / 180, lat2 = b.lat * Math.PI / 180;
+    var dLon = (b.lon - a.lon) * Math.PI / 180;
+    var y = Math.sin(dLon) * Math.cos(lat2);
+    var x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+    return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+  }
+
+  // Smallest angle (0-180°) between two compass bearings.
+  function angleDifference(a, b) {
+    var d = Math.abs(a - b) % 360;
+    return d > 180 ? 360 - d : d;
+  }
+
+  // Distance from the driver to the current leg's line, PLUS the
+  // route's own local direction at that nearest point (the bearing from
+  // that point to the next one along the geometry) — used together for
+  // off-route detection: being some distance from the line isn't
+  // itself proof of a wrong turn (GPS noise, or a wide junction), but
+  // being off the line AND heading a clearly different direction than
+  // the road actually goes is a much stronger, faster signal.
+  function routeDeviation(coords, lat, lon) {
     var idx = nearestCoordIndex(coords, lat, lon);
     var c = coords[idx];
-    return haversineKm({ lat: lat, lon: lon }, { lat: c[1], lon: c[0] }) * 1000;
+    var distance = haversineKm({ lat: lat, lon: lon }, { lat: c[1], lon: c[0] }) * 1000;
+    var nextC = coords[idx + 1] || coords[idx - 1]; // fall back to the previous point at the very end of the line
+    var routeBearing = nextC ? bearingBetween({ lat: c[1], lon: c[0] }, { lat: nextC[1], lon: nextC[0] }) : null;
+    return { distance: distance, routeBearing: routeBearing };
   }
 
   // Returns a copy of a leg's feature with the already-driven portion
@@ -2946,6 +2991,7 @@
     var arrivalPrompt = document.getElementById('nav-arrival-prompt');
     if (arrivalPrompt) arrivalPrompt.remove();
     navLegs = null; navLegPoints = null; navCurrentLegIndex = 0; navArrivalPromptShown = false;
+    navOffRouteCount = 0; navLastRerouteTime = 0; navRerouting = false;
     document.getElementById('nav-active-overlay').style.display = 'none';
     document.getElementById('nav-search-bar').style.display = '';
     document.getElementById('nav-float-controls').style.display = '';
