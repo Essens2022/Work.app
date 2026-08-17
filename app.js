@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v199") {
+          if (data && data.v && data.v !== "pt-foglio-v200") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v199"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v200"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -3353,6 +3353,19 @@
     // the NEW navigation arrow once active navigation actually starts,
     // looking like two separate position indicators instead of one.
     if (navLocateMarker) { navMap.removeLayer(navLocateMarker); navLocateMarker = null; }
+    // The origin marker (where the trip started) is useful while still
+    // planning — seeing "you're going from here" alongside the stops
+    // and destination — but once actively navigating, Google Maps
+    // itself doesn't keep a distinct "you started here" marker visible
+    // at all; only the live position (the arrow) and the route ahead
+    // matter once you're already moving. Removed here specifically —
+    // stop/destination markers stay, since seeing "tappa 2 is right
+    // there" IS still meaningful mid-trip, unlike the origin.
+    var originWp = navWaypoints.filter(function (w) { return w.role === 'origin'; })[0];
+    if (originWp && navWaypointMarkers[originWp.id]) {
+      navMap.removeLayer(navWaypointMarkers[originWp.id]);
+      delete navWaypointMarkers[originWp.id];
+    }
 
     navActiveFeature = feature;
     navActiveSteps = buildNavActiveSteps(feature);
