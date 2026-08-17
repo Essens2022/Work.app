@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v174") {
+          if (data && data.v && data.v !== "pt-foglio-v175") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v174"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v175"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2262,11 +2262,22 @@
     if (v.massaAssi) restrictions.axleload = Number(v.massaAssi);
     var body = {
       coordinates: [[origin.lon, origin.lat], [dest.lon, dest.lat]],
-      // "fastest" (rather than "recommended") is the lever ORS actually
-      // offers for genuinely favoring motorways/tangenziali/superstrade
-      // when they save real time — recommended sometimes trades a
-      // faster highway stretch for a marginally shorter secondary road.
-      preference: 'fastest',
+      // "recommended" (not "fastest") — confirmed directly by an ORS
+      // team member (ask.openrouteservice.org, "Recommended routing
+      // not taking direct route", Nov 2020): "The recommended route is
+      // based on a heuristic which prioritizes main roads and
+      // highways." This is exactly the lever for avoiding small local
+      // streets at the start/end of a trip when a tangenziale/statale
+      // gets there just as fast or nearly so — "fastest" purely
+      // minimizes computed time with no such preference, which is
+      // genuinely why it was picking minor roads even when a main road
+      // was right there and barely slower (confirmed real-world:
+      // ION's own trip started on small streets before reaching the
+      // highway, when a tangenziale entry was available). The earlier
+      // comment here claimed the opposite relationship — that was
+      // simply wrong; this is now verified against ORS's own team,
+      // not assumed.
+      preference: 'recommended',
       language: 'it',
       options: { profile_params: { restrictions: restrictions } }
     };
