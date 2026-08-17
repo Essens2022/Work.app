@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v183") {
+          if (data && data.v && data.v !== "pt-foglio-v184") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v183"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v184"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1341,44 +1341,24 @@
   // superstrade, strade statali/principali).
   var navMinorRoadLayerIds = [];
 
-  // Adds two small overlay layers, colored the same way real Italian
-  // road signage does — green for autostrade (motorway), blue for
-  // tangenziali/superstrade (trunk) — matching what Google Maps itself
-  // shows, rather than the base style's own single uniform road color.
-  // Uses the SAME underlying vector source the base style already
-  // loaded (OpenMapTiles' standard "transportation" source-layer,
-  // universal across OpenMapTiles-based styles including this one) —
-  // adding new layers of our own rather than trying to guess and
-  // directly recolor the base style's own internal layer ids, which
-  // aren't published anywhere reliable to read from outside the style
-  // itself and would risk silently doing nothing if guessed wrong.
-  // Also finds and remembers the base style's own MINOR road layers
-  // (see navMinorRoadLayerIds above), for satellite decluttering.
+  // Finds and remembers the base style's own MINOR road layers (see
+  // navMinorRoadLayerIds above), for satellite decluttering. Does NOT
+  // add any colored overlay of its own — an earlier version of this
+  // also drew green/blue highlight lines over motorway/trunk roads,
+  // which turned out not to be what was actually wanted (route-number
+  // shields like "A4"/"A13" — which the base OpenFreeMap style already
+  // draws on its own, for free, no extra code needed here); removed
+  // again, keeping just the minor-road bookkeeping this function was
+  // always also responsible for.
   function navSetupRoadHighlights(realMap) {
     var style = realMap.getStyle();
-    var vectorSourceId = Object.keys(style.sources).filter(function (id) { return style.sources[id].type === 'vector'; })[0];
-    if (!vectorSourceId) return; // unexpected style shape — nothing safe to do here, base style still renders fine on its own
 
-    var beforeId = navSatelliteBeforeLayerId(realMap);
-    realMap.addLayer({
-      id: 'nav-motorway-highlight', type: 'line', source: vectorSourceId, 'source-layer': 'transportation',
-      filter: ['==', ['get', 'class'], 'motorway'],
-      layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': '#0A8A3C', 'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1.5, 12, 3, 16, 6] }
-    }, beforeId);
-    realMap.addLayer({
-      id: 'nav-trunk-highlight', type: 'line', source: vectorSourceId, 'source-layer': 'transportation',
-      filter: ['==', ['get', 'class'], 'trunk'],
-      layout: { 'line-cap': 'round', 'line-join': 'round' },
-      paint: { 'line-color': '#1565C0', 'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1.3, 12, 2.6, 16, 5] }
-    }, beforeId);
-
-    // Every LINE layer the base style itself draws from the same
+    // Every LINE layer the base style itself draws from the
     // "transportation" source-layer, that ISN'T motorway/trunk/primary
     // — i.e. the minor-road rendering already built into the style —
-    // remembered here so satellite mode can hide just these, while our
-    // own two highlight layers above (already filtered to major roads
-    // only) and the style's own primary-road layer stay visible.
+    // remembered here so satellite mode can hide just these, while the
+    // style's own motorway/trunk/primary-road layers (and their
+    // route-number labels) stay visible and untouched.
     navMinorRoadLayerIds = style.layers
       .filter(function (l) {
         return l.type === 'line' && l['source-layer'] === 'transportation' &&
