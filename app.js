@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v196") {
+          if (data && data.v && data.v !== "pt-foglio-v197") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v196"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v197"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -3487,7 +3487,24 @@
       '</svg>';
   }
 
+  // DIAGNOSTIC BUILD — the position-marker toasts added in a previous
+  // diagnostic pass never fired AT ALL (not "created OK", not an
+  // error, not "already existed") — meaning execution never even
+  // reached that code, which can only happen if something EARLIER in
+  // this same function throws first. This wraps the WHOLE function
+  // body (renamed to onActiveNavPositionInner below) in one top-level
+  // try/catch, so whatever is actually failing — wherever it is —
+  // gets reported directly via toast() instead of failing silently.
+  // TEMPORARY — remove once the real cause is confirmed.
   function onActiveNavPosition(position) {
+    try {
+      onActiveNavPositionInner(position);
+    } catch (e) {
+      toast('DEBUG ERRORE onActiveNavPosition: ' + (e && e.message ? e.message : String(e)) + ' | riga: ' + (e && e.stack ? e.stack.split('\n')[1] : '?'));
+    }
+  }
+
+  function onActiveNavPositionInner(position) {
     var lat = position.coords.latitude, lon = position.coords.longitude;
     var heading = position.coords.heading;
     navLastPosition = { lat: lat, lon: lon };
