@@ -594,7 +594,16 @@
     display:flex;flex-direction:column;
   }
   .nav-search-panel-top{flex-shrink:0;padding:14px 14px 0 14px;}
-  .nav-search-panel-scroll{flex:1;min-height:60px;overflow-y:auto;padding:0 14px;}
+  /* min-height:0 here is NOT optional — a flex:1 item defaults to
+     min-height:auto (shrink no smaller than its own content), which
+     silently defeated the whole "scrolls internally" idea: with 4+
+     tappe, this section just grew to fit ALL of them instead of
+     capping and scrolling, pushing Aggiungi tappa/Calcola percorso
+     down past the bottom of the screen, overlapping the map/results
+     underneath (confirmed exactly this in real testing). Explicit
+     min-height:0 is what actually lets it shrink and hand control to
+     overflow-y:auto. */
+  .nav-search-panel-scroll{flex:1;min-height:0;overflow-y:auto;padding:0 14px;}
   .nav-search-panel-bottom{flex-shrink:0;padding:12px 14px 14px 14px;}
   /* Bumped well above the old 110px — the result card underneath
      (distance/tempo/alternatives/Avvia, easily 180-220px tall once a

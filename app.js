@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v191") {
+          if (data && data.v && data.v !== "pt-foglio-v192") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v191"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v192"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1216,7 +1216,18 @@
 
     document.getElementById('nav-search-bar').addEventListener('click', function () {
       var panel = document.getElementById('nav-search-panel');
-      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+      var opening = panel.style.display === 'none';
+      panel.style.display = opening ? 'block' : 'none';
+      // Re-opening the trip-planning panel to make further changes
+      // (e.g. add another tappa) needs to hide any already-calculated
+      // result card underneath it — otherwise both end up visible at
+      // once, stacked messily on top of each other (confirmed exactly
+      // this in real testing: Percorso 1/2 and Avvia navigazione still
+      // showing behind the reopened panel).
+      if (opening) {
+        var resultEl = document.getElementById('nav-result');
+        if (resultEl) resultEl.style.display = 'none';
+      }
     });
     // Tapping anywhere else on the map (outside the panel and the
     // search bar that opens it) closes the trip-planning panel — same
@@ -1950,6 +1961,13 @@
     var mapEl = document.getElementById('nav-map');
     if (mapEl) mapEl.classList.remove('picking');
     document.getElementById('nav-search-panel').style.display = 'block'; // back to filling in the rest of the trip, now that the point is chosen
+    // Same defensive guard as the search-bar toggle — the panel was
+    // already open before picking started in every normal case (the
+    // pin button that triggers this only exists inside an open panel),
+    // so the result card should already be hidden by then, but this
+    // costs nothing and keeps the two mutually exclusive regardless.
+    var resultElAfterPick = document.getElementById('nav-result');
+    if (resultElAfterPick) resultElAfterPick.style.display = 'none';
     var point = { lon: latlng.lng, lat: latlng.lat, label: null };
     var input = document.getElementById('wpinput-' + waypointId);
     if (input) input.value = 'Ricerca indirizzo…';
@@ -2052,6 +2070,23 @@
         document.getElementById('wpclear-' + wp.id),
         function () { clearNavWaypointField(wp.id); }
       );
+      // Scrolls the field being typed into up into clear view once the
+      // on-screen keyboard opens and eats a big chunk of the visible
+      // area — otherwise, a field near the bottom (or its own
+      // suggestion list right underneath it) can end up hidden behind
+      // the keyboard with barely anything visible above it. A short
+      // delay lets the keyboard's own resize actually happen first —
+      // scrolling immediately on focus would still be measuring
+      // against the OLD (taller) viewport, before the keyboard shrank
+      // it.
+      var inputEl = document.getElementById('wpinput-' + wp.id);
+      if (inputEl) {
+        inputEl.addEventListener('focus', function () {
+          setTimeout(function () {
+            inputEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          }, 300);
+        });
+      }
     });
     container.querySelectorAll('[data-remove]').forEach(function (btn) {
       btn.addEventListener('click', function () { removeNavWaypoint(btn.getAttribute('data-remove')); });
@@ -2272,6 +2307,15 @@
     // waiting for the next "Calcola percorso" to catch up.
     if (oldDest.point) dropNavWaypointMarker(oldDest.id, oldDest.point);
     renderNavWaypointsList();
+    // Scrolls the freshly-added (still empty) tappa into view WITHIN
+    // the scroll area itself — not the whole page/panel jumping, just
+    // this one list gently scrolling down to reveal the new row, same
+    // idea as Google Maps' own "add stop" behavior. Deferred one frame
+    // so the just-rendered row actually exists in the DOM to scroll to.
+    requestAnimationFrame(function () {
+      var newRow = document.querySelector('[data-wp-row="' + newId + '"]');
+      if (newRow) newRow.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
   }
 
   function removeNavWaypoint(id) {
