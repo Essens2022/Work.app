@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v190") {
+          if (data && data.v && data.v !== "pt-foglio-v191") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v190"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v191"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1419,6 +1419,64 @@
     return found ? found.id : undefined;
   }
 
+  // Colored "shield" badges for motorway/trunk route numbers (A4, A13,
+  // SR308…) — matching the real Italian road-sign convention Google
+  // Maps also follows: green for autostrade, blue for statali/
+  // regionali. The base OpenFreeMap style already draws these route
+  // numbers (confirmed directly by ION: the "A13" text and its box
+  // outline were already showing), but as a plain white box with no
+  // color-coding — this hides JUST that plain version for
+  // motorway/trunk specifically and draws a colored replacement using
+  // the same underlying data. An earlier attempt at road styling here
+  // colored the ROAD LINES themselves green/blue, which turned out not
+  // to be wanted (reverted) — this is deliberately narrower: only the
+  // route-number badge itself changes, the road line stays whatever
+  // color it already was.
+  function navSetupHighwayShields(realMap) {
+    var style = realMap.getStyle();
+    var vectorSourceId = Object.keys(style.sources).filter(function (id) { return style.sources[id].type === 'vector'; })[0];
+    if (!vectorSourceId) return;
+
+    // OpenMapTiles' standard schema keeps route-number labels in their
+    // own source-layer, separate from the road lines themselves —
+    // "transportation_name" is the universal name for it across
+    // OpenMapTiles-based styles, same as "transportation" already was
+    // for the lines.
+    var shieldLayerIds = style.layers
+      .filter(function (l) {
+        return l.type === 'symbol' && l['source-layer'] === 'transportation_name' &&
+          l.filter && (JSON.stringify(l.filter).indexOf('"motorway"') !== -1 || JSON.stringify(l.filter).indexOf('"trunk"') !== -1);
+      })
+      .map(function (l) { return l.id; });
+    shieldLayerIds.forEach(function (id) { realMap.setLayoutProperty(id, 'visibility', 'none'); });
+
+    ['motorway', 'trunk'].forEach(function (roadClass) {
+      realMap.addLayer({
+        id: 'nav-shield-' + roadClass,
+        type: 'symbol',
+        source: vectorSourceId,
+        'source-layer': 'transportation_name',
+        filter: ['==', ['get', 'class'], roadClass],
+        layout: {
+          'text-field': ['get', 'ref'],
+          'text-font': ['Noto Sans Bold'],
+          'text-size': 11,
+          'symbol-placement': 'line',
+          'symbol-spacing': 350
+        },
+        paint: {
+          'text-color': '#ffffff',
+          // The halo is what reads as a solid colored "badge" behind
+          // the text at this size, without needing a custom sprite
+          // image — green for autostrade, blue for statali/regionali,
+          // matching real Italian road signage.
+          'text-halo-color': roadClass === 'motorway' ? '#1B8A3C' : '#1565C0',
+          'text-halo-width': 3
+        }
+      });
+    });
+  }
+
   // Tracks which of the base style's own road-line layers are minor
   // roads (secondary/tertiary/residential/service/etc, as opposed to
   // motorway/trunk/primary) — populated once by navSetupRoadHighlights,
@@ -1430,14 +1488,7 @@
   var navMinorRoadLayerIds = [];
 
   // Finds and remembers the base style's own MINOR road layers (see
-  // navMinorRoadLayerIds above), for satellite decluttering. Does NOT
-  // add any colored overlay of its own — an earlier version of this
-  // also drew green/blue highlight lines over motorway/trunk roads,
-  // which turned out not to be what was actually wanted (route-number
-  // shields like "A4"/"A13" — which the base OpenFreeMap style already
-  // draws on its own, for free, no extra code needed here); removed
-  // again, keeping just the minor-road bookkeeping this function was
-  // always also responsible for.
+  // navMinorRoadLayerIds above), for satellite decluttering.
   function navSetupRoadHighlights(realMap) {
     var style = realMap.getStyle();
 
@@ -1798,6 +1849,7 @@
       realMlMap._navPendingQueue = [];
       queue.forEach(function (fn) { fn(); });
       navSetupRoadHighlights(realMlMap);
+      navSetupHighwayShields(realMlMap);
     });
     // Esri's free World Imagery — real satellite/aerial photography,
     // added as a raster layer ON TOP of the vector street style when
