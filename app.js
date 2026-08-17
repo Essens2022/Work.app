@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v182") {
+          if (data && data.v && data.v !== "pt-foglio-v183") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v182"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v183"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1331,6 +1331,64 @@
     return found ? found.id : undefined;
   }
 
+  // Tracks which of the base style's own road-line layers are minor
+  // roads (secondary/tertiary/residential/service/etc, as opposed to
+  // motorway/trunk/primary) — populated once by navSetupRoadHighlights,
+  // used by toggleNavSatelliteView to hide them specifically in
+  // satellite mode (a satellite view crowded with every little side
+  // street is much harder to read than one showing just the roads that
+  // actually matter for a HGV driver: autostrade, tangenziali/
+  // superstrade, strade statali/principali).
+  var navMinorRoadLayerIds = [];
+
+  // Adds two small overlay layers, colored the same way real Italian
+  // road signage does — green for autostrade (motorway), blue for
+  // tangenziali/superstrade (trunk) — matching what Google Maps itself
+  // shows, rather than the base style's own single uniform road color.
+  // Uses the SAME underlying vector source the base style already
+  // loaded (OpenMapTiles' standard "transportation" source-layer,
+  // universal across OpenMapTiles-based styles including this one) —
+  // adding new layers of our own rather than trying to guess and
+  // directly recolor the base style's own internal layer ids, which
+  // aren't published anywhere reliable to read from outside the style
+  // itself and would risk silently doing nothing if guessed wrong.
+  // Also finds and remembers the base style's own MINOR road layers
+  // (see navMinorRoadLayerIds above), for satellite decluttering.
+  function navSetupRoadHighlights(realMap) {
+    var style = realMap.getStyle();
+    var vectorSourceId = Object.keys(style.sources).filter(function (id) { return style.sources[id].type === 'vector'; })[0];
+    if (!vectorSourceId) return; // unexpected style shape — nothing safe to do here, base style still renders fine on its own
+
+    var beforeId = navSatelliteBeforeLayerId(realMap);
+    realMap.addLayer({
+      id: 'nav-motorway-highlight', type: 'line', source: vectorSourceId, 'source-layer': 'transportation',
+      filter: ['==', ['get', 'class'], 'motorway'],
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': '#0A8A3C', 'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1.5, 12, 3, 16, 6] }
+    }, beforeId);
+    realMap.addLayer({
+      id: 'nav-trunk-highlight', type: 'line', source: vectorSourceId, 'source-layer': 'transportation',
+      filter: ['==', ['get', 'class'], 'trunk'],
+      layout: { 'line-cap': 'round', 'line-join': 'round' },
+      paint: { 'line-color': '#1565C0', 'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1.3, 12, 2.6, 16, 5] }
+    }, beforeId);
+
+    // Every LINE layer the base style itself draws from the same
+    // "transportation" source-layer, that ISN'T motorway/trunk/primary
+    // — i.e. the minor-road rendering already built into the style —
+    // remembered here so satellite mode can hide just these, while our
+    // own two highlight layers above (already filtered to major roads
+    // only) and the style's own primary-road layer stay visible.
+    navMinorRoadLayerIds = style.layers
+      .filter(function (l) {
+        return l.type === 'line' && l['source-layer'] === 'transportation' &&
+          !(l.filter && JSON.stringify(l.filter).indexOf('"primary"') !== -1) &&
+          !(l.filter && JSON.stringify(l.filter).indexOf('"motorway"') !== -1) &&
+          !(l.filter && JSON.stringify(l.filter).indexOf('"trunk"') !== -1);
+      })
+      .map(function (l) { return l.id; });
+  }
+
   function navShimBoundsFromGeoJSON(feature) {
     var coords = feature.geometry.coordinates;
     var minLat = Infinity, maxLat = -Infinity, minLon = Infinity, maxLon = -Infinity;
@@ -1599,15 +1657,23 @@
       // navigation. Two separate easeTo/setBearing calls on the same
       // tick meant the camera visibly moved in two small discrete
       // steps rather than one smooth motion, and cost an extra
-      // internal render pass every single tick — a real, avoidable
-      // source of the sluggish "camera reacts slowly" feeling reported
-      // after the MapLibre migration. Deliberately a short duration
-      // (180ms, down from 300ms) — GPS fixes during navigation arrive
-      // roughly every 1-2s, so a snappier transition means the camera
-      // has fully settled well before the next update arrives, rather
-      // than still easing when the next one lands.
+      // internal render pass every single tick.
+      //
+      // Duration: real GPS fixes during navigation arrive roughly once
+      // every 1-2 real seconds — no camera transition, however fast,
+      // changes that. A SHORT transition (180ms, tried first) actually
+      // made this feel WORSE, not better: the camera would snap
+      // through its move quickly and then sit completely still for
+      // most of the ~1-2s gap until the next fix, which reads as
+      // exactly the "jumping between still images" feeling reported —
+      // motion, then a stall, repeating. A LONGER duration (900ms) that
+      // spans nearly the whole real gap between fixes means the camera
+      // is continuously, visibly moving the entire time, right up until
+      // the next fix arrives and the next transition picks up smoothly
+      // from wherever the previous one currently is — reads as one
+      // continuous glide rather than a series of small hops.
       easeCameraTo: function (latlng, zoom, bearing) {
-        realMap.easeTo({ center: [latlng[1], latlng[0]], zoom: zoom, bearing: bearing, duration: 180 });
+        realMap.easeTo({ center: [latlng[1], latlng[0]], zoom: zoom, bearing: bearing, duration: 900 });
       },
       removeLayer: function (layer) { if (layer && layer.remove) layer.remove(); },
       fitBounds: function (bounds, opts) {
@@ -1679,6 +1745,7 @@
       var queue = realMlMap._navPendingQueue;
       realMlMap._navPendingQueue = [];
       queue.forEach(function (fn) { fn(); });
+      navSetupRoadHighlights(realMlMap);
     });
     // Esri's free World Imagery — real satellite/aerial photography,
     // added as a raster layer ON TOP of the vector street style when
@@ -1728,8 +1795,21 @@
       // "bring the route back above it" step this used to require
       // when satellite was simply appended on top of everything.
       navSatelliteLayer.addTo(navMap, navSatelliteBeforeLayerId);
+      // Minor roads hidden specifically in satellite mode — a
+      // satellite view crowded with every side street is harder to
+      // read than one showing just autostrade/tangenziali/statali,
+      // matching what was asked for directly: secondary roads only
+      // reappear when zoomed in further (the base style's own normal
+      // zoom-based behavior takes back over once these are visible
+      // again, e.g. when satellite is turned back off).
+      navMinorRoadLayerIds.forEach(function (id) {
+        if (navMap._maplibre.getLayer(id)) navMap._maplibre.setLayoutProperty(id, 'visibility', 'none');
+      });
     } else {
       navMap.removeLayer(navSatelliteLayer);
+      navMinorRoadLayerIds.forEach(function (id) {
+        if (navMap._maplibre.getLayer(id)) navMap._maplibre.setLayoutProperty(id, 'visibility', 'visible');
+      });
     }
     // Both satellite buttons (the one shown before navigation starts,
     // and the separate one inside the active-navigation overlay) stay
