@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v215") {
+          if (data && data.v && data.v !== "pt-foglio-v216") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v215"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v216"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -3472,6 +3472,7 @@
     // auto-reload while a driver is actively mid-navigation — see the
     // comment there for why.
     window.__navActiveNavigationRunning = true;
+    navFinalArrivalShown = false;
     // The "la mia posizione" button's own marker (a plain dot) was
     // never being removed here — if it had been tapped while still
     // planning the trip, it just stayed on the map, showing alongside
@@ -3757,10 +3758,36 @@
       '</svg>';
   }
 
+  var navFinalArrivalShown = false;
   function onActiveNavPosition(position) {
     var lat = position.coords.latitude, lon = position.coords.longitude;
     var heading = position.coords.heading;
     navLastPosition = { lat: lat, lon: lon };
+
+    // REAL GAP, confirmed missing entirely: there was no explicit
+    // "you've reached the final destination" check anywhere at all —
+    // just an assumption that it "already has its own arrival
+    // instruction" (see the old comment near navArrivalPromptShown,
+    // which only ever covered INTERMEDIATE stops). Once actually past
+    // the destination with nothing stopping navigation, any further
+    // movement reads as off-route relative to a route that ends
+    // there — triggering the normal reroute logic to try to route
+    // back TO the destination, over and over, exactly what was
+    // reported ("trece si cauta o alta strada pentru a te intoarce
+    // inapoi la destinatie"). Checked first, before any reroute logic
+    // below even runs, so arrival is always recognized before it can
+    // be mistaken for going off-route.
+    if (navLegPoints && navLegPoints.length && !navFinalArrivalShown) {
+      var finalDest = navLegPoints[navLegPoints.length - 1];
+      if (finalDest && finalDest.lat != null) {
+        var distToFinal = haversineKm({ lat: lat, lon: lon }, { lat: finalDest.lat, lon: finalDest.lon }) * 1000;
+        if (distToFinal < 40) {
+          navFinalArrivalShown = true;
+          showNavFinalArrivalPrompt();
+          return; // nothing else this tick — no point evaluating reroute/off-route logic against a route that's already been completed
+        }
+      }
+    }
 
     // Off-route detection — was completely missing before: if the
     // driver missed a turn or otherwise left the calculated street,
@@ -4199,6 +4226,25 @@
     return true;
   }
 
+  // The final destination — distinct from showNavArrivalPrompt above
+  // (which is only for INTERMEDIATE stops on a multi-tappa trip and
+  // lets the driver keep going afterward). Reaching the actual end of
+  // the trip stops active navigation outright — there's nothing left
+  // to navigate toward, so continuing to track position/reroute
+  // against a route that's already finished doesn't make sense.
+  function showNavFinalArrivalPrompt() {
+    var banner = document.createElement('div');
+    banner.id = 'nav-arrival-prompt';
+    banner.className = 'nav-arrival-prompt';
+    banner.innerHTML = '<span>Sei arrivato a destinazione!</span>' +
+      '<button type="button" id="nav-final-arrival-ok">✓ Termina</button>';
+    document.querySelector('.nav-map-wrap').appendChild(banner);
+    document.getElementById('nav-final-arrival-ok').addEventListener('click', function () {
+      banner.remove();
+      stopActiveNavigation();
+    });
+  }
+
   function showNavArrivalPrompt(stopIdx) {
     var stopNumber = stopIdx; // stops are 1-indexed in the UI (origin is index 0 in navLegPoints)
     var banner = document.createElement('div');
@@ -4261,7 +4307,7 @@
     document.getElementById('nav-recenter-btn').style.display = 'none';
     var arrivalPrompt = document.getElementById('nav-arrival-prompt');
     if (arrivalPrompt) arrivalPrompt.remove();
-    navLegs = null; navLegPoints = null; navCurrentLegIndex = 0; navArrivalPromptShown = false;
+    navLegs = null; navLegPoints = null; navCurrentLegIndex = 0; navArrivalPromptShown = false; navFinalArrivalShown = false;
     navOffRouteCount = 0; navLastRerouteTime = 0; navRerouting = false;
     document.getElementById('nav-active-overlay').style.display = 'none';
     document.getElementById('nav-search-bar').style.display = '';
