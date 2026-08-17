@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v172") {
+          if (data && data.v && data.v !== "pt-foglio-v173") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v172"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v173"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2421,6 +2421,23 @@
         var legLayer = (li === 0) ? drawColorCodedRoute(legs[li], false) : drawColorCodedRoute(legs[li], true);
         legLayer.addTo(navRouteLayer);
       }
+      navRouteLayer.addTo(navMap);
+    } else if (alternatives.length > 1) {
+      // Every alternative gets drawn on the map at once, not just the
+      // chosen one — the un-chosen ones a muted grey, UNDER the chosen
+      // one (added last, so it paints on top and stays clearly
+      // visible wherever routes overlap). Tapping a grey line switches
+      // to it directly on the map, same as the "Percorso 2/3" buttons
+      // below already do — just without needing to look away from the
+      // map to find them.
+      navRouteLayer = L.featureGroup();
+      alternatives.forEach(function (alt, i) {
+        if (i === chosenIndex) return;
+        var altLayer = L.geoJSON(alt, { style: { color: '#9aa5b1', weight: 6, opacity: 0.85, lineCap: 'round', lineJoin: 'round' } });
+        altLayer.on('click', function () { displayNavRouteChoice(alternatives, points, i, legs); });
+        altLayer.addTo(navRouteLayer);
+      });
+      drawColorCodedRoute(feature).addTo(navRouteLayer);
       navRouteLayer.addTo(navMap);
     } else {
       navRouteLayer = drawColorCodedRoute(feature);
