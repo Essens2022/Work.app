@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v177") {
+          if (data && data.v && data.v !== "pt-foglio-v178") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v177"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v178"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -342,6 +342,19 @@
     t.classList.add('show');
     clearTimeout(toast._t);
     toast._t = setTimeout(function () { t.classList.remove('show'); }, 3000);
+  }
+
+  // Same idea as toast(), positioned instead — see the comment on
+  // #nav-toast in renderNavigatore for why. Only meaningful while the
+  // active-navigation overlay actually exists in the DOM (checks for
+  // the element rather than assuming it does).
+  function navToast(msg) {
+    var t = document.getElementById('nav-toast');
+    if (!t) return;
+    document.getElementById('nav-toast-text').textContent = msg;
+    t.classList.add('show');
+    clearTimeout(navToast._t);
+    navToast._t = setTimeout(function () { t.classList.remove('show'); }, 3000);
   }
 
   /* ---------------------------------------------------------------- */
@@ -1080,11 +1093,32 @@
     html += '<div id="nav-result" class="nav-result" style="display:none;"></div>';
 
     html += '<div id="nav-active-overlay" class="nav-active-overlay" style="display:none;">';
+    // Grouped together in one wrapper — .nav-active-overlay itself uses
+    // justify-content:space-between across its direct children (to pin
+    // the banner at the top and the stats bar at the bottom), so
+    // without this wrapper, adding the toast as a second direct child
+    // would land it in the vertical MIDDLE of the screen instead of
+    // right under the banner where it belongs. Grouping them means
+    // space-between only ever sees ONE thing at the top (this whole
+    // group) and the stats bar at the bottom, while the banner and
+    // toast stack normally against each other inside it.
+    html += '<div class="nav-top-stack">';
     html += '<div class="nav-instruction-banner">' +
       '<button type="button" class="nav-exit-x" id="nav-exit-x" aria-label="Esci dalla navigazione">✕</button>' +
       '<div class="nav-instruction-icon-wrap"><span id="nav-instr-icon">' + svgIcon('nav-straight') + '</span></div>' +
       '<div class="nav-instruction-copy"><div class="nav-instruction-dist" id="nav-instr-dist">—</div><div class="nav-instruction-text" id="nav-instr-text"></div></div>' +
       '</div>';
+    // A dedicated notification, positioned right under the green
+    // instruction banner — used for status messages that matter WHILE
+    // actively navigating (currently: reroute status). The app's
+    // regular toast() is fixed near the bottom of the screen, which
+    // during active navigation sits right on top of the arrivo/tempo/
+    // distanza stats bar — confusing, easy to miss, and visually
+    // clashing with that bar's own text. This one is scoped to exactly
+    // where a driver's eyes already are (right below the instruction
+    // they're reading), and never competes with the bottom stats.
+    html += '<div class="nav-toast" id="nav-toast"><span class="dot"></span><span id="nav-toast-text"></span></div>';
+    html += '</div>';
     html += '<div class="nav-active-float-controls">' +
       '<button type="button" class="nav-float-btn" id="nav-active-layers-btn" aria-label="Vista satellite">' + svgIcon('nav-layers') + '</button>' +
       '<button type="button" class="nav-compass-badge" id="nav-compass-btn" aria-label="Direzione di marcia"><span id="nav-compass-needle">N</span></button>' +
@@ -2905,7 +2939,7 @@
   function rerouteFromCurrentPosition(lat, lon) {
     if (navRerouting || !navLegPoints) return;
     navRerouting = true;
-    toast('Fuori percorso — ricalcolo del percorso…');
+    navToast('Fuori percorso — ricalcolo del percorso…');
     var remainingPoints = [{ lat: lat, lon: lon }].concat(navLegPoints.slice(navCurrentLegIndex + 1));
     computeMultiStopRoute(remainingPoints)
       .then(function (result) {
@@ -2918,14 +2952,14 @@
         navActiveStepIndex = 0;
         drawActiveNavLegs(lat, lon);
         updateActiveInstructionBanner(lat, lon);
-        toast('Percorso ricalcolato');
+        navToast('Percorso ricalcolato');
       })
       .catch(function () {
         // Couldn't get a fresh route (offline, out of quota, weak
         // signal) — the old route and instructions just stay as they
         // were rather than leaving the screen in a broken state; the
         // off-route counter will simply try again on the next fixes.
-        toast('Impossibile ricalcolare — riprovo al prossimo segnale');
+        navToast('Impossibile ricalcolare — riprovo al prossimo segnale');
       })
       .then(function () { navRerouting = false; navLastRerouteTime = Date.now(); });
   }
