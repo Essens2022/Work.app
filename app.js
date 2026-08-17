@@ -30,24 +30,50 @@
     var SPLASH_DURATION_MS = 2400;
     var pageLoadStart = Date.now();
     var EARLY_RELOAD_COOLDOWN_MS = 20000;
-    var lastAutoReload = sessionStorage.getItem('pt_last_auto_reload');
-    var reloadedRecently = !!(lastAutoReload && (Date.now() - parseInt(lastAutoReload, 10)) < EARLY_RELOAD_COOLDOWN_MS);
-    if (!reloadedRecently) {
+    function checkVersionAndReload(waitForSplash) {
+      var lastAutoReload = sessionStorage.getItem('pt_last_auto_reload');
+      var reloadedRecently = !!(lastAutoReload && (Date.now() - parseInt(lastAutoReload, 10)) < EARLY_RELOAD_COOLDOWN_MS);
+      if (reloadedRecently) return;
+      // Never auto-reload while a driver is actively mid-navigation —
+      // that would silently kill live GPS tracking, the calculated
+      // route, and turn-by-turn guidance without warning, exactly while
+      // it matters most. window.__navActiveNavigationRunning is set/
+      // cleared by startActiveNavigation()/stopActiveNavigation()
+      // further down in this file. Simply skipping here is enough — the
+      // next visibilitychange check (once navigation ends and the
+      // driver eventually backgrounds/returns to the tab) catches it.
+      if (window.__navActiveNavigationRunning) return;
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v192") {
+          if (data && data.v && data.v !== "pt-foglio-v193") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
             };
-            var elapsed = Date.now() - pageLoadStart;
-            var remaining = SPLASH_DURATION_MS + 200 - elapsed; // small buffer past the splash's own hide timer
-            if (remaining > 0) { setTimeout(doReload, remaining); } else { doReload(); }
+            if (waitForSplash) {
+              var elapsed = Date.now() - pageLoadStart;
+              var remaining = SPLASH_DURATION_MS + 200 - elapsed; // small buffer past the splash's own hide timer
+              if (remaining > 0) { setTimeout(doReload, remaining); } else { doReload(); }
+            } else {
+              doReload(); // no splash to protect — this is a later, already-in-use session
+            }
           }
         })
         .catch(function () { /* offline or blocked — silently skip, try again later */ });
     }
+    checkVersionAndReload(true);
+    // The check above only ever runs ONCE, at the very first page load —
+    // if the tab is just left open and switched back to later (backgrounded
+    // while driving, checking another app, then returning), rather than
+    // being fully closed and reopened, that one-time check never fires
+    // again, so a stale cached copy of this file could keep running
+    // indefinitely with no way to notice a newer version exists. This
+    // re-checks every time the page becomes visible again, catching
+    // exactly that case.
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') checkVersionAndReload(false);
+    });
   } catch (e) { /* never let this early check itself break the page */ }
 
   // Marks the page as running in the installed app (not a regular Safari
@@ -66,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v192"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v193"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -3267,6 +3293,10 @@
   }
 
   function startActiveNavigation(feature, legs, points) {
+    // Tells the early version-check (top of this file) not to
+    // auto-reload while a driver is actively mid-navigation — see the
+    // comment there for why.
+    window.__navActiveNavigationRunning = true;
     // The "la mia posizione" button's own marker (a plain dot) was
     // never being removed here — if it had been tapped while still
     // planning the trip, it just stayed on the map, showing alongside
@@ -3427,14 +3457,20 @@
   // silhouettes) rather than a shape trying to look like the
   // configured vehicle from above. Same classic "chevron" language
   // Google Maps itself uses as its own simpler position indicator.
+  // Deliberately NO SVG <filter>/<feDropShadow> here anymore — Safari
+  // (especially iOS) has real, documented history of SVG filter
+  // primitives failing to render at all in some contexts, which would
+  // make the ENTIRE filtered element (the whole arrow, per SVG's own
+  // spec for unresolved filter references) disappear rather than just
+  // losing its shadow — consistent with what was actually reported: no
+  // arrow shape at all, just... something else showing in its place.
+  // A plain CSS box-shadow on the marker's own wrapping element (set in
+  // index.html) achieves the same visual drop-shadow without touching
+  // SVG filters at all, universally supported.
   function navPositionMarkerSvg() {
     return '<svg viewBox="0 0 128 128" width="34" height="34">' +
-      '<defs><filter id="navArrowShadow" x="-40%" y="-40%" width="180%" height="180%">' +
-      '<feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000000" flood-opacity="0.22"/>' +
-      '</filter></defs>' +
-      '<g filter="url(#navArrowShadow)">' +
       '<path d="M64 12 L102 108 L64 88 L26 108 Z" fill="#0B4DFF" stroke="#FFFFFF" stroke-width="5" stroke-linejoin="round"/>' +
-      '</g></svg>';
+      '</svg>';
   }
 
   function onActiveNavPosition(position) {
@@ -3869,6 +3905,7 @@
 
   function stopActiveNavigation() {
     navStopSmoothCamera();
+    window.__navActiveNavigationRunning = false;
     if (navWatchId != null) { navigator.geolocation.clearWatch(navWatchId); navWatchId = null; }
     if (navPositionMarker) { navMap.removeLayer(navPositionMarker); navPositionMarker = null; }
     navMap.off('touchstart', navOnManualMapDrag);

@@ -9,7 +9,7 @@
 //  - Large, rarely-changing files (jsPDF, the comuni database, icons, logo)
 //    stay CACHE-FIRST, so they don't get re-downloaded on every load.
 
-const CACHE_VERSION = 'pt-foglio-v192';
+const CACHE_VERSION = 'pt-foglio-v193';
 const CORE_ASSETS = ['./', './index.html', './app.js', './manifest.json', './version.json'];
 const STATIC_ASSETS = [
   './icon-192.png',
@@ -72,13 +72,32 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Cache-first for static/vendor assets.
+  // Cache-first for static/vendor assets — now also covers MapLibre's
+  // own cross-origin resources (OpenFreeMap's style JSON, sprite,
+  // glyphs, vector tiles; Esri's satellite tiles for the map's
+  // satellite toggle). These were being silently EXCLUDED from caching
+  // entirely before: cross-origin responses come back with
+  // response.type === 'cors' (or 'opaque' for a no-cors request),
+  // never 'basic' — 'basic' is reserved for same-origin responses
+  // only. The old check here only ever accepted 'basic', so every
+  // single one of these was being re-downloaded from scratch on every
+  // single visit to Navigatore, with zero caching benefit across
+  // sessions — a real, meaningful contributor to slow map loading.
+  // 'opaque' responses are deliberately left out — the browser gives
+  // no way to read their actual HTTP status for an opaque response
+  // (a no-cors cross-origin request), so there's no way to confirm a
+  // response.status === 200 check against one; caching a possible
+  // error response as if it succeeded would be worse than not caching
+  // it. Both the OpenFreeMap and Esri tile servers respond with proper
+  // CORS headers already (confirmed — MapLibre requires this to read
+  // tile pixel data at all), so requests to them come back as 'cors',
+  // not 'opaque', in practice.
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
       return fetch(event.request)
         .then((response) => {
-          if (response && response.status === 200 && response.type === 'basic') {
+          if (response && response.status === 200 && (response.type === 'basic' || response.type === 'cors')) {
             const copy = response.clone();
             caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, copy));
           }

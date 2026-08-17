@@ -701,8 +701,14 @@
      GPS fix. A CSS transition on the same property would restart on
      every one of those frequent calls, fighting the JS animation
      instead of complementing it — the smoothness now comes entirely
-     from the JS-side interpolation, not CSS easing on top of it. */
-  .nav-heading-arrow{}
+     from the JS-side interpolation, not CSS easing on top of it.
+     filter:drop-shadow (not box-shadow — this needs to follow the
+     actual triangular arrow shape, not draw a shadow behind its whole
+     square bounding box) replaces the SVG <feDropShadow> the arrow
+     used to carry internally; same visual result, without relying on
+     SVG filter primitives at all, which have a real history of
+     silently failing to render in Safari specifically. */
+  .nav-heading-arrow{filter:drop-shadow(0 3px 3px rgba(0,0,0,.3));}
   /* Also no longer needed — the marker no longer rotates on its own at
      all (the MAP itself rotates via bearing now, not this element);
      nothing ever sets a transform on this inner div anymore. */
