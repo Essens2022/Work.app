@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v200") {
+          if (data && data.v && data.v !== "pt-foglio-v201") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v200"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v201"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1081,7 +1081,7 @@
   // to go. navSmooth.targetLat/Lon/Bearing are set from real GPS data
   // (see onActiveNavPosition); navSmooth.lat/lon/bearing are what's
   // actually drawn on screen each frame.
-  var navSmooth = { lat: null, lon: null, bearing: null, targetLat: null, targetLon: null, targetBearing: null, rafId: null, lastFrameTime: 0 };
+  var navSmooth = { lat: null, lon: null, bearing: null, targetLat: null, targetLon: null, targetBearing: null, rafId: null, lastFrameTime: 0, paused: false };
 
   function navSmoothCameraFrame(timestamp) {
     navSmooth.rafId = requestAnimationFrame(navSmoothCameraFrame);
@@ -1102,7 +1102,7 @@
       navSmooth.bearing = (navSmooth.bearing + diff * t + 360) % 360;
     }
     if (navPositionMarker) navPositionMarker.setLatLng([navSmooth.lat, navSmooth.lon]);
-    if (navFollowingUser) {
+    if (navFollowingUser && !navSmooth.paused) {
       // jumpTo, not easeTo — this loop IS the animation now, running
       // every frame; layering MapLibre's own eased transition on top
       // of a value that's already being smoothly interpolated here
@@ -1117,6 +1117,7 @@
     if (navSmooth.rafId) return; // already running
     navSmooth.lat = navSmooth.lon = navSmooth.bearing = null; // re-seed from the next real fix, not wherever a previous session left off
     navSmooth.lastFrameTime = 0;
+    navSmooth.paused = false;
     navSmooth.rafId = requestAnimationFrame(navSmoothCameraFrame);
   }
 
@@ -3454,12 +3455,17 @@
     // confirmed regression from the smooth-camera work — genuinely
     // dangerous if a driver can't manually look around the map while
     // actively navigating. touchstart/mousedown fire IMMEDIATELY on
-    // contact, before any drag-vs-tap determination, so this now stops
-    // the loop from touching the camera at all the instant a finger
-    // lands on the map — well before 'dragstart' would otherwise fire.
-    navMap.on('touchstart', navOnManualMapDrag);
-    navMap.on('mousedown', navOnManualMapDrag);
-    navMap.on('dragstart', navOnManualMapDrag);
+    // contact, before any drag-vs-tap determination — but only PAUSE
+    // the camera loop now, they don't disable following outright. Only
+    // dragstart (a real, sustained pointer move MapLibre itself
+    // confirmed) actually turns auto-follow off. touchend/mouseup
+    // resume the paused loop if dragstart never fired — see the three
+    // handlers themselves for the full reasoning.
+    navMap.on('touchstart', navOnTouchStartPauseCamera);
+    navMap.on('mousedown', navOnTouchStartPauseCamera);
+    navMap.on('dragstart', navOnDragStartDisableFollow);
+    navMap.on('touchend', navOnTouchEndResumeCamera);
+    navMap.on('mouseup', navOnTouchEndResumeCamera);
 
     navWatchId = navigator.geolocation.watchPosition(
       onActiveNavPosition,
@@ -3509,10 +3515,35 @@
 
   var navFollowingUser = true;
   var navLastPosition = null;
-  function navOnManualMapDrag() {
+  // Split into three separate handlers now — a single touch/tap that
+  // never turns into an actual drag was disabling auto-follow
+  // entirely (confirmed in real driving: the phone mount vibrating, a
+  // stray finger graze, anything touching the screen at all turned
+  // camera-follow off, sending the arrow drifting off-screen while
+  // driving — a real safety concern, not just an annoyance). The
+  // touchstart/mousedown handlers were added specifically to stop the
+  // ~60fps camera loop from fighting the very START of a genuine drag
+  // gesture (a real, separate bug, fixed correctly at the time) — but
+  // "stop fighting a possible drag" and "the driver deliberately
+  // wants manual control now" are two different things, and treating
+  // every touch as the second one was too aggressive.
+  //
+  // Now: touchstart/mousedown only PAUSES the camera loop's own jumpTo
+  // (navSmooth.paused) — following stays logically ON, so if the
+  // touch never becomes a real drag, nothing about the driving
+  // experience changes at all. Only dragstart — which only fires once
+  // MapLibre itself has confirmed real, sustained pointer movement —
+  // actually turns auto-follow off and shows the recenter button.
+  function navOnTouchStartPauseCamera() {
+    navSmooth.paused = true;
+  }
+  function navOnDragStartDisableFollow() {
     if (!navFollowingUser) return; // already off, nothing to do
     navFollowingUser = false;
     document.getElementById('nav-recenter-btn').style.display = 'flex';
+  }
+  function navOnTouchEndResumeCamera() {
+    navSmooth.paused = false; // harmless even if navFollowingUser is already false by now (dragstart fired) — the loop's own "if (navFollowingUser && ...)" gate still won't move the camera either way
   }
 
   // The active-navigation position marker — a simple directional arrow
@@ -3966,9 +3997,11 @@
     window.__navActiveNavigationRunning = false;
     if (navWatchId != null) { navigator.geolocation.clearWatch(navWatchId); navWatchId = null; }
     if (navPositionMarker) { navMap.removeLayer(navPositionMarker); navPositionMarker = null; }
-    navMap.off('touchstart', navOnManualMapDrag);
-    navMap.off('mousedown', navOnManualMapDrag);
-    navMap.off('dragstart', navOnManualMapDrag);
+    navMap.off('touchstart', navOnTouchStartPauseCamera);
+    navMap.off('mousedown', navOnTouchStartPauseCamera);
+    navMap.off('dragstart', navOnDragStartDisableFollow);
+    navMap.off('touchend', navOnTouchEndResumeCamera);
+    navMap.off('mouseup', navOnTouchEndResumeCamera);
     if (navMap.setBearing) navMap.setBearing(0); // back to plain north-up once navigation ends
     if (navMap.setPitch) navMap.setPitch(0); // and back to flat, top-down — the tilt is only for actively driving
     document.getElementById('nav-recenter-btn').style.display = 'none';
