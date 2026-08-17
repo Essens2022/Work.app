@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v209") {
+          if (data && data.v && data.v !== "pt-foglio-v211") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v209"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v211"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -3204,14 +3204,16 @@
       L.geoJSON(feature, { style: { color: '#5B8DD6', weight: 10, opacity: 0.6, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
       L.geoJSON(feature, { style: { color: '#8FB3E8', weight: 7, opacity: 0.75, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
     } else {
-      // Darkened from the earlier "Google Blue" (#4285F4) attempt —
-      // reported as too thin and too light. Deep navy casing
-      // (#0B3D91) under a richer, darker fill (#1557B0) than before —
-      // closer to how Google's own ACTIVE turn-by-turn route reads
-      // (noticeably more saturated/darker than their general-purpose
-      // "directions preview" blue) — plus both meaningfully thicker.
-      L.geoJSON(feature, { style: { color: '#0B3D91', weight: 13, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
-      L.geoJSON(feature, { style: { color: '#1557B0', weight: 8, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
+      // ADJUSTED with a precise visual reference from ION (an actual
+      // screenshot of Google's own active-navigation route line, not
+      // a verbal description this time) — the previous attempt here
+      // (navy #0B3D91/#1557B0) overshot how dark "darker" meant;
+      // Google's real turn-by-turn blue reads as a moderately
+      // saturated, medium-bright blue, not true navy. Matched much
+      // closer to that reference now, keeping the earlier thickness
+      // increase (that part was correct — the color was the miss).
+      L.geoJSON(feature, { style: { color: '#1A56DB', weight: 13, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
+      L.geoJSON(feature, { style: { color: '#3B7DEE', weight: 8, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
     }
     return group;
   }
@@ -3477,7 +3479,7 @@
     // very next watchPosition update (started right below) still
     // corrects the view with real, live data either way.
     currentPosition().then(function (p) {
-      if (navMap) navMap.setView([p.lat, p.lon], 18, { animate: true });
+      if (navMap) navMap.setView([p.lat, p.lon], 18.5, { animate: true });
     }).catch(function () { /* watchPosition below will catch up with a real fix shortly */ });
 
     // Starts the continuous per-frame smoothing loop for the marker +
@@ -3641,7 +3643,7 @@
     if (btn) btn.style.display = 'none';
     if (navLastPosition && navMap) {
       if (instant) {
-        navMap.setView([navLastPosition.lat, navLastPosition.lon], 18, { animate: false });
+        navMap.setView([navLastPosition.lat, navLastPosition.lon], 18.5, { animate: false });
         navSmooth.lat = navSmooth.targetLat = navLastPosition.lat;
         navSmooth.lon = navSmooth.targetLon = navLastPosition.lon;
       } else {
@@ -3653,7 +3655,7 @@
       navLastPosition = { lat: p.lat, lon: p.lon };
       if (navFollowingUser && navMap) {
         if (instant) {
-          navMap.setView([p.lat, p.lon], 18, { animate: false });
+          navMap.setView([p.lat, p.lon], 18.5, { animate: false });
           navSmooth.lat = navSmooth.targetLat = p.lat;
           navSmooth.lon = navSmooth.targetLon = p.lon;
         } else {
