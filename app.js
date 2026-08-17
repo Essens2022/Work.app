@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v176") {
+          if (data && data.v && data.v !== "pt-foglio-v177") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v176"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v177"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2705,20 +2705,20 @@
     var heading = position.coords.heading;
     navLastPosition = { lat: lat, lon: lon };
 
-    // Trims the already-driven part of the CURRENT leg off the map on
-    // every real position update — not just when a full stop is
-    // reached. Needs navLegs to exist yet (it's set at the very start
-    // of startActiveNavigation, so this is safe from the first fix
-    // onward).
-    if (navLegs) drawActiveNavLegs(lat, lon);
-
     // Off-route detection — was completely missing before: if the
     // driver missed a turn or otherwise left the calculated street,
     // the app just kept showing the original route and instructions
     // regardless, with no way back to a correct route short of
     // stopping and recalculating by hand.
     //
-    // Two ways to trigger, matching the two real-world cases:
+    // Computed here UNCONDITIONALLY (not just when checking whether to
+    // reroute) because the same distance/nearest-point result is also
+    // what map matching (below) needs — no point computing it twice.
+    var deviation = (navLegs && navLegs[navCurrentLegIndex])
+      ? routeDeviation(navLegs[navCurrentLegIndex].geometry.coordinates, lat, lon)
+      : null;
+
+    // Two ways to trigger a reroute, matching the two real-world cases:
     // 1) SUSTAINED distance — off the line by more than 30m for 3
     //    consecutive fixes. A single reading over the threshold isn't
     //    enough on its own (ordinary GPS noise can put you 20-30m off
@@ -2740,9 +2740,8 @@
     // position right after a reroute) would be worse than just waiting
     // a moment.
     var REROUTE_COOLDOWN_MS = 30000;
-    if (navLegs && navLegs[navCurrentLegIndex] && !navRerouting &&
+    if (deviation && !navRerouting &&
         (!navLastRerouteTime || Date.now() - navLastRerouteTime > REROUTE_COOLDOWN_MS)) {
-      var deviation = routeDeviation(navLegs[navCurrentLegIndex].geometry.coordinates, lat, lon);
       var speedKmh = (position.coords.speed != null && !isNaN(position.coords.speed)) ? position.coords.speed * 3.6 : 0;
       var headingMismatch = (heading != null && !isNaN(heading) && deviation.routeBearing != null)
         ? angleDifference(heading, deviation.routeBearing) : 0;
@@ -2760,6 +2759,36 @@
         navOffRouteCount = 0;
       }
     }
+
+    // Map matching — the position shown on screen (marker + camera) is
+    // snapped to the nearest point ON THE ROUTE ITSELF, rather than
+    // raw GPS, whenever there's real confidence it belongs there
+    // (within 20m of the route). Ordinary phone GPS drifts a few
+    // meters side to side even standing still, which without this
+    // makes the vehicle icon visibly wobble next to the road instead
+    // of sitting on it — exactly what Google/Waze avoid by always
+    // snapping to the road network. Every DECISION in this function
+    // (off-route detection above, arrival checks and step-advancement
+    // below) deliberately keeps using the RAW position, never this
+    // snapped one — snapping is a display-only correction; feeding a
+    // snapped position back into off-route detection would be
+    // circular (a snapped point is always "on" the route by
+    // definition) and would mask a real deviation instead of catching
+    // it. If genuinely off-route (or before any route/leg exists yet),
+    // this just falls back to the raw position, unchanged.
+    var displayLat = lat, displayLon = lon;
+    if (deviation && deviation.distance < 20 && deviation.nearestLat != null) {
+      displayLat = deviation.nearestLat;
+      displayLon = deviation.nearestLon;
+    }
+
+    // Trims the already-driven part of the CURRENT leg off the map on
+    // every real position update — not just when a full stop is
+    // reached. Needs navLegs to exist yet (it's set at the very start
+    // of startActiveNavigation, so this is safe from the first fix
+    // onward). Uses the raw position — trimming is measured against
+    // the true GPS point, same reasoning as off-route detection.
+    if (navLegs) drawActiveNavLegs(lat, lon);
 
     // Real current speed, straight from GPS (m/s → km/h) — shown only
     // when the device actually reports it (many phones return null
@@ -2787,8 +2816,11 @@
     // between real GPS fixes (roughly once every 1-2s) instead of
     // jumping — this is the single biggest contributor to the
     // "sacadat" (jerky) feel compared to Google Maps' own fluid camera.
+    // Uses displayLat/displayLon (map-matched when confidently on the
+    // route, raw GPS otherwise) — not the raw lat/lon — so the icon
+    // sits ON the road instead of visibly wobbling beside it.
     if (navPositionMarker) {
-      navPositionMarker.setLatLng([lat, lon]);
+      navPositionMarker.setLatLng([displayLat, displayLon]);
     } else {
       // A top-down icon matching the actually-configured vehicle —
       // furgone gets a van silhouette, camion/cassonato/autoarticolato
@@ -2799,7 +2831,7 @@
       // to show the real direction of travel — the map itself stays
       // fixed, north-up (see rotateNavMapToHeading), only this marker
       // turns.
-      navPositionMarker = L.marker([lat, lon], {
+      navPositionMarker = L.marker([displayLat, displayLon], {
         icon: L.divIcon({
           className: 'nav-heading-arrow',
           html: '<div>' + navPositionMarkerSvg() + '</div>',
@@ -2832,8 +2864,12 @@
       }
     }
 
+    // Follows the map-matched position, same reasoning as the marker —
+    // otherwise the camera itself would visibly wobble in sync with
+    // raw GPS noise even while the icon on top of it stays snapped to
+    // the road.
     if (navFollowingUser) {
-      navMap.setView([lat, lon], 18, { animate: true });
+      navMap.setView([displayLat, displayLon], 18, { animate: true });
     }
     if (heading != null && !isNaN(heading)) rotateNavMapToHeading(heading);
 
@@ -2971,18 +3007,17 @@
 
   // Distance from the driver to the current leg's line, PLUS the
   // route's own local direction at that nearest point (the bearing from
-  // that point to the next one along the geometry) — used together for
-  // off-route detection: being some distance from the line isn't
-  // itself proof of a wrong turn (GPS noise, or a wide junction), but
-  // being off the line AND heading a clearly different direction than
-  // the road actually goes is a much stronger, faster signal.
+  // that point to the next one along the geometry), PLUS the nearest
+  // point's own coordinates — used for off-route detection (distance +
+  // bearing) AND for map matching (nearestLat/nearestLon, the point to
+  // visually snap the marker to when confidently on the route).
   function routeDeviation(coords, lat, lon) {
     var idx = nearestCoordIndex(coords, lat, lon);
     var c = coords[idx];
     var distance = haversineKm({ lat: lat, lon: lon }, { lat: c[1], lon: c[0] }) * 1000;
     var nextC = coords[idx + 1] || coords[idx - 1]; // fall back to the previous point at the very end of the line
     var routeBearing = nextC ? bearingBetween({ lat: c[1], lon: c[0] }, { lat: nextC[1], lon: nextC[0] }) : null;
-    return { distance: distance, routeBearing: routeBearing };
+    return { distance: distance, routeBearing: routeBearing, nearestLat: c[1], nearestLon: c[0] };
   }
 
   // Returns a copy of a leg's feature with the already-driven portion
