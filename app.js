@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v217") {
+          if (data && data.v && data.v !== "pt-foglio-v218") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v217"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v218"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1119,11 +1119,36 @@
     return { lat: lat2 * 180 / Math.PI, lon: ((lon2 * 180 / Math.PI + 540) % 360) - 180 };
   }
 
+  // DIAGNOSTIC BUILD — real per-operation timing, not another guess.
+  // Five fix attempts (dead-reckoning, speed fallback, disabling 3D
+  // buildings, windowed trim search, camera padding/inertia) have not
+  // resolved a "severe stutter" reported as still present on BOTH
+  // iPhone 14 Pro and Android after all of them — ruling out most of
+  // the specific theories tried so far. Rather than a sixth guess,
+  // this measures exactly how long each piece of this loop actually
+  // takes, in milliseconds, in a small on-screen readout, updated
+  // twice a second (not every frame — that would make the overlay
+  // itself the bottleneck). TEMPORARY — remove once the real cause is
+  // confirmed.
+  var navProf = { jumpToMs: 0, trimMs: 0, otherMs: 0, frames: 0, lastReport: 0 };
+  function navShowProfileOverlay() {
+    var el = document.getElementById('nav-profile-overlay');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'nav-profile-overlay';
+      el.style.cssText = 'position:fixed;top:120px;left:8px;z-index:99999;background:rgba(0,0,0,0.85);color:#0f0;font:11px monospace;padding:8px;border-radius:6px;white-space:pre;pointer-events:none;';
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+
   function navSmoothCameraFrame(timestamp) {
     navSmooth.rafId = requestAnimationFrame(navSmoothCameraFrame);
     if (navSmooth.fixLat == null || !navMap || !navMap._maplibre) return;
     var dt = navSmooth.lastFrameTime ? Math.min((timestamp - navSmooth.lastFrameTime) / 1000, 0.25) : 0.016; // capped, in case the tab was backgrounded a moment
     navSmooth.lastFrameTime = timestamp;
+
+    var tStart = performance.now();
 
     // Continuously extrapolated from the last real fix — ALWAYS
     // advancing, every frame, rather than a value that only changes
@@ -1147,6 +1172,8 @@
     navSmooth.bearing = (navSmooth.bearing + diff * t + 360) % 360;
 
     if (navPositionMarker) navPositionMarker.setLatLng([navSmooth.lat, navSmooth.lon]);
+
+    var tBeforeJump = performance.now();
     if (navFollowingUser && !navSmooth.paused) {
       // jumpTo, not easeTo — this loop IS the animation now, running
       // every frame; layering MapLibre's own eased transition on top
@@ -1160,22 +1187,31 @@
         padding: { top: 260, bottom: 0, left: 0, right: 0 }
       });
     }
+    var tAfterJump = performance.now();
     // The already-driven part of the route line now updates EVERY
-    // FRAME too, from this exact same navSmooth.lat/lon — no
-    // throttling anymore. The previous throttle (120ms) was itself a
-    // real source of the reported desync ("linia ramane in urma
-    // sagetii, nu merg impreuna") — camera/marker moved every frame,
-    // the line only caught up every several frames, so they visibly
-    // drifted apart from each other. setData() on a route line's
-    // small GeoJSON source is cheap (a coordinate array update, not a
-    // full layer rebuild — that's the whole point of PR #217's
-    // earlier optimization) — safe to run every frame now that all
-    // three (camera, marker, line) read from ONE single position,
-    // updated once per frame, instead of three separately-paced
-    // updates that could never stay perfectly together.
+    // FRAME too, from this exact same navSmooth.lat/lon.
     if (typeof updateCurrentLegTrim === 'function') updateCurrentLegTrim(navSmooth.lat, navSmooth.lon);
+    var tAfterTrim = performance.now();
     var needle = document.getElementById('nav-compass-needle');
     if (needle) needle.textContent = headingToCompassLabel(navSmooth.bearing);
+
+    // DIAGNOSTIC — accumulate real timing, report twice a second.
+    navProf.jumpToMs += (tAfterJump - tBeforeJump);
+    navProf.trimMs += (tAfterTrim - tAfterJump);
+    navProf.otherMs += (tBeforeJump - tStart);
+    navProf.frames++;
+    if (!navProf.lastReport || timestamp - navProf.lastReport > 500) {
+      var el = navShowProfileOverlay();
+      var fps = navProf.frames / ((timestamp - navProf.lastReport) / 1000 || 0.5);
+      el.textContent =
+        'FPS: ' + fps.toFixed(0) + '\n' +
+        'jumpTo avg: ' + (navProf.jumpToMs / navProf.frames).toFixed(2) + 'ms\n' +
+        'trim avg: ' + (navProf.trimMs / navProf.frames).toFixed(2) + 'ms\n' +
+        'other avg: ' + (navProf.otherMs / navProf.frames).toFixed(2) + 'ms\n' +
+        'frame total: ' + ((navProf.jumpToMs + navProf.trimMs + navProf.otherMs) / navProf.frames).toFixed(2) + 'ms';
+      navProf.jumpToMs = navProf.trimMs = navProf.otherMs = navProf.frames = 0;
+      navProf.lastReport = timestamp;
+    }
   }
 
   function navStartSmoothCamera() {
@@ -1191,6 +1227,8 @@
     navSmooth.rafId = null;
     navSmooth.fixLat = navSmooth.fixLon = null;
     navSmooth.prevFixLat = navSmooth.prevFixLon = null; // don't let a stale reading from a previous, unrelated session feed a bogus fallback-speed calculation on the next one
+    var profEl = document.getElementById('nav-profile-overlay'); // DIAGNOSTIC BUILD
+    if (profEl) profEl.remove();
   }
 
   var navLocateMarker = null; // "you are here" marker dropped by the standalone locate button, kept separate from the active-navigation position marker
