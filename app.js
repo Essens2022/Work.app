@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v203") {
+          if (data && data.v && data.v !== "pt-foglio-v204") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v203"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v204"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1108,6 +1108,22 @@
       // of a value that's already being smoothly interpolated here
       // would just be double-smoothing against a moving target.
       navMap._maplibre.jumpTo({ center: [navSmooth.lon, navSmooth.lat], bearing: navSmooth.bearing });
+    }
+    // The already-driven part of the route line only used to erase
+    // itself on real GPS ticks (roughly once every 1-2s) — while the
+    // marker/camera themselves moved continuously at 60fps via this
+    // same loop. That mismatch is exactly what reads as the blue line
+    // "lagging behind" the arrow — the marker visibly pulls ahead of
+    // where the line has actually been trimmed to, for up to a couple
+    // of real seconds at a time. Throttled to every ~250ms (not every
+    // single frame — that would mean 60 setData calls/sec on the
+    // route source, real, avoidable GPU/CPU cost for no visible
+    // benefit past a point) using the same continuously-interpolated
+    // position already driving the marker, so the trimmed line keeps
+    // much closer pace with what's actually on screen.
+    if (!navSmooth.lastTrimTime || timestamp - navSmooth.lastTrimTime > 250) {
+      navSmooth.lastTrimTime = timestamp;
+      if (typeof updateCurrentLegTrim === 'function') updateCurrentLegTrim(navSmooth.lat, navSmooth.lon);
     }
     var needle = document.getElementById('nav-compass-needle');
     if (needle) needle.textContent = headingToCompassLabel(navSmooth.bearing);
@@ -3620,39 +3636,46 @@
       : null;
 
     // Two ways to trigger a reroute, matching the two real-world cases:
-    // 1) SUSTAINED distance — off the line by more than 30m for 3
-    //    consecutive fixes. A single reading over the threshold isn't
-    //    enough on its own (ordinary GPS noise can put you 20-30m off
-    //    a road you're actually still on), but a sustained deviation
-    //    over a few real seconds is a genuine signal.
+    // 1) SUSTAINED distance — off the line by more than 30m for 2
+    //    consecutive fixes (was 3 — tightened after real driving
+    //    showed this path taking too long to confirm a genuine missed
+    //    turn; 2 consecutive readings over a real threshold is still
+    //    enough to reject a single noisy GPS blip, just faster to
+    //    react to a real deviation).
     // 2) FAST heading-based trigger — off the line by more than 20m
     //    AND heading a clearly different direction than the route
-    //    itself goes there (>70°) AND actually moving at a meaningful
-    //    speed (>10 km/h, so this never fires while stopped or
-    //    crawling, where heading is unreliable anyway). This one
-    //    doesn't wait for consecutive fixes — heading mismatch this
-    //    large while genuinely moving is already a strong, fast signal
-    //    of a real wrong turn, not GPS noise, so there's no reason to
-    //    wait several more seconds to confirm it.
+    //    itself goes there (>55°, was 70° — loosened for the same
+    //    reason: right after missing a turn, the heading mismatch
+    //    often isn't dramatic yet, since you're still pointed roughly
+    //    the way the road WAS going just before the missed turn; a
+    //    lower threshold catches real wrong turns sooner, before
+    //    falling back to the slower sustained-distance path) AND
+    //    actually moving at a meaningful speed (>10 km/h, so this
+    //    never fires while stopped or crawling, where heading is
+    //    unreliable anyway). This one doesn't wait for consecutive
+    //    fixes at all — heading mismatch this large while genuinely
+    //    moving is already a strong, fast signal of a real wrong
+    //    turn, not GPS noise.
     //
-    // Cooldown: even once triggered, won't fire again within 30s of the
-    // last reroute — recalculating repeatedly in a tight loop (e.g.
-    // while the fresh route is still catching up to a slightly-still-off
-    // position right after a reroute) would be worse than just waiting
-    // a moment.
-    var REROUTE_COOLDOWN_MS = 30000;
+    // Cooldown: even once triggered, won't fire again within 15s (was
+    // 30s — halved for the same "make it react faster" reasoning,
+    // while still leaving enough of a gap that recalculating
+    // repeatedly in a tight loop, e.g. while a fresh route is still
+    // catching up to a slightly-still-off position right after a
+    // reroute, doesn't happen) of the last reroute.
+    var REROUTE_COOLDOWN_MS = 15000;
     if (deviation && !navRerouting &&
         (!navLastRerouteTime || Date.now() - navLastRerouteTime > REROUTE_COOLDOWN_MS)) {
       var speedKmh = (position.coords.speed != null && !isNaN(position.coords.speed)) ? position.coords.speed * 3.6 : 0;
       var headingMismatch = (heading != null && !isNaN(heading) && deviation.routeBearing != null)
         ? angleDifference(heading, deviation.routeBearing) : 0;
-      var fastTrigger = deviation.distance > 20 && headingMismatch > 70 && speedKmh > 10;
+      var fastTrigger = deviation.distance > 20 && headingMismatch > 55 && speedKmh > 10;
       if (fastTrigger) {
         navOffRouteCount = 0;
         rerouteFromCurrentPosition(lat, lon);
       } else if (deviation.distance > 30) {
         navOffRouteCount++;
-        if (navOffRouteCount >= 3) {
+        if (navOffRouteCount >= 2) {
           navOffRouteCount = 0;
           rerouteFromCurrentPosition(lat, lon);
         }
