@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v195") {
+          if (data && data.v && data.v !== "pt-foglio-v196") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v195"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v196"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -3310,6 +3310,7 @@
     // auto-reload while a driver is actively mid-navigation — see the
     // comment there for why.
     window.__navActiveNavigationRunning = true;
+    window.__navDebugSkipToastShown = false; // DIAGNOSTIC BUILD — reset each fresh Avvia so the one-time "already existed" toast can fire again for this new session
     // The "la mia posizione" button's own marker (a plain dot) was
     // never being removed here — if it had been tapped while still
     // planning the trip, it just stayed on the map, showing alongside
@@ -3612,22 +3613,36 @@
     navSmooth.targetLon = displayLon;
     if (heading != null && !isNaN(heading)) navSmooth.targetBearing = heading;
     if (!navPositionMarker) {
-      // A top-down icon matching the actually-configured vehicle —
-      // furgone gets a van silhouette, camion/cassonato/autoarticolato
-      // get a truck-with-trailer silhouette (a visibly separate cab and
-      // cargo box, since that's the real shape of the bigger vehicles
-      // this app is built for) — rather than always the same generic
-      // car shape regardless of what's actually being driven. Rotates
-      // to show the real direction of travel — the map itself stays
-      // fixed, north-up (see rotateNavMapToHeading), only this marker
-      // turns.
-      navPositionMarker = L.marker([displayLat, displayLon], {
-        icon: L.divIcon({
-          className: 'nav-heading-arrow',
-          html: '<div>' + navPositionMarkerSvg() + '</div>',
-          iconSize: [34, 34], iconAnchor: [17, 17]
-        })
-      }).addTo(navMap);
+      // DIAGNOSTIC BUILD — the arrow icon has been reported missing
+      // (a plain circle shows instead) across multiple already-merged
+      // fix attempts, none of which resolved it when actually tested.
+      // Rather than guess a fourth time with no way to verify, this
+      // wraps marker creation in try/catch and reports directly via
+      // toast() — the one channel available to see what's actually
+      // happening on the real device, with no console/devtools access
+      // otherwise. Meant to be temporary; remove once the real cause
+      // is confirmed.
+      try {
+        navPositionMarker = L.marker([displayLat, displayLon], {
+          icon: L.divIcon({
+            className: 'nav-heading-arrow',
+            html: '<div>' + navPositionMarkerSvg() + '</div>',
+            iconSize: [34, 34], iconAnchor: [17, 17]
+          })
+        }).addTo(navMap);
+        toast('DEBUG: marker creato OK');
+      } catch (markerErr) {
+        toast('DEBUG ERRORE marker: ' + (markerErr && markerErr.message ? markerErr.message : String(markerErr)));
+      }
+    } else if (!window.__navDebugSkipToastShown) {
+      // Only once per session (not every GPS tick) — confirms the
+      // OTHER branch: a marker object already existed, so creation was
+      // skipped entirely. If this shows instead of "marker creato OK",
+      // the fix in PR #230 (resetting navPositionMarker in initNavMap)
+      // either didn't take effect or there's still another path
+      // leaving a stale reference behind.
+      window.__navDebugSkipToastShown = true;
+      toast('DEBUG: marker gia esistente, skip creazione');
     }
 
     // Multi-stop trip — offer to confirm arrival once genuinely close
