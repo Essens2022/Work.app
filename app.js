@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v185") {
+          if (data && data.v && data.v !== "pt-foglio-v186") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v185"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v186"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1136,10 +1136,25 @@
     html += '<button type="button" class="nav-search-gear" id="nav-gear-btn" aria-label="Impostazioni veicolo">⚙</button>';
     html += '</div>';
     html += '<div class="nav-search-panel" id="nav-search-panel" style="display:none;">';
+    // Fixed header — Casa/Lavoro shortcuts and the Partenza field never
+    // scroll away, regardless of how many tappe get added below.
+    html += '<div class="nav-search-panel-top">';
     html += '<div class="nav-shortcuts-row" id="nav-shortcuts-row"></div>';
-    html += '<div id="nav-waypoints-list"></div>';
+    html += '<div id="nav-origin-field"></div>';
+    html += '</div>';
+    // Only THIS grows/scrolls as tappe are added — previously the
+    // whole panel (shortcuts, Partenza, every tappa, Aggiungi tappa,
+    // Calcola percorso, all of it) scrolled as one block, which meant
+    // adding several tappe pushed Calcola percorso itself out of view,
+    // needing a scroll down just to reach it. Now that button (and
+    // Aggiungi tappa, and the shortcuts/Partenza above) stay exactly
+    // where they are; only the tappa rows themselves move.
+    html += '<div class="nav-search-panel-scroll" id="nav-waypoints-list"></div>';
+    // Fixed footer — same reasoning as the header above.
+    html += '<div class="nav-search-panel-bottom">';
     html += '<button type="button" class="nav-add-stop-btn" id="nav-add-stop">+ Aggiungi tappa</button>';
     html += '<button type="button" class="btn btn-accent btn-block" id="nav-calc-btn" style="margin-top:12px;">Calcola percorso</button>';
+    html += '</div>';
     html += '</div>';
 
     // Floating controls, bottom-right — same spot Google Maps puts its
@@ -1194,6 +1209,7 @@
     html += '</div>';
 
     el.innerHTML = html;
+    renderNavOriginField();
     renderNavWaypointsList();
     renderNavShortcuts();
     populateNavVehicleForm();
@@ -1932,50 +1948,52 @@
     return 'Tappa ' + idx;
   }
 
-  function renderNavWaypointsList() {
-    var container = document.getElementById('nav-waypoints-list');
-    if (!container) return;
-    var stopNumber = 0;
-    var html = navWaypoints.map(function (wp, i) {
-      if (wp.role === 'stop') stopNumber++;
-      var label = navWaypointLabel(wp, wp.role === 'dest' ? stopNumber + 1 : stopNumber);
-      var placeholder = wp.role === 'origin' ? 'Indirizzo, CAP, civico — o lascia vuoto per la posizione attuale' : 'Indirizzo, CAP o numero civico';
-      // The X to remove a row now shows on any real stop, AND on the
-      // final destination itself as long as there's at least one stop
-      // before it to fall back to — this is exactly "undo Aggiungi
-      // tappa": removing the just-added (still empty) destination
-      // slot un-does adding it, and the stop right before it quietly
-      // becomes the destination again (see removeNavWaypoint). Origin
-      // never gets a remove button, and neither does the destination
-      // when it's the only real point left (Partenza + Destinazione)
-      // — there always has to be a destination.
-      var canRemove = wp.role === 'stop' || (wp.role === 'dest' && navWaypoints.length > 2);
-      var removeBtn = canRemove ? '<button type="button" class="nav-wp-remove" data-remove="' + wp.id + '">✕</button>' : '';
-      // Reordering: a stop can move up unless the thing right above it
-      // is the origin (always first), and down unless the thing right
-      // below it is the destination (always last) — matches how Google
-      // Maps keeps start/end fixed while letting stops be reordered.
-      // A real drag handle (⠿) instead of small tap-to-move arrows —
-      // matches how Google Maps itself lets you reorder stops, by
-      // grabbing and dragging a row, rather than tapping tiny buttons.
-      var reorderBtns = wp.role === 'stop'
-        ? '<div class="nav-wp-drag-handle" data-drag-handle="' + wp.id + '">⠿</div>'
-        : '<div class="nav-wp-drag-spacer"></div>';
-      return '<div class="nav-wp-row" data-wp-row="' + wp.id + '">' +
-        reorderBtns +
-        '<div class="field autocomplete-wrap" style="flex:1;margin-bottom:8px;">' +
-        '<label>' + label + '</label>' +
-        '<input type="text" id="wpinput-' + wp.id + '" value="' + escapeHtml(wp.text) + '" placeholder="' + placeholder + '" autocomplete="off">' +
-        '<button type="button" class="ac-clear-btn" id="wpclear-' + wp.id + '" aria-label="Cancella">✕</button>' +
-        '<div class="ac-list" id="wpac-' + wp.id + '"></div>' +
-        '</div>' +
-        '<button type="button" class="nav-wp-pin" data-pin="' + wp.id + '" aria-label="Scegli sulla mappa">📍</button>' +
-        removeBtn +
-        '</div>';
-    }).join('');
-    container.innerHTML = html;
+  // Builds one waypoint row's HTML — shared between the origin field
+  // (rendered once, alone, into the FIXED header) and the scrollable
+  // stop/destination list, so both stay visually and behaviorally
+  // identical without duplicating this markup twice.
+  function navWaypointRowHtml(wp, displayIdx) {
+    var label = navWaypointLabel(wp, displayIdx);
+    var placeholder = wp.role === 'origin' ? 'Indirizzo, CAP, civico — o lascia vuoto per la posizione attuale' : 'Indirizzo, CAP o numero civico';
+    // The X to remove a row shows on any real stop, AND on the
+    // destination itself as long as there's at least one stop before
+    // it to fall back to — this is exactly "undo Aggiungi tappa":
+    // removing the just-added (still empty) destination slot un-does
+    // adding it, and the stop right before it quietly becomes the
+    // destination again (see removeNavWaypoint). Origin never gets a
+    // remove button, and neither does the destination when it's the
+    // only real point left (Partenza + Destinazione) — there always
+    // has to be a destination.
+    var canRemove = wp.role === 'stop' || (wp.role === 'dest' && navWaypoints.length > 2);
+    var removeBtn = canRemove ? '<button type="button" class="nav-wp-remove" data-remove="' + wp.id + '">✕</button>' : '';
+    // Reordering: any stop OR the destination itself can be dragged —
+    // only origin (always first, rendered separately above) stays
+    // fixed. A real drag handle (⠿) instead of small tap-to-move
+    // arrows — matches how Google Maps itself lets you reorder stops,
+    // by grabbing and dragging a row, rather than tapping tiny
+    // buttons.
+    var reorderBtns = wp.role !== 'origin'
+      ? '<div class="nav-wp-drag-handle" data-drag-handle="' + wp.id + '">⠿</div>'
+      : '<div class="nav-wp-drag-spacer"></div>';
+    return '<div class="nav-wp-row" data-wp-row="' + wp.id + '">' +
+      reorderBtns +
+      '<div class="field autocomplete-wrap" style="flex:1;margin-bottom:8px;">' +
+      '<label>' + label + '</label>' +
+      '<input type="text" id="wpinput-' + wp.id + '" value="' + escapeHtml(wp.text) + '" placeholder="' + placeholder + '" autocomplete="off">' +
+      '<button type="button" class="ac-clear-btn" id="wpclear-' + wp.id + '" aria-label="Cancella">✕</button>' +
+      '<div class="ac-list" id="wpac-' + wp.id + '"></div>' +
+      '</div>' +
+      '<button type="button" class="nav-wp-pin" data-pin="' + wp.id + '" aria-label="Scegli sulla mappa">📍</button>' +
+      removeBtn +
+      '</div>';
+  }
 
-    navWaypoints.forEach(function (wp) {
+  // Wires up everything a row needs (autocomplete, clear button, drag
+  // handle, remove, pin-on-map) for whichever waypoints are inside the
+  // given container — shared between the origin field and the
+  // scrollable stop/destination list.
+  function wireNavWaypointRows(container, waypoints) {
+    waypoints.forEach(function (wp) {
       wireNavAddressAutocomplete(wp.id);
       wireNavClearButton(
         document.getElementById('wpinput-' + wp.id),
@@ -1992,6 +2010,34 @@
     container.querySelectorAll('[data-pin]').forEach(function (btn) {
       btn.addEventListener('click', function () { startNavMapPicking(btn.getAttribute('data-pin')); });
     });
+  }
+
+  // Origin only — rendered once into the FIXED header (#nav-origin-field),
+  // never scrolls away regardless of how many tappe get added below.
+  // Only needs re-rendering when the origin itself changes (a fresh
+  // pick, Casa/Lavoro applied to it, etc.) — NOT on every reorder/add/
+  // remove of a stop, unlike renderNavWaypointsList below.
+  function renderNavOriginField() {
+    var container = document.getElementById('nav-origin-field');
+    if (!container) return;
+    var origin = navWaypoints.filter(function (w) { return w.role === 'origin'; })[0];
+    if (!origin) return;
+    container.innerHTML = navWaypointRowHtml(origin, 0);
+    wireNavWaypointRows(container, [origin]);
+  }
+
+  function renderNavWaypointsList() {
+    var container = document.getElementById('nav-waypoints-list');
+    if (!container) return;
+    var stopNumber = 0;
+    var rest = navWaypoints.filter(function (w) { return w.role !== 'origin'; });
+    var html = rest.map(function (wp) {
+      if (wp.role === 'stop') stopNumber++;
+      var displayIdx = wp.role === 'dest' ? stopNumber + 1 : stopNumber;
+      return navWaypointRowHtml(wp, displayIdx);
+    }).join('');
+    container.innerHTML = html;
+    wireNavWaypointRows(container, rest);
   }
 
   // Small "×" inside the field itself to instantly empty an address —
@@ -2218,12 +2264,26 @@
         if (!overRow || overRow === row) return;
         var overId = overRow.getAttribute('data-wp-row');
         var overWp = navWaypoints.filter(function (w) { return w.id === overId; })[0];
-        if (!overWp || overWp.role !== 'stop') return; // only ever swaps with another real stop — origin/destination stay fixed
+        // Swaps with any other stop OR the destination itself now —
+        // only origin (rendered in its own separate, fixed field, never
+        // even reaches this list) stays untouched by dragging.
+        if (!overWp || overWp.role === 'origin') return;
         var fromIdx = navWaypoints.findIndex(function (w) { return w.id === waypointId; });
         var toIdx = navWaypoints.findIndex(function (w) { return w.id === overId; });
         if (fromIdx === -1 || toIdx === -1) return;
         var moved = navWaypoints.splice(fromIdx, 1)[0];
         navWaypoints.splice(toIdx, 0, moved);
+        // Whichever item is now LAST becomes the destination, and every
+        // other non-origin item becomes a plain stop — dragging the
+        // destination itself into an earlier position, or dragging a
+        // stop all the way to the end, both need this to keep exactly
+        // one "dest" and have it always be the final point, same rule
+        // used everywhere else a waypoint's position can change
+        // (removeNavWaypoint, addNavWaypointBeforeDest).
+        navWaypoints.forEach(function (w, i) {
+          if (w.role === 'origin') return;
+          w.role = (i === navWaypoints.length - 1) ? 'dest' : 'stop';
+        });
         renderNavWaypointsList();
         // The text fields above already relabel themselves correctly
         // (Tappa 1/2/3) via renderNavWaypointsList — but the NUMBERED
@@ -2235,9 +2295,11 @@
         // look like the route was looping nonsensically — it wasn't;
         // the map just hadn't caught up to what order the stops were
         // actually in. refreshNavWaypointMarkerIcon recomputes each
-        // marker's correct number from the CURRENT navWaypoints order
-        // without recentring the map or opening a popup for each one —
-        // just the icon itself, so this stays smooth mid-drag.
+        // marker's correct number AND pin style (numbered circle vs.
+        // the destination's red pin) from the CURRENT navWaypoints
+        // order, without recentring the map or opening a popup for
+        // each one — just the icon itself, so this stays smooth
+        // mid-drag.
         navWaypoints.forEach(function (w) {
           if (w.point) refreshNavWaypointMarkerIcon(w.id, w.point);
         });

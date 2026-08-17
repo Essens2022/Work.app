@@ -569,10 +569,21 @@
     flex-shrink:0;width:36px;height:36px;border-radius:50%;border:none;background:var(--accent-soft);
     color:var(--accent);font-size:16px;display:flex;align-items:center;justify-content:center;
   }
+  /* The panel itself no longer scrolls as one whole block — it's a
+     fixed-height flex column now: header (shortcuts + Partenza) and
+     footer (Aggiungi tappa + Calcola percorso) never move, only the
+     middle (the tappa list, .nav-search-panel-scroll below) scrolls,
+     so those two buttons stay reachable no matter how many tappe get
+     added, instead of being pushed off the bottom of a single long
+     scroll. */
   .nav-search-panel{
-    position:absolute;top:calc(70px + env(safe-area-inset-top));left:10px;right:10px;z-index:1001;max-height:70%;overflow-y:auto;
-    background:#fff;border-radius:var(--radius-lg);padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.2);
+    position:absolute;top:calc(70px + env(safe-area-inset-top));left:10px;right:10px;z-index:1001;max-height:70%;
+    background:#fff;border-radius:var(--radius-lg);box-shadow:0 10px 30px rgba(0,0,0,.2);
+    display:flex;flex-direction:column;
   }
+  .nav-search-panel-top{flex-shrink:0;padding:14px 14px 0 14px;}
+  .nav-search-panel-scroll{flex:1;min-height:60px;overflow-y:auto;padding:0 14px;}
+  .nav-search-panel-bottom{flex-shrink:0;padding:12px 14px 14px 14px;}
   /* Bumped well above the old 110px — the result card underneath
      (distance/tempo/alternatives/Avvia, easily 180-220px tall once a
      route with alternatives is shown) was tall enough to sit on top of
@@ -727,7 +738,7 @@
   }
   .ac-list{
     position:absolute;left:0;right:0;top:calc(100% + 6px);background:var(--surface);border:1px solid var(--line);
-    border-radius:14px;box-shadow:var(--shadow-md);z-index:50;max-height:230px;overflow-y:auto;display:none;touch-action:pan-y;
+    border-radius:14px;box-shadow:var(--shadow-md);z-index:50;max-height:340px;overflow-y:auto;display:none;touch-action:pan-y;
   }
   .ac-list.show{display:block;}
   .ac-item{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;cursor:pointer;border-bottom:1px solid var(--line);}
