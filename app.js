@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v202") {
+          if (data && data.v && data.v !== "pt-foglio-v203") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v202"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v203"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1339,7 +1339,7 @@
     // the symptom directly and is a real, structural bug regardless).
     document.getElementById('nav-end-btn').addEventListener('click', stopActiveNavigation);
     document.getElementById('nav-exit-x').addEventListener('click', stopActiveNavigation);
-    document.getElementById('nav-recenter-btn').addEventListener('click', navRecenterOnDriver);
+    document.getElementById('nav-recenter-btn').addEventListener('click', function () { navRecenterOnDriver(true); });
 
     initNavMap();
     // If the vehicle isn't configured yet, open settings automatically
@@ -3483,6 +3483,16 @@
 
   var navFollowingUser = true;
   var navLastPosition = null;
+  // Small hysteresis gap between the two snap thresholds (20m to snap
+  // ON, 26m to snap back OFF) — without it, hovering right around a
+  // single 20m line let the display position visibly flip back and
+  // forth between the snapped (on-road) and raw GPS point on
+  // consecutive ticks whenever ordinary GPS noise crossed that exact
+  // boundary, reading as a small camera jolt each time it flipped.
+  // Once snapped, staying snapped until CLEARLY off (26m) — and once
+  // off, staying off until CLEARLY back close (20m) — means ordinary
+  // noise near the boundary can't flip it every tick.
+  var navWasSnapped = false;
   // Split into three separate handlers now — a single touch/tap that
   // never turns into an actual drag was disabling auto-follow
   // entirely (confirmed in real driving: the phone mount vibrating, a
@@ -3521,7 +3531,7 @@
     // timer, so genuinely continuous dragging keeps pushing the
     // countdown out rather than snapping back mid-interaction.
     clearTimeout(navAutoRecenterTimer);
-    navAutoRecenterTimer = setTimeout(navRecenterOnDriver, 5000);
+    navAutoRecenterTimer = setTimeout(function () { navRecenterOnDriver(false); }, 5000);
   }
   function navOnTouchEndResumeCamera() {
     navSmooth.paused = false; // harmless even if navFollowingUser is already false by now (dragstart fired) — the loop's own "if (navFollowingUser && ...)" gate still won't move the camera either way
@@ -3531,29 +3541,41 @@
   // auto-follow back on — shared by the recenter button's own tap
   // handler and the auto-resume timer above, so both do exactly the
   // same thing.
-  function navRecenterOnDriver() {
+  // instant (default true): the manual recenter BUTTON wants immediate
+  // visual feedback the moment it's tapped — no reason to ease into
+  // it when the driver explicitly just asked for it right now. The
+  // auto-resume timer (after a drag/vibration goes quiet) calls this
+  // with instant=false instead — snapping the camera back with no
+  // warning after 5 quiet seconds would read as its own small jolt;
+  // easing into it via the same continuous smoothing loop that
+  // already drives normal camera movement feels like the camera
+  // gently finding the driver again, not jumping to them.
+  function navRecenterOnDriver(instant) {
+    if (instant == null) instant = true;
     navFollowingUser = true;
     var btn = document.getElementById('nav-recenter-btn');
     if (btn) btn.style.display = 'none';
-    // Instant jump using whatever position is already known — no
-    // waiting on anything, so there's immediate visual feedback,
-    // even before a fresh GPS read comes back. Sets navSmooth.lat/lon
-    // directly (not just the target) — the continuous smoothing loop
-    // runs every frame regardless, and without this, it would
-    // immediately start gliding BACK from wherever the driver had
-    // manually dragged to, toward the OLD target, fighting this
-    // instant jump on the very next frame.
     if (navLastPosition && navMap) {
-      navMap.setView([navLastPosition.lat, navLastPosition.lon], 18, { animate: false });
-      navSmooth.lat = navSmooth.targetLat = navLastPosition.lat;
-      navSmooth.lon = navSmooth.targetLon = navLastPosition.lon;
+      if (instant) {
+        navMap.setView([navLastPosition.lat, navLastPosition.lon], 18, { animate: false });
+        navSmooth.lat = navSmooth.targetLat = navLastPosition.lat;
+        navSmooth.lon = navSmooth.targetLon = navLastPosition.lon;
+      } else {
+        navSmooth.targetLat = navLastPosition.lat;
+        navSmooth.targetLon = navLastPosition.lon;
+      }
     }
     currentPosition().then(function (p) {
       navLastPosition = { lat: p.lat, lon: p.lon };
       if (navFollowingUser && navMap) {
-        navMap.setView([p.lat, p.lon], 18, { animate: false });
-        navSmooth.lat = navSmooth.targetLat = p.lat;
-        navSmooth.lon = navSmooth.targetLon = p.lon;
+        if (instant) {
+          navMap.setView([p.lat, p.lon], 18, { animate: false });
+          navSmooth.lat = navSmooth.targetLat = p.lat;
+          navSmooth.lon = navSmooth.targetLon = p.lon;
+        } else {
+          navSmooth.targetLat = p.lat;
+          navSmooth.targetLon = p.lon;
+        }
       }
     }).catch(function () { /* the instant jump above already used the best position available — nothing more to do if a fresh read fails */ });
   }
@@ -3656,9 +3678,13 @@
     // it. If genuinely off-route (or before any route/leg exists yet),
     // this just falls back to the raw position, unchanged.
     var displayLat = lat, displayLon = lon;
-    if (deviation && deviation.distance < 20 && deviation.nearestLat != null) {
+    var snapThreshold = navWasSnapped ? 26 : 20; // hysteresis — see navWasSnapped's own comment above for why two different thresholds
+    if (deviation && deviation.distance < snapThreshold && deviation.nearestLat != null) {
       displayLat = deviation.nearestLat;
       displayLon = deviation.nearestLon;
+      navWasSnapped = true;
+    } else {
+      navWasSnapped = false;
     }
 
     // Trims the already-driven part of the CURRENT leg off the map on
