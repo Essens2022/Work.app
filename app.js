@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v212") {
+          if (data && data.v && data.v !== "pt-foglio-v213") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v212"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v213"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1075,40 +1075,71 @@
   // gliding the DISPLAYED position toward each new fix using
   // exponential smoothing, rather than only moving when a real fix
   // lands. Genuinely closer to Google/Waze-level fluidity than
-  // periodic eased jumps ever can be, since those always have to
-  // choose between "fast but stops between fixes" and "long but still
-  // discretely re-triggered each time" — this instead is ALWAYS
-  // moving, continuously, chasing wherever the latest real fix says
-  // to go. navSmooth.targetLat/Lon/Bearing are set from real GPS data
-  // (see onActiveNavPosition); navSmooth.lat/lon/bearing are what's
+  // periodic eased jumps ever can be. Upgraded to real dead-reckoning
+  // — navSmooth.fixLat/fixLon/fixHeading/fixSpeedMps are the last
+  // REAL GPS fix's own data, extrapolated continuously every frame
+  // (not just interpolated toward a static point that goes stale
+  // between real fixes); navSmooth.lat/lon/bearing are what's
   // actually drawn on screen each frame.
-  var navSmooth = { lat: null, lon: null, bearing: null, targetLat: null, targetLon: null, targetBearing: null, rafId: null, lastFrameTime: 0, paused: false };
+  var navSmooth = {
+    lat: null, lon: null, bearing: null,
+    // Dead-reckoning baseline — the last REAL GPS fix's own data, used
+    // to continuously EXTRAPOLATE a moving position estimate every
+    // single frame, instead of just interpolating toward a static
+    // point that goes stale between real fixes. This is what was
+    // actually causing the reported "moves, then sits still, then
+    // jumps" pattern on the camera, marker, AND line all at once, in
+    // real driving: a real GPS fix only arrives every 1-2 real
+    // seconds — interpolating toward a FIXED target inevitably means
+    // arriving early and then sitting nearly motionless for most of
+    // that real gap, no matter how the interpolation rate is tuned.
+    // Extrapolating continued movement from the last known speed +
+    // heading instead means the position is ALWAYS advancing, every
+    // frame, the same way a real car keeps moving between a
+    // navigation app's own GPS reads.
+    fixLat: null, fixLon: null, fixHeading: 0, fixSpeedMps: 0, fixTimestamp: 0,
+    rafId: null, lastFrameTime: 0, paused: false, lastTrimTime: 0
+  };
+
+  // Standard "destination point given start, bearing, distance"
+  // formula (haversine-based) — the actual math behind the
+  // extrapolation above.
+  function navDestPointFromBearing(lat, lon, bearingDeg, distanceM) {
+    var R = 6371000;
+    var brng = bearingDeg * Math.PI / 180;
+    var lat1 = lat * Math.PI / 180, lon1 = lon * Math.PI / 180;
+    var lat2 = Math.asin(Math.sin(lat1) * Math.cos(distanceM / R) + Math.cos(lat1) * Math.sin(distanceM / R) * Math.cos(brng));
+    var lon2 = lon1 + Math.atan2(Math.sin(brng) * Math.sin(distanceM / R) * Math.cos(lat1), Math.cos(distanceM / R) - Math.sin(lat1) * Math.sin(lat2));
+    return { lat: lat2 * 180 / Math.PI, lon: ((lon2 * 180 / Math.PI + 540) % 360) - 180 };
+  }
 
   function navSmoothCameraFrame(timestamp) {
     navSmooth.rafId = requestAnimationFrame(navSmoothCameraFrame);
-    if (navSmooth.targetLat == null || !navMap || !navMap._maplibre) return;
+    if (navSmooth.fixLat == null || !navMap || !navMap._maplibre) return;
     var dt = navSmooth.lastFrameTime ? Math.min((timestamp - navSmooth.lastFrameTime) / 1000, 0.25) : 0.016; // capped, in case the tab was backgrounded a moment
     navSmooth.lastFrameTime = timestamp;
-    if (navSmooth.lat == null) { navSmooth.lat = navSmooth.targetLat; navSmooth.lon = navSmooth.targetLon; navSmooth.bearing = navSmooth.targetBearing || 0; }
-    // Exponential smoothing — settling too FAST relative to how often
-    // real GPS fixes actually arrive (roughly once every 1-2s) was
-    // exactly the remaining "moves, then pauses" pattern reported: at
-    // the old rate (5), the interpolation reached each new target in
-    // well under half a second, then sat completely still for the
-    // rest of that 1-2s gap waiting on the next real fix — indistinguishable
-    // from stop-start motion despite running every frame. Slowed
-    // down so it's still visibly, continuously easing toward the
-    // target for close to the whole real gap between fixes, rather
-    // than arriving early and idling. Framerate-independent either
-    // way (uses real elapsed time, not a fixed per-frame step).
-    var rate = 2;
+
+    // Continuously extrapolated from the last real fix — ALWAYS
+    // advancing, every frame, rather than a value that only changes
+    // when a new real GPS fix happens to land.
+    var elapsedSinceFix = (timestamp - navSmooth.fixTimestamp) / 1000;
+    var extrapolatedDistance = navSmooth.fixSpeedMps * elapsedSinceFix;
+    var extrapolated = navDestPointFromBearing(navSmooth.fixLat, navSmooth.fixLon, navSmooth.fixHeading, extrapolatedDistance);
+
+    if (navSmooth.lat == null) { navSmooth.lat = extrapolated.lat; navSmooth.lon = extrapolated.lon; navSmooth.bearing = navSmooth.fixHeading; }
+    // Light smoothing toward the continuously-moving extrapolated
+    // point (not a static target anymore) — this only softens small
+    // jitter/corrections, since the extrapolated point is already
+    // advancing smoothly on its own every frame. A higher rate is
+    // correct here now — there's no long real-world gap left to
+    // stretch a slow ease across, unlike before.
+    var rate = 8;
     var t = 1 - Math.exp(-rate * dt);
-    navSmooth.lat += (navSmooth.targetLat - navSmooth.lat) * t;
-    navSmooth.lon += (navSmooth.targetLon - navSmooth.lon) * t;
-    if (navSmooth.targetBearing != null) {
-      var diff = ((navSmooth.targetBearing - navSmooth.bearing + 540) % 360) - 180; // shortest signed angle, so it never spins the "long way round" through 0/360
-      navSmooth.bearing = (navSmooth.bearing + diff * t + 360) % 360;
-    }
+    navSmooth.lat += (extrapolated.lat - navSmooth.lat) * t;
+    navSmooth.lon += (extrapolated.lon - navSmooth.lon) * t;
+    var diff = ((navSmooth.fixHeading - navSmooth.bearing + 540) % 360) - 180; // shortest signed angle, so it never spins the "long way round" through 0/360
+    navSmooth.bearing = (navSmooth.bearing + diff * t + 360) % 360;
+
     if (navPositionMarker) navPositionMarker.setLatLng([navSmooth.lat, navSmooth.lon]);
     if (navFollowingUser && !navSmooth.paused) {
       // jumpTo, not easeTo — this loop IS the animation now, running
@@ -1116,41 +1147,27 @@
       // of a value that's already being smoothly interpolated here
       // would just be double-smoothing against a moving target.
       // padding pushes the driver's position down toward the lower
-      // portion of the screen instead of dead-center — was reported
-      // sitting too high, with too little of the road ahead visible.
-      // FIXED — the PREVIOUS version of this had the padding side
-      // backwards (bottom padding, confirmed via MapLibre's own docs:
-      // padding EXCLUDES that edge's space from where "center" gets
-      // placed, pushing the marker toward the OPPOSITE edge — bottom
-      // padding pushes the marker UP, not down, which is exactly why
-      // that first attempt made no visible difference). Padding the
-      // TOP instead excludes the top space from centering, correctly
-      // pushing the marker down into the lower portion of the screen —
-      // more lookahead room above it, matching every real turn-by-turn
-      // navigation app's framing of the driver's position.
+      // portion of the screen instead of dead-center.
       navMap._maplibre.jumpTo({
         center: [navSmooth.lon, navSmooth.lat],
         bearing: navSmooth.bearing,
         padding: { top: 260, bottom: 0, left: 0, right: 0 }
       });
     }
-    // The already-driven part of the route line only used to erase
-    // itself on real GPS ticks (roughly once every 1-2s) — while the
-    // marker/camera themselves moved continuously at 60fps via this
-    // same loop. That mismatch is exactly what reads as the blue line
-    // "lagging behind" the arrow — the marker visibly pulls ahead of
-    // where the line has actually been trimmed to, for up to a couple
-    // of real seconds at a time. Throttled (not every single frame —
-    // that would mean 60 setData calls/sec on the route source, real,
-    // avoidable GPU/CPU cost for no visible benefit past a point) to
-    // every ~120ms now (was 250ms — still visibly steppy at that rate,
-    // tightened further) using the same continuously-interpolated
-    // position already driving the marker, so the trimmed line keeps
-    // much closer pace with what's actually on screen.
-    if (!navSmooth.lastTrimTime || timestamp - navSmooth.lastTrimTime > 120) {
-      navSmooth.lastTrimTime = timestamp;
-      if (typeof updateCurrentLegTrim === 'function') updateCurrentLegTrim(navSmooth.lat, navSmooth.lon);
-    }
+    // The already-driven part of the route line now updates EVERY
+    // FRAME too, from this exact same navSmooth.lat/lon — no
+    // throttling anymore. The previous throttle (120ms) was itself a
+    // real source of the reported desync ("linia ramane in urma
+    // sagetii, nu merg impreuna") — camera/marker moved every frame,
+    // the line only caught up every several frames, so they visibly
+    // drifted apart from each other. setData() on a route line's
+    // small GeoJSON source is cheap (a coordinate array update, not a
+    // full layer rebuild — that's the whole point of PR #217's
+    // earlier optimization) — safe to run every frame now that all
+    // three (camera, marker, line) read from ONE single position,
+    // updated once per frame, instead of three separately-paced
+    // updates that could never stay perfectly together.
+    if (typeof updateCurrentLegTrim === 'function') updateCurrentLegTrim(navSmooth.lat, navSmooth.lon);
     var needle = document.getElementById('nav-compass-needle');
     if (needle) needle.textContent = headingToCompassLabel(navSmooth.bearing);
   }
@@ -1166,7 +1183,7 @@
   function navStopSmoothCamera() {
     if (navSmooth.rafId) cancelAnimationFrame(navSmooth.rafId);
     navSmooth.rafId = null;
-    navSmooth.targetLat = navSmooth.targetLon = navSmooth.targetBearing = null;
+    navSmooth.fixLat = navSmooth.fixLon = null;
   }
 
   var navLocateMarker = null; // "you are here" marker dropped by the standalone locate button, kept separate from the active-navigation position marker
@@ -3230,8 +3247,13 @@
       // saturated, medium-bright blue, not true navy. Matched much
       // closer to that reference now, keeping the earlier thickness
       // increase (that part was correct — the color was the miss).
-      L.geoJSON(feature, { style: { color: '#1A56DB', weight: 13, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
-      L.geoJSON(feature, { style: { color: '#3B7DEE', weight: 8, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
+      // Thickened again — reported still too thin even after the
+      // previous increase (13/8) while actually driving. Bumped up
+      // more substantially this time (18/12) rather than another
+      // small step, given this is the second report of the same
+      // issue.
+      L.geoJSON(feature, { style: { color: '#1A56DB', weight: 18, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
+      L.geoJSON(feature, { style: { color: '#3B7DEE', weight: 12, lineCap: 'round', lineJoin: 'round' } }).addTo(group);
     }
     return group;
   }
@@ -3662,24 +3684,24 @@
     if (navLastPosition && navMap) {
       if (instant) {
         navMap.setView([navLastPosition.lat, navLastPosition.lon], 18.5, { animate: false });
-        navSmooth.lat = navSmooth.targetLat = navLastPosition.lat;
-        navSmooth.lon = navSmooth.targetLon = navLastPosition.lon;
-      } else {
-        navSmooth.targetLat = navLastPosition.lat;
-        navSmooth.targetLon = navLastPosition.lon;
+        navSmooth.lat = navLastPosition.lat;
+        navSmooth.lon = navLastPosition.lon;
       }
+      navSmooth.fixLat = navLastPosition.lat;
+      navSmooth.fixLon = navLastPosition.lon;
+      navSmooth.fixTimestamp = performance.now();
     }
     currentPosition().then(function (p) {
       navLastPosition = { lat: p.lat, lon: p.lon };
       if (navFollowingUser && navMap) {
         if (instant) {
           navMap.setView([p.lat, p.lon], 18.5, { animate: false });
-          navSmooth.lat = navSmooth.targetLat = p.lat;
-          navSmooth.lon = navSmooth.targetLon = p.lon;
-        } else {
-          navSmooth.targetLat = p.lat;
-          navSmooth.targetLon = p.lon;
+          navSmooth.lat = p.lat;
+          navSmooth.lon = p.lon;
         }
+        navSmooth.fixLat = p.lat;
+        navSmooth.fixLon = p.lon;
+        navSmooth.fixTimestamp = performance.now();
       }
     }).catch(function () { /* the instant jump above already used the best position available — nothing more to do if a fresh read fails */ });
   }
@@ -3829,18 +3851,24 @@
     }
 
     // Marker + camera no longer moved directly here — instead, this
-    // just sets the TARGET the continuous smoothing loop
-    // (navSmoothCameraFrame, running every animation frame) is
-    // chasing. That loop is what actually calls setLatLng/jumpTo, at
-    // ~60fps, gliding continuously toward whatever the latest real fix
-    // says, rather than only moving in discrete steps once per GPS
-    // update. Uses displayLat/displayLon (map-matched when confidently
-    // on the route, raw GPS otherwise) — not the raw lat/lon — so the
-    // icon and camera track the road instead of wobbling with raw GPS
+    // feeds the dead-reckoning baseline (navSmooth.fixLat/fixLon/
+    // fixHeading/fixSpeedMps/fixTimestamp) that the continuous
+    // smoothing loop (navSmoothCameraFrame) extrapolates FROM, every
+    // single animation frame, rather than just interpolating toward a
+    // static target that goes stale between real GPS fixes. Uses
+    // displayLat/displayLon (map-matched when confidently on the
+    // route, raw GPS otherwise) — not the raw lat/lon — so the icon
+    // and camera track the road instead of wobbling with raw GPS
     // noise.
-    navSmooth.targetLat = displayLat;
-    navSmooth.targetLon = displayLon;
-    if (heading != null && !isNaN(heading)) navSmooth.targetBearing = heading;
+    navSmooth.fixLat = displayLat;
+    navSmooth.fixLon = displayLon;
+    navSmooth.fixTimestamp = performance.now();
+    if (heading != null && !isNaN(heading)) navSmooth.fixHeading = heading;
+    // A real, valid speed reading is essential for the extrapolation
+    // above to mean anything at all — falls back to 0 (no
+    // extrapolated movement beyond the last known point) if the
+    // device doesn't report one right now, rather than guessing.
+    navSmooth.fixSpeedMps = (position.coords.speed != null && !isNaN(position.coords.speed) && position.coords.speed > 0) ? position.coords.speed : 0;
     if (!navPositionMarker) {
       // A directional arrow marking the driver's live position — the
       // map itself rotates to match heading (see rotateNavMapToHeading
@@ -3880,7 +3908,7 @@
     }
 
     // Camera + bearing are handled continuously by navSmoothCameraFrame
-    // now (see navSmooth.targetLat/Lon/Bearing set above) — nothing
+    // now (see navSmooth.fixLat/fixLon/fixHeading set above) — nothing
     // else to do here on this tick.
 
     // Advance through steps as each maneuver point is reached (within
