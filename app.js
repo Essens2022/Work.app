@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v201") {
+          if (data && data.v && data.v !== "pt-foglio-v202") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v201"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v202"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1339,39 +1339,7 @@
     // the symptom directly and is a real, structural bug regardless).
     document.getElementById('nav-end-btn').addEventListener('click', stopActiveNavigation);
     document.getElementById('nav-exit-x').addEventListener('click', stopActiveNavigation);
-    document.getElementById('nav-recenter-btn').addEventListener('click', function () {
-      navFollowingUser = true;
-      document.getElementById('nav-recenter-btn').style.display = 'none';
-      // Instant jump using whatever position is already known — no
-      // waiting on anything, so there's immediate visual feedback the
-      // tap did something, even before a fresh GPS read comes back.
-      // Sets navSmooth.lat/lon directly (not just the target) — the
-      // continuous smoothing loop runs every frame regardless, and
-      // without this, it would immediately start gliding BACK from
-      // wherever the driver had manually dragged to, toward the OLD
-      // target, fighting this instant jump on the very next frame.
-      if (navLastPosition) {
-        navMap.setView([navLastPosition.lat, navLastPosition.lon], 18, { animate: false });
-        navSmooth.lat = navSmooth.targetLat = navLastPosition.lat;
-        navSmooth.lon = navSmooth.targetLon = navLastPosition.lon;
-      }
-      // navLastPosition only updates whenever the background watch
-      // happens to fire next — it can genuinely be several seconds
-      // stale (this was very likely why recentering felt like it took
-      // ~10s: the map wasn't actually slow, it was waiting on the
-      // NEXT natural GPS update to arrive before it had anything more
-      // current to show). Requesting a fresh, high-accuracy fix
-      // directly — same call the "la mia posizione" button already
-      // uses — refines the view immediately instead of waiting on that.
-      currentPosition().then(function (p) {
-        navLastPosition = { lat: p.lat, lon: p.lon };
-        if (navFollowingUser) {
-          navMap.setView([p.lat, p.lon], 18, { animate: false });
-          navSmooth.lat = navSmooth.targetLat = p.lat;
-          navSmooth.lon = navSmooth.targetLon = p.lon;
-        }
-      }).catch(function () { /* the instant jump above already used the best position available — nothing more to do if a fresh read fails */ });
-    });
+    document.getElementById('nav-recenter-btn').addEventListener('click', navRecenterOnDriver);
 
     initNavMap();
     // If the vehicle isn't configured yet, open settings automatically
@@ -3537,13 +3505,57 @@
   function navOnTouchStartPauseCamera() {
     navSmooth.paused = true;
   }
+  var navAutoRecenterTimer = null;
   function navOnDragStartDisableFollow() {
-    if (!navFollowingUser) return; // already off, nothing to do
-    navFollowingUser = false;
-    document.getElementById('nav-recenter-btn').style.display = 'flex';
+    if (navFollowingUser) {
+      navFollowingUser = false;
+      document.getElementById('nav-recenter-btn').style.display = 'flex';
+    }
+    // Auto-resumes on its own after a few seconds of no further
+    // dragging — a driver glancing sideways at the map for a moment
+    // shouldn't have to remember to tap "recenter" afterward, and
+    // real road vibration jostling a dashboard-mounted phone can
+    // register as small drag gestures on its own, with no deliberate
+    // touch at all — those shouldn't leave the camera permanently
+    // stuck off-target either. Each new dragstart re-arms this same
+    // timer, so genuinely continuous dragging keeps pushing the
+    // countdown out rather than snapping back mid-interaction.
+    clearTimeout(navAutoRecenterTimer);
+    navAutoRecenterTimer = setTimeout(navRecenterOnDriver, 5000);
   }
   function navOnTouchEndResumeCamera() {
     navSmooth.paused = false; // harmless even if navFollowingUser is already false by now (dragstart fired) — the loop's own "if (navFollowingUser && ...)" gate still won't move the camera either way
+  }
+
+  // Snaps the camera back onto the driver's live position and turns
+  // auto-follow back on — shared by the recenter button's own tap
+  // handler and the auto-resume timer above, so both do exactly the
+  // same thing.
+  function navRecenterOnDriver() {
+    navFollowingUser = true;
+    var btn = document.getElementById('nav-recenter-btn');
+    if (btn) btn.style.display = 'none';
+    // Instant jump using whatever position is already known — no
+    // waiting on anything, so there's immediate visual feedback,
+    // even before a fresh GPS read comes back. Sets navSmooth.lat/lon
+    // directly (not just the target) — the continuous smoothing loop
+    // runs every frame regardless, and without this, it would
+    // immediately start gliding BACK from wherever the driver had
+    // manually dragged to, toward the OLD target, fighting this
+    // instant jump on the very next frame.
+    if (navLastPosition && navMap) {
+      navMap.setView([navLastPosition.lat, navLastPosition.lon], 18, { animate: false });
+      navSmooth.lat = navSmooth.targetLat = navLastPosition.lat;
+      navSmooth.lon = navSmooth.targetLon = navLastPosition.lon;
+    }
+    currentPosition().then(function (p) {
+      navLastPosition = { lat: p.lat, lon: p.lon };
+      if (navFollowingUser && navMap) {
+        navMap.setView([p.lat, p.lon], 18, { animate: false });
+        navSmooth.lat = navSmooth.targetLat = p.lat;
+        navSmooth.lon = navSmooth.targetLon = p.lon;
+      }
+    }).catch(function () { /* the instant jump above already used the best position available — nothing more to do if a fresh read fails */ });
   }
 
   // The active-navigation position marker — a simple directional arrow
@@ -3841,10 +3853,26 @@
   // closest to a given lat/lon — a simple nearest-vertex search (not a
   // full point-to-segment projection), which is precise enough here
   // since ORS route geometries are already densely sampled.
+  // REAL BUG, found while investigating "the arrow drifts off the
+  // street" reported during actual driving: this compared distances
+  // using raw DEGREE differences (dx, dy), never converted to real
+  // meters. At Italy's latitude (~45°N), one degree of longitude is
+  // physically ~30% SHORTER than one degree of latitude (lines of
+  // longitude converge toward the poles) — comparing them as if
+  // equal systematically distorts which point looks "nearest",
+  // especially on routes with tight turns or nearby parallel road
+  // segments, exactly the kind of place this was reported going
+  // wrong. Scaling the longitude difference by cos(latitude) corrects
+  // for this, matching real-world physical distance instead of raw
+  // degree-space distance. This function is what BOTH map-matching
+  // (routeDeviation, snapping the marker to the road) and progressive
+  // trimming (trimmedLegFeature) are built on — a real, meaningful
+  // fix for both at once, not a guess.
   function nearestCoordIndex(coords, lat, lon) {
+    var lonScale = Math.cos(lat * Math.PI / 180);
     var bestIdx = 0, bestDist = Infinity;
     for (var i = 0; i < coords.length; i++) {
-      var dx = coords[i][0] - lon, dy = coords[i][1] - lat;
+      var dx = (coords[i][0] - lon) * lonScale, dy = coords[i][1] - lat;
       var d = dx * dx + dy * dy;
       if (d < bestDist) { bestDist = d; bestIdx = i; }
     }
@@ -3994,6 +4022,7 @@
 
   function stopActiveNavigation() {
     navStopSmoothCamera();
+    clearTimeout(navAutoRecenterTimer);
     window.__navActiveNavigationRunning = false;
     if (navWatchId != null) { navigator.geolocation.clearWatch(navWatchId); navWatchId = null; }
     if (navPositionMarker) { navMap.removeLayer(navPositionMarker); navPositionMarker = null; }
