@@ -36,7 +36,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v173") {
+          if (data && data.v && data.v !== "pt-foglio-v174") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -66,7 +66,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v173"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v174"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2653,6 +2653,39 @@
     document.getElementById('nav-recenter-btn').style.display = 'flex';
   }
 
+  // Top-down vehicle silhouette for the active-navigation position
+  // marker, shaped to actually match the configured vehicle rather
+  // than always the same generic car outline. Both use the same
+  // headlight/windshield/shadow visual language as the original car
+  // icon, just with a body shape that reads as "van" vs. "truck with a
+  // trailer" from directly above.
+  function navPositionMarkerSvg() {
+    var tipo = state.vehicle && state.vehicle.tipo;
+    if (tipo === 'camion' || tipo === 'cassonato' || tipo === 'autoarticolato') {
+      // Cab + a visibly SEPARATE cargo box behind it, with a gap at the
+      // coupling point — the real silhouette of a truck/articulated
+      // lorry from above, not just a longer version of the car shape.
+      return '<svg viewBox="0 0 96 170" width="26" height="46">' +
+        '<ellipse cx="48" cy="150" rx="26" ry="9" fill="#000" fill-opacity="0.12"/>' +
+        '<rect x="26" y="94" width="44" height="66" rx="6" fill="#eef2f7" stroke="#9aa5b1" stroke-width="3"/>' + // trailer/cargo box
+        '<rect x="30" y="16" width="36" height="70" rx="14" fill="#eef2f7" stroke="#9aa5b1" stroke-width="3"/>' + // cab
+        '<rect x="35" y="30" width="26" height="30" rx="6" fill="#ffffff" stroke="#bdc5cf" stroke-width="2"/>' + // windshield
+        '<path d="M30 32c-6 6-8 12-8 18v14c0 5 2 9 6 12l2 1V33z" fill="#d64242" fill-opacity="0.85"/>' + // left headlight
+        '<path d="M66 32c6 6 8 12 8 18v14c0 5-2 9-6 12l-2 1V33z" fill="#42a5f5" fill-opacity="0.85"/>' + // right marker light
+        '</svg>';
+    }
+    // Furgone (or unset) — a single, uniform boxy body, no separate
+    // trailer, matching a van's actual silhouette.
+    return '<svg viewBox="0 0 96 150" width="26" height="41">' +
+      '<ellipse cx="48" cy="132" rx="24" ry="8" fill="#000" fill-opacity="0.12"/>' +
+      '<rect x="24" y="18" width="48" height="112" rx="18" fill="#eef2f7" stroke="#9aa5b1" stroke-width="3"/>' +
+      '<rect x="31" y="34" width="34" height="56" rx="8" fill="#ffffff" stroke="#bdc5cf" stroke-width="2"/>' +
+      '<path d="M24 36c-8 8-10 16-10 24v28c0 6 3 12 8 16l2 2V44z" fill="#d64242" fill-opacity="0.85"/>' +
+      '<path d="M72 36c8 8 10 16 10 24v28c0 6-3 12-8 16l-2 2V44z" fill="#42a5f5" fill-opacity="0.85"/>' +
+      '<rect x="38" y="96" width="20" height="20" rx="6" fill="#dde5ee"/>' +
+      '</svg>';
+  }
+
   function onActiveNavPosition(position) {
     var lat = position.coords.latitude, lon = position.coords.longitude;
     var heading = position.coords.heading;
@@ -2743,13 +2776,19 @@
     if (navPositionMarker) {
       navPositionMarker.setLatLng([lat, lon]);
     } else {
-      // A top-down car icon (from the SVG pack), rotating to show the
-      // real direction of travel — the map itself stays fixed, north-up
-      // (see rotateNavMapToHeading), only this marker turns.
+      // A top-down icon matching the actually-configured vehicle —
+      // furgone gets a van silhouette, camion/cassonato/autoarticolato
+      // get a truck-with-trailer silhouette (a visibly separate cab and
+      // cargo box, since that's the real shape of the bigger vehicles
+      // this app is built for) — rather than always the same generic
+      // car shape regardless of what's actually being driven. Rotates
+      // to show the real direction of travel — the map itself stays
+      // fixed, north-up (see rotateNavMapToHeading), only this marker
+      // turns.
       navPositionMarker = L.marker([lat, lon], {
         icon: L.divIcon({
           className: 'nav-heading-arrow',
-          html: '<div><svg viewBox="0 0 96 150" width="26" height="41"><ellipse cx="48" cy="132" rx="24" ry="8" fill="#000" fill-opacity="0.12"/><rect x="24" y="18" width="48" height="112" rx="18" fill="#eef2f7" stroke="#9aa5b1" stroke-width="3"/><rect x="31" y="34" width="34" height="56" rx="8" fill="#ffffff" stroke="#bdc5cf" stroke-width="2"/><path d="M24 36c-8 8-10 16-10 24v28c0 6 3 12 8 16l2 2V44z" fill="#d64242" fill-opacity="0.85"/><path d="M72 36c8 8 10 16 10 24v28c0 6-3 12-8 16l-2 2V44z" fill="#42a5f5" fill-opacity="0.85"/><rect x="38" y="96" width="20" height="20" rx="6" fill="#dde5ee"/></svg></div>',
+          html: '<div>' + navPositionMarkerSvg() + '</div>',
           iconSize: [30, 46], iconAnchor: [15, 23]
         })
       }).addTo(navMap);
