@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v224") {
+          if (data && data.v && data.v !== "pt-foglio-v225") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v224"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v225"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1264,12 +1264,29 @@
       '<div class="dp-client-badge' + (isDone ? ' dp-client-badge-done' : '') + '">' + badge + '</div>' +
       '<div class="dp-client-info">' +
       '<div class="dp-client-name">' + escapeHtml(c.nome) + '</div>' +
-      '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + '</div>' +
+      '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + (c.nonVerificato ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + '</div>' +
       '</div>' +
       '</div>';
   }
 
   function renderDeliveryPlanner() {
+    // REAL BUG, found and confirmed: navSearchFocusPoint (the driver's
+    // position, used to bias geocoding results toward nearby matches
+    // first) was only ever set from the OLD turn-by-turn Navigatore's
+    // own render function — which stopped running the moment this
+    // screen replaced it. Every address search since has been running
+    // with ZERO geographic bias, ranking results from anywhere in
+    // Italy with no sense of which one is actually near the driver —
+    // very plausibly why a real, existing address wasn't turning up.
+    // Fetched here instead, once per visit to this screen, silently
+    // (no permission-prompt banner needed — this is a soft ranking
+    // input, not a hard requirement the way active navigation was).
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(function (pos) {
+        navSearchFocusPoint = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+      }, function () { /* no GPS fix available — searches still work, just without the nearby-bias */ }, { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 });
+    }
+
     var el = document.getElementById('screen-navigatore');
     var run = state.deliveryRun;
     var stats = dpStats(run);
@@ -1398,7 +1415,21 @@
     resultEl.innerHTML = '<div style="color:var(--ink-soft);font-size:13px;">Verifica in corso...</div>';
     geocodeAddress(indirizzo).then(function (addrResult) {
       if (!addrResult) {
-        resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Indirizzo non trovato. Controlla e riprova.</div>';
+        // A genuine fallback, not a dead end — the free geocoder can
+        // have real coverage gaps for smaller streets/newer addresses
+        // in Italy; the driver still needs to reach this client today,
+        // so they can save it anyway with the address exactly as
+        // typed. Excluded from Reordina's route optimization (that
+        // genuinely needs real coordinates to sequence stops by
+        // distance) until verified, but still usable for the Google
+        // Maps hand-off as a plain text address — Maps accepts that
+        // directly, same as coordinates.
+        resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Indirizzo non trovato automaticamente.</div>' +
+          '<button type="button" class="btn btn-outline btn-sm" id="dp-save-unverified-btn" style="margin-top:8px;">Salva comunque con l\'indirizzo scritto</button>';
+        document.getElementById('dp-save-unverified-btn').addEventListener('click', function () {
+          dpPendingNewClient = { nome: nome, indirizzo: indirizzo, lat: null, lon: null, nonVerificato: true };
+          dpSaveNewClientAndAdd();
+        });
         return;
       }
       dpPendingNewClient = { nome: nome, indirizzo: addrResult.label || indirizzo, lat: addrResult.lat, lon: addrResult.lon };
@@ -1441,13 +1472,14 @@
     if (!dpPendingNewClient) return;
     var saved = {
       id: uid(), nome: dpPendingNewClient.nome, indirizzo: dpPendingNewClient.indirizzo,
-      lat: dpPendingNewClient.lat, lon: dpPendingNewClient.lon, createdAt: Date.now()
+      lat: dpPendingNewClient.lat, lon: dpPendingNewClient.lon, createdAt: Date.now(),
+      nonVerificato: !!dpPendingNewClient.nonVerificato
     };
     state.deliveryClients.push(saved);
     saveDeliveryClients(state.deliveryClients);
     state.deliveryRun.clients.push({
       id: uid(), clientId: saved.id, nome: saved.nome, indirizzo: saved.indirizzo,
-      lat: saved.lat, lon: saved.lon, status: 'pending'
+      lat: saved.lat, lon: saved.lon, status: 'pending', nonVerificato: saved.nonVerificato
     });
     saveDeliveryRun(state.deliveryRun);
     dpPendingNewClient = null;
@@ -1490,18 +1522,32 @@
       return;
     }
 
+    // Clients saved without verified coordinates (the "salva comunque"
+    // fallback, for when the free geocoder genuinely couldn't find an
+    // address) can't be distance/time-sequenced by ORS — there's
+    // nothing to compute against. Optimized separately: the real,
+    // located clients go through ORS as normal; unverified ones are
+    // appended at the end of whatever batch results, by plain
+    // insertion order, rather than silently dropped or crashing the
+    // optimization call.
+    var geolocatable = remaining.filter(function (c) { return c.lat != null && c.lon != null; });
+    var unverified = remaining.filter(function (c) { return c.lat == null || c.lon == null; });
+
     var confirmBtn = document.getElementById('dp-reordina-confirm-btn');
     confirmBtn.disabled = true;
     confirmBtn.textContent = 'Calcolo in corso...';
 
-    currentPosition().then(function (pos) {
-      return dpCallOrsOptimization(pos, remaining);
-    }).then(function (optimized) {
-      // optimized: array of client objects from `remaining`, in the
-      // best order ORS found — take up to the first 9 (Google Maps'
-      // own confirmed limit for this app's use — origin + up to 9
-      // waypoints + destination when opened in the installed app).
-      var batch = optimized.slice(0, 9);
+    var optimizePromise = geolocatable.length
+      ? currentPosition().then(function (pos) { return dpCallOrsOptimization(pos, geolocatable); })
+      : Promise.resolve([]);
+
+    optimizePromise.then(function (optimized) {
+      // optimized: geolocatable clients, in the best order ORS found.
+      // Unverified (no-coordinate) clients are appended after —
+      // there's no distance/time basis to place them anywhere smarter
+      // than the end, but they're never silently dropped.
+      var ordered = optimized.concat(unverified);
+      var batch = ordered.slice(0, 9); // Google Maps' own confirmed limit — origin + up to 9 waypoints + destination when opened in the installed app
       state.deliveryRun.preparedBatch = batch.map(function (c) { return c.id; });
       saveDeliveryRun(state.deliveryRun);
       confirmBtn.disabled = false;
@@ -1571,11 +1617,20 @@
   // working multi-stop link for an unconfirmed single-stop one — not
   // a safe trade without testing the scheme's real waypoint behavior
   // first, which needs a real iPhone, not something verifiable here.
+  // Google Maps accepts either "lat,lon" or a plain text address for
+  // destination/waypoints — used here so a client saved without
+  // verified coordinates (the "salva comunque" fallback) still works
+  // for the actual Google Maps hand-off, even though it can't be
+  // distance-sequenced by ORS.
+  function dpLocationParam(c) {
+    return (c.lat != null && c.lon != null) ? (c.lat + ',' + c.lon) : c.indirizzo;
+  }
+
   function dpBuildGoogleMapsUrl(batchClients, originPos) {
     var destination = batchClients[batchClients.length - 1];
     var waypoints = batchClients.slice(0, -1);
     var url = 'https://www.google.com/maps/dir/?api=1' +
-      '&destination=' + encodeURIComponent(destination.lat + ',' + destination.lon) +
+      '&destination=' + encodeURIComponent(dpLocationParam(destination)) +
       '&travelmode=driving';
     // Origin set explicitly to the driver's actual current coordinates
     // (fetched fresh, not reused from whenever Reordina last ran) —
@@ -1585,7 +1640,7 @@
     // permission from ADB Smart's own.
     if (originPos) url += '&origin=' + encodeURIComponent(originPos.lat + ',' + originPos.lon);
     if (waypoints.length) {
-      url += '&waypoints=' + waypoints.map(function (c) { return encodeURIComponent(c.lat + ',' + c.lon); }).join('%7C');
+      url += '&waypoints=' + waypoints.map(function (c) { return encodeURIComponent(dpLocationParam(c)); }).join('%7C');
     }
     return url;
   }
