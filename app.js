@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v234") {
+          if (data && data.v && data.v !== "pt-foglio-v236") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v234"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v236"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1518,9 +1518,18 @@
 
     var html = '';
     matches.forEach(function (c) {
-      html += '<div class="dp-search-result-row" data-saved-id="' + c.id + '">' +
+      // Swipe-to-delete, iOS Mail-style: the actual row sits INSIDE a
+      // wrapper, on top of a red "Elimina" button positioned behind
+      // it. Dragging the row left reveals the button; releasing past
+      // a threshold snaps it fully open, otherwise it springs back
+      // closed. Wired up in dpWireSwipeToDelete below, after the HTML
+      // is in the DOM.
+      html += '<div class="dp-swipe-wrap" data-saved-id="' + c.id + '">' +
+        '<button type="button" class="dp-swipe-delete-btn" data-saved-id="' + c.id + '">Elimina</button>' +
+        '<div class="dp-search-result-row dp-swipe-row" data-saved-id="' + c.id + '">' +
         '<div class="dp-search-result-name">' + escapeHtml(c.nome) + '</div>' +
         '<div class="dp-search-result-addr">' + escapeHtml(c.indirizzo || '') + '</div>' +
+        '</div>' +
         '</div>';
     });
     // Always offered — a genuinely new client, or one already saved
@@ -1529,12 +1538,79 @@
       html += '<div class="dp-new-client-cta" id="dp-add-new-cta">+ Nuovo cliente' + (query ? ': "' + escapeHtml(query) + '"' : '') + '</div>';
     }
     container.innerHTML = html;
+    dpWireSwipeToDelete(container);
 
-    container.querySelectorAll('[data-saved-id]').forEach(function (row) {
+    container.querySelectorAll('.dp-search-result-row').forEach(function (row) {
       row.addEventListener('click', function () { dpAddSavedClientToRun(row.getAttribute('data-saved-id')); });
     });
     var newCta = document.getElementById('dp-add-new-cta');
     if (newCta) newCta.addEventListener('click', function () { dpOpenNewClientModal(query); });
+  }
+
+  // Swipe-to-delete, iOS Mail-style — drag a saved-client suggestion
+  // left to reveal a red "Elimina" underneath, release to snap it
+  // open or springs back. Real permanent deletion of a SAVED client
+  // (the address book, not just today's run) — for cleaning up
+  // duplicate/wrong versions of the same client saved by mistake, per
+  // ION's own explicit request.
+  function dpWireSwipeToDelete(container) {
+    container.querySelectorAll('.dp-swipe-wrap').forEach(function (wrap) {
+      var row = wrap.querySelector('.dp-swipe-row');
+      var REVEAL = 84; // px — matches the delete button's own width, see CSS
+      var startX = null, dragging = false;
+      row._dpSwipeBaseOffset = 0;
+
+      row.addEventListener('touchstart', function (e) {
+        startX = e.touches[0].clientX;
+        dragging = true;
+        row.style.transition = 'none';
+      }, { passive: true });
+
+      row.addEventListener('touchmove', function (e) {
+        if (!dragging || startX == null) return;
+        var dx = startX - e.touches[0].clientX; // positive while dragging left
+        var next = Math.max(0, Math.min(REVEAL, dx + row._dpSwipeBaseOffset));
+        row.style.transform = 'translateX(' + (-next) + 'px)';
+      }, { passive: true });
+
+      row.addEventListener('touchend', function (e) {
+        if (!dragging) return;
+        dragging = false;
+        var endX = e.changedTouches[0] ? e.changedTouches[0].clientX : startX;
+        var dx = startX != null ? (startX - endX) : 0;
+        var finalOffset = Math.max(0, Math.min(REVEAL, dx + row._dpSwipeBaseOffset));
+        row._dpSwipeBaseOffset = finalOffset > REVEAL / 2 ? REVEAL : 0;
+        row.style.transition = 'transform .18s ease';
+        row.style.transform = 'translateX(' + (-row._dpSwipeBaseOffset) + 'px)';
+        startX = null;
+      });
+
+      // Tapping the row itself while it's swiped open just closes it
+      // again, rather than also triggering "add to today's list" —
+      // an open delete button is a clear enough state that a tap
+      // elsewhere should back out of it, not act on the row.
+      row.addEventListener('click', function (e) {
+        if (row._dpSwipeBaseOffset) {
+          e.stopPropagation(); e.preventDefault();
+          row._dpSwipeBaseOffset = 0;
+          row.style.transition = 'transform .18s ease';
+          row.style.transform = 'translateX(0)';
+        }
+      }, true);
+    });
+
+    container.querySelectorAll('.dp-swipe-delete-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var savedId = btn.getAttribute('data-saved-id');
+        var client = state.deliveryClients.find(function (c) { return c.id === savedId; });
+        if (!client) return;
+        if (!window.confirm('Eliminare definitivamente "' + client.nome + '" dai clienti salvati?')) return;
+        state.deliveryClients = state.deliveryClients.filter(function (c) { return c.id !== savedId; });
+        saveDeliveryClients(state.deliveryClients);
+        var input = document.getElementById('dp-add-search-input');
+        dpRenderAddClientResults(input ? input.value : ''); // re-render with the same query — the deleted one simply won't be there anymore
+      });
+    });
   }
 
   function dpAddSavedClientToRun(savedClientId) {
