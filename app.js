@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v222") {
+          if (data && data.v && data.v !== "pt-foglio-v223") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v222"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v223"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -100,6 +100,19 @@
   var LS_VEHICLE = "pt_vehicle_v1"; // commercial-vehicle dimensions/weight, used by the Navigatore for restriction-aware routing
   var LS_NAV_FREQUENT = "pt_nav_frequent_v1"; // addresses actually used in a calculated route, remembered and suggested again — like Chrome's own address bar history
   var LS_NAV_HOMEWORK = "pt_nav_homework_v1"; // Casa/Lavoro shortcuts, set once by the driver — same idea as Google Maps' own Home/Work shortcuts, stored locally only (no sync, per ION's decision)
+  // Delivery Planner (replaces the old turn-by-turn Navigatore) — two
+  // separate, deliberately independent stores:
+  // - LS_DELIVERY_CLIENTS: the reusable address book. A client saved
+  //   once here shows up in autocomplete for every future delivery run,
+  //   forever, until explicitly edited/removed.
+  // - LS_DELIVERY_RUN: today's/the CURRENT active list — which clients
+  //   are in it, their status (pending/completed), and the
+  //   most-recently-prepared Google Maps batch. Persists across app
+  //   closes/reopens on purpose (ION's requirement: progress must
+  //   survive leaving for Google Maps and coming back) — cleared only
+  //   by explicit driver action, never automatically by date/time.
+  var LS_DELIVERY_CLIENTS = "pt_delivery_clients_v1";
+  var LS_DELIVERY_RUN = "pt_delivery_run_v1";
 
   var MESI = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
     "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
@@ -142,6 +155,20 @@
     });
   }
   function saveVehicle(v) { saveJSON(LS_VEHICLE, v); }
+
+  // Delivery Planner — the reusable client address book. Each entry:
+  // { id, nome, indirizzo, cap, citta, provincia, lat, lon, createdAt }
+  function loadDeliveryClients() { return loadJSON(LS_DELIVERY_CLIENTS, []); }
+  function saveDeliveryClients(list) { saveJSON(LS_DELIVERY_CLIENTS, list); }
+
+  // The CURRENT active run — separate from the address book above. A
+  // "run" holds only the subset of clients the driver is actually
+  // delivering to today, in whatever order they were added, plus
+  // status and the most recently Google-Maps-prepared batch.
+  // { clients: [{ id, clientId, nome, indirizzo, lat, lon, status, order }],
+  //   preparedBatch: [clientId, ...] or null }
+  function loadDeliveryRun() { return loadJSON(LS_DELIVERY_RUN, { clients: [], preparedBatch: null }); }
+  function saveDeliveryRun(run) { saveJSON(LS_DELIVERY_RUN, run); }
 
   // Addresses actually used to calculate a route — remembered and
   // proposed again, most-used first, the same idea as Chrome's own
@@ -211,7 +238,9 @@
     vehicle: loadVehicle(),
     currentSheetId: getCurrentSheetId(),
     editingDay: null,
-    acResults: []
+    acResults: [],
+    deliveryClients: loadDeliveryClients(),
+    deliveryRun: loadDeliveryRun()
   };
 
   // Set when a new app version is ready but a modal is currently open — the
@@ -563,11 +592,12 @@
     document.querySelectorAll('.navbtn[data-nav]').forEach(function (b) {
       b.classList.toggle('active', b.getAttribute('data-nav') === name);
     });
-    // The navigator wants to feel exactly like opening Google Maps —
-    // edge-to-edge, with only its own floating search bar as the
-    // "header", not this app's own title bar sitting above it. Hidden
-    // only for this one screen, restored everywhere else.
-    document.body.classList.toggle('nav-fullbleed', name === 'navigatore');
+    // The old turn-by-turn navigator wanted to feel edge-to-edge, like
+    // opening Google Maps directly — that's why this existed. The
+    // Delivery Planner replacing it is a normal scrollable list screen
+    // (client list, buttons), not a full-screen map, so it uses the
+    // app's regular top bar and padding like every other screen now.
+    document.body.classList.toggle('nav-fullbleed', false);
     if (name === 'foglio') {
       scrollToLastDayPending = true;
       render();
@@ -593,7 +623,7 @@
     else if (currentScreen === 'foglio') renderFoglio();
     else if (currentScreen === 'archivio') renderArchivio();
     else if (currentScreen === 'pdf') renderPdfScreen();
-    else if (currentScreen === 'navigatore') renderNavigatore();
+    else if (currentScreen === 'navigatore') renderDeliveryPlanner();
   }
 
   function svgIcon(name) {
@@ -1195,8 +1225,355 @@
     navSmooth.prevFixLat = navSmooth.prevFixLon = null; // don't let a stale reading from a previous, unrelated session feed a bogus fallback-speed calculation on the next one
   }
 
-  var navLocateMarker = null; // "you are here" marker dropped by the standalone locate button, kept separate from the active-navigation position marker
-  var navSearchFocusPoint = null; // driver's GPS position, cached once per Navigatore visit, used to bias/rank geocoding results toward nearby places first — without this, a generic query like "Via Roma 5" ranks results from anywhere in Italy with no sense of which one is actually relevant
+  // ==================================================================
+  // DELIVERY PLANNER — replaces the old turn-by-turn Navigatore.
+  // ==================================================================
+  // ADB Smart no longer tries to be a navigator. It manages the
+  // client list, prepares an optimized order for the next batch, and
+  // hands off to Google Maps for the actual driving/navigation —
+  // Google Maps does what it does best (live traffic, ETA, turn-by-
+  // turn), ADB Smart does what IT does best (organizing the day).
+  //
+  // PHASE 1 of the redesign (client list + local autocomplete +
+  // ORS-Optimization-based reordering + Google Maps hand-off). Bolla
+  // OCR and ZTL warnings are separate, later phases per the agreed
+  // build order.
+
+  var TIPO_VEICOLO_LABELS = { auto: 'Auto', furgone: 'Furgone', cassonato: 'Cassonato', camion: 'Camion', autoarticolato: 'Autoarticolato' };
+  function dpVehicleSummary() {
+    var v = state.vehicle;
+    var label = TIPO_VEICOLO_LABELS[v.tipo] || v.tipo;
+    if (v.tipo === 'auto') return escapeHtml(label);
+    var bits = [label];
+    if (v.massa) bits.push(v.massa + ' t');
+    if (v.altezza) bits.push('H ' + v.altezza + ' m');
+    return escapeHtml(bits.join(' · '));
+  }
+
+  function dpStats(run) {
+    var total = run.clients.length;
+    var completed = run.clients.filter(function (c) { return c.status === 'completed'; }).length;
+    return { total: total, completed: completed, remaining: total - completed };
+  }
+
+  function dpClientRowHtml(c, idx) {
+    var isDone = c.status === 'completed';
+    var badge = isDone ? '✓' : String(idx + 1);
+    return '' +
+      '<div class="card dp-client-row' + (isDone ? ' dp-client-done' : '') + '" data-client-id="' + c.id + '">' +
+      '<div class="dp-client-badge' + (isDone ? ' dp-client-badge-done' : '') + '">' + badge + '</div>' +
+      '<div class="dp-client-info">' +
+      '<div class="dp-client-name">' + escapeHtml(c.nome) + '</div>' +
+      '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + '</div>' +
+      '</div>' +
+      '</div>';
+  }
+
+  function renderDeliveryPlanner() {
+    var el = document.getElementById('screen-navigatore');
+    var run = state.deliveryRun;
+    var stats = dpStats(run);
+    var html = '';
+
+    html += '<div class="dp-header-row"><h2 class="dp-title">Percorso di oggi</h2></div>';
+    html += '<div class="dp-vehicle-quick" id="dp-vehicle-quick">Profilo veicolo: ' + dpVehicleSummary() + ' &rsaquo;</div>';
+    html += '<div class="dp-stats-row">' +
+      '<div class="dp-stat"><div class="dp-stat-num">' + stats.total + '</div><div class="dp-stat-label">clienti</div></div>' +
+      '<div class="dp-stat"><div class="dp-stat-num" style="color:var(--teal)">' + stats.completed + '</div><div class="dp-stat-label">completati</div></div>' +
+      '<div class="dp-stat"><div class="dp-stat-num" style="color:var(--accent)">' + stats.remaining + '</div><div class="dp-stat-label">rimanenti</div></div>' +
+      '</div>';
+
+    html += '<button type="button" class="btn btn-accent btn-block" id="dp-add-client-btn" style="margin:14px 0;">+ Aggiungi cliente</button>';
+
+    if (run.clients.length === 0) {
+      html += '<div class="card" style="text-align:center;color:var(--ink-soft);">Nessun cliente ancora. Aggiungi il primo per iniziare.</div>';
+    } else {
+      html += '<div class="dp-list">';
+      run.clients.forEach(function (c, idx) { html += dpClientRowHtml(c, idx); });
+      html += '</div>';
+    }
+
+    html += '<div class="dp-bottom-actions">';
+    html += '<button type="button" class="btn btn-outline btn-block" id="dp-reordina-btn"' + (stats.remaining === 0 ? ' disabled' : '') + '>Reordina</button>';
+    if (run.preparedBatch && run.preparedBatch.length) {
+      html += '<button type="button" class="btn btn-dark btn-block" id="dp-open-gmaps-btn" style="margin-top:10px;">Apri in Google Maps (' + run.preparedBatch.length + ' tappe)</button>';
+    }
+    html += '</div>';
+
+    el.innerHTML = html;
+
+    document.getElementById('dp-add-client-btn').addEventListener('click', dpOpenAddClientModal);
+    document.getElementById('dp-vehicle-quick').addEventListener('click', function () {
+      populateNavVehicleForm(); // fills the (pre-existing, unchanged) vehicle modal with current values — nothing else does this now that the old screen isn't rendering anymore
+      document.getElementById('modal-nav-vehicle').classList.add('open');
+    });
+    var reordinaBtn = document.getElementById('dp-reordina-btn');
+    if (reordinaBtn) reordinaBtn.addEventListener('click', dpOpenReordinaModal);
+    var gmapsBtn = document.getElementById('dp-open-gmaps-btn');
+    if (gmapsBtn) gmapsBtn.addEventListener('click', dpOpenInGoogleMaps);
+  }
+
+  // ---- Aggiungi cliente: cerca salvato, oppure nuovo ----
+
+  function dpCloseModal(id) { document.getElementById(id).classList.remove('open'); }
+
+  function dpOpenAddClientModal() {
+    document.getElementById('dp-add-search-input').value = '';
+    dpRenderAddClientResults('');
+    document.getElementById('modal-dp-add-client').classList.add('open');
+    document.getElementById('dp-add-close-x').onclick = function () { dpCloseModal('modal-dp-add-client'); };
+    document.getElementById('dp-add-search-input').oninput = function (e) { dpRenderAddClientResults(e.target.value); };
+    setTimeout(function () { document.getElementById('dp-add-search-input').focus(); }, 50);
+  }
+
+  function dpRenderAddClientResults(query) {
+    var container = document.getElementById('dp-add-results');
+    var q = (query || '').trim().toLowerCase();
+    var alreadyInRun = {};
+    state.deliveryRun.clients.forEach(function (c) { alreadyInRun[c.clientId] = true; });
+
+    var matches = q.length >= 2
+      ? state.deliveryClients.filter(function (c) { return c.nome.toLowerCase().indexOf(q) !== -1 && !alreadyInRun[c.id]; }).slice(0, 8)
+      : [];
+
+    var html = '';
+    matches.forEach(function (c) {
+      html += '<div class="dp-search-result-row" data-saved-id="' + c.id + '">' +
+        '<div class="dp-search-result-name">' + escapeHtml(c.nome) + '</div>' +
+        '<div class="dp-search-result-addr">' + escapeHtml(c.indirizzo || '') + '</div>' +
+        '</div>';
+    });
+    // Always offered — a genuinely new client, or one already saved
+    // under a slightly different spelling the search didn't catch.
+    if (q.length >= 2) {
+      html += '<div class="dp-new-client-cta" id="dp-add-new-cta">+ Nuovo cliente' + (query ? ': "' + escapeHtml(query) + '"' : '') + '</div>';
+    }
+    container.innerHTML = html;
+
+    container.querySelectorAll('[data-saved-id]').forEach(function (row) {
+      row.addEventListener('click', function () { dpAddSavedClientToRun(row.getAttribute('data-saved-id')); });
+    });
+    var newCta = document.getElementById('dp-add-new-cta');
+    if (newCta) newCta.addEventListener('click', function () { dpOpenNewClientModal(query); });
+  }
+
+  function dpAddSavedClientToRun(savedClientId) {
+    var saved = state.deliveryClients.find(function (c) { return c.id === savedClientId; });
+    if (!saved) return;
+    state.deliveryRun.clients.push({
+      id: uid(), clientId: saved.id, nome: saved.nome, indirizzo: saved.indirizzo,
+      lat: saved.lat, lon: saved.lon, status: 'pending'
+    });
+    saveDeliveryRun(state.deliveryRun);
+    dpCloseModal('modal-dp-add-client');
+    renderDeliveryPlanner();
+  }
+
+  function dpOpenNewClientModal(prefillName) {
+    dpCloseModal('modal-dp-add-client');
+    document.getElementById('dp-new-nome').value = prefillName || '';
+    document.getElementById('dp-new-indirizzo').value = '';
+    document.getElementById('dp-new-geocode-result').innerHTML = '';
+    var btn = document.getElementById('dp-new-verify-btn');
+    btn.textContent = 'Verifica indirizzo';
+    btn.onclick = dpVerifyNewClientAddress;
+    document.getElementById('dp-new-close-x').onclick = function () { dpCloseModal('modal-dp-new-client'); };
+    document.getElementById('modal-dp-new-client').classList.add('open');
+  }
+
+  // Geocodes the typed address, then does the "possible company match
+  // nearby" check ION asked for: also searches the COMPANY NAME itself
+  // (as a venue/POI), and if a match turns up close to the geocoded
+  // address, offers it as an alternative WITHOUT silently switching to
+  // it — the driver decides, per the explicit requirement that the
+  // bolla's own address always wins unless the driver says otherwise.
+  function dpVerifyNewClientAddress() {
+    var nome = document.getElementById('dp-new-nome').value.trim();
+    var indirizzo = document.getElementById('dp-new-indirizzo').value.trim();
+    var resultEl = document.getElementById('dp-new-geocode-result');
+    if (!nome || !indirizzo) {
+      resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Inserisci nome e indirizzo.</div>';
+      return;
+    }
+    resultEl.innerHTML = '<div style="color:var(--ink-soft);font-size:13px;">Verifica in corso...</div>';
+    geocodeAddress(indirizzo).then(function (addrResult) {
+      if (!addrResult) {
+        resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Indirizzo non trovato. Controlla e riprova.</div>';
+        return;
+      }
+      dpPendingNewClient = { nome: nome, indirizzo: addrResult.label || indirizzo, lat: addrResult.lat, lon: addrResult.lon };
+      resultEl.innerHTML = '<div style="font-size:13px;color:var(--ink);">✓ Indirizzo verificato<br><b>' + escapeHtml(addrResult.label || indirizzo) + '</b></div>';
+
+      // Best-effort company-name search, purely a safety suggestion —
+      // never blocks or auto-changes the confirmed address above.
+      navGeocodeFetch('search', nome).then(function (data) {
+        if (!data.features || !data.features.length) return; // not found — fine, the address alone is enough, per ION's explicit requirement
+        var f = data.features[0];
+        var foundLat = f.geometry.coordinates[1], foundLon = f.geometry.coordinates[0];
+        var distM = haversineKm({ lat: addrResult.lat, lon: addrResult.lon }, { lat: foundLat, lon: foundLon }) * 1000;
+        if (distM < 20 || distM > 600) return; // too close to matter, or too far to plausibly be the same place
+        var matchDiv = document.createElement('div');
+        matchDiv.className = 'dp-match-card';
+        matchDiv.innerHTML = 'Possibile corrispondenza trovata nelle vicinanze<br>' +
+          '<b>' + escapeHtml(f.properties.label || nome) + '</b><br>' +
+          Math.round(distM) + ' m dall\'indirizzo inserito' +
+          '<br><button type="button" class="btn btn-outline btn-sm" id="dp-use-found-btn">Usa questo indirizzo</button>';
+        resultEl.appendChild(matchDiv);
+        document.getElementById('dp-use-found-btn').addEventListener('click', function () {
+          dpPendingNewClient.lat = foundLat;
+          dpPendingNewClient.lon = foundLon;
+          dpPendingNewClient.indirizzo = f.properties.label || dpPendingNewClient.indirizzo;
+          matchDiv.innerHTML = '✓ Indirizzo aggiornato';
+        });
+      }).catch(function () { /* the safety-check search failing outright is not itself a problem — the verified bolla address above still stands on its own */ });
+
+      var btn = document.getElementById('dp-new-verify-btn');
+      btn.textContent = 'Salva e aggiungi';
+      btn.onclick = dpSaveNewClientAndAdd;
+    }).catch(function () {
+      resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Errore di rete. Riprova.</div>';
+    });
+  }
+
+  var dpPendingNewClient = null;
+
+  function dpSaveNewClientAndAdd() {
+    if (!dpPendingNewClient) return;
+    var saved = {
+      id: uid(), nome: dpPendingNewClient.nome, indirizzo: dpPendingNewClient.indirizzo,
+      lat: dpPendingNewClient.lat, lon: dpPendingNewClient.lon, createdAt: Date.now()
+    };
+    state.deliveryClients.push(saved);
+    saveDeliveryClients(state.deliveryClients);
+    state.deliveryRun.clients.push({
+      id: uid(), clientId: saved.id, nome: saved.nome, indirizzo: saved.indirizzo,
+      lat: saved.lat, lon: saved.lon, status: 'pending'
+    });
+    saveDeliveryRun(state.deliveryRun);
+    dpPendingNewClient = null;
+    dpCloseModal('modal-dp-new-client');
+    renderDeliveryPlanner();
+  }
+
+  // ---- Reordina: conferma completati, poi ricalcola con ORS Optimization ----
+
+  function dpOpenReordinaModal() {
+    var listEl = document.getElementById('dp-reordina-list');
+    var html = '';
+    state.deliveryRun.clients.forEach(function (c) {
+      var isDone = c.status === 'completed';
+      html += '<label class="dp-reordina-row"><input type="checkbox" data-client-id="' + c.id + '"' + (isDone ? ' checked' : '') + '>' +
+        '<span>' + escapeHtml(c.nome) + (isDone ? ' — FATTO' : '') + '</span></label>';
+    });
+    listEl.innerHTML = html || '<div style="color:var(--ink-soft);">Nessun cliente in elenco.</div>';
+    document.getElementById('dp-reordina-close-x').onclick = function () { dpCloseModal('modal-dp-reordina'); };
+    document.getElementById('dp-reordina-confirm-btn').onclick = dpConfirmReordina;
+    document.getElementById('dp-reordina-confirm-btn').disabled = false;
+    document.getElementById('dp-reordina-confirm-btn').textContent = 'Ricalcola percorso';
+    document.getElementById('modal-dp-reordina').classList.add('open');
+  }
+
+  function dpConfirmReordina() {
+    var checkboxes = document.querySelectorAll('#dp-reordina-list input[type=checkbox]');
+    checkboxes.forEach(function (cb) {
+      var client = state.deliveryRun.clients.find(function (c) { return c.id === cb.getAttribute('data-client-id'); });
+      if (client) client.status = cb.checked ? 'completed' : 'pending';
+    });
+    saveDeliveryRun(state.deliveryRun);
+
+    var remaining = state.deliveryRun.clients.filter(function (c) { return c.status !== 'completed'; });
+    if (!remaining.length) {
+      state.deliveryRun.preparedBatch = null; // nothing left to open in Google Maps for — an old batch referencing now-completed clients would be confusing, not useful
+      saveDeliveryRun(state.deliveryRun);
+      dpCloseModal('modal-dp-reordina');
+      renderDeliveryPlanner();
+      return;
+    }
+
+    var confirmBtn = document.getElementById('dp-reordina-confirm-btn');
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Calcolo in corso...';
+
+    currentPosition().then(function (pos) {
+      return dpCallOrsOptimization(pos, remaining);
+    }).then(function (optimized) {
+      // optimized: array of client objects from `remaining`, in the
+      // best order ORS found — take up to the first 9 (Google Maps'
+      // own confirmed limit for this app's use — origin + up to 9
+      // waypoints + destination when opened in the installed app).
+      var batch = optimized.slice(0, 9);
+      state.deliveryRun.preparedBatch = batch.map(function (c) { return c.id; });
+      saveDeliveryRun(state.deliveryRun);
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = 'Ricalcola percorso';
+      dpCloseModal('modal-dp-reordina');
+      renderDeliveryPlanner();
+    }).catch(function (err) {
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = 'Ricalcola percorso';
+      // Honest fallback, not a silent failure — if the optimization
+      // call itself fails (offline, ORS quota, GPS unavailable), the
+      // driver still gets a usable batch: the remaining clients in
+      // their current order, rather than being stuck with no route at
+      // all. Not optimized, but not broken either.
+      var listEl = document.getElementById('dp-reordina-list');
+      listEl.insertAdjacentHTML('afterbegin', '<div style="color:var(--danger);font-size:13px;margin-bottom:8px;">Impossibile ottimizzare (' + (err && err.message ? escapeHtml(err.message) : 'errore') + ') — uso l\'ordine attuale.</div>');
+      state.deliveryRun.preparedBatch = remaining.slice(0, 9).map(function (c) { return c.id; });
+      saveDeliveryRun(state.deliveryRun);
+    });
+  }
+
+  // ORS Optimization (VROOM-based, free on the same ORS account/quota
+  // as everything else already in use — confirmed via
+  // openrouteservice.org/services and the free-tier restrictions page,
+  // no separate cost). Returns the given clients re-ordered by the
+  // solver, resolved from the response's job-id sequence back to the
+  // actual client objects (the API itself only returns coordinates/ids,
+  // not the original objects).
+  function dpCallOrsOptimization(startPos, clients) {
+    var v = state.vehicle;
+    var profile = v.tipo === 'auto' ? 'driving-car' : 'driving-hgv';
+    var body = {
+      jobs: clients.map(function (c, i) { return { id: i + 1, location: [c.lon, c.lat] }; }),
+      vehicles: [{ id: 1, profile: profile, start: [startPos.lon, startPos.lat] }]
+    };
+    return fetch('https://api.openrouteservice.org/optimization', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': ORS_API_KEY },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      if (!r.ok) throw new Error('ORS ' + r.status);
+      return r.json();
+    }).then(function (data) {
+      if (!data.routes || !data.routes[0] || !data.routes[0].steps) throw new Error('risposta non valida');
+      var orderedIds = data.routes[0].steps
+        .filter(function (s) { return s.type === 'job'; })
+        .map(function (s) { return s.id; });
+      return orderedIds.map(function (jobId) { return clients[jobId - 1]; }).filter(Boolean);
+    });
+  }
+
+  // ---- Apri in Google Maps ----
+
+  function dpOpenInGoogleMaps() {
+    var run = state.deliveryRun;
+    if (!run.preparedBatch || !run.preparedBatch.length) return;
+    var batchClients = run.preparedBatch.map(function (id) {
+      return run.clients.find(function (c) { return c.id === id; });
+    }).filter(Boolean);
+    if (!batchClients.length) return;
+
+    var destination = batchClients[batchClients.length - 1];
+    var waypoints = batchClients.slice(0, -1);
+    var url = 'https://www.google.com/maps/dir/?api=1' +
+      '&destination=' + encodeURIComponent(destination.lat + ',' + destination.lon) +
+      '&travelmode=driving';
+    if (waypoints.length) {
+      url += '&waypoints=' + waypoints.map(function (c) { return encodeURIComponent(c.lat + ',' + c.lon); }).join('%7C');
+    }
+    window.open(url, '_blank');
+  }
+
 
   function renderNavigatore() {
     // A RETURN visit — the person switched to another tab (Home,
