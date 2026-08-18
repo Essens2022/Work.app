@@ -180,6 +180,7 @@
   .dp-client-badge{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;}
   .dp-client-badge-done{background:var(--teal-soft);color:var(--teal);}
   .dp-client-info{flex:1;min-width:0;}
+  .dp-client-chevron{flex:0 0 auto;color:var(--ink-faint);font-size:20px;}
   .dp-client-name{font-weight:700;font-size:15px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .dp-client-addr{font-size:13px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
   .dp-bottom-actions{margin-top:18px;padding-bottom:20px;}
@@ -1063,6 +1064,26 @@
     <div class="modal-sub">Conferma i clienti gia completati, poi ricalcola.</div>
     <div id="dp-reordina-list"></div>
     <button type="button" class="btn btn-accent btn-block" id="dp-reordina-confirm-btn" style="margin-top:14px;">Ricalcola percorso</button>
+  </div>
+</div>
+
+<!-- Delivery Planner — edit/remove a client from today's list. -->
+<div class="modal-overlay" id="modal-dp-edit-client">
+  <div class="sheet-panel">
+    <button type="button" class="modal-close-x" id="dp-edit-close-x" aria-label="Chiudi">×</button>
+    <div class="grabber"></div>
+    <div class="modal-title">Modifica cliente</div>
+    <div class="field">
+      <label>Nome azienda</label>
+      <input type="text" id="dp-edit-nome" autocomplete="off">
+    </div>
+    <div class="field" style="margin-top:10px;">
+      <label>Indirizzo</label>
+      <input type="text" id="dp-edit-indirizzo" autocomplete="off">
+    </div>
+    <div id="dp-edit-geocode-result" style="margin-top:10px;"></div>
+    <button type="button" class="btn btn-accent btn-block" id="dp-edit-save-btn" style="margin-top:14px;">Salva modifiche</button>
+    <button type="button" class="btn btn-danger btn-block" id="dp-edit-remove-btn" style="margin-top:10px;">Rimuovi dalla lista di oggi</button>
   </div>
 </div>
 
