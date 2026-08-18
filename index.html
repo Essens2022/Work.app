@@ -1059,23 +1059,28 @@
       <label>Nome azienda</label>
       <input type="text" id="dp-new-nome" placeholder="Es. IEIS IMPIANTI SRL" autocomplete="off">
     </div>
+
+    <!-- Primary path now — trusted directly, since it's the same
+         coordinates Google Maps itself will later use, guaranteeing
+         they agree with each other. Promoted here per ION's own
+         explicit choice, after the automatic search below repeatedly
+         showed one address in-app while opening a DIFFERENT one in
+         Google Maps — a real, hard-to-fully-eliminate mismatch
+         between our free geocoder's data and Google's own. -->
     <div class="field" style="margin-top:10px;">
+      <label>Link o coordinate da Google Maps</label>
+      <input type="text" id="dp-new-gmaps-paste" placeholder="Link condiviso o 45.123, 11.456" autocomplete="off">
+    </div>
+    <div id="dp-new-gmaps-paste-result" style="margin-top:8px;"></div>
+    <button type="button" class="btn btn-accent btn-block" id="dp-new-gmaps-paste-btn" style="margin-top:10px;">Usa questa posizione</button>
+
+    <div style="text-align:center;color:var(--ink-soft);font-size:12px;margin:16px 0 6px;">oppure cerca l'indirizzo</div>
+    <div class="field">
       <label>Indirizzo</label>
       <input type="text" id="dp-new-indirizzo" placeholder="Via, numero civico, città" autocomplete="off">
     </div>
     <div id="dp-new-geocode-result" style="margin-top:10px;"></div>
-    <button type="button" class="btn btn-accent btn-block" id="dp-new-verify-btn" style="margin-top:14px;">Verifica indirizzo</button>
-
-    <!-- Alternative to the automatic search above, for when it finds
-         the wrong place — paste a link/coordinates copied directly
-         from the Google Maps app instead, trusted as-is. -->
-    <div style="text-align:center;color:var(--ink-soft);font-size:12px;margin:14px 0 6px;">oppure</div>
-    <div class="field">
-      <label>Incolla link o coordinate da Google Maps</label>
-      <input type="text" id="dp-new-gmaps-paste" placeholder="Link condiviso o 45.123, 11.456" autocomplete="off">
-    </div>
-    <div id="dp-new-gmaps-paste-result" style="margin-top:8px;"></div>
-    <button type="button" class="btn btn-outline btn-block" id="dp-new-gmaps-paste-btn" style="margin-top:10px;">Usa questa posizione</button>
+    <button type="button" class="btn btn-outline btn-block" id="dp-new-verify-btn" style="margin-top:10px;">Verifica indirizzo</button>
   </div>
 </div>
 
