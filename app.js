@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v240") {
+          if (data && data.v && data.v !== "pt-foglio-v241") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v240"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v241"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -605,6 +605,12 @@
     // (client list, buttons), not a full-screen map, so it uses the
     // app's regular top bar and padding like every other screen now.
     document.body.classList.toggle('nav-fullbleed', false);
+    // Header/stats/buttons pinned in place on the Delivery Planner
+    // specifically — only the client list itself scrolls once there
+    // are more than fit. Every OTHER screen keeps the app's normal
+    // whole-page scroll (main{overflow-y:auto}), unaffected — this
+    // class only changes behavior while dp-screen-active is present.
+    document.body.classList.toggle('dp-screen-active', name === 'navigatore');
     if (name === 'foglio') {
       scrollToLastDayPending = true;
       render();
