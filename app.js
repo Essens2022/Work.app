@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v226") {
+          if (data && data.v && data.v !== "pt-foglio-v227") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v226"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v227"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1302,6 +1302,25 @@
 
     html += '<button type="button" class="btn btn-accent btn-block" id="dp-add-client-btn" style="margin:14px 0;">+ Aggiungi cliente</button>';
 
+    // Section 15 of the spec: after the last client, offer Casa/
+    // Deposito — reusing the EXISTING home/work shortcuts storage
+    // (pt_nav_homework_v1, already built for the old Navigatore's own
+    // Casa/Lavoro shortcuts) rather than building a separate store for
+    // essentially the same two saved locations. "Lavoro" doubles as
+    // "Deposito" here — the same real-world place for a truck driver.
+    if (stats.total > 0 && stats.remaining === 0) {
+      var hw = loadNavHomeWork();
+      html += '<div class="card" style="text-align:center;">';
+      html += '<div style="font-weight:800;font-size:16px;margin-bottom:10px;">✓ Tutte le consegne completate</div>';
+      if (hw.home) html += '<button type="button" class="btn btn-dark btn-block" id="dp-nav-home-btn" style="margin-top:8px;">Naviga a casa</button>';
+      if (hw.work) html += '<button type="button" class="btn btn-dark btn-block" id="dp-nav-work-btn" style="margin-top:8px;">Naviga al deposito</button>';
+      if (!hw.home && !hw.work) {
+        html += '<div style="color:var(--ink-soft);font-size:13px;margin-bottom:8px;">Imposta un indirizzo di casa o deposito per un rientro rapido.</div>';
+        html += '<button type="button" class="btn btn-outline btn-block" id="dp-setup-homework-btn">Imposta indirizzi</button>';
+      }
+      html += '</div>';
+    }
+
     if (run.clients.length === 0) {
       html += '<div class="card" style="text-align:center;color:var(--ink-soft);">Nessun cliente ancora. Aggiungi il primo per iniziare.</div>';
     } else {
@@ -1328,6 +1347,12 @@
     if (reordinaBtn) reordinaBtn.addEventListener('click', dpOpenReordinaModal);
     var gmapsBtn = document.getElementById('dp-open-gmaps-btn');
     if (gmapsBtn) gmapsBtn.addEventListener('click', dpOpenInGoogleMaps);
+    var homeBtn = document.getElementById('dp-nav-home-btn');
+    if (homeBtn) homeBtn.addEventListener('click', function () { dpNavigateToSaved('home'); });
+    var workBtn = document.getElementById('dp-nav-work-btn');
+    if (workBtn) workBtn.addEventListener('click', function () { dpNavigateToSaved('work'); });
+    var setupHwBtn = document.getElementById('dp-setup-homework-btn');
+    if (setupHwBtn) setupHwBtn.addEventListener('click', openNavHomeWorkModal); // pre-existing modal/flow, unchanged — just opened from here now too
   }
 
   // ---- Aggiungi cliente: cerca salvato, oppure nuovo ----
@@ -1463,7 +1488,7 @@
       // the explicit requirement), with the name-match offered only
       // as an optional, driver-confirmed alternative when it's not
       // trivially the same place.
-      dpPendingNewClient = { nome: nome, indirizzo: addrResult.label || indirizzo, lat: addrResult.lat, lon: addrResult.lon };
+      dpPendingNewClient = { nome: nome, indirizzo: addrResult.label || indirizzo, lat: addrResult.lat, lon: addrResult.lon, cap: addrResult.cap, citta: addrResult.citta, provincia: addrResult.provincia };
       resultEl.innerHTML = '<div style="font-size:13px;color:var(--ink);">✓ Indirizzo verificato<br><b>' + escapeHtml(addrResult.label || indirizzo) + '</b></div>';
       var verifyBtn = document.getElementById('dp-new-verify-btn');
       verifyBtn.textContent = 'Salva e aggiungi';
@@ -1498,7 +1523,8 @@
     var saved = {
       id: uid(), nome: dpPendingNewClient.nome, indirizzo: dpPendingNewClient.indirizzo,
       lat: dpPendingNewClient.lat, lon: dpPendingNewClient.lon, createdAt: Date.now(),
-      nonVerificato: !!dpPendingNewClient.nonVerificato
+      nonVerificato: !!dpPendingNewClient.nonVerificato,
+      cap: dpPendingNewClient.cap || '', citta: dpPendingNewClient.citta || '', provincia: dpPendingNewClient.provincia || ''
     };
     state.deliveryClients.push(saved);
     saveDeliveryClients(state.deliveryClients);
@@ -2892,7 +2918,8 @@
       if (!homeInput.value.trim()) pickedHome = null;
       if (!workInput.value.trim()) pickedWork = null;
       saveNavHomeWork({ home: pickedHome, work: pickedWork });
-      renderNavShortcuts();
+      renderNavShortcuts(); // no-ops harmlessly now (its own DOM row no longer exists) — kept in case anything else still calls it
+      if (currentScreen === 'navigatore') renderDeliveryPlanner(); // refreshes the Casa/Deposito buttons on THIS screen, which renderNavShortcuts no longer reaches
       document.getElementById('modal-nav-homework').classList.remove('open');
       toast('Indirizzi salvati');
     };
@@ -3274,6 +3301,22 @@
   //    Villatora" instead, a same-named LOCAL STREET, because the hard
   //    filter excluded the real, far-away city before Pelias's own
   //    text relevance ever got to correctly prefer the exact match.
+  // fetch() itself has NO built-in timeout — a hung/stalled request
+  // (poor connectivity, a server that accepts the connection but never
+  // responds) just leaves the returned promise pending forever. This
+  // is what was actually happening — confirmed by ION's screenshot,
+  // stuck indefinitely on "Verifica in corso..." rather than either
+  // succeeding or showing a real failure message. AbortController is
+  // the standard way to give any fetch() a hard ceiling.
+  function fetchWithTimeout(url, opts, timeoutMs) {
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, timeoutMs || 10000);
+    var fetchOpts = {};
+    if (opts) { for (var k in opts) { if (opts.hasOwnProperty(k)) fetchOpts[k] = opts[k]; } }
+    fetchOpts.signal = controller.signal;
+    return fetch(url, fetchOpts).finally(function () { clearTimeout(timer); });
+  }
+
   function navGeocodeUrl(endpoint, text, opts) {
     opts = opts || {};
     var url = 'https://api.openrouteservice.org/geocode/' + endpoint + '?api_key=' + encodeURIComponent(ORS_API_KEY) +
@@ -3311,13 +3354,13 @@
 
     function tryNext(i) {
       if (i >= attempts.length) return Promise.resolve({ features: [] });
-      return fetch(navGeocodeUrl(endpoint, text, attempts[i]))
+      return fetchWithTimeout(navGeocodeUrl(endpoint, text, attempts[i]), null, 6000)
         .then(function (r) { return r.json(); })
         .then(function (data) {
           if (data.features && data.features.length) return data;
           return tryNext(i + 1);
         })
-        .catch(function () { return tryNext(i + 1); }); // this attempt failed outright (offline etc.) — still worth trying the next, less strict one
+        .catch(function () { return tryNext(i + 1); }); // this attempt failed outright (offline, timeout, etc.) — still worth trying the next, less strict one
     }
     return tryNext(0);
   }
@@ -3327,9 +3370,28 @@
     return navGeocodeFetch('search', text)
       .then(function (data) {
         if (!data.features || !data.features.length) return null;
-        var coords = data.features[0].geometry.coordinates; // [lon, lat]
-        return { lon: coords[0], lat: coords[1], label: data.features[0].properties.label };
-
+        var f = data.features[0];
+        var coords = f.geometry.coordinates; // [lon, lat]
+        var p = f.properties || {};
+        // Structured fields, additive — Pelias (the geocoder behind
+        // ORS's free-tier search) already returns these broken out,
+        // previously discarded in favor of just the flat label. Kept
+        // separate now per the explicit requirement to store CAP/
+        // città/provincia as their own fields, not just folded into
+        // one address string.
+        // HONEST UNCERTAINTY: Pelias's exact property naming for the
+        // Italian "provincia" specifically (as opposed to "regione")
+        // isn't something I can verify without a live response to
+        // inspect — no network access to openrouteservice.org from
+        // this environment. Tried the most plausible candidates
+        // (county, then region_a) with a fallback chain rather than
+        // asserting one name confidently; if the saved provincia
+        // field comes out empty or wrong in practice, that's the
+        // first place to check against a real response.
+        return {
+          lon: coords[0], lat: coords[1], label: p.label,
+          cap: p.postalcode || '', citta: p.locality || '', provincia: p.county || p.region_a || ''
+        };
       });
   }
 
