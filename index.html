@@ -120,6 +120,15 @@
   body.nav-fullbleed #presence-diagnostic{display:none;}
   body.nav-fullbleed main{padding:0;padding-bottom:calc(24px + var(--bottomnav-h, 90px));}
   body.nav-fullbleed #screen-navigatore{padding:0;}
+
+  /* Delivery Planner — header/stats/buttons pinned in place, only the
+     client list itself scrolls. main's own normal whole-page scroll
+     is disabled ONLY while this screen is active (every other screen
+     keeps scrolling the regular way — this rule is scoped to the
+     dp-screen-active class, toggled in JS only for this one screen). */
+  body.dp-screen-active main{overflow:hidden;display:flex;flex-direction:column;}
+  body.dp-screen-active #screen-navigatore{display:flex;flex-direction:column;flex:1;min-height:0;}
+  .dp-list-scroll{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;} /* min-height:0 is the actual fix — without it a flex child won't shrink below its content size, and the list would just keep growing instead of scrolling internally */
   .install-cta-wrap{position:relative;margin-bottom:14px;}
   .install-cta-btn{
     width:100%;display:flex;align-items:center;justify-content:center;gap:10px;
@@ -176,7 +185,6 @@
   .dp-stat-num{font-size:24px;font-weight:800;color:var(--ink);line-height:1.1;}
   .dp-stat-label{font-size:11px;color:var(--ink-soft);margin-top:2px;text-transform:uppercase;letter-spacing:.04em;}
   .dp-list{display:flex;flex-direction:column;gap:10px;}
-  .dp-list-scroll{max-height:420px;overflow-y:auto;-webkit-overflow-scrolling:touch;}
   .dp-client-row{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;}
   .dp-client-row.dp-client-done{opacity:.55;}
   .dp-client-badge{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;}
