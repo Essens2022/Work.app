@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v250") {
+          if (data && data.v && data.v !== "pt-foglio-v252") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v250"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v252"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1556,39 +1556,93 @@
   // removes from the current run (same effect as the existing
   // "Rimuovi dalla lista di oggi" button in Modifica cliente), just
   // reachable directly from the list without opening that modal first.
+  // Shared, single implementation of the swipe-to-reveal-delete
+  // mechanic — replaces two near-identical copies (this list, and the
+  // saved-client suggestions in Aggiungi cliente) that had drifted
+  // into having the exact same gaps independently. One correct
+  // version now, used by both.
+  //
+  // Tracks which row (if any) is CURRENTLY left open, globally — so
+  // starting a new swipe on a DIFFERENT row, or tapping anywhere else
+  // in the app, closes whatever was previously open automatically.
+  // Per ION's own explicit request: swiping one client open, then
+  // moving on to a different one, should snap the first one back —
+  // not leave it sitting open indefinitely.
+  var dpOpenSwipeRow = null;
+
+  function dpCloseOpenSwipeRow() {
+    if (!dpOpenSwipeRow) return;
+    dpOpenSwipeRow._dpSwipeBaseOffset = 0;
+    dpOpenSwipeRow.style.transition = 'transform .18s ease';
+    dpOpenSwipeRow.style.transform = 'translateX(0)';
+    dpOpenSwipeRow = null;
+  }
+
+  // Closes an open swipe on any tap that lands OUTSIDE that row and
+  // its own delete button (both live inside the same .dp-swipe-wrap)
+  // — covers every other case at once (tapping a different row, a
+  // button, the drag handle, opening a modal) via one listener rather
+  // than needing this handled at every call site.
+  document.addEventListener('touchstart', function (e) {
+    if (!dpOpenSwipeRow) return;
+    var wrap = dpOpenSwipeRow.closest('.dp-swipe-wrap');
+    if (!wrap || !wrap.contains(e.target)) dpCloseOpenSwipeRow();
+  }, { passive: true, capture: true });
+
+  function dpWireSwipeRow(row) {
+    var REVEAL = 84; // px — matches the delete button's own width, see CSS
+    var startX = null, dragging = false;
+    row._dpSwipeBaseOffset = 0;
+
+    row.addEventListener('touchstart', function (e) {
+      if (dpOpenSwipeRow && dpOpenSwipeRow !== row) dpCloseOpenSwipeRow();
+      startX = e.touches[0].clientX;
+      dragging = true;
+      row.style.transition = 'none';
+    }, { passive: true });
+
+    row.addEventListener('touchmove', function (e) {
+      if (!dragging || startX == null) return;
+      var dx = startX - e.touches[0].clientX; // positive while dragging left
+      var next = Math.max(0, Math.min(REVEAL, dx + row._dpSwipeBaseOffset));
+      row.style.transform = 'translateX(' + (-next) + 'px)';
+    }, { passive: true });
+
+    function finishTouch(e) {
+      if (!dragging) return;
+      dragging = false;
+      var endX = (e.changedTouches && e.changedTouches[0]) ? e.changedTouches[0].clientX : startX;
+      var dx = startX != null ? (startX - endX) : 0;
+      var finalOffset = Math.max(0, Math.min(REVEAL, dx + row._dpSwipeBaseOffset));
+      row._dpSwipeBaseOffset = finalOffset > REVEAL / 2 ? REVEAL : 0;
+      row.style.transition = 'transform .18s ease';
+      row.style.transform = 'translateX(' + (-row._dpSwipeBaseOffset) + 'px)';
+      dpOpenSwipeRow = row._dpSwipeBaseOffset ? row : null;
+      startX = null;
+    }
+    row.addEventListener('touchend', finishTouch);
+    // REAL BUG, found on review: touchcancel — the OS interrupting a
+    // gesture mid-drag (an incoming call, a notification banner,
+    // switching apps) — had NO handler at all. dragging stayed true
+    // and startX stayed stale, which could corrupt the NEXT,
+    // unrelated touch on this same row. Treated the same as a normal
+    // release now — whatever position it's at just settles in place.
+    row.addEventListener('touchcancel', finishTouch);
+
+    // Tapping the row itself while it's swiped open just closes it
+    // again, rather than also triggering its normal tap action.
+    row.addEventListener('click', function (e) {
+      if (row._dpSwipeBaseOffset) {
+        e.stopPropagation(); e.preventDefault();
+        dpCloseOpenSwipeRow();
+      }
+    }, true);
+  }
+
   function dpWireClientListSwipeToDelete() {
     document.querySelectorAll('.dp-list-scroll .dp-swipe-wrap').forEach(function (wrap) {
-      var row = wrap.querySelector('.dp-swipe-row');
-      var REVEAL = 84;
-      var startX = null, dragging = false;
-      row._dpSwipeBaseOffset = 0;
-
-      row.addEventListener('touchstart', function (e) {
-        startX = e.touches[0].clientX;
-        dragging = true;
-        row.style.transition = 'none';
-      }, { passive: true });
-
-      row.addEventListener('touchmove', function (e) {
-        if (!dragging || startX == null) return;
-        var dx = startX - e.touches[0].clientX;
-        var next = Math.max(0, Math.min(REVEAL, dx + row._dpSwipeBaseOffset));
-        row.style.transform = 'translateX(' + (-next) + 'px)';
-      }, { passive: true });
-
-      row.addEventListener('touchend', function (e) {
-        if (!dragging) return;
-        dragging = false;
-        var endX = e.changedTouches[0] ? e.changedTouches[0].clientX : startX;
-        var dx = startX != null ? (startX - endX) : 0;
-        var finalOffset = Math.max(0, Math.min(REVEAL, dx + row._dpSwipeBaseOffset));
-        row._dpSwipeBaseOffset = finalOffset > REVEAL / 2 ? REVEAL : 0;
-        row.style.transition = 'transform .18s ease';
-        row.style.transform = 'translateX(' + (-row._dpSwipeBaseOffset) + 'px)';
-        startX = null;
-      });
+      dpWireSwipeRow(wrap.querySelector('.dp-swipe-row'));
     });
-
     document.querySelectorAll('.dp-list-scroll .dp-swipe-delete-btn').forEach(function (btn) {
       btn.addEventListener('click', function () { dpConfirmRemoveClient(btn.getAttribute('data-client-id')); });
     });
@@ -1751,48 +1805,7 @@
   // ION's own explicit request.
   function dpWireSwipeToDelete(container) {
     container.querySelectorAll('.dp-swipe-wrap').forEach(function (wrap) {
-      var row = wrap.querySelector('.dp-swipe-row');
-      var REVEAL = 84; // px — matches the delete button's own width, see CSS
-      var startX = null, dragging = false;
-      row._dpSwipeBaseOffset = 0;
-
-      row.addEventListener('touchstart', function (e) {
-        startX = e.touches[0].clientX;
-        dragging = true;
-        row.style.transition = 'none';
-      }, { passive: true });
-
-      row.addEventListener('touchmove', function (e) {
-        if (!dragging || startX == null) return;
-        var dx = startX - e.touches[0].clientX; // positive while dragging left
-        var next = Math.max(0, Math.min(REVEAL, dx + row._dpSwipeBaseOffset));
-        row.style.transform = 'translateX(' + (-next) + 'px)';
-      }, { passive: true });
-
-      row.addEventListener('touchend', function (e) {
-        if (!dragging) return;
-        dragging = false;
-        var endX = e.changedTouches[0] ? e.changedTouches[0].clientX : startX;
-        var dx = startX != null ? (startX - endX) : 0;
-        var finalOffset = Math.max(0, Math.min(REVEAL, dx + row._dpSwipeBaseOffset));
-        row._dpSwipeBaseOffset = finalOffset > REVEAL / 2 ? REVEAL : 0;
-        row.style.transition = 'transform .18s ease';
-        row.style.transform = 'translateX(' + (-row._dpSwipeBaseOffset) + 'px)';
-        startX = null;
-      });
-
-      // Tapping the row itself while it's swiped open just closes it
-      // again, rather than also triggering "add to today's list" —
-      // an open delete button is a clear enough state that a tap
-      // elsewhere should back out of it, not act on the row.
-      row.addEventListener('click', function (e) {
-        if (row._dpSwipeBaseOffset) {
-          e.stopPropagation(); e.preventDefault();
-          row._dpSwipeBaseOffset = 0;
-          row.style.transition = 'transform .18s ease';
-          row.style.transform = 'translateX(0)';
-        }
-      }, true);
+      dpWireSwipeRow(wrap.querySelector('.dp-swipe-row'));
     });
 
     container.querySelectorAll('.dp-swipe-delete-btn').forEach(function (btn) {
