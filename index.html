@@ -121,14 +121,20 @@
   body.nav-fullbleed main{padding:0;padding-bottom:calc(24px + var(--bottomnav-h, 90px));}
   body.nav-fullbleed #screen-navigatore{padding:0;}
 
-  /* Delivery Planner — header/stats/buttons pinned in place, only the
-     client list itself scrolls. main's own normal whole-page scroll
-     is disabled ONLY while this screen is active (every other screen
-     keeps scrolling the regular way — this rule is scoped to the
-     dp-screen-active class, toggled in JS only for this one screen). */
-  body.dp-screen-active main{overflow:hidden;display:flex;flex-direction:column;padding-top:var(--topbar-h, 70px);}
-  body.dp-screen-active #screen-navigatore{display:flex;flex-direction:column;flex:1;min-height:0;}
-  .dp-list-scroll{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;} /* min-height:0 is the actual fix — without it a flex child won't shrink below its content size, and the list would just keep growing instead of scrolling internally */
+  /* Delivery Planner — the client list gets its own bounded height
+     and internal scroll, independent of whatever main's own scroll
+     behavior is doing. REVERTED from an earlier attempt at a fully
+     "pinned header, flex-based" layout (disabling main's own scroll
+     entirely, chaining flex:1/min-height:0 down through
+     #screen-navigatore) — that depended on the ENTIRE containment
+     chain behaving exactly as expected on a real device, which I have
+     no way to verify without testing on one, and it reportedly broke
+     scrolling outright. This simpler version doesn't depend on
+     main's own layout mode at all — max-height plus its own
+     overflow-y works the same regardless, a known-working pattern
+     already proven earlier today, at the cost of the header not
+     being AS strictly pinned as the fancier version aimed for. */
+  .dp-list-scroll{max-height:50vh;overflow-y:auto;-webkit-overflow-scrolling:touch;}
   .install-cta-wrap{position:relative;margin-bottom:14px;}
   .install-cta-btn{
     width:100%;display:flex;align-items:center;justify-content:center;gap:10px;
