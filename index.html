@@ -126,7 +126,7 @@
      is disabled ONLY while this screen is active (every other screen
      keeps scrolling the regular way — this rule is scoped to the
      dp-screen-active class, toggled in JS only for this one screen). */
-  body.dp-screen-active main{overflow:hidden;display:flex;flex-direction:column;padding-top:calc(4px + var(--topbar-h, 70px));}
+  body.dp-screen-active main{overflow:hidden;display:flex;flex-direction:column;padding-top:var(--topbar-h, 70px);}
   body.dp-screen-active #screen-navigatore{display:flex;flex-direction:column;flex:1;min-height:0;}
   .dp-list-scroll{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;} /* min-height:0 is the actual fix — without it a flex child won't shrink below its content size, and the list would just keep growing instead of scrolling internally */
   .install-cta-wrap{position:relative;margin-bottom:14px;}
@@ -176,7 +176,7 @@
   .card + .card{margin-top:14px;}
 
   /* Delivery Planner (replaces the old map-based Navigatore) */
-  .dp-header-row{padding-top:6px;display:flex;align-items:center;justify-content:space-between;}
+  .dp-header-row{padding-top:0;display:flex;align-items:center;justify-content:space-between;}
   .btn-icon-text{background:var(--surface-2);border:none;border-radius:var(--radius-sm);padding:8px 12px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;}
   .dp-title{margin:0;font-size:22px;font-weight:800;color:var(--ink);}
   .dp-vehicle-quick{margin-top:4px;font-size:13px;color:var(--ink-soft);cursor:pointer;}
