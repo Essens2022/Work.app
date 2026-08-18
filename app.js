@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v227") {
+          if (data && data.v && data.v !== "pt-foglio-v228") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v227"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v228"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1446,10 +1446,16 @@
     }
     resultEl.innerHTML = '<div style="color:var(--ink-soft);font-size:13px;">Verifica in corso...</div>';
 
-    var addrPromise = geocodeAddress(indirizzo).catch(function () { return null; });
-    var namePromise = navGeocodeFetch('search', nome).catch(function () { return { features: [] }; });
+    // Defense in depth — wrapped in try/catch so that ANY unexpected
+    // synchronous error here (not just a network failure, which the
+    // .catch()es below already handle) still shows something instead
+    // of leaving "Verifica in corso..." on screen forever with no
+    // feedback at all, which is exactly what was reported.
+    try {
+      var addrPromise = geocodeAddress(indirizzo).catch(function () { return null; });
+      var namePromise = navGeocodeFetch('search', nome).catch(function () { return { features: [] }; });
 
-    Promise.all([addrPromise, namePromise]).then(function (results) {
+      Promise.all([addrPromise, namePromise]).then(function (results) {
       var addrResult = results[0];
       var nameData = results[1];
       var nameMatch = (nameData.features && nameData.features.length) ? nameData.features[0] : null;
@@ -1513,7 +1519,12 @@
           });
         }
       }
+    }).catch(function (err) {
+      resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Errore imprevisto: ' + escapeHtml(err && err.message ? err.message : 'sconosciuto') + '. Riprova.</div>';
     });
+    } catch (err) {
+      resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Errore imprevisto: ' + escapeHtml(err && err.message ? err.message : 'sconosciuto') + '. Riprova.</div>';
+    }
   }
 
   var dpPendingNewClient = null;
@@ -3308,13 +3319,26 @@
   // stuck indefinitely on "Verifica in corso..." rather than either
   // succeeding or showing a real failure message. AbortController is
   // the standard way to give any fetch() a hard ceiling.
+  // REAL BUG, found on second look: AbortController-based timeout can
+  // throw synchronously, immediately, in some PWA/WKWebView contexts
+  // where it's not fully available the same way it is in regular
+  // Safari — an uncaught exception right at the top of this function,
+  // OUTSIDE any promise chain, would silently kill everything with no
+  // success and no failure message at all. That matches exactly what
+  // was reported the second time: no "not found" message ever
+  // appeared, not even after waiting. Rewritten with Promise.race
+  // instead — doesn't depend on AbortController existing at all, just
+  // plain Promises and setTimeout, universally available anywhere
+  // fetch() itself already works. Doesn't cancel the underlying
+  // network request (a real, accepted trade-off — the response is
+  // just ignored once the race is lost), but that's a fine trade for
+  // something this much safer.
   function fetchWithTimeout(url, opts, timeoutMs) {
-    var controller = new AbortController();
-    var timer = setTimeout(function () { controller.abort(); }, timeoutMs || 10000);
-    var fetchOpts = {};
-    if (opts) { for (var k in opts) { if (opts.hasOwnProperty(k)) fetchOpts[k] = opts[k]; } }
-    fetchOpts.signal = controller.signal;
-    return fetch(url, fetchOpts).finally(function () { clearTimeout(timer); });
+    var ms = timeoutMs || 10000;
+    var timeoutPromise = new Promise(function (resolve, reject) {
+      setTimeout(function () { reject(new Error('timeout')); }, ms);
+    });
+    return Promise.race([fetch(url, opts), timeoutPromise]);
   }
 
   function navGeocodeUrl(endpoint, text, opts) {
