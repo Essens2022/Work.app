@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v238") {
+          if (data && data.v && data.v !== "pt-foglio-v239") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v238"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v239"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2125,11 +2125,10 @@
     var hw = loadNavHomeWork();
     var entry = kind === 'home' ? hw.home : hw.work;
     if (!entry) return;
-    currentPosition().then(function (pos) {
-      dpLaunchGoogleMaps([{ lat: entry.lat, lon: entry.lon, indirizzo: entry.text }], pos);
-    }).catch(function () {
-      dpLaunchGoogleMaps([{ lat: entry.lat, lon: entry.lon, indirizzo: entry.text }], null);
-    });
+    // Same fix as dpOpenInGoogleMaps — navigates immediately,
+    // synchronously, using the already-fresh background position
+    // instead of awaiting a new async GPS read first.
+    dpLaunchGoogleMaps([{ lat: entry.lat, lon: entry.lon, indirizzo: entry.text }], navSearchFocusPoint);
   }
 
   function dpOpenInGoogleMaps() {
@@ -2140,22 +2139,30 @@
     }).filter(Boolean);
     if (!batchClients.length) return;
 
-    var btn = document.getElementById('dp-open-gmaps-btn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Apertura...'; }
-
-    // A real <a> element, opened via a genuine .click() triggered
-    // directly inside this handler (itself triggered by the driver's
-    // own tap on the button, so this still counts as a trusted user
-    // gesture) — NOT window.open(). iOS Universal Links specifically
-    // are documented to behave less reliably when triggered from
-    // window.open()/programmatic navigation inside a web view versus
-    // a real anchor tap; this is the closer-to-native pattern.
-    function launch(originPos) {
-      dpLaunchGoogleMaps(batchClients, originPos);
-      if (btn) { btn.disabled = false; btn.textContent = 'Apri in Google Maps (' + batchClients.length + ' tappe)'; }
-    }
-
-    currentPosition().then(launch).catch(function () { launch(null); }); // origin omitted (Google Maps' own current-location default) if a fresh GPS read fails — still better than blocking the whole action on it
+    // REAL BUG, found on closer look: this used to wait on a FRESH,
+    // async currentPosition() GPS read before navigating at all —
+    // meaning the actual navigation only happened well AFTER the
+    // click handler itself had already returned. Browsers only treat
+    // a navigation as stemming from a "trusted user gesture" (which
+    // is specifically what iOS Universal Links / Android App Links
+    // require to hand off to an installed native app instead of
+    // falling back to a browser) for a short, synchronous window right
+    // after the actual tap — waiting on an async GPS fix, which can
+    // easily take a second or more, reliably burns through that
+    // window. This is very likely the real reason the app was opening
+    // in a browser every time, independent of the earlier
+    // target="_blank" vs window.location.href change, which never
+    // addressed the actual timing problem.
+    //
+    // Fixed by navigating IMMEDIATELY, synchronously, inside this
+    // click handler — using navSearchFocusPoint, a position ALREADY
+    // kept fresh in the background (updated silently every time this
+    // screen renders, see renderDeliveryPlanner) rather than
+    // requesting a brand new GPS fix and waiting on it here. Slightly
+    // less precise (could be a little stale) but genuinely available
+    // synchronously, which matters far more for actually reaching the
+    // native app at all.
+    dpLaunchGoogleMaps(batchClients, navSearchFocusPoint);
   }
 
 
