@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v221") {
+          if (data && data.v && data.v !== "pt-foglio-v222") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v221"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v222"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1120,36 +1120,11 @@
     return { lat: lat2 * 180 / Math.PI, lon: ((lon2 * 180 / Math.PI + 540) % 360) - 180 };
   }
 
-  // DIAGNOSTIC BUILD — real per-operation timing, not another guess.
-  // Five fix attempts (dead-reckoning, speed fallback, disabling 3D
-  // buildings, windowed trim search, camera padding/inertia) have not
-  // resolved a "severe stutter" reported as still present on BOTH
-  // iPhone 14 Pro and Android after all of them — ruling out most of
-  // the specific theories tried so far. Rather than a sixth guess,
-  // this measures exactly how long each piece of this loop actually
-  // takes, in milliseconds, in a small on-screen readout, updated
-  // twice a second (not every frame — that would make the overlay
-  // itself the bottleneck). TEMPORARY — remove once the real cause is
-  // confirmed.
-  var navProf = { jumpToMs: 0, trimMs: 0, otherMs: 0, frames: 0, lastReport: 0, frameStatsText: null };
-  function navShowProfileOverlay() {
-    var el = document.getElementById('nav-profile-overlay');
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'nav-profile-overlay';
-      el.style.cssText = 'position:fixed;top:120px;left:8px;z-index:99999;background:rgba(0,0,0,0.85);color:#0f0;font:11px monospace;padding:8px;border-radius:6px;white-space:pre;pointer-events:none;';
-      document.body.appendChild(el);
-    }
-    return el;
-  }
-
   function navSmoothCameraFrame(timestamp) {
     navSmooth.rafId = requestAnimationFrame(navSmoothCameraFrame);
     if (navSmooth.fixLat == null || !navMap || !navMap._maplibre) return;
     var dt = navSmooth.lastFrameTime ? Math.min((timestamp - navSmooth.lastFrameTime) / 1000, 0.25) : 0.016; // capped, in case the tab was backgrounded a moment
     navSmooth.lastFrameTime = timestamp;
-
-    var tStart = performance.now();
 
     // Continuously extrapolated from the last real fix — ALWAYS
     // advancing, every frame, rather than a value that only changes
@@ -1162,9 +1137,7 @@
     // Light smoothing toward the continuously-moving extrapolated
     // point (not a static target anymore) — this only softens small
     // jitter/corrections, since the extrapolated point is already
-    // advancing smoothly on its own every frame. A higher rate is
-    // correct here now — there's no long real-world gap left to
-    // stretch a slow ease across, unlike before.
+    // advancing smoothly on its own every frame.
     var rate = 8;
     var t = 1 - Math.exp(-rate * dt);
     navSmooth.lat += (extrapolated.lat - navSmooth.lat) * t;
@@ -1174,32 +1147,14 @@
 
     if (navPositionMarker) navPositionMarker.setLatLng([navSmooth.lat, navSmooth.lon]);
 
-    var tBeforeJump = performance.now();
     if (navFollowingUser && !navSmooth.paused) {
-      // EXPERIMENT, based on real measured data: the profiler showed
-      // this code taking only ~1.5ms/frame total, while actual FPS
-      // was still just 26 — meaning the bottleneck isn't this JS at
-      // all, it's what happens AFTER jumpTo(), inside MapLibre's own
-      // WebGL paint of the new frame, which this timing can't see
-      // (jumpTo only schedules the redraw; the real GPU work happens
-      // on the browser's own paint cycle). Continuously changing
-      // BEARING (rotating the whole map) is a well-known, genuinely
-      // expensive case for vector rendering specifically — every
-      // visible label needs its placement/orientation recomputed,
-      // line geometry needs re-tessellating relative to the new
-      // angle, far more work than a plain pan. Also matches what was
-      // reported: even plain MANUAL dragging (native MapLibre
-      // panning, never touching this loop at all) got slow recently
-      // too — pointing at map rendering cost in general, not
-      // anything specific to this JS.
-      //
-      // Testing that theory directly: position (center) still updates
-      // EVERY frame — that's the more visually important one to keep
-      // perfectly smooth. Bearing (the expensive one) is throttled to
-      // roughly 5 times a second instead of 60-120 — still turns
-      // smoothly enough to read as continuous rotation, while cutting
-      // however much of the actual rendering cost was going into
-      // constant re-rotation.
+      // Position (center) updates every frame — the visually important
+      // one to keep perfectly smooth. Bearing (rotating the whole map)
+      // is genuinely expensive to render for a vector style — every
+      // visible label needs re-placement, line geometry needs
+      // re-tessellating — so it's throttled to roughly 5 times a
+      // second instead of every frame, still smooth enough to read as
+      // continuous rotation.
       if (navLastBearingApplyTime == null || timestamp - navLastBearingApplyTime > 200) {
         navLastAppliedBearing = navSmooth.bearing;
         navLastBearingApplyTime = timestamp;
@@ -1216,51 +1171,12 @@
         padding: { top: 260, bottom: 0, left: 0, right: 0 }
       });
     }
-    var tAfterJump = performance.now();
-    // The already-driven part of the route line now updates EVERY
-    // FRAME too, from this exact same navSmooth.lat/lon.
+    // The already-driven part of the route line updates every frame
+    // too, from this exact same navSmooth.lat/lon, using a windowed
+    // (not full-route) search — see navNearestCoordIndexWindowed.
     if (typeof updateCurrentLegTrim === 'function') updateCurrentLegTrim(navSmooth.lat, navSmooth.lon);
-    var tAfterTrim = performance.now();
     var needle = document.getElementById('nav-compass-needle');
     if (needle) needle.textContent = headingToCompassLabel(navSmooth.bearing);
-
-    // DIAGNOSTIC — accumulate real timing, report twice a second.
-    // BUG FOUND in this diagnostic code itself (not the app): this
-    // used to fully overwrite el.textContent every 500ms, wiping out
-    // whatever the separate GPS-tick line (added by
-    // onActiveNavPosition, on its own real-GPS-tick cadence) had just
-    // written — meaning that line was only ever visible for a brief
-    // instant right after a GPS tick, before this 500ms refresh wiped
-    // it again. That's why it never showed up in a screenshot. Fixed
-    // by keeping the two pieces (frame stats here, GPS-tick line
-    // separately) in their own tracked variables and always rendering
-    // BOTH together, regardless of which one just changed.
-    navProf.jumpToMs += (tAfterJump - tBeforeJump);
-    navProf.trimMs += (tAfterTrim - tAfterJump);
-    navProf.otherMs += (tBeforeJump - tStart);
-    navProf.frames++;
-    if (!navProf.lastReport || timestamp - navProf.lastReport > 500) {
-      var fps = navProf.frames / ((timestamp - navProf.lastReport) / 1000 || 0.5);
-      navProf.frameStatsText =
-        'FPS: ' + fps.toFixed(0) + '\n' +
-        'jumpTo avg: ' + (navProf.jumpToMs / navProf.frames).toFixed(2) + 'ms\n' +
-        'trim avg: ' + (navProf.trimMs / navProf.frames).toFixed(2) + 'ms\n' +
-        'other avg: ' + (navProf.otherMs / navProf.frames).toFixed(2) + 'ms\n' +
-        'frame total: ' + ((navProf.jumpToMs + navProf.trimMs + navProf.otherMs) / navProf.frames).toFixed(2) + 'ms';
-      navProf.jumpToMs = navProf.trimMs = navProf.otherMs = navProf.frames = 0;
-      navProf.lastReport = timestamp;
-      navRenderProfileOverlay();
-    }
-  }
-
-  // Renders BOTH pieces together every time — see the bug note above
-  // for why this can't just be "whoever updates last wins".
-  function navRenderProfileOverlay() {
-    var el = navShowProfileOverlay();
-    var parts = [];
-    if (navProf.frameStatsText) parts.push(navProf.frameStatsText);
-    if (navGpsTickProf.lastLine) parts.push(navGpsTickProf.lastLine);
-    el.textContent = parts.join('\n');
   }
 
   function navStartSmoothCamera() {
@@ -1277,8 +1193,6 @@
     navSmooth.rafId = null;
     navSmooth.fixLat = navSmooth.fixLon = null;
     navSmooth.prevFixLat = navSmooth.prevFixLon = null; // don't let a stale reading from a previous, unrelated session feed a bogus fallback-speed calculation on the next one
-    var profEl = document.getElementById('nav-profile-overlay'); // DIAGNOSTIC BUILD
-    if (profEl) profEl.remove();
   }
 
   var navLocateMarker = null; // "you are here" marker dropped by the standalone locate button, kept separate from the active-navigation position marker
@@ -3847,31 +3761,7 @@
   }
 
   var navFinalArrivalShown = false;
-  // DIAGNOSTIC BUILD — measures the OTHER half of the story: this
-  // runs on every REAL GPS tick (not every animation frame), doing
-  // off-route detection (a FULL, unwindowed search through the whole
-  // route — deliberately left unoptimized for correctness, unlike the
-  // trim search), reroute checks, arrival checks, step advancement.
-  // The earlier profiler only ever measured the animation loop —
-  // never this — so "our code isn't the bottleneck" was only ever a
-  // half-true conclusion. This closes that gap.
-  var navGpsTickProf = { totalMs: 0, ticks: 0, lastLine: null };
   function onActiveNavPosition(position) {
-    var tGpsStart = performance.now();
-    onActiveNavPositionInner(position);
-    var tGpsEnd = performance.now();
-    navGpsTickProf.totalMs += (tGpsEnd - tGpsStart);
-    navGpsTickProf.ticks++;
-    // Stored, then rendered through the SAME shared function the
-    // frame loop uses (navRenderProfileOverlay) — see the bug note
-    // there for why blindly overwriting textContent from two
-    // independent places was silently erasing this line before it
-    // could ever be seen.
-    navGpsTickProf.lastLine = 'GPS tick: ' + (tGpsEnd - tGpsStart).toFixed(1) + 'ms (avg ' + (navGpsTickProf.totalMs / navGpsTickProf.ticks).toFixed(1) + 'ms over ' + navGpsTickProf.ticks + ')';
-    navRenderProfileOverlay();
-  }
-
-  function onActiveNavPositionInner(position) {
     var lat = position.coords.latitude, lon = position.coords.longitude;
     var heading = position.coords.heading;
     navLastPosition = { lat: lat, lon: lon };
