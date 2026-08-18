@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v229") {
+          if (data && data.v && data.v !== "pt-foglio-v230") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v229"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v230"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1266,6 +1266,7 @@
       '<div class="dp-client-name">' + escapeHtml(c.nome) + '</div>' +
       '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + (c.nonVerificato ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + '</div>' +
       '</div>' +
+      '<div class="dp-client-chevron">›</div>' +
       '</div>';
   }
 
@@ -1367,6 +1368,9 @@
     if (workBtn) workBtn.addEventListener('click', function () { dpNavigateToSaved('work'); });
     var setupHwBtn = document.getElementById('dp-setup-homework-btn');
     if (setupHwBtn) setupHwBtn.addEventListener('click', openNavHomeWorkModal); // pre-existing modal/flow, unchanged — just opened from here now too
+    document.querySelectorAll('.dp-client-row').forEach(function (row) {
+      row.addEventListener('click', function () { dpOpenEditClientModal(row.getAttribute('data-client-id')); });
+    });
   }
 
   // ---- Aggiungi cliente: cerca salvato, oppure nuovo ----
@@ -1560,6 +1564,101 @@
     saveDeliveryRun(state.deliveryRun);
     dpPendingNewClient = null;
     dpCloseModal('modal-dp-new-client');
+    renderDeliveryPlanner();
+  }
+
+  // ---- Modifica/rimuovi un cliente dalla lista di oggi ----
+
+  function dpOpenEditClientModal(clientId) {
+    var client = state.deliveryRun.clients.find(function (c) { return c.id === clientId; });
+    if (!client) return;
+    document.getElementById('dp-edit-nome').value = client.nome;
+    document.getElementById('dp-edit-indirizzo').value = client.indirizzo || '';
+    document.getElementById('dp-edit-geocode-result').innerHTML = '';
+    document.getElementById('dp-edit-close-x').onclick = function () { dpCloseModal('modal-dp-edit-client'); };
+    document.getElementById('dp-edit-save-btn').onclick = function () { dpSaveEditedClient(clientId); };
+    document.getElementById('dp-edit-remove-btn').onclick = function () { dpConfirmRemoveClient(clientId); };
+    document.getElementById('modal-dp-edit-client').classList.add('open');
+  }
+
+  function dpSaveEditedClient(clientId) {
+    var client = state.deliveryRun.clients.find(function (c) { return c.id === clientId; });
+    if (!client) return;
+    var nome = document.getElementById('dp-edit-nome').value.trim();
+    var indirizzo = document.getElementById('dp-edit-indirizzo').value.trim();
+    var resultEl = document.getElementById('dp-edit-geocode-result');
+    if (!nome || !indirizzo) {
+      resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Inserisci nome e indirizzo.</div>';
+      return;
+    }
+
+    function applyAndSave(lat, lon, label, cap, citta, provincia, nonVerificato, structuredFieldsKnown) {
+      client.nome = nome;
+      client.indirizzo = label || indirizzo;
+      client.lat = lat;
+      client.lon = lon;
+      client.nonVerificato = !!nonVerificato;
+      // Keeps the saved address-book entry in sync too, if this run
+      // client came from one — otherwise a correction made here would
+      // be forgotten the next time the same saved client is added to
+      // a future run.
+      if (client.clientId) {
+        var saved = state.deliveryClients.find(function (s) { return s.id === client.clientId; });
+        if (saved) {
+          saved.nome = nome; saved.indirizzo = label || indirizzo; saved.lat = lat; saved.lon = lon;
+          // Only touches cap/citta/provincia when this call actually
+          // came from a fresh geocode (structuredFieldsKnown) — the
+          // "address unchanged, name-only edit" path below doesn't
+          // have these on the run object at all (only saved records
+          // do), so blindly writing them through would silently wipe
+          // out real, already-correct data with blanks.
+          if (structuredFieldsKnown) { saved.cap = cap || ''; saved.citta = citta || ''; saved.provincia = provincia || ''; }
+          saved.nonVerificato = !!nonVerificato;
+          saveDeliveryClients(state.deliveryClients);
+        }
+      }
+      saveDeliveryRun(state.deliveryRun);
+      dpCloseModal('modal-dp-edit-client');
+      renderDeliveryPlanner();
+    }
+
+    // Only re-geocodes if the address text actually changed — no point
+    // spending a network round-trip re-verifying something that's
+    // already confirmed and unmodified. The name-only-changed case
+    // (very common — fixing a typo in the company name) saves
+    // instantly, no network wait at all.
+    if (indirizzo === client.indirizzo) {
+      applyAndSave(client.lat, client.lon, client.indirizzo, null, null, null, client.nonVerificato, false);
+      return;
+    }
+
+    resultEl.innerHTML = '<div style="color:var(--ink-soft);font-size:13px;">Verifica in corso...</div>';
+    geocodeAddress(indirizzo).then(function (addrResult) {
+      if (!addrResult) {
+        resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Indirizzo non trovato automaticamente.</div>' +
+          '<button type="button" class="btn btn-outline btn-sm" id="dp-edit-save-unverified-btn" style="margin-top:8px;">Salva comunque con l\'indirizzo scritto</button>';
+        document.getElementById('dp-edit-save-unverified-btn').addEventListener('click', function () {
+          applyAndSave(null, null, indirizzo, null, null, null, true, false);
+        });
+        return;
+      }
+      applyAndSave(addrResult.lat, addrResult.lon, addrResult.label || indirizzo, addrResult.cap, addrResult.citta, addrResult.provincia, false, true);
+    }).catch(function () {
+      resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Errore di rete. Riprova.</div>';
+    });
+  }
+
+  function dpConfirmRemoveClient(clientId) {
+    var client = state.deliveryRun.clients.find(function (c) { return c.id === clientId; });
+    if (!client) return;
+    if (!window.confirm('Rimuovere "' + client.nome + '" dalla lista di oggi?')) return; // a real, native confirm — matches ION's own explicit "must be hard to break the list by accident" requirement
+    state.deliveryRun.clients = state.deliveryRun.clients.filter(function (c) { return c.id !== clientId; });
+    if (state.deliveryRun.preparedBatch) {
+      state.deliveryRun.preparedBatch = state.deliveryRun.preparedBatch.filter(function (id) { return id !== clientId; });
+      if (!state.deliveryRun.preparedBatch.length) state.deliveryRun.preparedBatch = null;
+    }
+    saveDeliveryRun(state.deliveryRun);
+    dpCloseModal('modal-dp-edit-client');
     renderDeliveryPlanner();
   }
 
