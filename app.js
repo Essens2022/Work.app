@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v250") {
+          if (data && data.v && data.v !== "pt-foglio-v251") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v250"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v251"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2066,11 +2066,28 @@
       : Promise.resolve([]);
 
     optimizePromise.then(function (optimized) {
+      // REAL BUG, very plausibly what ION hit: ORS/VROOM can decide
+      // internally that a job is "unreachable" (routing constraints,
+      // a coordinate that ended up wildly off from a background
+      // geocode) and simply OMIT it from the solution's own steps —
+      // with no error at all, just a quietly shorter result. The
+      // previous version trusted "optimized" completely, meaning a
+      // dropped job just vanished from the final batch — exactly
+      // matching "2 clients pending, but only 1 tappa" with no
+      // visible cause. Any geolocatable client missing from what ORS
+      // actually returned is now found and appended too — same
+      // treatment as the already-unverified ones: no smart distance-
+      // based placement for it, but never silently lost either.
+      var optimizedIds = {};
+      optimized.forEach(function (c) { optimizedIds[c.id] = true; });
+      var droppedByOrs = geolocatable.filter(function (c) { return !optimizedIds[c.id]; });
+
       // optimized: geolocatable clients, in the best order ORS found.
-      // Unverified (no-coordinate) clients are appended after —
-      // there's no distance/time basis to place them anywhere smarter
-      // than the end, but they're never silently dropped.
-      var ordered = optimized.concat(unverified);
+      // Unverified (no-coordinate) clients, plus anything ORS itself
+      // dropped, are appended after — there's no distance/time basis
+      // to place them anywhere smarter than the end, but nothing is
+      // ever silently missing from the final count.
+      var ordered = optimized.concat(unverified).concat(droppedByOrs);
       var batch = ordered.slice(0, 9); // Google Maps' own confirmed limit — origin + up to 9 waypoints + destination when opened in the installed app
       state.deliveryRun.preparedBatch = batch.map(function (c) { return c.id; });
       saveDeliveryRun(state.deliveryRun);
