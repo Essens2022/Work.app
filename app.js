@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v225") {
+          if (data && data.v && data.v !== "pt-foglio-v226") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v225"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v226"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1398,12 +1398,19 @@
     document.getElementById('modal-dp-new-client').classList.add('open');
   }
 
-  // Geocodes the typed address, then does the "possible company match
-  // nearby" check ION asked for: also searches the COMPANY NAME itself
-  // (as a venue/POI), and if a match turns up close to the geocoded
-  // address, offers it as an alternative WITHOUT silently switching to
-  // it — the driver decides, per the explicit requirement that the
-  // bolla's own address always wins unless the driver says otherwise.
+  // Geocodes the typed address AND searches the company name — run in
+  // PARALLEL now, independently, not one gated behind the other.
+  //
+  // REAL BUG, found and confirmed: this used to run the name search
+  // only INSIDE the address geocode's own success callback — meaning
+  // if the address failed to geocode (a real, known gap for smaller
+  // Italian addresses), the company name was never even attempted,
+  // even when the name alone (e.g. a distinct business like
+  // "Eurogrup") would very plausibly have found the place on its own.
+  // Now both run independently; whichever succeeds is usable, and if
+  // both succeed, the existing "possible match nearby" comparison
+  // still applies — the bolla's own address still wins by default,
+  // never silently overridden.
   function dpVerifyNewClientAddress() {
     var nome = document.getElementById('dp-new-nome').value.trim();
     var indirizzo = document.getElementById('dp-new-indirizzo').value.trim();
@@ -1413,17 +1420,22 @@
       return;
     }
     resultEl.innerHTML = '<div style="color:var(--ink-soft);font-size:13px;">Verifica in corso...</div>';
-    geocodeAddress(indirizzo).then(function (addrResult) {
-      if (!addrResult) {
-        // A genuine fallback, not a dead end — the free geocoder can
-        // have real coverage gaps for smaller streets/newer addresses
-        // in Italy; the driver still needs to reach this client today,
-        // so they can save it anyway with the address exactly as
-        // typed. Excluded from Reordina's route optimization (that
-        // genuinely needs real coordinates to sequence stops by
-        // distance) until verified, but still usable for the Google
-        // Maps hand-off as a plain text address — Maps accepts that
-        // directly, same as coordinates.
+
+    var addrPromise = geocodeAddress(indirizzo).catch(function () { return null; });
+    var namePromise = navGeocodeFetch('search', nome).catch(function () { return { features: [] }; });
+
+    Promise.all([addrPromise, namePromise]).then(function (results) {
+      var addrResult = results[0];
+      var nameData = results[1];
+      var nameMatch = (nameData.features && nameData.features.length) ? nameData.features[0] : null;
+
+      if (!addrResult && !nameMatch) {
+        // Neither found anything — the genuine fallback, not a dead
+        // end: the driver still needs to reach this client today, so
+        // they can save it anyway with the address exactly as typed.
+        // Excluded from Reordina's route optimization (needs real
+        // coordinates to sequence stops), but still usable for the
+        // Google Maps hand-off as plain text.
         resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Indirizzo non trovato automaticamente.</div>' +
           '<button type="button" class="btn btn-outline btn-sm" id="dp-save-unverified-btn" style="margin-top:8px;">Salva comunque con l\'indirizzo scritto</button>';
         document.getElementById('dp-save-unverified-btn').addEventListener('click', function () {
@@ -1432,37 +1444,50 @@
         });
         return;
       }
+
+      if (!addrResult) {
+        // Address alone failed, but the NAME found something — used
+        // directly now, not just as a discarded side-search. Still
+        // editable/correctable by the driver afterward if it's wrong.
+        var nLat = nameMatch.geometry.coordinates[1], nLon = nameMatch.geometry.coordinates[0];
+        dpPendingNewClient = { nome: nome, indirizzo: nameMatch.properties.label || indirizzo, lat: nLat, lon: nLon };
+        resultEl.innerHTML = '<div style="font-size:13px;color:var(--ink);">✓ Trovato tramite il nome<br><b>' + escapeHtml(nameMatch.properties.label || nome) + '</b></div>';
+        var saveBtn = document.getElementById('dp-new-verify-btn');
+        saveBtn.textContent = 'Salva e aggiungi';
+        saveBtn.onclick = dpSaveNewClientAndAdd;
+        return;
+      }
+
+      // The address itself was found — this is what actually gets
+      // saved by default (the bolla's own address takes priority, per
+      // the explicit requirement), with the name-match offered only
+      // as an optional, driver-confirmed alternative when it's not
+      // trivially the same place.
       dpPendingNewClient = { nome: nome, indirizzo: addrResult.label || indirizzo, lat: addrResult.lat, lon: addrResult.lon };
       resultEl.innerHTML = '<div style="font-size:13px;color:var(--ink);">✓ Indirizzo verificato<br><b>' + escapeHtml(addrResult.label || indirizzo) + '</b></div>';
+      var verifyBtn = document.getElementById('dp-new-verify-btn');
+      verifyBtn.textContent = 'Salva e aggiungi';
+      verifyBtn.onclick = dpSaveNewClientAndAdd;
 
-      // Best-effort company-name search, purely a safety suggestion —
-      // never blocks or auto-changes the confirmed address above.
-      navGeocodeFetch('search', nome).then(function (data) {
-        if (!data.features || !data.features.length) return; // not found — fine, the address alone is enough, per ION's explicit requirement
-        var f = data.features[0];
-        var foundLat = f.geometry.coordinates[1], foundLon = f.geometry.coordinates[0];
+      if (nameMatch) {
+        var foundLat = nameMatch.geometry.coordinates[1], foundLon = nameMatch.geometry.coordinates[0];
         var distM = haversineKm({ lat: addrResult.lat, lon: addrResult.lon }, { lat: foundLat, lon: foundLon }) * 1000;
-        if (distM < 20 || distM > 600) return; // too close to matter, or too far to plausibly be the same place
-        var matchDiv = document.createElement('div');
-        matchDiv.className = 'dp-match-card';
-        matchDiv.innerHTML = 'Possibile corrispondenza trovata nelle vicinanze<br>' +
-          '<b>' + escapeHtml(f.properties.label || nome) + '</b><br>' +
-          Math.round(distM) + ' m dall\'indirizzo inserito' +
-          '<br><button type="button" class="btn btn-outline btn-sm" id="dp-use-found-btn">Usa questo indirizzo</button>';
-        resultEl.appendChild(matchDiv);
-        document.getElementById('dp-use-found-btn').addEventListener('click', function () {
-          dpPendingNewClient.lat = foundLat;
-          dpPendingNewClient.lon = foundLon;
-          dpPendingNewClient.indirizzo = f.properties.label || dpPendingNewClient.indirizzo;
-          matchDiv.innerHTML = '✓ Indirizzo aggiornato';
-        });
-      }).catch(function () { /* the safety-check search failing outright is not itself a problem — the verified bolla address above still stands on its own */ });
-
-      var btn = document.getElementById('dp-new-verify-btn');
-      btn.textContent = 'Salva e aggiungi';
-      btn.onclick = dpSaveNewClientAndAdd;
-    }).catch(function () {
-      resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Errore di rete. Riprova.</div>';
+        if (distM >= 20 && distM <= 600) { // too close to matter, or too far to plausibly be the same place
+          var matchDiv = document.createElement('div');
+          matchDiv.className = 'dp-match-card';
+          matchDiv.innerHTML = 'Possibile corrispondenza trovata nelle vicinanze<br>' +
+            '<b>' + escapeHtml(nameMatch.properties.label || nome) + '</b><br>' +
+            Math.round(distM) + ' m dall\'indirizzo inserito' +
+            '<br><button type="button" class="btn btn-outline btn-sm" id="dp-use-found-btn">Usa questo indirizzo</button>';
+          resultEl.appendChild(matchDiv);
+          document.getElementById('dp-use-found-btn').addEventListener('click', function () {
+            dpPendingNewClient.lat = foundLat;
+            dpPendingNewClient.lon = foundLon;
+            dpPendingNewClient.indirizzo = nameMatch.properties.label || dpPendingNewClient.indirizzo;
+            matchDiv.innerHTML = '✓ Indirizzo aggiornato';
+          });
+        }
+      }
     });
   }
 
