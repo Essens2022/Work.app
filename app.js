@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v232") {
+          if (data && data.v && data.v !== "pt-foglio-v233") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v232"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v233"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -113,6 +113,7 @@
   //   by explicit driver action, never automatically by date/time.
   var LS_DELIVERY_CLIENTS = "pt_delivery_clients_v1";
   var LS_DELIVERY_RUN = "pt_delivery_run_v1";
+  var LS_DELIVERY_HISTORY = "pt_delivery_history_v1"; // archived past days' runs — {date: 'YYYY-MM-DD', clients: [...]}[]
 
   var MESI = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
     "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
@@ -167,8 +168,14 @@
   // status and the most recently Google-Maps-prepared batch.
   // { clients: [{ id, clientId, nome, indirizzo, lat, lon, status, order }],
   //   preparedBatch: [clientId, ...] or null }
-  function loadDeliveryRun() { return loadJSON(LS_DELIVERY_RUN, { clients: [], preparedBatch: null }); }
+  function loadDeliveryRun() { return loadJSON(LS_DELIVERY_RUN, { clients: [], preparedBatch: null, date: null }); }
   function saveDeliveryRun(run) { saveJSON(LS_DELIVERY_RUN, run); }
+  function loadDeliveryHistory() { return loadJSON(LS_DELIVERY_HISTORY, []); }
+  function saveDeliveryHistory(h) { saveJSON(LS_DELIVERY_HISTORY, h); }
+  function todayDateStr() {
+    var d = new Date();
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+  }
 
   // Addresses actually used to calculate a route — remembered and
   // proposed again, most-used first, the same idea as Chrome's own
@@ -1256,17 +1263,17 @@
     return { total: total, completed: completed, remaining: total - completed };
   }
 
-  function dpClientRowHtml(c, idx) {
+  function dpClientRowHtml(c, idx, readOnly) {
     var isDone = c.status === 'completed';
     var badge = isDone ? '✓' : String(idx + 1);
     return '' +
-      '<div class="card dp-client-row' + (isDone ? ' dp-client-done' : '') + '" data-client-id="' + c.id + '">' +
+      '<div class="card dp-client-row' + (isDone ? ' dp-client-done' : '') + '"' + (readOnly ? '' : ' data-client-id="' + c.id + '"') + '>' +
       '<div class="dp-client-badge' + (isDone ? ' dp-client-badge-done' : '') + '">' + badge + '</div>' +
       '<div class="dp-client-info">' +
       '<div class="dp-client-name">' + escapeHtml(c.nome) + '</div>' +
       '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + (c.nonVerificato ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + '</div>' +
       '</div>' +
-      '<div class="dp-client-chevron">›</div>' +
+      (readOnly ? '' : '<div class="dp-client-chevron">›</div>') +
       '</div>';
   }
 
@@ -1284,7 +1291,90 @@
   var navLocateMarker = null; // "you are here" marker dropped by the standalone locate button, kept separate from the active-navigation position marker
   var navSearchFocusPoint = null; // driver's GPS position, used to bias/rank geocoding results toward nearby places first
 
+  // Auto-archives the previous day's run the moment a new calendar day
+  // is detected — no manual "end of day" action needed, matching what
+  // ION actually asked for: clients don't need re-adding daily, and
+  // each day's deliveries land in a history section automatically,
+  // without extra taps. Only archives runs that actually have
+  // clients — an empty run (nothing ever added) isn't meaningful
+  // history, just noise.
+  function dpArchiveIfNewDay() {
+    var today = todayDateStr();
+    var run = state.deliveryRun;
+    if (run.date === today) return; // already on today, nothing to do
+    // MIGRATION SAFETY, critical: a run saved before this feature
+    // existed has no "date" field at all — treating a missing date
+    // the same as "belongs to some other, past day" would have
+    // archived-then-WIPED any real, currently-active client list the
+    // very first time this code ran after the update, purely because
+    // the date field happened to be new. A run with real clients but
+    // no date is today's own current list, not history — claimed as
+    // today in place, never archived, never emptied.
+    if (!run.date && run.clients && run.clients.length) {
+      run.date = today;
+      saveDeliveryRun(run);
+      return;
+    }
+    if (run.date && run.clients && run.clients.length) {
+      var history = loadDeliveryHistory();
+      history.unshift({ date: run.date, clients: run.clients });
+      // Kept bounded — 90 days is well over three months of real
+      // delivery history, plenty for anything a driver would actually
+      // want to look back at, without the archive growing forever in
+      // localStorage.
+      if (history.length > 90) history = history.slice(0, 90);
+      saveDeliveryHistory(history);
+    }
+    state.deliveryRun = { clients: [], preparedBatch: null, date: today };
+    saveDeliveryRun(state.deliveryRun);
+  }
+
+  function dpFormatDateIt(dateStr) {
+    var parts = dateStr.split('-');
+    var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    var giorni = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
+    var mesi = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+    return giorni[d.getDay()] + ' ' + d.getDate() + ' ' + mesi[d.getMonth()];
+  }
+
+  function dpOpenHistoryModal() {
+    var history = loadDeliveryHistory();
+    var listEl = document.getElementById('dp-history-list');
+    if (!history.length) {
+      listEl.innerHTML = '<div style="color:var(--ink-soft);text-align:center;padding:20px 0;">Nessuno storico ancora.</div>';
+    } else {
+      var html = '';
+      history.forEach(function (day, idx) {
+        var completed = day.clients.filter(function (c) { return c.status === 'completed'; }).length;
+        html += '<div class="card dp-history-row" data-history-idx="' + idx + '" style="margin-bottom:10px;">' +
+          '<div style="font-weight:700;">' + dpFormatDateIt(day.date) + '</div>' +
+          '<div style="color:var(--ink-soft);font-size:13px;margin-top:2px;">' + day.clients.length + ' clienti · ' + completed + ' completati</div>' +
+          '</div>';
+      });
+      listEl.innerHTML = html;
+      listEl.querySelectorAll('.dp-history-row').forEach(function (row) {
+        row.addEventListener('click', function () { dpOpenHistoryDayDetail(Number(row.getAttribute('data-history-idx'))); });
+      });
+    }
+    document.getElementById('dp-history-close-x').onclick = function () { dpCloseModal('modal-dp-history'); };
+    document.getElementById('modal-dp-history').classList.add('open');
+  }
+
+  function dpOpenHistoryDayDetail(idx) {
+    var history = loadDeliveryHistory();
+    var day = history[idx];
+    if (!day) return;
+    var detailEl = document.getElementById('dp-history-detail');
+    var html = '<div class="modal-title" style="margin-bottom:14px;">' + dpFormatDateIt(day.date) + '</div>';
+    day.clients.forEach(function (c, i) { html += dpClientRowHtml(c, i, true); });
+    detailEl.innerHTML = html;
+    document.getElementById('dp-history-detail-close-x').onclick = function () { dpCloseModal('modal-dp-history-detail'); };
+    document.getElementById('modal-dp-history-detail').classList.add('open');
+  }
+
   function renderDeliveryPlanner() {
+    dpArchiveIfNewDay();
+
     // REAL BUG, found and confirmed: navSearchFocusPoint (the driver's
     // position, used to bias geocoding results toward nearby matches
     // first) was only ever set from the OLD turn-by-turn Navigatore's
@@ -1307,7 +1397,7 @@
     var stats = dpStats(run);
     var html = '';
 
-    html += '<div class="dp-header-row"><h2 class="dp-title">Percorso di oggi</h2></div>';
+    html += '<div class="dp-header-row"><h2 class="dp-title">Percorso di oggi</h2><button type="button" class="btn-icon-text" id="dp-history-btn">📋 Storico</button></div>';
     html += '<div class="dp-vehicle-quick" id="dp-vehicle-quick">Profilo veicolo: ' + dpVehicleSummary() + ' &rsaquo;</div>';
     html += '<div class="dp-stats-row">' +
       '<div class="dp-stat"><div class="dp-stat-num">' + stats.total + '</div><div class="dp-stat-label">clienti</div></div>' +
@@ -1368,6 +1458,7 @@
     if (workBtn) workBtn.addEventListener('click', function () { dpNavigateToSaved('work'); });
     var setupHwBtn = document.getElementById('dp-setup-homework-btn');
     if (setupHwBtn) setupHwBtn.addEventListener('click', openNavHomeWorkModal); // pre-existing modal/flow, unchanged — just opened from here now too
+    document.getElementById('dp-history-btn').addEventListener('click', dpOpenHistoryModal);
     document.querySelectorAll('.dp-client-row').forEach(function (row) {
       row.addEventListener('click', function () { dpOpenEditClientModal(row.getAttribute('data-client-id')); });
     });
