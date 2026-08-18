@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v252") {
+          if (data && data.v && data.v !== "pt-foglio-v253") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v252"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v253"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -165,10 +165,18 @@
   // The CURRENT active run — separate from the address book above. A
   // "run" holds only the subset of clients the driver is actually
   // delivering to today, in whatever order they were added, plus
-  // status and the most recently Google-Maps-prepared batch.
-  // { clients: [{ id, clientId, nome, indirizzo, lat, lon, status, order }],
-  //   preparedBatch: [clientId, ...] or null }
-  function loadDeliveryRun() { return loadJSON(LS_DELIVERY_RUN, { clients: [], preparedBatch: null, date: null }); }
+  // status. Order within run.clients IS the visiting order (single
+  // source of truth) — both drag-reordering and Reordina's
+  // optimization write directly into this array's order, and Apri in
+  // Google Maps reads directly from it too. There used to be a
+  // SEPARATE preparedBatch field (a frozen snapshot of IDs from
+  // whenever Reordina last ran) — removed entirely: it could drift
+  // out of sync with the actual list (confirmed directly — dragging
+  // clients to reorder them had NO effect on what Google Maps
+  // actually opened, since that read from the stale snapshot, not the
+  // live list).
+  // { clients: [{ id, clientId, nome, indirizzo, lat, lon, status }] }
+  function loadDeliveryRun() { return loadJSON(LS_DELIVERY_RUN, { clients: [], date: null }); }
   function saveDeliveryRun(run) { saveJSON(LS_DELIVERY_RUN, run); }
   function loadDeliveryHistory() { return loadJSON(LS_DELIVERY_HISTORY, []); }
   function saveDeliveryHistory(h) { saveJSON(LS_DELIVERY_HISTORY, h); }
@@ -398,12 +406,12 @@
     };
   }
 
-  function toast(msg) {
+  function toast(msg, durationMs) {
     var t = document.getElementById('toast');
     document.getElementById('toast-text').textContent = msg;
     t.classList.add('show');
     clearTimeout(toast._t);
-    toast._t = setTimeout(function () { t.classList.remove('show'); }, 3000);
+    toast._t = setTimeout(function () { t.classList.remove('show'); }, durationMs || 3000);
   }
 
   // Same idea as toast(), positioned instead — see the comment on
@@ -605,12 +613,6 @@
     // (client list, buttons), not a full-screen map, so it uses the
     // app's regular top bar and padding like every other screen now.
     document.body.classList.toggle('nav-fullbleed', false);
-    // Header/stats/buttons pinned in place on the Delivery Planner
-    // specifically — only the client list itself scrolls once there
-    // are more than fit. Every OTHER screen keeps the app's normal
-    // whole-page scroll (main{overflow-y:auto}), unaffected — this
-    // class only changes behavior while dp-screen-active is present.
-    document.body.classList.toggle('dp-screen-active', name === 'navigatore');
     if (name === 'foglio') {
       scrollToLastDayPending = true;
       render();
@@ -1346,7 +1348,7 @@
       if (history.length > 90) history = history.slice(0, 90);
       saveDeliveryHistory(history);
     }
-    return { clients: [], preparedBatch: null, date: todayDateStr() };
+    return { clients: [], date: todayDateStr() };
   }
 
   function dpArchiveIfNewDay() {
@@ -1464,20 +1466,15 @@
 
     html += '<button type="button" class="btn btn-accent btn-block" id="dp-add-client-btn" style="margin:14px 0 10px;">+ Aggiungi cliente</button>';
     html += '<button type="button" class="btn btn-outline btn-block" id="dp-reordina-btn"' + (stats.remaining === 0 ? ' disabled' : '') + ' style="margin-bottom:6px;">Reordina</button>';
-    if (run.preparedBatch && run.preparedBatch.length) {
-      // Recomputed live against the CURRENT client list, rather than
-      // trusting run.preparedBatch.length directly — that array is
-      // only a snapshot of IDs taken the moment Reordina last ran,
-      // and could in principle drift out of sync with the list
-      // itself. Always showing the real, current count here rather
-      // than a stored number is strictly safer, regardless of the
-      // exact cause of any drift.
-      var liveBatchCount = run.preparedBatch.filter(function (id) {
-        return run.clients.some(function (c) { return c.id === id; });
-      }).length;
-      if (liveBatchCount > 0) {
-        html += '<button type="button" class="btn btn-dark btn-block" id="dp-open-gmaps-btn" style="margin-bottom:6px;">Apri in Google Maps (' + liveBatchCount + ' tappe)</button>';
-      }
+    // Always available whenever there's at least one pending client —
+    // reads run.clients directly, in whatever order it's CURRENTLY
+    // in (drag-reordered, Reordina-optimized, or just insertion
+    // order) — no separate "must run Reordina first" gate, and no
+    // separate snapshot that could ever drift out of sync with what's
+    // actually shown in the list above it.
+    var pendingCount = run.clients.filter(function (c) { return c.status !== 'completed'; }).length;
+    if (pendingCount > 0) {
+      html += '<button type="button" class="btn btn-dark btn-block" id="dp-open-gmaps-btn" style="margin-bottom:6px;">Apri in Google Maps (' + Math.min(pendingCount, 9) + ' tappe)</button>';
     }
 
     // Section 15 of the spec: after the last client, offer Casa/
@@ -2022,10 +2019,6 @@
     if (!client) return;
     if (!window.confirm('Rimuovere "' + client.nome + '" dalla lista di oggi?')) return; // a real, native confirm — matches ION's own explicit "must be hard to break the list by accident" requirement
     state.deliveryRun.clients = state.deliveryRun.clients.filter(function (c) { return c.id !== clientId; });
-    if (state.deliveryRun.preparedBatch) {
-      state.deliveryRun.preparedBatch = state.deliveryRun.preparedBatch.filter(function (id) { return id !== clientId; });
-      if (!state.deliveryRun.preparedBatch.length) state.deliveryRun.preparedBatch = null;
-    }
     saveDeliveryRun(state.deliveryRun);
     dpCloseModal('modal-dp-edit-client');
     renderDeliveryPlanner();
@@ -2069,10 +2062,9 @@
     });
     saveDeliveryRun(state.deliveryRun);
 
+    var completed = state.deliveryRun.clients.filter(function (c) { return c.status === 'completed'; });
     var remaining = state.deliveryRun.clients.filter(function (c) { return c.status !== 'completed'; });
     if (!remaining.length) {
-      state.deliveryRun.preparedBatch = null; // nothing left to open in Google Maps for — an old batch referencing now-completed clients would be confusing, not useful
-      saveDeliveryRun(state.deliveryRun);
       dpCloseModal('modal-dp-reordina');
       renderDeliveryPlanner();
       return;
@@ -2118,63 +2110,69 @@
           })
       : Promise.resolve([]);
 
-    optimizePromise.then(function (optimized) {
-      // REAL BUG, very plausibly what ION hit: ORS/VROOM can decide
-      // internally that a job is "unreachable" (routing constraints,
-      // a coordinate that ended up wildly off from a background
-      // geocode) and simply OMIT it from the solution's own steps —
-      // with no error at all, just a quietly shorter result. The
-      // previous version trusted "optimized" completely, meaning a
-      // dropped job just vanished from the final batch — exactly
-      // matching "2 clients pending, but only 1 tappa" with no
-      // visible cause. Any geolocatable client missing from what ORS
-      // actually returned is now found and appended too — same
-      // treatment as the already-unverified ones: no smart distance-
-      // based placement for it, but never silently lost either.
-      var optimizedIds = {};
-      optimized.forEach(function (c) { optimizedIds[c.id] = true; });
-      var droppedByOrs = geolocatable.filter(function (c) { return !optimizedIds[c.id]; });
-
-      // optimized: geolocatable clients, in the best order ORS found.
-      // Unverified (no-coordinate) clients, plus anything ORS itself
-      // dropped, are appended after — there's no distance/time basis
-      // to place them anywhere smarter than the end, but nothing is
-      // ever silently missing from the final count.
-      var ordered = optimized.concat(unverified).concat(droppedByOrs);
-      var batch = ordered.slice(0, 9); // Google Maps' own confirmed limit — origin + up to 9 waypoints + destination when opened in the installed app
-      state.deliveryRun.preparedBatch = batch.map(function (c) { return c.id; });
+    // REAL BUG, found and confirmed directly: this used to only set a
+    // SEPARATE preparedBatch snapshot, leaving run.clients' own order
+    // (what the numbered list and drag-reordering both actually work
+    // with) completely untouched. The optimized order was invisible
+    // in the list itself, AND manual dragging after this had no way
+    // to ever reach Google Maps (it changed run.clients, but Apri in
+    // Google Maps read from the untouched preparedBatch instead).
+    // Reordina now writes its result DIRECTLY into run.clients' own
+    // order — the single source of truth both the visible list and
+    // Apri in Google Maps both read from. Completed clients are kept,
+    // moved to the end (they just show a checkmark regardless of
+    // position, but keeping them out of the numbered sequence avoids
+    // interleaving done items between upcoming ones).
+    function applyOrder(orderedRemaining) {
+      state.deliveryRun.clients = orderedRemaining.concat(completed);
       saveDeliveryRun(state.deliveryRun);
       confirmBtn.disabled = false;
       confirmBtn.textContent = 'Ricalcola percorso';
       dpCloseModal('modal-dp-reordina');
       renderDeliveryPlanner();
+    }
+
+    optimizePromise.then(function (optimized) {
+      // REAL BUG, very plausibly what ION hit: ORS/VROOM can decide
+      // internally that a job is "unreachable" (routing constraints,
+      // a coordinate that ended up wildly off from a background
+      // geocode) and simply OMIT it from the solution's own steps —
+      // with no error at all, just a quietly shorter result. Any
+      // geolocatable client missing from what ORS actually returned
+      // is found and appended too — same treatment as the already-
+      // unverified ones: no smart distance-based placement for it,
+      // but never silently lost either.
+      var optimizedIds = {};
+      optimized.forEach(function (c) { optimizedIds[c.id] = true; });
+      var droppedByOrs = geolocatable.filter(function (c) { return !optimizedIds[c.id]; });
+      applyOrder(optimized.concat(unverified).concat(droppedByOrs));
     }).catch(function (err) {
-      confirmBtn.disabled = false;
-      confirmBtn.textContent = 'Ricalcola percorso';
       // Honest fallback, not a silent failure — if the optimization
       // call itself fails (offline, ORS quota, GPS unavailable), the
-      // driver still gets a usable batch: the remaining clients in
-      // their current order, rather than being stuck with no route at
-      // all. Not optimized, but not broken either.
+      // driver still gets a usable, correctly-ordered list: the
+      // remaining clients in their current order, rather than being
+      // stuck with no route at all. Not optimized, but not broken —
+      // and, critically, this now ALSO closes the modal and
+      // re-renders (a REAL BUG found and confirmed directly: this
+      // branch used to leave the modal open forever after showing its
+      // message, with no way to tell the batch had actually been
+      // prepared behind the scenes — looked exactly like "won't let
+      // me proceed").
       //
       // A DENIED geolocation permission gets its own message — but
       // NOT a push toward enabling it. ION explained directly: he
       // deliberately keeps location off for ADB Smart specifically
-      // (only grants it to the actual Google Maps app), and now has
+      // (only grants it to the actual Google Maps app), and has
       // manual drag-reordering as a real alternative that needs no
       // location at all — telling him to change a phone setting he's
       // intentionally chosen would be unwanted, wrong advice for his
-      // case. The message now simply points at the alternative that
-      // already exists, without implying his setting is a problem to
-      // fix.
+      // case.
       var isPermissionDenied = (err && err.code === 1) || dpGeoDeniedThisSession;
       var msg = isPermissionDenied
         ? 'Posizione non disponibile — nessun problema: trascina i clienti con ⠿ per riordinarli manualmente. (Ordine automatico disponibile solo se attivi la posizione per questo sito.)'
         : 'Impossibile ottimizzare (' + (err && err.message ? escapeHtml(err.message) : 'errore') + ') — uso l\'ordine attuale.';
-      var listEl = document.getElementById('dp-reordina-list');
-      listEl.insertAdjacentHTML('afterbegin', '<div style="color:var(--ink-soft);font-size:13px;margin-bottom:8px;">' + msg + '</div>');
-      state.deliveryRun.preparedBatch = remaining.slice(0, 9).map(function (c) { return c.id; });
-      saveDeliveryRun(state.deliveryRun);
+      toast(msg, 6000); // longer than the default 3s — this specific message is genuinely informative, not just a quick confirmation, and needs a moment to actually read
+      applyOrder(remaining);
     });
   }
 
@@ -2303,10 +2301,13 @@
 
   function dpOpenInGoogleMaps() {
     var run = state.deliveryRun;
-    if (!run.preparedBatch || !run.preparedBatch.length) return;
-    var batchClients = run.preparedBatch.map(function (id) {
-      return run.clients.find(function (c) { return c.id === id; });
-    }).filter(Boolean);
+    // Reads directly from run.clients' own CURRENT order now, not a
+    // separate preparedBatch snapshot — the REAL fix for drag-
+    // reordering having no effect on what actually opened: dragging
+    // changes run.clients' order directly, and this now reads that
+    // same order directly too, so there's no second, staler copy to
+    // ever fall out of sync with it again.
+    var batchClients = run.clients.filter(function (c) { return c.status !== 'completed'; }).slice(0, 9);
     if (!batchClients.length) return;
 
     // REAL BUG, found on closer look: this used to wait on a FRESH,
