@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v233") {
+          if (data && data.v && data.v !== "pt-foglio-v234") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v233"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v234"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1298,6 +1298,20 @@
   // without extra taps. Only archives runs that actually have
   // clients — an empty run (nothing ever added) isn't meaningful
   // history, just noise.
+  // Shared archiving core — appends the given run's clients to
+  // history (bounded to 90 days) and returns a fresh, empty run
+  // stamped with today's date. Used by both the automatic
+  // end-of-calendar-day archiving and the manual "archive now" action.
+  function dpArchiveRunToHistory(run) {
+    if (run.date && run.clients && run.clients.length) {
+      var history = loadDeliveryHistory();
+      history.unshift({ date: run.date, clients: run.clients });
+      if (history.length > 90) history = history.slice(0, 90);
+      saveDeliveryHistory(history);
+    }
+    return { clients: [], preparedBatch: null, date: todayDateStr() };
+  }
+
   function dpArchiveIfNewDay() {
     var today = todayDateStr();
     var run = state.deliveryRun;
@@ -1315,18 +1329,18 @@
       saveDeliveryRun(run);
       return;
     }
-    if (run.date && run.clients && run.clients.length) {
-      var history = loadDeliveryHistory();
-      history.unshift({ date: run.date, clients: run.clients });
-      // Kept bounded — 90 days is well over three months of real
-      // delivery history, plenty for anything a driver would actually
-      // want to look back at, without the archive growing forever in
-      // localStorage.
-      if (history.length > 90) history = history.slice(0, 90);
-      saveDeliveryHistory(history);
-    }
-    state.deliveryRun = { clients: [], preparedBatch: null, date: today };
+    state.deliveryRun = dpArchiveRunToHistory(run);
     saveDeliveryRun(state.deliveryRun);
+  }
+
+  // Manual archive — ION's own real case: all of today's clients
+  // done, wants to start a fresh list right away rather than waiting
+  // for the calendar day to actually change at midnight.
+  function dpArchiveNowAndStartFresh() {
+    if (!window.confirm('Archiviare la lista di oggi e iniziarne una nuova?')) return;
+    state.deliveryRun = dpArchiveRunToHistory(state.deliveryRun);
+    saveDeliveryRun(state.deliveryRun);
+    renderDeliveryPlanner();
   }
 
   function dpFormatDateIt(dateStr) {
@@ -1423,6 +1437,11 @@
         html += '<div style="color:var(--ink-soft);font-size:13px;margin-bottom:8px;">Imposta un indirizzo di casa o deposito per un rientro rapido.</div>';
         html += '<button type="button" class="btn btn-outline btn-block" id="dp-setup-homework-btn">Imposta indirizzi</button>';
       }
+      // Manual archive, not just the automatic end-of-calendar-day
+      // one — ION's own case: all 4 done, same day, wants to start a
+      // fresh list right away rather than waiting until midnight for
+      // today's completed run to move into Storico.
+      html += '<button type="button" class="btn btn-outline btn-block" id="dp-archive-now-btn" style="margin-top:8px;">Archivia e inizia nuova lista</button>';
       html += '</div>';
     }
 
@@ -1459,6 +1478,8 @@
     var setupHwBtn = document.getElementById('dp-setup-homework-btn');
     if (setupHwBtn) setupHwBtn.addEventListener('click', openNavHomeWorkModal); // pre-existing modal/flow, unchanged — just opened from here now too
     document.getElementById('dp-history-btn').addEventListener('click', dpOpenHistoryModal);
+    var archiveNowBtn = document.getElementById('dp-archive-now-btn');
+    if (archiveNowBtn) archiveNowBtn.addEventListener('click', dpArchiveNowAndStartFresh);
     document.querySelectorAll('.dp-client-row').forEach(function (row) {
       row.addEventListener('click', function () { dpOpenEditClientModal(row.getAttribute('data-client-id')); });
     });
@@ -1480,11 +1501,19 @@
   function dpRenderAddClientResults(query) {
     var container = document.getElementById('dp-add-results');
     var q = (query || '').trim().toLowerCase();
-    var alreadyInRun = {};
-    state.deliveryRun.clients.forEach(function (c) { alreadyInRun[c.clientId] = true; });
 
+    // REAL BUG, confirmed with ION directly: this used to exclude any
+    // saved client already present in today's run — meaning typing a
+    // letter or two for a client already added (even one already
+    // marked completed) found nothing at all, making it look like
+    // that client was never actually saved, and forcing a full
+    // re-type of name+address as if brand new. Removed entirely — a
+    // driver may genuinely want a second delivery to the same client
+    // the same day, and even when they don't, seeing the match (and
+    // simply not tapping it) is far less confusing than the search
+    // silently pretending a real, saved client doesn't exist.
     var matches = q.length >= 2
-      ? state.deliveryClients.filter(function (c) { return c.nome.toLowerCase().indexOf(q) !== -1 && !alreadyInRun[c.id]; }).slice(0, 8)
+      ? state.deliveryClients.filter(function (c) { return c.nome.toLowerCase().indexOf(q) !== -1; }).slice(0, 8)
       : [];
 
     var html = '';
