@@ -167,7 +167,8 @@
   .card + .card{margin-top:14px;}
 
   /* Delivery Planner (replaces the old map-based Navigatore) */
-  .dp-header-row{padding-top:6px;}
+  .dp-header-row{padding-top:6px;display:flex;align-items:center;justify-content:space-between;}
+  .btn-icon-text{background:var(--surface-2);border:none;border-radius:var(--radius-sm);padding:8px 12px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;}
   .dp-title{margin:0;font-size:22px;font-weight:800;color:var(--ink);}
   .dp-vehicle-quick{margin-top:4px;font-size:13px;color:var(--ink-soft);cursor:pointer;}
   .dp-stats-row{display:flex;gap:10px;margin-top:12px;}
@@ -1084,6 +1085,24 @@
     <div id="dp-edit-geocode-result" style="margin-top:10px;"></div>
     <button type="button" class="btn btn-accent btn-block" id="dp-edit-save-btn" style="margin-top:14px;">Verifica indirizzo</button>
     <button type="button" class="btn btn-danger btn-block" id="dp-edit-remove-btn" style="margin-top:10px;">Rimuovi dalla lista di oggi</button>
+  </div>
+</div>
+
+<!-- Delivery Planner — Storico: past days' delivery runs, archived automatically when a new day starts. -->
+<div class="modal-overlay" id="modal-dp-history">
+  <div class="sheet-panel">
+    <button type="button" class="modal-close-x" id="dp-history-close-x" aria-label="Chiudi">×</button>
+    <div class="grabber"></div>
+    <div class="modal-title">Storico consegne</div>
+    <div id="dp-history-list"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-dp-history-detail">
+  <div class="sheet-panel">
+    <button type="button" class="modal-close-x" id="dp-history-detail-close-x" aria-label="Chiudi">×</button>
+    <div class="grabber"></div>
+    <div id="dp-history-detail"></div>
   </div>
 </div>
 
