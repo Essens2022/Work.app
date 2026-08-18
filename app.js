@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v242") {
+          if (data && data.v && data.v !== "pt-foglio-v243") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v242"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v243"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1432,9 +1432,9 @@
       '</div>';
 
     html += '<button type="button" class="btn btn-accent btn-block" id="dp-add-client-btn" style="margin:14px 0 10px;">+ Aggiungi cliente</button>';
-    html += '<button type="button" class="btn btn-outline btn-block" id="dp-reordina-btn"' + (stats.remaining === 0 ? ' disabled' : '') + ' style="margin-bottom:10px;">Reordina</button>';
+    html += '<button type="button" class="btn btn-outline btn-block" id="dp-reordina-btn"' + (stats.remaining === 0 ? ' disabled' : '') + ' style="margin-bottom:6px;">Reordina</button>';
     if (run.preparedBatch && run.preparedBatch.length) {
-      html += '<button type="button" class="btn btn-dark btn-block" id="dp-open-gmaps-btn" style="margin-bottom:10px;">Apri in Google Maps (' + run.preparedBatch.length + ' tappe)</button>';
+      html += '<button type="button" class="btn btn-dark btn-block" id="dp-open-gmaps-btn" style="margin-bottom:6px;">Apri in Google Maps (' + run.preparedBatch.length + ' tappe)</button>';
     }
 
     // Section 15 of the spec: after the last client, offer Casa/
@@ -1445,7 +1445,12 @@
     // "Deposito" here — the same real-world place for a truck driver.
     if (stats.total > 0 && stats.remaining === 0) {
       var hw = loadNavHomeWork();
-      html += '<div class="card" style="text-align:center;">';
+      // Tighter top padding than the card's own default (20px) —
+      // ION's own request, less empty space between the buttons above
+      // and this card, without letting anything actually overlap
+      // (bottom/side padding stay at the normal 20px, only the top is
+      // reduced).
+      html += '<div class="card" style="text-align:center;padding-top:12px;">';
       html += '<div style="font-weight:800;font-size:16px;margin-bottom:10px;">✓ Tutte le consegne completate</div>';
       if (hw.home) html += '<button type="button" class="btn btn-dark btn-block" id="dp-nav-home-btn" style="margin-top:8px;">Naviga a casa</button>';
       if (hw.work) html += '<button type="button" class="btn btn-dark btn-block" id="dp-nav-work-btn" style="margin-top:8px;">Naviga al deposito</button>';
