@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v234") {
+          if (data && data.v && data.v !== "pt-foglio-v235") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v234"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v235"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1420,6 +1420,10 @@
       '</div>';
 
     html += '<button type="button" class="btn btn-accent btn-block" id="dp-add-client-btn" style="margin:14px 0;">+ Aggiungi cliente</button>';
+    html += '<button type="button" class="btn btn-outline btn-block" id="dp-reordina-btn"' + (stats.remaining === 0 ? ' disabled' : '') + ' style="margin-bottom:10px;">Reordina</button>';
+    if (run.preparedBatch && run.preparedBatch.length) {
+      html += '<button type="button" class="btn btn-dark btn-block" id="dp-open-gmaps-btn" style="margin-bottom:10px;">Apri in Google Maps (' + run.preparedBatch.length + ' tappe)</button>';
+    }
 
     // Section 15 of the spec: after the last client, offer Casa/
     // Deposito — reusing the EXISTING home/work shortcuts storage
@@ -1452,13 +1456,6 @@
       run.clients.forEach(function (c, idx) { html += dpClientRowHtml(c, idx); });
       html += '</div>';
     }
-
-    html += '<div class="dp-bottom-actions">';
-    html += '<button type="button" class="btn btn-outline btn-block" id="dp-reordina-btn"' + (stats.remaining === 0 ? ' disabled' : '') + '>Reordina</button>';
-    if (run.preparedBatch && run.preparedBatch.length) {
-      html += '<button type="button" class="btn btn-dark btn-block" id="dp-open-gmaps-btn" style="margin-top:10px;">Apri in Google Maps (' + run.preparedBatch.length + ' tappe)</button>';
-    }
-    html += '</div>';
 
     el.innerHTML = html;
 
