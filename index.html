@@ -1060,21 +1060,19 @@
       <input type="text" id="dp-new-nome" placeholder="Es. IEIS IMPIANTI SRL" autocomplete="off">
     </div>
 
-    <!-- The ONLY way to set a location now — per ION's explicit,
-         repeated request: he sets addresses himself, from Google
-         Maps, they should never be automatically searched. The
-         automatic geocoding path that used to live here (and in the
-         Modifica cliente modal) is removed entirely, not just
-         deprioritized — it kept showing one address in-app while
-         Google Maps opened a different one, a real, hard-to-fully-
-         eliminate mismatch between our free geocoder's data and
-         Google's own. -->
+    <!-- Trusted AS TYPED, per ION's explicit, repeated request: he
+         copies the exact address text from the Google Maps app
+         himself, and it must never be searched/verified/replaced by
+         our own geocoder — it goes straight to Google Maps as plain
+         text at hand-off time, letting GOOGLE do its own (reliable)
+         geocoding when the link actually opens, instead of us
+         attempting it ahead of time with worse data. -->
     <div class="field" style="margin-top:10px;">
-      <label>Link o coordinate da Google Maps</label>
-      <input type="text" id="dp-new-gmaps-paste" placeholder="Link condiviso o 45.123, 11.456" autocomplete="off">
+      <label>Indirizzo (copiato da Google Maps)</label>
+      <input type="text" id="dp-new-indirizzo" placeholder="Es. Via Fratta, 16, 35010 Borgoricco PD" autocomplete="off">
     </div>
-    <div id="dp-new-gmaps-paste-result" style="margin-top:8px;"></div>
-    <button type="button" class="btn btn-accent btn-block" id="dp-new-gmaps-paste-btn" style="margin-top:10px;">Usa questa posizione</button>
+    <div id="dp-new-save-result" style="margin-top:8px;"></div>
+    <button type="button" class="btn btn-accent btn-block" id="dp-new-save-btn" style="margin-top:10px;">Salva e aggiungi</button>
   </div>
 </div>
 
@@ -1100,19 +1098,12 @@
       <label>Nome azienda</label>
       <input type="text" id="dp-edit-nome" autocomplete="off">
     </div>
-
-    <!-- The ONLY way to change location now — same reasoning and same
-         removal of automatic search as the New Client modal. This was
-         MISSING entirely until now — ION was specifically using THIS
-         modal to fix a wrong address and only ever had automatic
-         search available here, which kept finding the wrong place
-         again. -->
     <div class="field" style="margin-top:10px;">
-      <label>Link o coordinate da Google Maps</label>
-      <input type="text" id="dp-edit-gmaps-paste" placeholder="Link condiviso o 45.123, 11.456" autocomplete="off">
+      <label>Indirizzo (copiato da Google Maps)</label>
+      <input type="text" id="dp-edit-indirizzo" autocomplete="off">
     </div>
-    <div id="dp-edit-gmaps-paste-result" style="margin-top:8px;"></div>
-    <button type="button" class="btn btn-accent btn-block" id="dp-edit-gmaps-paste-btn" style="margin-top:10px;">Usa questa posizione</button>
+    <div id="dp-edit-save-result" style="margin-top:8px;"></div>
+    <button type="button" class="btn btn-accent btn-block" id="dp-edit-save-btn" style="margin-top:10px;">Salva modifiche</button>
     <button type="button" class="btn btn-danger btn-block" id="dp-edit-remove-btn" style="margin-top:10px;">Rimuovi dalla lista di oggi</button>
   </div>
 </div>

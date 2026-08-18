@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v245") {
+          if (data && data.v && data.v !== "pt-foglio-v246") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v245"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v246"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1649,184 +1649,127 @@
   function dpOpenNewClientModal(prefillName) {
     dpCloseModal('modal-dp-add-client');
     document.getElementById('dp-new-nome').value = prefillName || '';
-    document.getElementById('dp-new-gmaps-paste').value = '';
-    document.getElementById('dp-new-gmaps-paste-result').innerHTML = '';
+    document.getElementById('dp-new-indirizzo').value = '';
+    document.getElementById('dp-new-save-result').innerHTML = '';
     document.getElementById('dp-new-close-x').onclick = function () { dpCloseModal('modal-dp-new-client'); };
-    document.getElementById('dp-new-gmaps-paste-btn').onclick = dpUseGoogleMapsPaste;
+    document.getElementById('dp-new-save-btn').onclick = dpSaveNewClientTrusted;
     document.getElementById('modal-dp-new-client').classList.add('open');
   }
 
   var dpPendingNewClient = null;
 
-  // Parses coordinates directly out of a pasted Google Maps link or
-  // raw "lat, lon" text — bypasses our own geocoding entirely, since
-  // the whole point is trusting what the driver found in the actual
-  // Google Maps app instead. Handles the common FULL-URL formats
-  // (coordinates are right there in the URL text, no network request
-  // needed to read them). Does NOT handle shortened links
-  // (maps.app.goo.gl/xxx) — those redirect to the real URL, and
-  // reading a cross-origin redirect's destination from client-side JS
-  // isn't possible (CORS blocks it) without a server we don't have.
-  // Told to the driver honestly if that's what was pasted, rather than
-  // silently failing.
-  function dpParseGoogleMapsLocation(text) {
-    text = (text || '').trim();
-    if (!text) return null;
-    // Full URLs: coordinates appear after "@" (map center) or in a
-    // "q=" / "ll=" query parameter.
-    var patterns = [
-      /@(-?\d+\.\d+),(-?\d+\.\d+)/,
-      /[?&]q=(-?\d+\.\d+),(-?\d+\.\d+)/,
-      /[?&]ll=(-?\d+\.\d+),(-?\d+\.\d+)/
-    ];
-    for (var i = 0; i < patterns.length; i++) {
-      var m = text.match(patterns[i]);
-      if (m) return { lat: Number(m[1]), lon: Number(m[2]) };
-    }
-    // Raw "lat, lon" typed directly (e.g. copied from a long-press pin
-    // in the Google Maps app, which shows coordinates directly).
-    var raw = text.match(/^(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)$/);
-    if (raw) return { lat: Number(raw[1]), lon: Number(raw[2]) };
-    return null;
-  }
-
-  function dpUseGoogleMapsPaste() {
+  // REDESIGNED, per ION's own explicit clarification: he copies the
+  // exact address TEXT from the Google Maps app (e.g. "Via Fratta, 16,
+  // 35010 Borgoricco PD") — not a link, not coordinates. Trying to
+  // parse a URL or lat/lon out of that (the previous version of this)
+  // was solving the wrong problem entirely; a plain address string
+  // never matched any of those patterns, so it just failed.
+  //
+  // The address is now trusted AS TYPED, stored exactly as given, and
+  // handed to Google Maps as PLAIN TEXT at open time — Google does its
+  // own geocoding of that text when the link actually opens, using
+  // its own (reliable) data, instead of ADB Smart attempting it ahead
+  // of time with a worse data source. This is also why a short
+  // maps.app.goo.gl link never needs special handling anymore: it's
+  // simply not what gets pasted here in this design — if one WAS
+  // pasted anyway (typed as the "address"), it would just be treated
+  // as literal text and very likely fail to resolve when Google Maps
+  // tries to use it as a destination — worth a plain, honest note
+  // rather than silently accepting it.
+  function dpSaveNewClientTrusted() {
     var nome = document.getElementById('dp-new-nome').value.trim();
-    var pasteText = document.getElementById('dp-new-gmaps-paste').value.trim();
-    var resultEl = document.getElementById('dp-new-gmaps-paste-result');
-    if (!nome) {
-      resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Inserisci prima il nome azienda.</div>';
+    var indirizzo = document.getElementById('dp-new-indirizzo').value.trim();
+    var resultEl = document.getElementById('dp-new-save-result');
+    if (!nome || !indirizzo) {
+      resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Inserisci nome e indirizzo.</div>';
       return;
     }
-    var coords = dpParseGoogleMapsLocation(pasteText);
-    if (!coords) {
-      var isShortLink = /goo\.gl|maps\.app/.test(pasteText);
-      resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">' +
-        (isShortLink
-          ? 'Questo è un link abbreviato — non riesco a leggere le coordinate da qui. Apri il link una volta in un browser, poi incolla l\'indirizzo completo che appare (con @lat,lon nell\'URL).'
-          : 'Non trovo coordinate in questo testo. Incolla un link Google Maps completo, o le coordinate come "45.123, 11.456".') +
-        '</div>';
+    if (/goo\.gl|maps\.app/.test(indirizzo)) {
+      resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Questo sembra un link, non un indirizzo — Google Maps non riuscirà ad aprirlo come destinazione. Copia invece l\'indirizzo scritto (es. "Via Fratta, 16, 35010 Borgoricco PD"), visibile nell\'app Google Maps sotto il nome del luogo.</div>';
       return;
     }
-    resultEl.innerHTML = '<div style="color:var(--ink-soft);font-size:13px;">Verifica in corso...</div>';
-    // Best-effort reverse geocode, only for a readable label — the
-    // COORDINATES themselves (what actually gets saved and used for
-    // routing) come directly from what the driver pasted, never
-    // second-guessed against our own geocoder. If the reverse lookup
-    // fails or is imprecise, the coordinates are still exactly right;
-    // only the display text would be a little generic.
-    //
-    // Saves directly now, one step — the old two-step "prepare, then
-    // press a separate Salva e aggiungi" flow existed only because
-    // this button used to be shared with the automatic-search path,
-    // which is gone entirely now (per ION's explicit request). A
-    // brief pause shows the confirmation before the modal actually
-    // closes, so the "✓ found" moment is visible rather than an
-    // instant, jarring close.
-    fetch('https://api.openrouteservice.org/geocode/reverse?api_key=' + encodeURIComponent(ORS_API_KEY) + '&point.lon=' + coords.lon + '&point.lat=' + coords.lat + '&size=1')
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        var label = (data.features && data.features[0] && data.features[0].properties.label) || (coords.lat.toFixed(5) + ', ' + coords.lon.toFixed(5));
-        dpFinishNewClientFromPaste(nome, coords, label, resultEl);
-      }).catch(function () {
-        var label = coords.lat.toFixed(5) + ', ' + coords.lon.toFixed(5);
-        dpFinishNewClientFromPaste(nome, coords, label, resultEl);
-      });
-  }
-
-  function dpFinishNewClientFromPaste(nome, coords, label, resultEl) {
-    dpPendingNewClient = { nome: nome, indirizzo: label, lat: coords.lat, lon: coords.lon };
-    resultEl.innerHTML = '<div style="font-size:13px;color:var(--ink);">✓ Posizione impostata da Google Maps<br><b>' + escapeHtml(label) + '</b></div>';
-    setTimeout(dpSaveNewClientAndAdd, 900); // brief pause so the confirmation is actually visible before the modal closes
-  }
-
-  function dpSaveNewClientAndAdd() {
-    if (!dpPendingNewClient) return;
     var saved = {
-      id: uid(), nome: dpPendingNewClient.nome, indirizzo: dpPendingNewClient.indirizzo,
-      lat: dpPendingNewClient.lat, lon: dpPendingNewClient.lon, createdAt: Date.now(),
-      nonVerificato: !!dpPendingNewClient.nonVerificato,
-      cap: dpPendingNewClient.cap || '', citta: dpPendingNewClient.citta || '', provincia: dpPendingNewClient.provincia || ''
+      id: uid(), nome: nome, indirizzo: indirizzo, lat: null, lon: null, createdAt: Date.now()
     };
     state.deliveryClients.push(saved);
     saveDeliveryClients(state.deliveryClients);
     state.deliveryRun.clients.push({
-      id: uid(), clientId: saved.id, nome: saved.nome, indirizzo: saved.indirizzo,
-      lat: saved.lat, lon: saved.lon, status: 'pending', nonVerificato: saved.nonVerificato
+      id: uid(), clientId: saved.id, nome: nome, indirizzo: indirizzo, lat: null, lon: null, status: 'pending'
     });
     saveDeliveryRun(state.deliveryRun);
-    dpPendingNewClient = null;
     dpCloseModal('modal-dp-new-client');
     renderDeliveryPlanner();
+    // Silent, best-effort background geocode — NOT for the address
+    // shown or used for Google Maps (that stays exactly what was
+    // typed, always), only to get approximate coordinates for
+    // Reordina's own sequencing later. An approximate position is
+    // good enough to decide a sensible VISITING ORDER; it doesn't
+    // need to be exact the way the actual navigation destination
+    // does. Never shown to the driver, never blocks saving, no error
+    // message if it fails — this entire step is invisible.
+    dpBackgroundGeocodeForOrdering(saved.id, indirizzo);
   }
 
-  // ---- Modifica/rimuovi un cliente dalla lista di oggi ----
+  // Fills in lat/lon on a saved client purely for Reordina's distance
+  // calculations — completely separate from, and never overriding,
+  // the trusted address text itself.
+  function dpBackgroundGeocodeForOrdering(savedClientId, indirizzo) {
+    geocodeAddress(indirizzo).then(function (result) {
+      if (!result) return;
+      var saved = state.deliveryClients.find(function (c) { return c.id === savedClientId; });
+      if (saved) { saved.lat = result.lat; saved.lon = result.lon; saveDeliveryClients(state.deliveryClients); }
+      state.deliveryRun.clients.forEach(function (c) {
+        if (c.clientId === savedClientId && c.lat == null) { c.lat = result.lat; c.lon = result.lon; }
+      });
+      saveDeliveryRun(state.deliveryRun);
+    }).catch(function () { /* silent, best-effort only — Reordina simply treats this one as non-geolocatable if it fails, see dpConfirmReordina */ });
+  }
 
   function dpOpenEditClientModal(clientId) {
     var client = state.deliveryRun.clients.find(function (c) { return c.id === clientId; });
     if (!client) return;
-    dpPendingEditedClient = null;
     document.getElementById('dp-edit-nome').value = client.nome;
-    document.getElementById('dp-edit-gmaps-paste').value = '';
-    document.getElementById('dp-edit-gmaps-paste-result').innerHTML = '';
+    document.getElementById('dp-edit-indirizzo').value = client.indirizzo || '';
+    document.getElementById('dp-edit-save-result').innerHTML = '';
     document.getElementById('dp-edit-close-x').onclick = function () { dpCloseModal('modal-dp-edit-client'); };
     document.getElementById('dp-edit-remove-btn').onclick = function () { dpConfirmRemoveClient(clientId); };
-    document.getElementById('dp-edit-gmaps-paste-btn').onclick = function () { dpUseGoogleMapsPasteEdit(clientId); };
+    document.getElementById('dp-edit-save-btn').onclick = function () { dpSaveEditedClientTrusted(clientId); };
     document.getElementById('modal-dp-edit-client').classList.add('open');
   }
 
-  var dpPendingEditedClient = null;
-
-  // Same idea as dpUseGoogleMapsPaste (new-client modal), but commits
-  // directly to the EXISTING client being edited — reuses
-  // dpParseGoogleMapsLocation (no duplicate parsing logic) and the
-  // same best-effort reverse geocode for a readable label, with the
-  // pasted coordinates themselves always the actual source of truth,
-  // never second-guessed.
-  function dpUseGoogleMapsPasteEdit(clientId) {
+  // Same trust-the-text-as-typed principle as dpSaveNewClientTrusted —
+  // this is specifically the flow ION was actually using to fix wrong
+  // addresses, so getting this one right matters most.
+  function dpSaveEditedClientTrusted(clientId) {
     var client = state.deliveryRun.clients.find(function (c) { return c.id === clientId; });
     if (!client) return;
-    var pasteText = document.getElementById('dp-edit-gmaps-paste').value.trim();
-    var resultEl = document.getElementById('dp-edit-gmaps-paste-result');
-    var coords = dpParseGoogleMapsLocation(pasteText);
-    if (!coords) {
-      var isShortLink = /goo\.gl|maps\.app/.test(pasteText);
-      resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">' +
-        (isShortLink
-          ? 'Questo è un link abbreviato — non riesco a leggere le coordinate da qui. Apri il link una volta in un browser, poi incolla l\'indirizzo completo che appare (con @lat,lon nell\'URL).'
-          : 'Non trovo coordinate in questo testo. Incolla un link Google Maps completo, o le coordinate come "45.123, 11.456".') +
-        '</div>';
+    var nome = document.getElementById('dp-edit-nome').value.trim();
+    var indirizzo = document.getElementById('dp-edit-indirizzo').value.trim();
+    var resultEl = document.getElementById('dp-edit-save-result');
+    if (!nome || !indirizzo) {
+      resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Inserisci nome e indirizzo.</div>';
       return;
     }
-    resultEl.innerHTML = '<div style="color:var(--ink-soft);font-size:13px;">Verifica in corso...</div>';
-    fetch('https://api.openrouteservice.org/geocode/reverse?api_key=' + encodeURIComponent(ORS_API_KEY) + '&point.lon=' + coords.lon + '&point.lat=' + coords.lat + '&size=1')
-      .then(function (r) { return r.json(); })
-      .then(function (data) {
-        var label = (data.features && data.features[0] && data.features[0].properties.label) || (coords.lat.toFixed(5) + ', ' + coords.lon.toFixed(5));
-        dpApplyGoogleMapsPasteToEditedClient(clientId, coords, label, resultEl);
-      }).catch(function () {
-        var label = coords.lat.toFixed(5) + ', ' + coords.lon.toFixed(5);
-        dpApplyGoogleMapsPasteToEditedClient(clientId, coords, label, resultEl);
-      });
-  }
-
-  function dpApplyGoogleMapsPasteToEditedClient(clientId, coords, label, resultEl) {
-    var client = state.deliveryRun.clients.find(function (c) { return c.id === clientId; });
-    if (!client) return;
-    client.indirizzo = label;
-    client.lat = coords.lat;
-    client.lon = coords.lon;
-    client.nonVerificato = false;
+    if (/goo\.gl|maps\.app/.test(indirizzo)) {
+      resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Questo sembra un link, non un indirizzo — Google Maps non riuscirà ad aprirlo come destinazione. Copia invece l\'indirizzo scritto (es. "Via Fratta, 16, 35010 Borgoricco PD"), visibile nell\'app Google Maps sotto il nome del luogo.</div>';
+      return;
+    }
+    var addressChanged = indirizzo !== client.indirizzo;
+    client.nome = nome;
+    client.indirizzo = indirizzo;
+    if (addressChanged) { client.lat = null; client.lon = null; } // stale coordinates from the OLD address would silently mislead Reordina's ordering — cleared until the new address is (silently) re-geocoded below
     if (client.clientId) {
       var saved = state.deliveryClients.find(function (s) { return s.id === client.clientId; });
       if (saved) {
-        saved.indirizzo = label; saved.lat = coords.lat; saved.lon = coords.lon; saved.nonVerificato = false;
+        saved.nome = nome; saved.indirizzo = indirizzo;
+        if (addressChanged) { saved.lat = null; saved.lon = null; }
         saveDeliveryClients(state.deliveryClients);
       }
     }
     saveDeliveryRun(state.deliveryRun);
-    resultEl.innerHTML = '<div style="font-size:13px;color:var(--ink);">✓ Posizione aggiornata da Google Maps<br><b>' + escapeHtml(label) + '</b></div>';
-    setTimeout(function () { dpCloseModal('modal-dp-edit-client'); renderDeliveryPlanner(); }, 900); // brief pause so the confirmation is actually visible before the modal closes
+    dpCloseModal('modal-dp-edit-client');
+    renderDeliveryPlanner();
+    if (addressChanged && client.clientId) dpBackgroundGeocodeForOrdering(client.clientId, indirizzo);
   }
 
   function dpConfirmRemoveClient(clientId) {
@@ -1990,8 +1933,13 @@
   // verified coordinates (the "salva comunque" fallback) still works
   // for the actual Google Maps hand-off, even though it can't be
   // distance-sequenced by ORS.
+  // ALWAYS the trusted address text now, never coordinates — the
+  // whole point of this redesign. Google Maps does its own (reliable)
+  // geocoding of this text when the link opens; ADB Smart's own
+  // coordinates (when present at all) exist purely for Reordina's
+  // internal ordering, never for what's actually sent to Google Maps.
   function dpLocationParam(c) {
-    return (c.lat != null && c.lon != null) ? (c.lat + ',' + c.lon) : c.indirizzo;
+    return c.indirizzo;
   }
 
   function dpBuildGoogleMapsUrl(batchClients, originPos) {
