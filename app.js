@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v230") {
+          if (data && data.v && data.v !== "pt-foglio-v231") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v230"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v231"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1438,6 +1438,23 @@
     btn.textContent = 'Verifica indirizzo';
     btn.onclick = dpVerifyNewClientAddress;
     document.getElementById('dp-new-close-x').onclick = function () { dpCloseModal('modal-dp-new-client'); };
+    // Editing either field after a successful verify used to leave
+    // the button silently stuck in "save" mode, still pointing at the
+    // OLD, already-verified data — meaning a changed address typed
+    // afterward was never actually re-checked before saving. Any edit
+    // now resets back to "verify" mode, discarding the stale result,
+    // so the driver can always re-search before committing if the
+    // found address isn't the right one.
+    var resetToVerify = function () {
+      if (btn.onclick === dpSaveNewClientAndAdd) {
+        btn.textContent = 'Verifica indirizzo';
+        btn.onclick = dpVerifyNewClientAddress;
+        document.getElementById('dp-new-geocode-result').innerHTML = '';
+        dpPendingNewClient = null;
+      }
+    };
+    document.getElementById('dp-new-nome').oninput = resetToVerify;
+    document.getElementById('dp-new-indirizzo').oninput = resetToVerify;
     document.getElementById('modal-dp-new-client').classList.add('open');
   }
 
@@ -1572,16 +1589,37 @@
   function dpOpenEditClientModal(clientId) {
     var client = state.deliveryRun.clients.find(function (c) { return c.id === clientId; });
     if (!client) return;
+    dpPendingEditedClient = null;
     document.getElementById('dp-edit-nome').value = client.nome;
     document.getElementById('dp-edit-indirizzo').value = client.indirizzo || '';
     document.getElementById('dp-edit-geocode-result').innerHTML = '';
+    var saveBtn = document.getElementById('dp-edit-save-btn');
+    var verifiedState = { done: false }; // plain flag, not introspecting the button's own closure — simpler and not fragile against how the handler happens to be wrapped
+    saveBtn.textContent = 'Verifica indirizzo';
+    saveBtn.onclick = function () { dpVerifyEditedClient(clientId, verifiedState); };
     document.getElementById('dp-edit-close-x').onclick = function () { dpCloseModal('modal-dp-edit-client'); };
-    document.getElementById('dp-edit-save-btn').onclick = function () { dpSaveEditedClient(clientId); };
     document.getElementById('dp-edit-remove-btn').onclick = function () { dpConfirmRemoveClient(clientId); };
+    // Same principle as the new-client modal — any edit after a
+    // verified result resets back to "verify" mode, so a changed
+    // address is always re-checked before it can be saved, never
+    // silently saved stale.
+    var resetToVerify = function () {
+      if (verifiedState.done) {
+        verifiedState.done = false;
+        saveBtn.textContent = 'Verifica indirizzo';
+        saveBtn.onclick = function () { dpVerifyEditedClient(clientId, verifiedState); };
+        document.getElementById('dp-edit-geocode-result').innerHTML = '';
+        dpPendingEditedClient = null;
+      }
+    };
+    document.getElementById('dp-edit-nome').oninput = resetToVerify;
+    document.getElementById('dp-edit-indirizzo').oninput = resetToVerify;
     document.getElementById('modal-dp-edit-client').classList.add('open');
   }
 
-  function dpSaveEditedClient(clientId) {
+  var dpPendingEditedClient = null;
+
+  function dpVerifyEditedClient(clientId, verifiedState) {
     var client = state.deliveryRun.clients.find(function (c) { return c.id === clientId; });
     if (!client) return;
     var nome = document.getElementById('dp-edit-nome').value.trim();
@@ -1591,44 +1629,24 @@
       resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Inserisci nome e indirizzo.</div>';
       return;
     }
+    var saveBtn = document.getElementById('dp-edit-save-btn');
 
-    function applyAndSave(lat, lon, label, cap, citta, provincia, nonVerificato, structuredFieldsKnown) {
-      client.nome = nome;
-      client.indirizzo = label || indirizzo;
-      client.lat = lat;
-      client.lon = lon;
-      client.nonVerificato = !!nonVerificato;
-      // Keeps the saved address-book entry in sync too, if this run
-      // client came from one — otherwise a correction made here would
-      // be forgotten the next time the same saved client is added to
-      // a future run.
-      if (client.clientId) {
-        var saved = state.deliveryClients.find(function (s) { return s.id === client.clientId; });
-        if (saved) {
-          saved.nome = nome; saved.indirizzo = label || indirizzo; saved.lat = lat; saved.lon = lon;
-          // Only touches cap/citta/provincia when this call actually
-          // came from a fresh geocode (structuredFieldsKnown) — the
-          // "address unchanged, name-only edit" path below doesn't
-          // have these on the run object at all (only saved records
-          // do), so blindly writing them through would silently wipe
-          // out real, already-correct data with blanks.
-          if (structuredFieldsKnown) { saved.cap = cap || ''; saved.citta = citta || ''; saved.provincia = provincia || ''; }
-          saved.nonVerificato = !!nonVerificato;
-          saveDeliveryClients(state.deliveryClients);
-        }
-      }
-      saveDeliveryRun(state.deliveryRun);
-      dpCloseModal('modal-dp-edit-client');
-      renderDeliveryPlanner();
+    function showVerified(lat, lon, label, cap, citta, provincia, nonVerificato, structuredFieldsKnown) {
+      dpPendingEditedClient = { nome: nome, indirizzo: label || indirizzo, lat: lat, lon: lon, cap: cap, citta: citta, provincia: provincia, nonVerificato: nonVerificato, structuredFieldsKnown: structuredFieldsKnown };
+      resultEl.innerHTML = '<div style="font-size:13px;color:var(--ink);">✓ Indirizzo verificato<br><b>' + escapeHtml(label || indirizzo) + '</b></div>';
+      verifiedState.done = true;
+      saveBtn.textContent = 'Conferma e salva';
+      saveBtn.onclick = function () { dpConfirmSaveEditedClient(clientId); };
     }
 
-    // Only re-geocodes if the address text actually changed — no point
-    // spending a network round-trip re-verifying something that's
-    // already confirmed and unmodified. The name-only-changed case
-    // (very common — fixing a typo in the company name) saves
-    // instantly, no network wait at all.
+    // Only re-geocodes if the address text actually changed from what
+    // was already saved — no point re-verifying something already
+    // confirmed and unmodified. The name-only-changed case still goes
+    // through the same confirm step below, just without a network
+    // wait, so editing always shows what's about to be saved before
+    // it actually commits — never an instant, unreviewable save.
     if (indirizzo === client.indirizzo) {
-      applyAndSave(client.lat, client.lon, client.indirizzo, null, null, null, client.nonVerificato, false);
+      showVerified(client.lat, client.lon, client.indirizzo, null, null, null, client.nonVerificato, false);
       return;
     }
 
@@ -1638,14 +1656,47 @@
         resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Indirizzo non trovato automaticamente.</div>' +
           '<button type="button" class="btn btn-outline btn-sm" id="dp-edit-save-unverified-btn" style="margin-top:8px;">Salva comunque con l\'indirizzo scritto</button>';
         document.getElementById('dp-edit-save-unverified-btn').addEventListener('click', function () {
-          applyAndSave(null, null, indirizzo, null, null, null, true, false);
+          showVerified(null, null, indirizzo, null, null, null, true, false);
+          dpConfirmSaveEditedClient(clientId); // this specific fallback path saves immediately — it's already the driver's own explicit "use this text as-is" action, not a result they might still want to reject
         });
         return;
       }
-      applyAndSave(addrResult.lat, addrResult.lon, addrResult.label || indirizzo, addrResult.cap, addrResult.citta, addrResult.provincia, false, true);
+      showVerified(addrResult.lat, addrResult.lon, addrResult.label || indirizzo, addrResult.cap, addrResult.citta, addrResult.provincia, false, true);
     }).catch(function () {
       resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Errore di rete. Riprova.</div>';
     });
+  }
+
+  function dpConfirmSaveEditedClient(clientId) {
+    var client = state.deliveryRun.clients.find(function (c) { return c.id === clientId; });
+    if (!client || !dpPendingEditedClient) return;
+    var p = dpPendingEditedClient;
+    client.nome = p.nome;
+    client.indirizzo = p.indirizzo;
+    client.lat = p.lat;
+    client.lon = p.lon;
+    client.nonVerificato = !!p.nonVerificato;
+    // Keeps the saved address-book entry in sync too, if this run
+    // client came from one — otherwise a correction made here would
+    // be forgotten the next time the same saved client is added to a
+    // future run.
+    if (client.clientId) {
+      var saved = state.deliveryClients.find(function (s) { return s.id === client.clientId; });
+      if (saved) {
+        saved.nome = p.nome; saved.indirizzo = p.indirizzo; saved.lat = p.lat; saved.lon = p.lon;
+        // Only touches cap/citta/provincia when this came from a fresh
+        // geocode — the "address unchanged" path doesn't have these on
+        // the run object at all, so writing through would silently
+        // wipe out real, already-correct data with blanks.
+        if (p.structuredFieldsKnown) { saved.cap = p.cap || ''; saved.citta = p.citta || ''; saved.provincia = p.provincia || ''; }
+        saved.nonVerificato = !!p.nonVerificato;
+        saveDeliveryClients(state.deliveryClients);
+      }
+    }
+    saveDeliveryRun(state.deliveryRun);
+    dpPendingEditedClient = null;
+    dpCloseModal('modal-dp-edit-client');
+    renderDeliveryPlanner();
   }
 
   function dpConfirmRemoveClient(clientId) {
