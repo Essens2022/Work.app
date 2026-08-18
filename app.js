@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v246") {
+          if (data && data.v && data.v !== "pt-foglio-v247") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v246"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v247"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1684,10 +1684,21 @@
       resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Inserisci nome e indirizzo.</div>';
       return;
     }
-    if (/goo\.gl|maps\.app/.test(indirizzo)) {
-      resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Questo sembra un link, non un indirizzo — Google Maps non riuscirà ad aprirlo come destinazione. Copia invece l\'indirizzo scritto (es. "Via Fratta, 16, 35010 Borgoricco PD"), visibile nell\'app Google Maps sotto il nome del luogo.</div>';
-      return;
-    }
+    // Accepts BOTH a plain address ("Via Fratta, 16, 35010 Borgoricco
+    // PD") AND a maps.app.goo.gl share link in this same field — per
+    // ION's explicit request. Both are trusted as-typed and passed
+    // through UNCHANGED to Google Maps at open time; whether it's
+    // text or a link, ADB Smart never tries to interpret it itself.
+    // For a short link specifically: reading where it redirects to is
+    // blocked client-side by CORS (a real browser restriction, not
+    // something to work around here) — but that limitation only
+    // applies to OUR OWN JavaScript trying to read it. Handing the
+    // exact same link straight to Google Maps' own systems is a
+    // different thing entirely — Google resolving its own share link
+    // has no such restriction. UNVERIFIED by me whether Google Maps'
+    // destination/waypoints parameters correctly resolve a nested
+    // share link this way — worth testing directly rather than
+    // rejecting it outright as the previous version of this did.
     var saved = {
       id: uid(), nome: nome, indirizzo: indirizzo, lat: null, lon: null, createdAt: Date.now()
     };
@@ -1750,10 +1761,9 @@
       resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Inserisci nome e indirizzo.</div>';
       return;
     }
-    if (/goo\.gl|maps\.app/.test(indirizzo)) {
-      resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Questo sembra un link, non un indirizzo — Google Maps non riuscirà ad aprirlo come destinazione. Copia invece l\'indirizzo scritto (es. "Via Fratta, 16, 35010 Borgoricco PD"), visibile nell\'app Google Maps sotto il nome del luogo.</div>';
-      return;
-    }
+    // Same as dpSaveNewClientTrusted — plain address text AND a
+    // maps.app.goo.gl link are both accepted here, unchanged, passed
+    // straight to Google Maps at open time.
     var addressChanged = indirizzo !== client.indirizzo;
     client.nome = nome;
     client.indirizzo = indirizzo;
