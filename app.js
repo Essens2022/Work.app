@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v237") {
+          if (data && data.v && data.v !== "pt-foglio-v238") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v237"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v238"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1425,7 +1425,11 @@
       '<div class="dp-stat"><div class="dp-stat-num" style="color:var(--accent)">' + stats.remaining + '</div><div class="dp-stat-label">rimanenti</div></div>' +
       '</div>';
 
-    html += '<button type="button" class="btn btn-accent btn-block" id="dp-add-client-btn" style="margin:14px 0;">+ Aggiungi cliente</button>';
+    html += '<button type="button" class="btn btn-accent btn-block" id="dp-add-client-btn" style="margin:14px 0 10px;">+ Aggiungi cliente</button>';
+    html += '<button type="button" class="btn btn-outline btn-block" id="dp-reordina-btn"' + (stats.remaining === 0 ? ' disabled' : '') + ' style="margin-bottom:10px;">Reordina</button>';
+    if (run.preparedBatch && run.preparedBatch.length) {
+      html += '<button type="button" class="btn btn-dark btn-block" id="dp-open-gmaps-btn" style="margin-bottom:10px;">Apri in Google Maps (' + run.preparedBatch.length + ' tappe)</button>';
+    }
 
     // Section 15 of the spec: after the last client, offer Casa/
     // Deposito — reusing the EXISTING home/work shortcuts storage
@@ -1454,17 +1458,17 @@
     if (run.clients.length === 0) {
       html += '<div class="card" style="text-align:center;color:var(--ink-soft);">Nessun cliente ancora. Aggiungi il primo per iniziare.</div>';
     } else {
-      html += '<div class="dp-list">';
+      // Capped height, internal scroll — the list used to just keep
+      // growing the WHOLE page downward with no limit, meaning past a
+      // handful of clients the buttons above scrolled out of view too
+      // and the page itself grew unboundedly. Capped to roughly 5 rows
+      // tall now (dp-client-row's own height × 5, see CSS) — the
+      // buttons/header stay put, only the client list itself scrolls,
+      // both up and down, once there are more than fit.
+      html += '<div class="dp-list dp-list-scroll">';
       run.clients.forEach(function (c, idx) { html += dpClientRowHtml(c, idx); });
       html += '</div>';
     }
-
-    html += '<div class="dp-bottom-actions">';
-    html += '<button type="button" class="btn btn-outline btn-block" id="dp-reordina-btn"' + (stats.remaining === 0 ? ' disabled' : '') + '>Reordina</button>';
-    if (run.preparedBatch && run.preparedBatch.length) {
-      html += '<button type="button" class="btn btn-dark btn-block" id="dp-open-gmaps-btn" style="margin-top:10px;">Apri in Google Maps (' + run.preparedBatch.length + ' tappe)</button>';
-    }
-    html += '</div>';
 
     el.innerHTML = html;
 
