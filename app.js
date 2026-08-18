@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v244") {
+          if (data && data.v && data.v !== "pt-foglio-v245") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v244"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v245"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1649,137 +1649,11 @@
   function dpOpenNewClientModal(prefillName) {
     dpCloseModal('modal-dp-add-client');
     document.getElementById('dp-new-nome').value = prefillName || '';
-    document.getElementById('dp-new-indirizzo').value = '';
-    document.getElementById('dp-new-geocode-result').innerHTML = '';
     document.getElementById('dp-new-gmaps-paste').value = '';
     document.getElementById('dp-new-gmaps-paste-result').innerHTML = '';
-    var btn = document.getElementById('dp-new-verify-btn');
-    btn.textContent = 'Verifica indirizzo';
-    btn.onclick = dpVerifyNewClientAddress;
     document.getElementById('dp-new-close-x').onclick = function () { dpCloseModal('modal-dp-new-client'); };
     document.getElementById('dp-new-gmaps-paste-btn').onclick = dpUseGoogleMapsPaste;
-    // Editing either field after a successful verify used to leave
-    // the button silently stuck in "save" mode, still pointing at the
-    // OLD, already-verified data — meaning a changed address typed
-    // afterward was never actually re-checked before saving. Any edit
-    // now resets back to "verify" mode, discarding the stale result,
-    // so the driver can always re-search before committing if the
-    // found address isn't the right one.
-    var resetToVerify = function () {
-      if (btn.onclick === dpSaveNewClientAndAdd) {
-        btn.textContent = 'Verifica indirizzo';
-        btn.onclick = dpVerifyNewClientAddress;
-        document.getElementById('dp-new-geocode-result').innerHTML = '';
-        dpPendingNewClient = null;
-      }
-    };
-    document.getElementById('dp-new-nome').oninput = resetToVerify;
-    document.getElementById('dp-new-indirizzo').oninput = resetToVerify;
     document.getElementById('modal-dp-new-client').classList.add('open');
-  }
-
-  // Geocodes the typed address AND searches the company name — run in
-  // PARALLEL now, independently, not one gated behind the other.
-  //
-  // REAL BUG, found and confirmed: this used to run the name search
-  // only INSIDE the address geocode's own success callback — meaning
-  // if the address failed to geocode (a real, known gap for smaller
-  // Italian addresses), the company name was never even attempted,
-  // even when the name alone (e.g. a distinct business like
-  // "Eurogrup") would very plausibly have found the place on its own.
-  // Now both run independently; whichever succeeds is usable, and if
-  // both succeed, the existing "possible match nearby" comparison
-  // still applies — the bolla's own address still wins by default,
-  // never silently overridden.
-  function dpVerifyNewClientAddress() {
-    var nome = document.getElementById('dp-new-nome').value.trim();
-    var indirizzo = document.getElementById('dp-new-indirizzo').value.trim();
-    var resultEl = document.getElementById('dp-new-geocode-result');
-    if (!nome || !indirizzo) {
-      resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Inserisci nome e indirizzo.</div>';
-      return;
-    }
-    resultEl.innerHTML = '<div style="color:var(--ink-soft);font-size:13px;">Verifica in corso...</div>';
-
-    // Defense in depth — wrapped in try/catch so that ANY unexpected
-    // synchronous error here (not just a network failure, which the
-    // .catch()es below already handle) still shows something instead
-    // of leaving "Verifica in corso..." on screen forever with no
-    // feedback at all, which is exactly what was reported.
-    try {
-      var addrPromise = geocodeAddress(indirizzo).catch(function () { return null; });
-      var namePromise = navGeocodeFetch('search', nome).catch(function () { return { features: [] }; });
-
-      Promise.all([addrPromise, namePromise]).then(function (results) {
-      var addrResult = results[0];
-      var nameData = results[1];
-      var nameMatch = (nameData.features && nameData.features.length) ? nameData.features[0] : null;
-
-      if (!addrResult && !nameMatch) {
-        // Neither found anything — the genuine fallback, not a dead
-        // end: the driver still needs to reach this client today, so
-        // they can save it anyway with the address exactly as typed.
-        // Excluded from Reordina's route optimization (needs real
-        // coordinates to sequence stops), but still usable for the
-        // Google Maps hand-off as plain text.
-        resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Indirizzo non trovato automaticamente.</div>' +
-          '<button type="button" class="btn btn-outline btn-sm" id="dp-save-unverified-btn" style="margin-top:8px;">Salva comunque con l\'indirizzo scritto</button>';
-        document.getElementById('dp-save-unverified-btn').addEventListener('click', function () {
-          dpPendingNewClient = { nome: nome, indirizzo: indirizzo, lat: null, lon: null, nonVerificato: true };
-          dpSaveNewClientAndAdd();
-        });
-        return;
-      }
-
-      if (!addrResult) {
-        // Address alone failed, but the NAME found something — used
-        // directly now, not just as a discarded side-search. Still
-        // editable/correctable by the driver afterward if it's wrong.
-        var nLat = nameMatch.geometry.coordinates[1], nLon = nameMatch.geometry.coordinates[0];
-        dpPendingNewClient = { nome: nome, indirizzo: nameMatch.properties.label || indirizzo, lat: nLat, lon: nLon };
-        resultEl.innerHTML = '<div style="font-size:13px;color:var(--ink);">✓ Trovato tramite il nome<br><b>' + escapeHtml(nameMatch.properties.label || nome) + '</b></div>';
-        var saveBtn = document.getElementById('dp-new-verify-btn');
-        saveBtn.textContent = 'Salva e aggiungi';
-        saveBtn.onclick = dpSaveNewClientAndAdd;
-        return;
-      }
-
-      // The address itself was found — this is what actually gets
-      // saved by default (the bolla's own address takes priority, per
-      // the explicit requirement), with the name-match offered only
-      // as an optional, driver-confirmed alternative when it's not
-      // trivially the same place.
-      dpPendingNewClient = { nome: nome, indirizzo: addrResult.label || indirizzo, lat: addrResult.lat, lon: addrResult.lon, cap: addrResult.cap, citta: addrResult.citta, provincia: addrResult.provincia };
-      resultEl.innerHTML = '<div style="font-size:13px;color:var(--ink);">✓ Indirizzo verificato<br><b>' + escapeHtml(addrResult.label || indirizzo) + '</b></div>';
-      var verifyBtn = document.getElementById('dp-new-verify-btn');
-      verifyBtn.textContent = 'Salva e aggiungi';
-      verifyBtn.onclick = dpSaveNewClientAndAdd;
-
-      if (nameMatch) {
-        var foundLat = nameMatch.geometry.coordinates[1], foundLon = nameMatch.geometry.coordinates[0];
-        var distM = haversineKm({ lat: addrResult.lat, lon: addrResult.lon }, { lat: foundLat, lon: foundLon }) * 1000;
-        if (distM >= 20 && distM <= 600) { // too close to matter, or too far to plausibly be the same place
-          var matchDiv = document.createElement('div');
-          matchDiv.className = 'dp-match-card';
-          matchDiv.innerHTML = 'Possibile corrispondenza trovata nelle vicinanze<br>' +
-            '<b>' + escapeHtml(nameMatch.properties.label || nome) + '</b><br>' +
-            Math.round(distM) + ' m dall\'indirizzo inserito' +
-            '<br><button type="button" class="btn btn-outline btn-sm" id="dp-use-found-btn">Usa questo indirizzo</button>';
-          resultEl.appendChild(matchDiv);
-          document.getElementById('dp-use-found-btn').addEventListener('click', function () {
-            dpPendingNewClient.lat = foundLat;
-            dpPendingNewClient.lon = foundLon;
-            dpPendingNewClient.indirizzo = nameMatch.properties.label || dpPendingNewClient.indirizzo;
-            matchDiv.innerHTML = '✓ Indirizzo aggiornato';
-          });
-        }
-      }
-    }).catch(function (err) {
-      resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Errore imprevisto: ' + escapeHtml(err && err.message ? err.message : 'sconosciuto') + '. Riprova.</div>';
-    });
-    } catch (err) {
-      resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Errore imprevisto: ' + escapeHtml(err && err.message ? err.message : 'sconosciuto') + '. Riprova.</div>';
-    }
   }
 
   var dpPendingNewClient = null;
@@ -1841,26 +1715,29 @@
     // second-guessed against our own geocoder. If the reverse lookup
     // fails or is imprecise, the coordinates are still exactly right;
     // only the display text would be a little generic.
+    //
+    // Saves directly now, one step — the old two-step "prepare, then
+    // press a separate Salva e aggiungi" flow existed only because
+    // this button used to be shared with the automatic-search path,
+    // which is gone entirely now (per ION's explicit request). A
+    // brief pause shows the confirmation before the modal actually
+    // closes, so the "✓ found" moment is visible rather than an
+    // instant, jarring close.
     fetch('https://api.openrouteservice.org/geocode/reverse?api_key=' + encodeURIComponent(ORS_API_KEY) + '&point.lon=' + coords.lon + '&point.lat=' + coords.lat + '&size=1')
       .then(function (r) { return r.json(); })
       .then(function (data) {
         var label = (data.features && data.features[0] && data.features[0].properties.label) || (coords.lat.toFixed(5) + ', ' + coords.lon.toFixed(5));
-        dpPendingNewClient = { nome: nome, indirizzo: label, lat: coords.lat, lon: coords.lon };
-        resultEl.innerHTML = '<div style="font-size:13px;color:var(--ink);">✓ Posizione impostata da Google Maps<br><b>' + escapeHtml(label) + '</b></div>';
-        var btn = document.getElementById('dp-new-verify-btn');
-        btn.textContent = 'Salva e aggiungi';
-        btn.onclick = dpSaveNewClientAndAdd;
+        dpFinishNewClientFromPaste(nome, coords, label, resultEl);
       }).catch(function () {
-        // The reverse-lookup itself failing doesn't block anything —
-        // the coordinates are already known and trusted; just falls
-        // back to showing them plainly instead of a place name.
         var label = coords.lat.toFixed(5) + ', ' + coords.lon.toFixed(5);
-        dpPendingNewClient = { nome: nome, indirizzo: label, lat: coords.lat, lon: coords.lon };
-        resultEl.innerHTML = '<div style="font-size:13px;color:var(--ink);">✓ Posizione impostata da Google Maps<br><b>' + escapeHtml(label) + '</b></div>';
-        var btn2 = document.getElementById('dp-new-verify-btn');
-        btn2.textContent = 'Salva e aggiungi';
-        btn2.onclick = dpSaveNewClientAndAdd;
+        dpFinishNewClientFromPaste(nome, coords, label, resultEl);
       });
+  }
+
+  function dpFinishNewClientFromPaste(nome, coords, label, resultEl) {
+    dpPendingNewClient = { nome: nome, indirizzo: label, lat: coords.lat, lon: coords.lon };
+    resultEl.innerHTML = '<div style="font-size:13px;color:var(--ink);">✓ Posizione impostata da Google Maps<br><b>' + escapeHtml(label) + '</b></div>';
+    setTimeout(dpSaveNewClientAndAdd, 900); // brief pause so the confirmation is actually visible before the modal closes
   }
 
   function dpSaveNewClientAndAdd() {
@@ -1890,112 +1767,66 @@
     if (!client) return;
     dpPendingEditedClient = null;
     document.getElementById('dp-edit-nome').value = client.nome;
-    document.getElementById('dp-edit-indirizzo').value = client.indirizzo || '';
-    document.getElementById('dp-edit-geocode-result').innerHTML = '';
-    var saveBtn = document.getElementById('dp-edit-save-btn');
-    var verifiedState = { done: false }; // plain flag, not introspecting the button's own closure — simpler and not fragile against how the handler happens to be wrapped
-    saveBtn.textContent = 'Verifica indirizzo';
-    saveBtn.onclick = function () { dpVerifyEditedClient(clientId, verifiedState); };
+    document.getElementById('dp-edit-gmaps-paste').value = '';
+    document.getElementById('dp-edit-gmaps-paste-result').innerHTML = '';
     document.getElementById('dp-edit-close-x').onclick = function () { dpCloseModal('modal-dp-edit-client'); };
     document.getElementById('dp-edit-remove-btn').onclick = function () { dpConfirmRemoveClient(clientId); };
-    // Same principle as the new-client modal — any edit after a
-    // verified result resets back to "verify" mode, so a changed
-    // address is always re-checked before it can be saved, never
-    // silently saved stale.
-    var resetToVerify = function () {
-      if (verifiedState.done) {
-        verifiedState.done = false;
-        saveBtn.textContent = 'Verifica indirizzo';
-        saveBtn.onclick = function () { dpVerifyEditedClient(clientId, verifiedState); };
-        document.getElementById('dp-edit-geocode-result').innerHTML = '';
-        dpPendingEditedClient = null;
-      }
-    };
-    document.getElementById('dp-edit-nome').oninput = resetToVerify;
-    document.getElementById('dp-edit-indirizzo').oninput = resetToVerify;
+    document.getElementById('dp-edit-gmaps-paste-btn').onclick = function () { dpUseGoogleMapsPasteEdit(clientId); };
     document.getElementById('modal-dp-edit-client').classList.add('open');
   }
 
   var dpPendingEditedClient = null;
 
-  function dpVerifyEditedClient(clientId, verifiedState) {
+  // Same idea as dpUseGoogleMapsPaste (new-client modal), but commits
+  // directly to the EXISTING client being edited — reuses
+  // dpParseGoogleMapsLocation (no duplicate parsing logic) and the
+  // same best-effort reverse geocode for a readable label, with the
+  // pasted coordinates themselves always the actual source of truth,
+  // never second-guessed.
+  function dpUseGoogleMapsPasteEdit(clientId) {
     var client = state.deliveryRun.clients.find(function (c) { return c.id === clientId; });
     if (!client) return;
-    var nome = document.getElementById('dp-edit-nome').value.trim();
-    var indirizzo = document.getElementById('dp-edit-indirizzo').value.trim();
-    var resultEl = document.getElementById('dp-edit-geocode-result');
-    if (!nome || !indirizzo) {
-      resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Inserisci nome e indirizzo.</div>';
+    var pasteText = document.getElementById('dp-edit-gmaps-paste').value.trim();
+    var resultEl = document.getElementById('dp-edit-gmaps-paste-result');
+    var coords = dpParseGoogleMapsLocation(pasteText);
+    if (!coords) {
+      var isShortLink = /goo\.gl|maps\.app/.test(pasteText);
+      resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">' +
+        (isShortLink
+          ? 'Questo è un link abbreviato — non riesco a leggere le coordinate da qui. Apri il link una volta in un browser, poi incolla l\'indirizzo completo che appare (con @lat,lon nell\'URL).'
+          : 'Non trovo coordinate in questo testo. Incolla un link Google Maps completo, o le coordinate come "45.123, 11.456".') +
+        '</div>';
       return;
     }
-    var saveBtn = document.getElementById('dp-edit-save-btn');
-
-    function showVerified(lat, lon, label, cap, citta, provincia, nonVerificato, structuredFieldsKnown) {
-      dpPendingEditedClient = { nome: nome, indirizzo: label || indirizzo, lat: lat, lon: lon, cap: cap, citta: citta, provincia: provincia, nonVerificato: nonVerificato, structuredFieldsKnown: structuredFieldsKnown };
-      resultEl.innerHTML = '<div style="font-size:13px;color:var(--ink);">✓ Indirizzo verificato<br><b>' + escapeHtml(label || indirizzo) + '</b></div>';
-      verifiedState.done = true;
-      saveBtn.textContent = 'Conferma e salva';
-      saveBtn.onclick = function () { dpConfirmSaveEditedClient(clientId); };
-    }
-
-    // Only re-geocodes if the address text actually changed from what
-    // was already saved — no point re-verifying something already
-    // confirmed and unmodified. The name-only-changed case still goes
-    // through the same confirm step below, just without a network
-    // wait, so editing always shows what's about to be saved before
-    // it actually commits — never an instant, unreviewable save.
-    if (indirizzo === client.indirizzo) {
-      showVerified(client.lat, client.lon, client.indirizzo, null, null, null, client.nonVerificato, false);
-      return;
-    }
-
     resultEl.innerHTML = '<div style="color:var(--ink-soft);font-size:13px;">Verifica in corso...</div>';
-    geocodeAddress(indirizzo).then(function (addrResult) {
-      if (!addrResult) {
-        resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Indirizzo non trovato automaticamente.</div>' +
-          '<button type="button" class="btn btn-outline btn-sm" id="dp-edit-save-unverified-btn" style="margin-top:8px;">Salva comunque con l\'indirizzo scritto</button>';
-        document.getElementById('dp-edit-save-unverified-btn').addEventListener('click', function () {
-          showVerified(null, null, indirizzo, null, null, null, true, false);
-          dpConfirmSaveEditedClient(clientId); // this specific fallback path saves immediately — it's already the driver's own explicit "use this text as-is" action, not a result they might still want to reject
-        });
-        return;
-      }
-      showVerified(addrResult.lat, addrResult.lon, addrResult.label || indirizzo, addrResult.cap, addrResult.citta, addrResult.provincia, false, true);
-    }).catch(function () {
-      resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Errore di rete. Riprova.</div>';
-    });
+    fetch('https://api.openrouteservice.org/geocode/reverse?api_key=' + encodeURIComponent(ORS_API_KEY) + '&point.lon=' + coords.lon + '&point.lat=' + coords.lat + '&size=1')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var label = (data.features && data.features[0] && data.features[0].properties.label) || (coords.lat.toFixed(5) + ', ' + coords.lon.toFixed(5));
+        dpApplyGoogleMapsPasteToEditedClient(clientId, coords, label, resultEl);
+      }).catch(function () {
+        var label = coords.lat.toFixed(5) + ', ' + coords.lon.toFixed(5);
+        dpApplyGoogleMapsPasteToEditedClient(clientId, coords, label, resultEl);
+      });
   }
 
-  function dpConfirmSaveEditedClient(clientId) {
+  function dpApplyGoogleMapsPasteToEditedClient(clientId, coords, label, resultEl) {
     var client = state.deliveryRun.clients.find(function (c) { return c.id === clientId; });
-    if (!client || !dpPendingEditedClient) return;
-    var p = dpPendingEditedClient;
-    client.nome = p.nome;
-    client.indirizzo = p.indirizzo;
-    client.lat = p.lat;
-    client.lon = p.lon;
-    client.nonVerificato = !!p.nonVerificato;
-    // Keeps the saved address-book entry in sync too, if this run
-    // client came from one — otherwise a correction made here would
-    // be forgotten the next time the same saved client is added to a
-    // future run.
+    if (!client) return;
+    client.indirizzo = label;
+    client.lat = coords.lat;
+    client.lon = coords.lon;
+    client.nonVerificato = false;
     if (client.clientId) {
       var saved = state.deliveryClients.find(function (s) { return s.id === client.clientId; });
       if (saved) {
-        saved.nome = p.nome; saved.indirizzo = p.indirizzo; saved.lat = p.lat; saved.lon = p.lon;
-        // Only touches cap/citta/provincia when this came from a fresh
-        // geocode — the "address unchanged" path doesn't have these on
-        // the run object at all, so writing through would silently
-        // wipe out real, already-correct data with blanks.
-        if (p.structuredFieldsKnown) { saved.cap = p.cap || ''; saved.citta = p.citta || ''; saved.provincia = p.provincia || ''; }
-        saved.nonVerificato = !!p.nonVerificato;
+        saved.indirizzo = label; saved.lat = coords.lat; saved.lon = coords.lon; saved.nonVerificato = false;
         saveDeliveryClients(state.deliveryClients);
       }
     }
     saveDeliveryRun(state.deliveryRun);
-    dpPendingEditedClient = null;
-    dpCloseModal('modal-dp-edit-client');
-    renderDeliveryPlanner();
+    resultEl.innerHTML = '<div style="font-size:13px;color:var(--ink);">✓ Posizione aggiornata da Google Maps<br><b>' + escapeHtml(label) + '</b></div>';
+    setTimeout(function () { dpCloseModal('modal-dp-edit-client'); renderDeliveryPlanner(); }, 900); // brief pause so the confirmation is actually visible before the modal closes
   }
 
   function dpConfirmRemoveClient(clientId) {

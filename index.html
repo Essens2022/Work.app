@@ -1060,27 +1060,21 @@
       <input type="text" id="dp-new-nome" placeholder="Es. IEIS IMPIANTI SRL" autocomplete="off">
     </div>
 
-    <!-- Primary path now — trusted directly, since it's the same
-         coordinates Google Maps itself will later use, guaranteeing
-         they agree with each other. Promoted here per ION's own
-         explicit choice, after the automatic search below repeatedly
-         showed one address in-app while opening a DIFFERENT one in
-         Google Maps — a real, hard-to-fully-eliminate mismatch
-         between our free geocoder's data and Google's own. -->
+    <!-- The ONLY way to set a location now — per ION's explicit,
+         repeated request: he sets addresses himself, from Google
+         Maps, they should never be automatically searched. The
+         automatic geocoding path that used to live here (and in the
+         Modifica cliente modal) is removed entirely, not just
+         deprioritized — it kept showing one address in-app while
+         Google Maps opened a different one, a real, hard-to-fully-
+         eliminate mismatch between our free geocoder's data and
+         Google's own. -->
     <div class="field" style="margin-top:10px;">
       <label>Link o coordinate da Google Maps</label>
       <input type="text" id="dp-new-gmaps-paste" placeholder="Link condiviso o 45.123, 11.456" autocomplete="off">
     </div>
     <div id="dp-new-gmaps-paste-result" style="margin-top:8px;"></div>
     <button type="button" class="btn btn-accent btn-block" id="dp-new-gmaps-paste-btn" style="margin-top:10px;">Usa questa posizione</button>
-
-    <div style="text-align:center;color:var(--ink-soft);font-size:12px;margin:16px 0 6px;">oppure cerca l'indirizzo</div>
-    <div class="field">
-      <label>Indirizzo</label>
-      <input type="text" id="dp-new-indirizzo" placeholder="Via, numero civico, città" autocomplete="off">
-    </div>
-    <div id="dp-new-geocode-result" style="margin-top:10px;"></div>
-    <button type="button" class="btn btn-outline btn-block" id="dp-new-verify-btn" style="margin-top:10px;">Verifica indirizzo</button>
   </div>
 </div>
 
@@ -1106,12 +1100,19 @@
       <label>Nome azienda</label>
       <input type="text" id="dp-edit-nome" autocomplete="off">
     </div>
+
+    <!-- The ONLY way to change location now — same reasoning and same
+         removal of automatic search as the New Client modal. This was
+         MISSING entirely until now — ION was specifically using THIS
+         modal to fix a wrong address and only ever had automatic
+         search available here, which kept finding the wrong place
+         again. -->
     <div class="field" style="margin-top:10px;">
-      <label>Indirizzo</label>
-      <input type="text" id="dp-edit-indirizzo" autocomplete="off">
+      <label>Link o coordinate da Google Maps</label>
+      <input type="text" id="dp-edit-gmaps-paste" placeholder="Link condiviso o 45.123, 11.456" autocomplete="off">
     </div>
-    <div id="dp-edit-geocode-result" style="margin-top:10px;"></div>
-    <button type="button" class="btn btn-accent btn-block" id="dp-edit-save-btn" style="margin-top:14px;">Verifica indirizzo</button>
+    <div id="dp-edit-gmaps-paste-result" style="margin-top:8px;"></div>
+    <button type="button" class="btn btn-accent btn-block" id="dp-edit-gmaps-paste-btn" style="margin-top:10px;">Usa questa posizione</button>
     <button type="button" class="btn btn-danger btn-block" id="dp-edit-remove-btn" style="margin-top:10px;">Rimuovi dalla lista di oggi</button>
   </div>
 </div>
