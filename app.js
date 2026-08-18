@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v231") {
+          if (data && data.v && data.v !== "pt-foglio-v232") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v231"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v232"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1884,13 +1884,23 @@
   // a plain browser tab, and not something verifiable here.
   function dpLaunchGoogleMaps(batchClients, originPos) {
     var url = dpBuildGoogleMapsUrl(batchClients, originPos);
-    var a = document.createElement('a');
-    a.href = url;
-    a.target = '_blank';
-    a.rel = 'noopener';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    // REAL BUG, reported directly by ION: this was opening in a
+    // browser tab, not the installed Google Maps app. target="_blank"
+    // is the likely cause specifically inside an installed PWA
+    // (running in its own standalone WKWebView on iOS, not regular
+    // Safari) — "_blank" there very plausibly opens a new IN-APP web
+    // view still inside the PWA's own context, rather than handing
+    // the URL off to the OS's own external-link routing (which is
+    // what actually decides to launch an installed native app).
+    // Navigating the CURRENT window instead (no new tab/context at
+    // all) is much more likely to trigger genuine OS-level handling —
+    // this IS a full navigation away from ADB Smart, same as tapping
+    // any external link normally would, which is exactly the intended
+    // behavior here (the driver is handing off to Google Maps, not
+    // meant to come back to this exact screen state anyway — ION's
+    // own persistence requirements already keep the list saved
+    // regardless of how they get back in).
+    window.location.href = url;
   }
 
   function dpNavigateToSaved(kind) {
