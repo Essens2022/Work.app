@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v248") {
+          if (data && data.v && data.v !== "pt-foglio-v249") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v248"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v249"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1277,15 +1277,39 @@
   function dpClientRowHtml(c, idx, readOnly) {
     var isDone = c.status === 'completed';
     var badge = isDone ? '✓' : String(idx + 1);
+    if (readOnly) {
+      // Storico's own read-only rows — no drag, no swipe, no click.
+      return '' +
+        '<div class="card dp-client-row' + (isDone ? ' dp-client-done' : '') + '">' +
+        '<div class="dp-client-badge' + (isDone ? ' dp-client-badge-done' : '') + '">' + badge + '</div>' +
+        '<div class="dp-client-info">' +
+        '<div class="dp-client-name">' + escapeHtml(c.nome) + '</div>' +
+        '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + (c.nonVerificato ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + '</div>' +
+        (c.completedAt ? '<div style="color:var(--teal);font-size:12px;margin-top:2px;">Consegnato ~' + dpFormatTime(c.completedAt) + '</div>' : '') +
+        '</div>' +
+        '</div>';
+    }
+    // Today's own rows — wrapped for swipe-to-delete (same iOS Mail-
+    // style pattern already used for saved-client suggestions: the
+    // red Elimina button sits behind, revealed by dragging the row
+    // itself left). The drag handle (⠿) lives INSIDE the swipeable
+    // row, but starts a completely separate, vertical-only reordering
+    // gesture — the two never conflict since one is triggered from the
+    // handle specifically and the other from the row body, and one
+    // reads horizontal movement while the other reads vertical.
     return '' +
-      '<div class="card dp-client-row' + (isDone ? ' dp-client-done' : '') + '"' + (readOnly ? '' : ' data-client-id="' + c.id + '"') + '>' +
+      '<div class="dp-swipe-wrap" data-client-id="' + c.id + '">' +
+      '<button type="button" class="dp-swipe-delete-btn" data-client-id="' + c.id + '">Elimina</button>' +
+      '<div class="card dp-client-row dp-swipe-row' + (isDone ? ' dp-client-done' : '') + '" data-client-id="' + c.id + '">' +
+      '<div class="dp-drag-handle" data-client-id="' + c.id + '">⠿</div>' +
       '<div class="dp-client-badge' + (isDone ? ' dp-client-badge-done' : '') + '">' + badge + '</div>' +
       '<div class="dp-client-info">' +
       '<div class="dp-client-name">' + escapeHtml(c.nome) + '</div>' +
       '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + (c.nonVerificato ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + '</div>' +
       (c.completedAt ? '<div style="color:var(--teal);font-size:12px;margin-top:2px;">Consegnato ~' + dpFormatTime(c.completedAt) + '</div>' : '') +
       '</div>' +
-      (readOnly ? '' : '<div class="dp-client-chevron">›</div>') +
+      '<div class="dp-client-chevron">›</div>' +
+      '</div>' +
       '</div>';
   }
 
@@ -1302,6 +1326,7 @@
   // Planner's own geocoding bias fix, which is what actually broke.
   var navLocateMarker = null; // "you are here" marker dropped by the standalone locate button, kept separate from the active-navigation position marker
   var navSearchFocusPoint = null; // driver's GPS position, used to bias/rank geocoding results toward nearby places first
+  var dpGeoDeniedThisSession = false; // once a fresh GPS request is denied, skip repeating the attempt for the rest of this session — see dpConfirmReordina
 
   // Auto-archives the previous day's run the moment a new calendar day
   // is detected — no manual "end of day" action needed, matching what
@@ -1412,10 +1437,16 @@
     // Fetched here instead, once per visit to this screen, silently
     // (no permission-prompt banner needed — this is a soft ranking
     // input, not a hard requirement the way active navigation was).
-    if (navigator.geolocation) {
+    if (navigator.geolocation && !dpGeoDeniedThisSession) {
       navigator.geolocation.getCurrentPosition(function (pos) {
         navSearchFocusPoint = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-      }, function () { /* no GPS fix available — searches still work, just without the nearby-bias */ }, { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 });
+      }, function (err) {
+        // no GPS fix available — searches still work, just without the nearby-bias.
+        // A DENIED result specifically also stops every later visit to
+        // this screen from re-attempting for the rest of the session —
+        // same reasoning as dpConfirmReordina below.
+        if (err && err.code === err.PERMISSION_DENIED) dpGeoDeniedThisSession = true;
+      }, { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 });
     }
 
     var el = document.getElementById('screen-navigatore');
@@ -1502,7 +1533,151 @@
     var archiveNowBtn = document.getElementById('dp-archive-now-btn');
     if (archiveNowBtn) archiveNowBtn.addEventListener('click', dpArchiveNowAndStartFresh);
     document.querySelectorAll('.dp-client-row').forEach(function (row) {
-      row.addEventListener('click', function () { dpOpenEditClientModal(row.getAttribute('data-client-id')); });
+      row.addEventListener('click', function () {
+        // A row left swiped open (Elimina button revealed) just closes
+        // back up on tap, same as the saved-client suggestions — an
+        // open delete button is a clear enough state that tapping
+        // elsewhere should back out of it, not also open Modifica.
+        if (row._dpSwipeBaseOffset) {
+          row._dpSwipeBaseOffset = 0;
+          row.style.transition = 'transform .18s ease';
+          row.style.transform = 'translateX(0)';
+          return;
+        }
+        dpOpenEditClientModal(row.getAttribute('data-client-id'));
+      });
+    });
+    dpWireClientListSwipeToDelete();
+    dpWireDragReorder();
+  }
+
+  // Same swipe-to-reveal-delete mechanic already used for saved-client
+  // suggestions in Aggiungi cliente, adapted here for TODAY'S list —
+  // removes from the current run (same effect as the existing
+  // "Rimuovi dalla lista di oggi" button in Modifica cliente), just
+  // reachable directly from the list without opening that modal first.
+  function dpWireClientListSwipeToDelete() {
+    document.querySelectorAll('.dp-list-scroll .dp-swipe-wrap').forEach(function (wrap) {
+      var row = wrap.querySelector('.dp-swipe-row');
+      var REVEAL = 84;
+      var startX = null, dragging = false;
+      row._dpSwipeBaseOffset = 0;
+
+      row.addEventListener('touchstart', function (e) {
+        startX = e.touches[0].clientX;
+        dragging = true;
+        row.style.transition = 'none';
+      }, { passive: true });
+
+      row.addEventListener('touchmove', function (e) {
+        if (!dragging || startX == null) return;
+        var dx = startX - e.touches[0].clientX;
+        var next = Math.max(0, Math.min(REVEAL, dx + row._dpSwipeBaseOffset));
+        row.style.transform = 'translateX(' + (-next) + 'px)';
+      }, { passive: true });
+
+      row.addEventListener('touchend', function (e) {
+        if (!dragging) return;
+        dragging = false;
+        var endX = e.changedTouches[0] ? e.changedTouches[0].clientX : startX;
+        var dx = startX != null ? (startX - endX) : 0;
+        var finalOffset = Math.max(0, Math.min(REVEAL, dx + row._dpSwipeBaseOffset));
+        row._dpSwipeBaseOffset = finalOffset > REVEAL / 2 ? REVEAL : 0;
+        row.style.transition = 'transform .18s ease';
+        row.style.transform = 'translateX(' + (-row._dpSwipeBaseOffset) + 'px)';
+        startX = null;
+      });
+    });
+
+    document.querySelectorAll('.dp-list-scroll .dp-swipe-delete-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { dpConfirmRemoveClient(btn.getAttribute('data-client-id')); });
+    });
+  }
+
+  // Touch-drag reordering — ION's own explicit request: "trag fluid
+  // mai jos mai sus" (drag fluidly up/down). Only the dedicated handle
+  // (⠿, not the whole row) starts a drag, so it never conflicts with
+  // the row's own existing tap-to-edit or swipe-to-delete behavior.
+  //
+  // Approach: while dragging, the picked-up row visually follows the
+  // finger (transform: translateY, relative to its own resting
+  // position) and every OTHER row smoothly shifts out of the way as
+  // the finger crosses their vertical midpoint — a live preview of
+  // the new order, not just a static drop target. The underlying
+  // array is only actually reordered once, on release, from the
+  // final visual position — not on every frame — keeping the data
+  // model simple even though the visuals update continuously.
+  function dpWireDragReorder() {
+    var container = document.querySelector('.dp-list-scroll');
+    if (!container) return;
+    var wraps = Array.prototype.slice.call(container.querySelectorAll('.dp-swipe-wrap'));
+    if (wraps.length < 2) return; // nothing to reorder with 0 or 1 clients
+
+    wraps.forEach(function (wrap) {
+      var handle = wrap.querySelector('.dp-drag-handle');
+      if (!handle) return;
+      var startY = null, wrapHeight = wrap.offsetHeight + 10; // +10 for the .dp-list gap between rows
+      var startIndex = null, currentOffsetIndex = 0;
+      var draggingWrap = null;
+
+      handle.addEventListener('touchstart', function (e) {
+        e.preventDefault(); // stops the LIST's own scroll from also engaging while dragging a row
+        startY = e.touches[0].clientY;
+        startIndex = wraps.indexOf(wrap);
+        currentOffsetIndex = 0;
+        draggingWrap = wrap;
+        wrap.classList.add('dp-dragging');
+        wrap.style.zIndex = '10';
+        wrap.style.transition = 'none';
+        container.style.overflowY = 'hidden'; // no competing scroll mid-drag
+      }, { passive: false });
+
+      handle.addEventListener('touchmove', function (e) {
+        if (!draggingWrap || startY == null) return;
+        var dy = e.touches[0].clientY - startY;
+        draggingWrap.style.transform = 'translateY(' + dy + 'px)';
+
+        var wantedOffset = Math.round(dy / wrapHeight);
+        if (wantedOffset !== currentOffsetIndex) {
+          var newIndex = startIndex + wantedOffset;
+          if (newIndex < 0) newIndex = 0;
+          if (newIndex > wraps.length - 1) newIndex = wraps.length - 1;
+          var actualOffset = newIndex - startIndex;
+          if (actualOffset !== currentOffsetIndex) {
+            wraps.forEach(function (w, i) {
+              if (w === draggingWrap) return;
+              var shifted = (actualOffset > 0)
+                ? (i > startIndex && i <= startIndex + actualOffset)
+                : (i < startIndex && i >= startIndex + actualOffset);
+              w.style.transition = 'transform .15s ease';
+              w.style.transform = shifted ? 'translateY(' + (actualOffset > 0 ? -wrapHeight : wrapHeight) + 'px)' : '';
+            });
+            currentOffsetIndex = actualOffset;
+          }
+        }
+      }, { passive: true });
+
+      handle.addEventListener('touchend', function () {
+        if (!draggingWrap) return;
+        wraps.forEach(function (w) { w.style.transition = ''; w.style.transform = ''; w.style.zIndex = ''; });
+        draggingWrap.classList.remove('dp-dragging');
+        container.style.overflowY = '';
+
+        var finalIndex = startIndex + currentOffsetIndex;
+        if (finalIndex !== startIndex) {
+          var clientId = wrap.getAttribute('data-client-id');
+          var clients = state.deliveryRun.clients;
+          var fromIdx = clients.findIndex(function (c) { return c.id === clientId; });
+          if (fromIdx !== -1) {
+            var moved = clients.splice(fromIdx, 1)[0];
+            clients.splice(finalIndex, 0, moved);
+            saveDeliveryRun(state.deliveryRun);
+          }
+        }
+        draggingWrap = null;
+        startY = null;
+        renderDeliveryPlanner(); // clean re-render from the actual new order, replacing the transform-based preview
+      });
     });
   }
 
@@ -1865,8 +2040,16 @@
     confirmBtn.disabled = true;
     confirmBtn.textContent = 'Calcolo in corso...';
 
+    // Once geolocation has been denied THIS session, skip straight
+    // past a fresh GPS attempt on every later Reordina press — ION
+    // explained this is a deliberate, standing choice (location stays
+    // off for ADB Smart specifically), not something to keep asking
+    // about. In-memory only (dpGeoDeniedThisSession, not persisted) —
+    // resets on the next app open, in case anything changes, without
+    // needing a settings toggle for it.
     var optimizePromise = geolocatable.length
-      ? currentPosition().then(function (pos) { return dpCallOrsOptimization(pos, geolocatable); })
+      ? (dpGeoDeniedThisSession ? Promise.reject(new Error('User denied Geolocation')) : currentPosition())
+          .then(function (pos) { return dpCallOrsOptimization(pos, geolocatable); })
           .catch(function (err) {
             // A fresh GPS request specifically can fail on its own
             // (permission denied, no signal) even when the rest of
@@ -1876,6 +2059,7 @@
             // renderDeliveryPlanner) instead of giving up on
             // optimization entirely the moment a live GPS read fails.
             // Only truly gives up if THAT'S also unavailable.
+            if (err && err.code === 1) dpGeoDeniedThisSession = true; // 1 === GeolocationPositionError.PERMISSION_DENIED, the standard constant — more reliable than matching the message text, which can vary by browser
             if (navSearchFocusPoint) return dpCallOrsOptimization(navSearchFocusPoint, geolocatable);
             throw err;
           })
@@ -1903,20 +2087,22 @@
       // their current order, rather than being stuck with no route at
       // all. Not optimized, but not broken either.
       //
-      // A DENIED geolocation permission specifically gets its own,
-      // clearer message — "User denied Geolocation" (the raw browser
-      // error) doesn't tell the driver what to actually DO about it.
-      // This is a real device/browser setting, not something ADB
-      // Smart can fix in code — the fallback above (navSearchFocusPoint)
-      // only helps when a fresh GPS read fails for some OTHER reason
-      // (timeout, brief signal loss); if permission is truly denied,
-      // there's no cached position to fall back to either.
-      var isPermissionDenied = err && /denied/i.test(err.message || '');
+      // A DENIED geolocation permission gets its own message — but
+      // NOT a push toward enabling it. ION explained directly: he
+      // deliberately keeps location off for ADB Smart specifically
+      // (only grants it to the actual Google Maps app), and now has
+      // manual drag-reordering as a real alternative that needs no
+      // location at all — telling him to change a phone setting he's
+      // intentionally chosen would be unwanted, wrong advice for his
+      // case. The message now simply points at the alternative that
+      // already exists, without implying his setting is a problem to
+      // fix.
+      var isPermissionDenied = (err && err.code === 1) || dpGeoDeniedThisSession;
       var msg = isPermissionDenied
-        ? 'Posizione non disponibile — la geolocalizzazione è disattivata per questo sito. Attivala nelle impostazioni del telefono (Safari/Chrome → Posizione) e riprova. Uso l\'ordine attuale per ora.'
+        ? 'Posizione non disponibile — nessun problema: trascina i clienti con ⠿ per riordinarli manualmente. (Ordine automatico disponibile solo se attivi la posizione per questo sito.)'
         : 'Impossibile ottimizzare (' + (err && err.message ? escapeHtml(err.message) : 'errore') + ') — uso l\'ordine attuale.';
       var listEl = document.getElementById('dp-reordina-list');
-      listEl.insertAdjacentHTML('afterbegin', '<div style="color:var(--danger);font-size:13px;margin-bottom:8px;">' + msg + '</div>');
+      listEl.insertAdjacentHTML('afterbegin', '<div style="color:var(--ink-soft);font-size:13px;margin-bottom:8px;">' + msg + '</div>');
       state.deliveryRun.preparedBatch = remaining.slice(0, 9).map(function (c) { return c.id; });
       saveDeliveryRun(state.deliveryRun);
     });
