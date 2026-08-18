@@ -1055,9 +1055,10 @@
     <button type="button" class="modal-close-x" id="dp-new-close-x" aria-label="Chiudi">×</button>
     <div class="grabber"></div>
     <div class="modal-title">Nuovo cliente</div>
-    <div class="field">
+    <div class="field autocomplete-wrap">
       <label>Nome azienda</label>
       <input type="text" id="dp-new-nome" placeholder="Es. IEIS IMPIANTI SRL" autocomplete="off">
+      <button type="button" class="ac-clear-btn" id="dp-new-nome-clear" aria-label="Cancella">✕</button>
     </div>
 
     <!-- Trusted AS TYPED, per ION's explicit, repeated request: he
@@ -1067,9 +1068,10 @@
          text at hand-off time, letting GOOGLE do its own (reliable)
          geocoding when the link actually opens, instead of us
          attempting it ahead of time with worse data. -->
-    <div class="field" style="margin-top:10px;">
+    <div class="field autocomplete-wrap" style="margin-top:10px;">
       <label>Indirizzo o link Google Maps</label>
       <input type="text" id="dp-new-indirizzo" placeholder="Es. Via Fratta, 16, 35010 Borgoricco PD" autocomplete="off">
+      <button type="button" class="ac-clear-btn" id="dp-new-indirizzo-clear" aria-label="Cancella">✕</button>
     </div>
     <div id="dp-new-save-result" style="margin-top:8px;"></div>
     <button type="button" class="btn btn-accent btn-block" id="dp-new-save-btn" style="margin-top:10px;">Salva e aggiungi</button>
@@ -1094,13 +1096,15 @@
     <button type="button" class="modal-close-x" id="dp-edit-close-x" aria-label="Chiudi">×</button>
     <div class="grabber"></div>
     <div class="modal-title">Modifica cliente</div>
-    <div class="field">
+    <div class="field autocomplete-wrap">
       <label>Nome azienda</label>
       <input type="text" id="dp-edit-nome" autocomplete="off">
+      <button type="button" class="ac-clear-btn" id="dp-edit-nome-clear" aria-label="Cancella">✕</button>
     </div>
-    <div class="field" style="margin-top:10px;">
+    <div class="field autocomplete-wrap" style="margin-top:10px;">
       <label>Indirizzo o link Google Maps</label>
       <input type="text" id="dp-edit-indirizzo" autocomplete="off">
+      <button type="button" class="ac-clear-btn" id="dp-edit-indirizzo-clear" aria-label="Cancella">✕</button>
     </div>
     <div id="dp-edit-save-result" style="margin-top:8px;"></div>
     <button type="button" class="btn btn-accent btn-block" id="dp-edit-save-btn" style="margin-top:10px;">Salva modifiche</button>

@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v247") {
+          if (data && data.v && data.v !== "pt-foglio-v248") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v247"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v248"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1653,6 +1653,11 @@
     document.getElementById('dp-new-save-result').innerHTML = '';
     document.getElementById('dp-new-close-x').onclick = function () { dpCloseModal('modal-dp-new-client'); };
     document.getElementById('dp-new-save-btn').onclick = dpSaveNewClientTrusted;
+    // Reuses the same clear-button helper already built for the
+    // Casa/Lavoro fields — one tap empties the field completely,
+    // per ION's explicit request, rather than holding backspace.
+    wireNavClearButton(document.getElementById('dp-new-nome'), document.getElementById('dp-new-nome-clear'), function () {});
+    wireNavClearButton(document.getElementById('dp-new-indirizzo'), document.getElementById('dp-new-indirizzo-clear'), function () {});
     document.getElementById('modal-dp-new-client').classList.add('open');
   }
 
@@ -1745,6 +1750,8 @@
     document.getElementById('dp-edit-close-x').onclick = function () { dpCloseModal('modal-dp-edit-client'); };
     document.getElementById('dp-edit-remove-btn').onclick = function () { dpConfirmRemoveClient(clientId); };
     document.getElementById('dp-edit-save-btn').onclick = function () { dpSaveEditedClientTrusted(clientId); };
+    wireNavClearButton(document.getElementById('dp-edit-nome'), document.getElementById('dp-edit-nome-clear'), function () {});
+    wireNavClearButton(document.getElementById('dp-edit-indirizzo'), document.getElementById('dp-edit-indirizzo-clear'), function () {});
     document.getElementById('modal-dp-edit-client').classList.add('open');
   }
 
@@ -1860,6 +1867,18 @@
 
     var optimizePromise = geolocatable.length
       ? currentPosition().then(function (pos) { return dpCallOrsOptimization(pos, geolocatable); })
+          .catch(function (err) {
+            // A fresh GPS request specifically can fail on its own
+            // (permission denied, no signal) even when the rest of
+            // the optimization would have worked fine — falling back
+            // to navSearchFocusPoint (a position already kept fresh
+            // in the background for other purposes, see
+            // renderDeliveryPlanner) instead of giving up on
+            // optimization entirely the moment a live GPS read fails.
+            // Only truly gives up if THAT'S also unavailable.
+            if (navSearchFocusPoint) return dpCallOrsOptimization(navSearchFocusPoint, geolocatable);
+            throw err;
+          })
       : Promise.resolve([]);
 
     optimizePromise.then(function (optimized) {
@@ -1883,8 +1902,21 @@
       // driver still gets a usable batch: the remaining clients in
       // their current order, rather than being stuck with no route at
       // all. Not optimized, but not broken either.
+      //
+      // A DENIED geolocation permission specifically gets its own,
+      // clearer message — "User denied Geolocation" (the raw browser
+      // error) doesn't tell the driver what to actually DO about it.
+      // This is a real device/browser setting, not something ADB
+      // Smart can fix in code — the fallback above (navSearchFocusPoint)
+      // only helps when a fresh GPS read fails for some OTHER reason
+      // (timeout, brief signal loss); if permission is truly denied,
+      // there's no cached position to fall back to either.
+      var isPermissionDenied = err && /denied/i.test(err.message || '');
+      var msg = isPermissionDenied
+        ? 'Posizione non disponibile — la geolocalizzazione è disattivata per questo sito. Attivala nelle impostazioni del telefono (Safari/Chrome → Posizione) e riprova. Uso l\'ordine attuale per ora.'
+        : 'Impossibile ottimizzare (' + (err && err.message ? escapeHtml(err.message) : 'errore') + ') — uso l\'ordine attuale.';
       var listEl = document.getElementById('dp-reordina-list');
-      listEl.insertAdjacentHTML('afterbegin', '<div style="color:var(--danger);font-size:13px;margin-bottom:8px;">Impossibile ottimizzare (' + (err && err.message ? escapeHtml(err.message) : 'errore') + ') — uso l\'ordine attuale.</div>');
+      listEl.insertAdjacentHTML('afterbegin', '<div style="color:var(--danger);font-size:13px;margin-bottom:8px;">' + msg + '</div>');
       state.deliveryRun.preparedBatch = remaining.slice(0, 9).map(function (c) { return c.id; });
       saveDeliveryRun(state.deliveryRun);
     });
