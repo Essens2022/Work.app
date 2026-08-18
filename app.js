@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v223") {
+          if (data && data.v && data.v !== "pt-foglio-v224") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v223"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v224"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1555,6 +1555,41 @@
 
   // ---- Apri in Google Maps ----
 
+  // Builds the Google Maps directions URL for the prepared batch —
+  // pulled out on its own so both the visible button (a real <a> tap,
+  // below) and anything else needing the URL can share one source of
+  // truth.
+  //
+  // Deliberately still the universal https://www.google.com/maps/dir/
+  // URL, not the comgooglemaps:// iOS custom scheme — checked Google's
+  // own current documentation for that scheme directly: it documents
+  // saddr/daddr/directionsmode (a single start and end point), with NO
+  // confirmed support for multiple waypoints the way the universal URL
+  // has. Since ION personally verified the universal URL genuinely
+  // opens the installed Google Maps app directly with all 9 stops
+  // intact, switching to the custom scheme risks trading a confirmed
+  // working multi-stop link for an unconfirmed single-stop one — not
+  // a safe trade without testing the scheme's real waypoint behavior
+  // first, which needs a real iPhone, not something verifiable here.
+  function dpBuildGoogleMapsUrl(batchClients, originPos) {
+    var destination = batchClients[batchClients.length - 1];
+    var waypoints = batchClients.slice(0, -1);
+    var url = 'https://www.google.com/maps/dir/?api=1' +
+      '&destination=' + encodeURIComponent(destination.lat + ',' + destination.lon) +
+      '&travelmode=driving';
+    // Origin set explicitly to the driver's actual current coordinates
+    // (fetched fresh, not reused from whenever Reordina last ran) —
+    // more deterministic than relying on Google Maps' own "blank
+    // origin defaults to current location" behavior, which depends on
+    // the Maps app itself having location access granted, a separate
+    // permission from ADB Smart's own.
+    if (originPos) url += '&origin=' + encodeURIComponent(originPos.lat + ',' + originPos.lon);
+    if (waypoints.length) {
+      url += '&waypoints=' + waypoints.map(function (c) { return encodeURIComponent(c.lat + ',' + c.lon); }).join('%7C');
+    }
+    return url;
+  }
+
   function dpOpenInGoogleMaps() {
     var run = state.deliveryRun;
     if (!run.preparedBatch || !run.preparedBatch.length) return;
@@ -1563,15 +1598,36 @@
     }).filter(Boolean);
     if (!batchClients.length) return;
 
-    var destination = batchClients[batchClients.length - 1];
-    var waypoints = batchClients.slice(0, -1);
-    var url = 'https://www.google.com/maps/dir/?api=1' +
-      '&destination=' + encodeURIComponent(destination.lat + ',' + destination.lon) +
-      '&travelmode=driving';
-    if (waypoints.length) {
-      url += '&waypoints=' + waypoints.map(function (c) { return encodeURIComponent(c.lat + ',' + c.lon); }).join('%7C');
+    var btn = document.getElementById('dp-open-gmaps-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Apertura...'; }
+
+    // A real <a> element, opened via a genuine .click() triggered
+    // directly inside this handler (itself triggered by the driver's
+    // own tap on the button, so this still counts as a trusted user
+    // gesture) — NOT window.open(). iOS Universal Links specifically
+    // are documented to behave less reliably when triggered from
+    // window.open()/programmatic navigation inside a web view versus
+    // a real anchor tap; this is the closer-to-native pattern.
+    // UNVERIFIED, IMPORTANT: whether this reliably opens the
+    // installed Google Maps app directly (versus occasionally falling
+    // to a browser tab) specifically from inside the ADB Smart PWA
+    // needs to be confirmed on a real iPhone and a real Android phone
+    // — that's genuinely different from a link opened from within a
+    // chat app or a plain browser tab, and not something verifiable
+    // here.
+    function launch(originPos) {
+      var url = dpBuildGoogleMapsUrl(batchClients, originPos);
+      var a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      if (btn) { btn.disabled = false; btn.textContent = 'Apri in Google Maps (' + batchClients.length + ' tappe)'; }
     }
-    window.open(url, '_blank');
+
+    currentPosition().then(launch).catch(function () { launch(null); }); // origin omitted (Google Maps' own current-location default) if a fresh GPS read fails — still better than blocking the whole action on it
   }
 
 
