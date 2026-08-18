@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v236") {
+          if (data && data.v && data.v !== "pt-foglio-v237") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v236"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v237"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1263,6 +1263,11 @@
     return { total: total, completed: completed, remaining: total - completed };
   }
 
+  function dpFormatTime(ts) {
+    var d = new Date(ts);
+    return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+
   function dpClientRowHtml(c, idx, readOnly) {
     var isDone = c.status === 'completed';
     var badge = isDone ? '✓' : String(idx + 1);
@@ -1272,6 +1277,7 @@
       '<div class="dp-client-info">' +
       '<div class="dp-client-name">' + escapeHtml(c.nome) + '</div>' +
       '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + (c.nonVerificato ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + '</div>' +
+      (c.completedAt ? '<div style="color:var(--teal);font-size:12px;margin-top:2px;">Consegnato ~' + dpFormatTime(c.completedAt) + '</div>' : '') +
       '</div>' +
       (readOnly ? '' : '<div class="dp-client-chevron">›</div>') +
       '</div>';
@@ -1931,7 +1937,19 @@
     var checkboxes = document.querySelectorAll('#dp-reordina-list input[type=checkbox]');
     checkboxes.forEach(function (cb) {
       var client = state.deliveryRun.clients.find(function (c) { return c.id === cb.getAttribute('data-client-id'); });
-      if (client) client.status = cb.checked ? 'completed' : 'pending';
+      if (!client) return;
+      var wasCompleted = client.status === 'completed';
+      client.status = cb.checked ? 'completed' : 'pending';
+      // Approximate delivery time — ION's own explicit request, for
+      // the history detail view. Genuinely approximate, not a precise
+      // GPS-triggered timestamp (this only gets set whenever the
+      // driver happens to open Reordina and check the box, which
+      // could be minutes after the actual delivery) — stamped once,
+      // the first time a client transitions TO completed, and never
+      // overwritten if it's already set (so re-opening Reordina
+      // later doesn't keep bumping the time forward).
+      if (client.status === 'completed' && !wasCompleted && !client.completedAt) client.completedAt = Date.now();
+      if (client.status !== 'completed') client.completedAt = null; // unchecking a mistaken mark clears the stale timestamp too
     });
     saveDeliveryRun(state.deliveryRun);
 
@@ -3783,7 +3801,30 @@
     return navGeocodeFetch('search', text)
       .then(function (data) {
         if (!data.features || !data.features.length) return null;
-        var f = data.features[0];
+        // REAL BUG, confirmed with ION directly: a full street address
+        // typed in ("Via Dell'Artigianato, 21, 35010 Loreggia PD")
+        // came back saved as just "Loreggia, PD, Italia" — the CITY,
+        // with the street, civic number, and postal code all silently
+        // lost. This used to take features[0] unconditionally — if
+        // Pelias's own top-ranked result is a degraded, city-only
+        // fallback (a real, known coverage gap for smaller streets in
+        // Italy), that got accepted as-is with no check on how
+        // precise it actually was.
+        //
+        // Pelias's own results carry a "layer" property identifying
+        // what KIND of match each one is (address/street/venue vs.
+        // locality/region/country). Now searches ALL returned results
+        // (up to 8) for the first one that's actually precise enough
+        // — not just the top-ranked one — since a lower-ranked result
+        // can genuinely be the better geographic match even when
+        // Pelias's own text-relevance score preferred a vaguer one.
+        // Only truly gives up (returns null, triggering the honest
+        // "indirizzo non trovato" + manual-save fallback already in
+        // place) if NONE of the results are address/street/venue
+        // level.
+        var PRECISE_LAYERS = { address: true, street: true, venue: true };
+        var f = data.features.find(function (feat) { return !feat.properties.layer || PRECISE_LAYERS[feat.properties.layer]; });
+        if (!f) return null;
         var coords = f.geometry.coordinates; // [lon, lat]
         var p = f.properties || {};
         // Structured fields, additive — Pelias (the geocoder behind
