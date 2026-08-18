@@ -1057,6 +1057,17 @@
     </div>
     <div id="dp-new-geocode-result" style="margin-top:10px;"></div>
     <button type="button" class="btn btn-accent btn-block" id="dp-new-verify-btn" style="margin-top:14px;">Verifica indirizzo</button>
+
+    <!-- Alternative to the automatic search above, for when it finds
+         the wrong place — paste a link/coordinates copied directly
+         from the Google Maps app instead, trusted as-is. -->
+    <div style="text-align:center;color:var(--ink-soft);font-size:12px;margin:14px 0 6px;">oppure</div>
+    <div class="field">
+      <label>Incolla link o coordinate da Google Maps</label>
+      <input type="text" id="dp-new-gmaps-paste" placeholder="Link condiviso o 45.123, 11.456" autocomplete="off">
+    </div>
+    <div id="dp-new-gmaps-paste-result" style="margin-top:8px;"></div>
+    <button type="button" class="btn btn-outline btn-block" id="dp-new-gmaps-paste-btn" style="margin-top:10px;">Usa questa posizione</button>
   </div>
 </div>
 
