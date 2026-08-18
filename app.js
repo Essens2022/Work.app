@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v228") {
+          if (data && data.v && data.v !== "pt-foglio-v229") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v228"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v229"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1269,6 +1269,20 @@
       '</div>';
   }
 
+  // RESTORED — these two declarations were accidentally deleted when
+  // the Delivery Planner code was first inserted in place of the old
+  // renderNavigatore() (a str_replace that matched and consumed these
+  // lines without preserving them in the replacement). Confirmed as
+  // the real cause of "ReferenceError: navSearchFocusPoint is not
+  // defined" — assigning to a genuinely undeclared name throws in
+  // strict mode (which this whole file runs in), rather than quietly
+  // creating an accidental global the way it would in non-strict code.
+  // Both are still used — by the old, now-dead renderNavigatore/active-
+  // navigation code (harmless, unreached) AND by the NEW Delivery
+  // Planner's own geocoding bias fix, which is what actually broke.
+  var navLocateMarker = null; // "you are here" marker dropped by the standalone locate button, kept separate from the active-navigation position marker
+  var navSearchFocusPoint = null; // driver's GPS position, used to bias/rank geocoding results toward nearby places first
+
   function renderDeliveryPlanner() {
     // REAL BUG, found and confirmed: navSearchFocusPoint (the driver's
     // position, used to bias geocoding results toward nearby matches
@@ -1707,6 +1721,39 @@
     return url;
   }
 
+  // Shared real-<a>-tap launch mechanism — used by both the main
+  // batch hand-off and the single-destination Casa/Deposito buttons,
+  // so there's exactly one place implementing "open Google Maps",
+  // not two independent copies that could drift apart.
+  //
+  // UNVERIFIED, IMPORTANT: whether this reliably opens the installed
+  // Google Maps app directly (versus occasionally falling to a
+  // browser tab) specifically from inside the ADB Smart PWA needs to
+  // be confirmed on a real iPhone and a real Android phone — that's
+  // genuinely different from a link opened from within a chat app or
+  // a plain browser tab, and not something verifiable here.
+  function dpLaunchGoogleMaps(batchClients, originPos) {
+    var url = dpBuildGoogleMapsUrl(batchClients, originPos);
+    var a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+  function dpNavigateToSaved(kind) {
+    var hw = loadNavHomeWork();
+    var entry = kind === 'home' ? hw.home : hw.work;
+    if (!entry) return;
+    currentPosition().then(function (pos) {
+      dpLaunchGoogleMaps([{ lat: entry.lat, lon: entry.lon, indirizzo: entry.text }], pos);
+    }).catch(function () {
+      dpLaunchGoogleMaps([{ lat: entry.lat, lon: entry.lon, indirizzo: entry.text }], null);
+    });
+  }
+
   function dpOpenInGoogleMaps() {
     var run = state.deliveryRun;
     if (!run.preparedBatch || !run.preparedBatch.length) return;
@@ -1725,22 +1772,8 @@
     // are documented to behave less reliably when triggered from
     // window.open()/programmatic navigation inside a web view versus
     // a real anchor tap; this is the closer-to-native pattern.
-    // UNVERIFIED, IMPORTANT: whether this reliably opens the
-    // installed Google Maps app directly (versus occasionally falling
-    // to a browser tab) specifically from inside the ADB Smart PWA
-    // needs to be confirmed on a real iPhone and a real Android phone
-    // — that's genuinely different from a link opened from within a
-    // chat app or a plain browser tab, and not something verifiable
-    // here.
     function launch(originPos) {
-      var url = dpBuildGoogleMapsUrl(batchClients, originPos);
-      var a = document.createElement('a');
-      a.href = url;
-      a.target = '_blank';
-      a.rel = 'noopener';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      dpLaunchGoogleMaps(batchClients, originPos);
       if (btn) { btn.disabled = false; btn.textContent = 'Apri in Google Maps (' + batchClients.length + ' tappe)'; }
     }
 
