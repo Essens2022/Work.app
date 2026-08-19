@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v290") {
+          if (data && data.v && data.v !== "pt-foglio-v291") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v290"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v291"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2107,9 +2107,47 @@
     document.getElementById('modal-dp-archive').classList.add('open');
   }
 
+  // Reuses the same "Nuovo cliente" modal/fields as adding a client
+  // for today's run, but binds a DIFFERENT save handler — a client
+  // added from the archive is meant to just be saved for future use,
+  // NOT also pushed into today's active delivery run (which is what
+  // the normal add-client flow does).
+  function dpArchiveOpenNewClientModal() {
+    dpCloseModal('modal-dp-archive'); // matches the established pattern (dpOpenNewClientModal does the same for modal-dp-add-client) — having two sheet modals open stacked at once isn't a scenario the rest of the app is built for
+    document.getElementById('dp-new-nome').value = '';
+    document.getElementById('dp-new-indirizzo').value = '';
+    document.getElementById('dp-new-save-result').innerHTML = '';
+    document.getElementById('dp-new-close-x').onclick = function () {
+      dpCloseModal('modal-dp-new-client');
+      document.getElementById('modal-dp-archive').classList.add('open'); // cancelling also returns to the archive list, same as saving does
+    };
+    document.getElementById('dp-new-save-btn').onclick = dpArchiveSaveNewClient;
+    wireNavClearButton(document.getElementById('dp-new-nome'), document.getElementById('dp-new-nome-clear'), function () {});
+    wireNavClearButton(document.getElementById('dp-new-indirizzo'), document.getElementById('dp-new-indirizzo-clear'), function () {});
+    document.getElementById('modal-dp-new-client').classList.add('open');
+  }
+
+  function dpArchiveSaveNewClient() {
+    var nome = document.getElementById('dp-new-nome').value.trim();
+    var indirizzo = document.getElementById('dp-new-indirizzo').value.trim();
+    var resultEl = document.getElementById('dp-new-save-result');
+    if (!nome || !indirizzo) {
+      resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Inserisci nome e indirizzo.</div>';
+      return;
+    }
+    var saved = { id: uid(), nome: nome, indirizzo: indirizzo, lat: null, lon: null, createdAt: Date.now() };
+    state.deliveryClients.push(saved);
+    saveDeliveryClients(state.deliveryClients);
+    dpCloseModal('modal-dp-new-client');
+    dpRenderArchiveList();
+    document.getElementById('modal-dp-archive').classList.add('open'); // return to the archive list, since opening this form closed it first
+    dpBackgroundGeocodeForOrdering(saved.id, indirizzo); // same silent, best-effort background geocode as the normal add-client flow — for Reordina's ordering later, never for the address shown/sent to Google Maps
+  }
+
   function dpRenderArchiveList() {
     var container = document.getElementById('dp-archive-list');
     var clients = state.deliveryClients.slice().sort(function (a, b) { return a.nome.localeCompare(b.nome); });
+    document.getElementById('dp-archive-count').textContent = clients.length;
 
     if (!clients.length) {
       container.innerHTML = '<div class="card" style="text-align:center;color:var(--ink-soft);">Nessun cliente salvato ancora.</div>';
@@ -8499,6 +8537,7 @@
       document.getElementById('modal-dp-archive').classList.remove('open');
     });
     document.getElementById('dp-archive-export-btn').addEventListener('click', dpExportClientsArchive);
+    document.getElementById('dp-archive-add-btn').addEventListener('click', dpArchiveOpenNewClientModal);
     document.getElementById('dp-archive-import-btn').addEventListener('click', function () {
       document.getElementById('dp-archive-import-input').click();
     });
