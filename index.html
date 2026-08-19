@@ -568,6 +568,19 @@
      even on shorter phone screens, instead of the sheet growing tall
      enough to cover it entirely. */
   #modal-settings .sheet-panel{max-height:calc(100vh - 170px);}
+  /* Requested directly: the archive's title, Aggiungi cliente button,
+     and Esporta/Importa row should stay fixed in place while only the
+     client list underneath scrolls — same idea as the Delivery
+     Planner's own sticky header, but implemented differently here
+     since this is a bounded sheet-panel (not the full page): the
+     panel's own overflow is turned OFF (it no longer scrolls as a
+     whole), and only the list itself becomes an independent
+     scrolling region within the fixed-height panel. Flexbox makes the
+     header naturally take exactly the room it needs and the list take
+     up everything left over. */
+  .dp-archive-panel{overflow:hidden;display:flex;flex-direction:column;}
+  .dp-archive-fixed-top{flex:0 0 auto;}
+  .dp-archive-scroll-list{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;}
   .fuel-panel{max-height:74vh;position:relative;}
   #fuel-view-stage{
     position:relative;overflow:hidden;border-radius:12px;border:1px solid var(--line);
@@ -1203,19 +1216,21 @@
      plus export the whole list as a file to share with a colleague,
      or import one someone else shared. -->
 <div class="modal-overlay" id="modal-dp-archive">
-  <div class="sheet-panel">
+  <div class="sheet-panel dp-archive-panel">
     <button type="button" class="modal-close-x" id="dp-archive-close-x" aria-label="Chiudi">×</button>
     <div class="grabber"></div>
-    <div class="modal-title">Archivio clienti</div>
-    <div class="modal-sub">Tutti i clienti salvati. Tocca per modificare, scorri a sinistra per eliminare.</div>
-    <button type="button" class="btn btn-accent btn-block" id="dp-archive-add-btn" style="margin:10px 0;">+ Aggiungi cliente</button>
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">
-      <button type="button" class="btn btn-outline" id="dp-archive-export-btn" style="flex:1;">⬇ Esporta</button>
-      <div class="dp-archive-count" id="dp-archive-count">0</div>
-      <button type="button" class="btn btn-outline" id="dp-archive-import-btn" style="flex:1;">⬆ Importa</button>
-      <input type="file" id="dp-archive-import-input" accept="application/json" style="display:none;">
+    <div class="dp-archive-fixed-top">
+      <div class="modal-title">Archivio clienti</div>
+      <div class="modal-sub">Tutti i clienti salvati. Tocca per modificare, scorri a sinistra per eliminare.</div>
+      <button type="button" class="btn btn-accent btn-block" id="dp-archive-add-btn" style="margin:10px 0;">+ Aggiungi cliente</button>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">
+        <button type="button" class="btn btn-outline" id="dp-archive-export-btn" style="flex:1;">⬇ Esporta</button>
+        <div class="dp-archive-count" id="dp-archive-count">0</div>
+        <button type="button" class="btn btn-outline" id="dp-archive-import-btn" style="flex:1;">⬆ Importa</button>
+        <input type="file" id="dp-archive-import-input" accept="application/json" style="display:none;">
+      </div>
     </div>
-    <div id="dp-archive-list"></div>
+    <div id="dp-archive-list" class="dp-archive-scroll-list"></div>
   </div>
 </div>
 
