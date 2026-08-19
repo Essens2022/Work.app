@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v261") {
+          if (data && data.v && data.v !== "pt-foglio-v262") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v261"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v262"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1698,21 +1698,30 @@
       var startIndex = null, currentOffsetIndex = 0;
       var draggingWrap = null;
 
-      handle.addEventListener('touchstart', function (e) {
-        e.preventDefault(); // stops the LIST's own scroll from also engaging while dragging a row
-        startY = e.touches[0].clientY;
-        startIndex = wraps.indexOf(wrap);
-        currentOffsetIndex = 0;
-        draggingWrap = wrap;
-        wrap.classList.add('dp-dragging');
-        wrap.style.zIndex = '10';
-        wrap.style.transition = 'none';
-        if (scrollAncestor) scrollAncestor.style.overflowY = 'hidden'; // no competing scroll mid-drag
-      }, { passive: false });
+      // ---- Auto-scroll while dragging near the top/bottom edge ----
+      // Requested directly: when dragging a client past the visible
+      // rows, the list should start scrolling itself once the finger
+      // nears the screen edge, rather than forcing a manual lift-and-
+      // reposition. Also requested: it should ease in gradually (slow
+      // start, gaining speed the longer it holds), the way polished
+      // apps do it, not an abrupt constant-speed scroll.
+      var EDGE_ZONE = 80; // px from the scrollable area's own edge that triggers auto-scroll
+      var MIN_SPEED = 3; // px/frame at the very start of a hold
+      var MAX_SPEED = 20; // px/frame once fully ramped up
+      var RAMP_MS = 700; // time to go from MIN_SPEED to MAX_SPEED while held
+      var autoScrollDir = 0; // -1 up, 0 none, 1 down
+      var autoScrollStartTime = null;
+      var autoScrollRAF = null;
+      var scrollAccum = 0; // net px the container has been auto-scrolled since drag start
+      var lastTouchY = null;
 
-      handle.addEventListener('touchmove', function (e) {
-        if (!draggingWrap || startY == null) return;
-        var dy = e.touches[0].clientY - startY;
+      function updateDragPosition(touchY) {
+        // dy is adjusted by scrollAccum so the dragged row keeps
+        // visually following the finger even as the content shifts
+        // underneath it from auto-scrolling -- without this the row
+        // would appear to slip out from under the touch point every
+        // time the list auto-scrolled.
+        var dy = (touchY - startY) + scrollAccum;
         draggingWrap.style.transform = 'translateY(' + dy + 'px)';
 
         var wantedOffset = Math.round(dy / wrapHeight);
@@ -1733,10 +1742,73 @@
             currentOffsetIndex = actualOffset;
           }
         }
+      }
+
+      function autoScrollStep(now) {
+        if (!draggingWrap || autoScrollDir === 0 || !scrollAncestor) { autoScrollRAF = null; return; }
+        if (autoScrollStartTime == null) autoScrollStartTime = now;
+        var held = now - autoScrollStartTime;
+        var t = Math.min(1, held / RAMP_MS);
+        var eased = t * t; // ease-in: slow start, gains speed smoothly rather than linearly
+        var speed = MIN_SPEED + (MAX_SPEED - MIN_SPEED) * eased;
+
+        var before = scrollAncestor.scrollTop;
+        scrollAncestor.scrollTop += speed * autoScrollDir;
+        var actualDelta = scrollAncestor.scrollTop - before; // 0 once it hits the top/bottom of the page
+        scrollAccum += actualDelta;
+
+        if (actualDelta !== 0 && lastTouchY != null) updateDragPosition(lastTouchY);
+        autoScrollRAF = requestAnimationFrame(autoScrollStep);
+      }
+
+      function setAutoScrollDir(dir) {
+        if (dir === autoScrollDir) return;
+        autoScrollDir = dir;
+        autoScrollStartTime = null; // reset the ramp so every fresh entry into the edge zone eases in again
+        if (dir !== 0 && autoScrollRAF == null) autoScrollRAF = requestAnimationFrame(autoScrollStep);
+      }
+
+      function stopAutoScroll() {
+        autoScrollDir = 0;
+        autoScrollStartTime = null;
+        if (autoScrollRAF != null) { cancelAnimationFrame(autoScrollRAF); autoScrollRAF = null; }
+      }
+
+      handle.addEventListener('touchstart', function (e) {
+        e.preventDefault(); // stops the LIST's own scroll from also engaging while dragging a row
+        startY = e.touches[0].clientY;
+        lastTouchY = startY;
+        startIndex = wraps.indexOf(wrap);
+        currentOffsetIndex = 0;
+        scrollAccum = 0;
+        draggingWrap = wrap;
+        wrap.classList.add('dp-dragging');
+        wrap.style.zIndex = '10';
+        wrap.style.transition = 'none';
+        if (scrollAncestor) scrollAncestor.style.overflowY = 'hidden'; // no competing scroll mid-drag
+      }, { passive: false });
+
+      handle.addEventListener('touchmove', function (e) {
+        if (!draggingWrap || startY == null) return;
+        var touchY = e.touches[0].clientY;
+        lastTouchY = touchY;
+        updateDragPosition(touchY);
+
+        if (scrollAncestor) {
+          var rect = scrollAncestor.getBoundingClientRect();
+          if (touchY < rect.top + EDGE_ZONE && scrollAncestor.scrollTop > 0) {
+            setAutoScrollDir(-1);
+          } else if (touchY > rect.bottom - EDGE_ZONE && scrollAncestor.scrollTop < scrollAncestor.scrollHeight - scrollAncestor.clientHeight) {
+            setAutoScrollDir(1);
+          } else {
+            setAutoScrollDir(0);
+          }
+        }
       }, { passive: true });
 
       handle.addEventListener('touchend', function () {
         if (!draggingWrap) return;
+        stopAutoScroll();
         wraps.forEach(function (w) { w.style.transition = ''; w.style.transform = ''; w.style.zIndex = ''; });
         draggingWrap.classList.remove('dp-dragging');
         if (scrollAncestor) scrollAncestor.style.overflowY = '';
@@ -1771,6 +1843,7 @@
       // the stuck visual/scroll state is fixed.
       handle.addEventListener('touchcancel', function () {
         if (!draggingWrap) return;
+        stopAutoScroll();
         wraps.forEach(function (w) { w.style.transition = ''; w.style.transform = ''; w.style.zIndex = ''; });
         draggingWrap.classList.remove('dp-dragging');
         if (scrollAncestor) scrollAncestor.style.overflowY = '';
@@ -1779,6 +1852,7 @@
       });
     });
   }
+
 
   // ---- Aggiungi cliente: cerca salvato, oppure nuovo ----
 
