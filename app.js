@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v255") {
+          if (data && data.v && data.v !== "pt-foglio-v256") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v255"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v256"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1531,6 +1531,7 @@
     }
 
     el.innerHTML = html;
+    dpSyncStickyHeaderHeight(); // real, rendered height of the just-inserted header — must run AFTER innerHTML, not before
 
     document.getElementById('dp-add-client-btn').addEventListener('click', dpOpenAddClientModal);
     document.getElementById('dp-vehicle-quick').addEventListener('click', function () {
@@ -7348,6 +7349,16 @@
     if (bottomnav) document.documentElement.style.setProperty('--bottomnav-h', bottomnav.offsetHeight + 'px');
   }
 
+  // Same pattern as syncBarHeights above, for the Delivery Planner's
+  // own fixed header block (title/stats/buttons) — its content
+  // changes (stats update, the Casa/Deposito card appears or
+  // disappears), so its real height needs re-measuring every time
+  // renderDeliveryPlanner() actually renders it, not just once.
+  function dpSyncStickyHeaderHeight() {
+    var header = document.querySelector('.dp-sticky-header');
+    document.documentElement.style.setProperty('--dp-header-h', header ? header.offsetHeight + 'px' : '0px');
+  }
+
   /* ---------------------------------------------------------------- */
   /* Private usage reporting — lets ION (the app's creator) see, on a    */
   /* password-only page only he has, which drivers have installed the   */
@@ -7906,6 +7917,13 @@
     syncBarHeights();
     window.addEventListener('resize', syncBarHeights);
     window.addEventListener('orientationchange', function () { setTimeout(syncBarHeights, 200); });
+    // Same reasoning as syncBarHeights just above — the Delivery
+    // Planner's own fixed header needs the same re-measuring on
+    // resize/orientation change. Safe to call even when that screen
+    // isn't the current one (dpSyncStickyHeaderHeight no-ops to 0px
+    // if .dp-sticky-header doesn't exist in the DOM right now).
+    window.addEventListener('resize', dpSyncStickyHeaderHeight);
+    window.addEventListener('orientationchange', function () { setTimeout(dpSyncStickyHeaderHeight, 200); });
 
     // Tapping the dimmed backdrop (outside the sheet itself) closes
     // whichever modal is open — same convention as every native picker
@@ -7936,6 +7954,7 @@
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState === 'visible') {
         syncBarHeights();
+        dpSyncStickyHeaderHeight();
         if (currentScreen === 'home' && mainEl) mainEl.scrollTop = 0;
       }
     });
