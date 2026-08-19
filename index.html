@@ -1050,49 +1050,54 @@
 
 <!-- Onboarding / Settings modal -->
 <div class="modal-overlay" id="modal-settings">
-  <div class="sheet-panel">
+  <div class="sheet-panel dp-archive-panel">
     <button type="button" class="modal-close-x" id="settings-close-x" aria-label="Chiudi">×</button>
-    <div class="grabber"></div>
-    <div class="modal-title" id="settings-title">Benvenuto</div>
-    <div class="modal-sub" id="settings-sub">Inserisci i dati autista per iniziare a compilare il foglio viaggi.</div>
-    <div class="field"><label>Nome autista</label><input id="in-nome" type="text" placeholder="Es. Ion Bondari"></div>
-
-    <div class="field-row">
-      <div class="field"><label>Targa veicolo</label><input id="in-targa" type="text" placeholder="Es. GN 542 NM" style="text-transform:uppercase"></div>
-      <div class="field"><label>Per conto di</label><input id="in-conto" type="text" placeholder="Es. BARCELLA" style="text-transform:uppercase"></div>
+    <div class="dp-archive-fixed-top">
+      <div class="grabber"></div>
+      <div class="modal-title" id="settings-title">Benvenuto</div>
+      <div class="modal-sub" id="settings-sub">Inserisci i dati autista per iniziare a compilare il foglio viaggi.</div>
     </div>
-    <div class="field-row">
-      <div class="field"><label>Partenza predefinita</label><input id="in-da" type="text" placeholder="Es. Ponte San Nicolò"></div>
-      <div class="field narrow"><label>Prov.</label><input id="in-prov-da" type="text" maxlength="2" placeholder="PD" style="text-transform:uppercase"></div>
-    </div>
-    <div class="settings-driver-note">Questi dati vengono salvati solo su questo telefono e riutilizzati automaticamente per i prossimi fogli. Puoi modificarli in qualsiasi momento.</div>
+    <div class="dp-archive-scroll-list">
+      <div class="field"><label>Nome autista</label><input id="in-nome" type="text" placeholder="Es. Ion Bondari"></div>
 
-    <div class="field"><label>Compenso giornaliero (€)</label><input id="in-daily-rate" type="number" inputmode="decimal" placeholder="Es. 80" min="0" step="0.01"></div>
-    <div class="settings-driver-note">Usato solo per calcolare il tuo guadagno nella pagina Home — non appare mai nel PDF. Lascialo vuoto se non vuoi tracciare il guadagno.</div>
-
-    <div id="sheet-daily-rate-section" class="hidden">
-      <label class="checkbox-row"><input type="checkbox" id="in-sheet-daily-rate"><span>Questo cliente conta per il compenso giornaliero</span></label>
-      <div class="settings-driver-note" style="margin-top:-4px;">Disattivalo se questo cliente paga solo un importo fisso (bonus per giorno) invece dello stipendio giornaliero.</div>
-    </div>
-
-    <div id="settings-account-row" style="margin-top:18px;padding-top:16px;border-top:1px solid var(--line);">
-      <label>Account</label>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-        <span id="account-email-display" style="font-weight:600;"></span>
+      <div class="field-row">
+        <div class="field"><label>Targa veicolo</label><input id="in-targa" type="text" placeholder="Es. GN 542 NM" style="text-transform:uppercase"></div>
+        <div class="field"><label>Per conto di</label><input id="in-conto" type="text" placeholder="Es. BARCELLA" style="text-transform:uppercase"></div>
       </div>
-      <div style="margin-top:8px;display:flex;gap:8px;">
-        <button type="button" id="account-remind-btn" class="btn btn-outline btn-sm">Inviami un promemoria</button>
-        <button type="button" id="account-logout-btn" class="btn btn-outline btn-sm">Esci</button>
+      <div class="field-row">
+        <div class="field"><label>Partenza predefinita</label><input id="in-da" type="text" placeholder="Es. Ponte San Nicolò"></div>
+        <div class="field narrow"><label>Prov.</label><input id="in-prov-da" type="text" maxlength="2" placeholder="PD" style="text-transform:uppercase"></div>
+      </div>
+      <div class="settings-driver-note">Questi dati vengono salvati solo su questo telefono e riutilizzati automaticamente per i prossimi fogli. Puoi modificarli in qualsiasi momento.</div>
+
+      <div class="field"><label>Compenso giornaliero (€)</label><input id="in-daily-rate" type="number" inputmode="decimal" placeholder="Es. 80" min="0" step="0.01"></div>
+      <div class="settings-driver-note">Usato solo per calcolare il tuo guadagno nella pagina Home — non appare mai nel PDF. Lascialo vuoto se non vuoi tracciare il guadagno.</div>
+
+      <div id="sheet-daily-rate-section" class="hidden">
+        <label class="checkbox-row"><input type="checkbox" id="in-sheet-daily-rate"><span>Questo cliente conta per il compenso giornaliero</span></label>
+        <div class="settings-driver-note" style="margin-top:-4px;">Disattivalo se questo cliente paga solo un importo fisso (bonus per giorno) invece dello stipendio giornaliero.</div>
+      </div>
+
+      <div id="settings-account-row" style="margin-top:18px;padding-top:16px;border-top:1px solid var(--line);">
+        <label>Account</label>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+          <span id="account-email-display" style="font-weight:600;"></span>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:8px;">
+          <button type="button" id="account-remind-btn" class="btn btn-outline btn-sm">Inviami un promemoria</button>
+          <button type="button" id="account-logout-btn" class="btn btn-outline btn-sm">Esci</button>
+        </div>
       </div>
     </div>
 
-    <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--line);text-align:center;">
-      <button type="button" id="settings-more-btn" class="btn btn-outline btn-sm">⋯ Altre opzioni</button>
-    </div>
-
-    <div class="modal-btnrow">
-      <button class="btn btn-ghost" id="settings-cancel">Annulla</button>
-      <button class="btn btn-accent" id="settings-save">Salva</button>
+    <div class="dp-archive-fixed-top" style="padding-top:10px;border-top:1px solid var(--line);">
+      <div style="text-align:center;">
+        <button type="button" id="settings-more-btn" class="btn btn-outline btn-sm">⋯ Altre opzioni</button>
+      </div>
+      <div class="modal-btnrow">
+        <button class="btn btn-ghost" id="settings-cancel">Annulla</button>
+        <button class="btn btn-accent" id="settings-save">Salva</button>
+      </div>
     </div>
   </div>
 </div>
