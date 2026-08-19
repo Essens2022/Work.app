@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v297") {
+          if (data && data.v && data.v !== "pt-foglio-v298") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v297"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v298"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1431,14 +1431,20 @@
     var history = loadDeliveryHistory();
     var day = history[idx];
     if (!day) return;
+    var navEl = document.getElementById('dp-history-detail-nav');
     var detailEl = document.getElementById('dp-history-detail');
     var hasPrev = idx < history.length - 1; // history is stored newest-first, so "previous day" (further back) is the NEXT array index
     var hasNext = idx > 0;
-    var html = '<div class="dp-history-nav-row">' +
+    // Nav row (prev/next + date) goes into the FIXED top section now,
+    // separate from the scrolling client list — requested directly,
+    // same pattern as everywhere else in the app now: the page title
+    // stays put, only the content scrolls.
+    navEl.innerHTML = '<div class="dp-history-nav-row">' +
       '<button type="button" class="dp-history-nav-btn" id="dp-history-prev-day"' + (hasPrev ? '' : ' disabled') + '>‹ Giorno prec.</button>' +
       '<div class="modal-title" style="margin:0;">' + dpFormatDateIt(day.date) + '</div>' +
       '<button type="button" class="dp-history-nav-btn" id="dp-history-next-day"' + (hasNext ? '' : ' disabled') + '>Giorno succ. ›</button>' +
       '</div>';
+    var html = '';
     day.clients.forEach(function (c, i) { html += dpClientRowHtml(c, i, true); });
     detailEl.innerHTML = html;
     document.getElementById('dp-history-detail-close-x').onclick = function () { dpCloseModal('modal-dp-history-detail'); };

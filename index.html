@@ -1291,10 +1291,13 @@
 </div>
 
 <div class="modal-overlay" id="modal-dp-history-detail">
-  <div class="sheet-panel">
+  <div class="sheet-panel sticky-panel">
     <button type="button" class="modal-close-x" id="dp-history-detail-close-x" aria-label="Chiudi">×</button>
-    <div class="grabber"></div>
-    <div id="dp-history-detail"></div>
+    <div class="sticky-fixed">
+      <div class="grabber"></div>
+      <div id="dp-history-detail-nav"></div>
+    </div>
+    <div id="dp-history-detail" class="sticky-scroll"></div>
   </div>
 </div>
 
