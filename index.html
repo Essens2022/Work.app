@@ -211,6 +211,13 @@
      covers that same function, always visible on every screen, not
      just inside Delivery Planner. */
   .dp-header-actions{display:flex;align-items:center;gap:8px;}
+  /* Requested directly: a small count badge sitting between the
+     Esporta/Importa buttons in the client archive, so it's clear at a
+     glance how many clients are saved without having to count rows. */
+  .dp-archive-count{
+    flex:0 0 auto;min-width:34px;height:34px;border-radius:50%;background:var(--accent-soft);color:var(--accent);
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;
+  }
 
   /* Auto-riordina toggle — requested as a small light-switch/breaker
      style control: purely visual on/off, no text needed to understand
@@ -1201,8 +1208,10 @@
     <div class="grabber"></div>
     <div class="modal-title">Archivio clienti</div>
     <div class="modal-sub">Tutti i clienti salvati. Tocca per modificare, scorri a sinistra per eliminare.</div>
-    <div style="display:flex;gap:8px;margin:10px 0 14px;">
+    <button type="button" class="btn btn-accent btn-block" id="dp-archive-add-btn" style="margin:10px 0;">+ Aggiungi cliente</button>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">
       <button type="button" class="btn btn-outline" id="dp-archive-export-btn" style="flex:1;">⬇ Esporta</button>
+      <div class="dp-archive-count" id="dp-archive-count">0</div>
       <button type="button" class="btn btn-outline" id="dp-archive-import-btn" style="flex:1;">⬆ Importa</button>
       <input type="file" id="dp-archive-import-input" accept="application/json" style="display:none;">
     </div>
