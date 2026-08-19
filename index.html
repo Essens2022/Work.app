@@ -1191,6 +1191,44 @@
 </div>
 
 <!-- Delivery Planner — Storico: past days' delivery runs, archived automatically when a new day starts. -->
+<!-- Delivery Planner — Archivio clienti: the full saved address book,
+     independent of today's run. View/edit/delete any saved client,
+     plus export the whole list as a file to share with a colleague,
+     or import one someone else shared. -->
+<div class="modal-overlay" id="modal-dp-archive">
+  <div class="sheet-panel">
+    <button type="button" class="modal-close-x" id="dp-archive-close-x" aria-label="Chiudi">×</button>
+    <div class="grabber"></div>
+    <div class="modal-title">Archivio clienti</div>
+    <div class="modal-sub">Tutti i clienti salvati. Tocca per modificare, scorri a sinistra per eliminare.</div>
+    <div style="display:flex;gap:8px;margin:10px 0 14px;">
+      <button type="button" class="btn btn-outline" id="dp-archive-export-btn" style="flex:1;">⬇ Esporta</button>
+      <button type="button" class="btn btn-outline" id="dp-archive-import-btn" style="flex:1;">⬆ Importa</button>
+      <input type="file" id="dp-archive-import-input" accept="application/json" style="display:none;">
+    </div>
+    <div id="dp-archive-list"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-dp-archive-edit">
+  <div class="sheet-panel">
+    <button type="button" class="modal-close-x" id="dp-archive-edit-close-x" aria-label="Chiudi">×</button>
+    <div class="grabber"></div>
+    <div class="modal-title">Modifica cliente</div>
+    <div class="field">
+      <label>Nome azienda</label>
+      <input type="text" id="dp-archive-edit-nome" autocomplete="off">
+    </div>
+    <div class="field" style="margin-top:10px;">
+      <label>Indirizzo o link Google Maps</label>
+      <input type="text" id="dp-archive-edit-indirizzo" autocomplete="off">
+    </div>
+    <div id="dp-archive-edit-result" style="margin-top:8px;"></div>
+    <button type="button" class="btn btn-accent btn-block" id="dp-archive-edit-save-btn" style="margin-top:10px;">Salva modifiche</button>
+    <button type="button" class="btn btn-danger btn-block" id="dp-archive-edit-remove-btn" style="margin-top:10px;">Elimina definitivamente</button>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-dp-history">
   <div class="sheet-panel">
     <button type="button" class="modal-close-x" id="dp-history-close-x" aria-label="Chiudi">×</button>

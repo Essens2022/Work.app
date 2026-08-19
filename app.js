@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v289") {
+          if (data && data.v && data.v !== "pt-foglio-v290") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v289"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v290"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -651,6 +651,12 @@
       // have flat-topped, angular fronts, not a domed van-style roof).
       // Same stroke width/size/style as every other topbar icon here.
       'truck-cab': '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 21 L6.5 6.5 Q6.5 4.5 8.5 4.5 L15.5 4.5 Q17.5 4.5 17.5 6.5 L17.5 21" /><path d="M7.7 6 L16.3 6 L16.3 11.5 Q16.3 12.5 15.3 12.5 L8.7 12.5 Q7.7 12.5 7.7 11.5 Z" stroke-width="1.5"/><path d="M6.5 9.5 L5 9.5" stroke-width="1.3"/><path d="M5 8.3 L5 10.7 L4 10.7 L4 8.3 Z" stroke-width="1.3"/><path d="M17.5 9.5 L19 9.5" stroke-width="1.3"/><path d="M19 8.3 L19 10.7 L20 10.7 L20 8.3 Z" stroke-width="1.3"/><path d="M9 15 L15 15" stroke-width="1.3"/><path d="M9 16.4 L15 16.4" stroke-width="1.3"/><path d="M9 17.8 L15 17.8" stroke-width="1.3"/><path d="M7.3 19 L9.3 19 L9.3 20.5 L7.6 20.5 Z" stroke-width="1.3"/><path d="M16.7 19 L14.7 19 L14.7 20.5 L16.4 20.5 Z" stroke-width="1.3"/></svg>',
+      // Archive box — requested directly: a button next to Storico for
+      // the full saved-client address book (view/edit/delete any
+      // saved client, plus export/import as a file to share with a
+      // colleague) — icon only, no text, same stroke style as every
+      // other icon here.
+      archive: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M4 8v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 13h4"/></svg>',
       route: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M5 8v4a4 4 0 0 0 4 4h6" stroke-dasharray="3 3"/></svg>',
       fuel: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="9" height="18" rx="1"/><rect x="6.3" y="5.5" width="4.4" height="4" rx="0.5"/><path d="M13 9h2.5l3 2.5v6.5a1.5 1.5 0 0 1-3 0v-3.5a1 1 0 0 0-1-1h-1.5"/></svg>',
       share: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg>',
@@ -1531,6 +1537,7 @@
     html += '<div class="dp-header-row"><h2 class="dp-title">Percorso di oggi</h2>' +
       '<div class="dp-header-actions">' +
       '<button type="button" class="btn-icon-text" id="dp-history-btn">📋 Storico</button>' +
+      '<button type="button" class="btn-icon-text" id="dp-archive-btn" aria-label="Archivio clienti">' + svgIcon('archive') + '</button>' +
       '</div></div>';
     html += '<div class="dp-stats-row">' +
       '<div class="dp-stat"><div class="dp-stat-num">' + stats.total + '</div><div class="dp-stat-label">clienti</div></div>' +
@@ -1615,6 +1622,7 @@
     var setupHwBtn = document.getElementById('dp-setup-homework-btn');
     if (setupHwBtn) setupHwBtn.addEventListener('click', openNavHomeWorkModal); // pre-existing modal/flow, unchanged — just opened from here now too
     document.getElementById('dp-history-btn').addEventListener('click', dpOpenHistoryModal);
+    document.getElementById('dp-archive-btn').addEventListener('click', dpOpenArchiveModal);
     var archiveNowBtn = document.getElementById('dp-archive-now-btn');
     if (archiveNowBtn) archiveNowBtn.addEventListener('click', dpArchiveNowAndStartFresh);
     document.querySelectorAll('.dp-client-row').forEach(function (row) {
@@ -2063,7 +2071,7 @@
   // (the address book, not just today's run) — for cleaning up
   // duplicate/wrong versions of the same client saved by mistake, per
   // ION's own explicit request.
-  function dpWireSwipeToDelete(container) {
+  function dpWireSwipeToDelete(container, onDeleted) {
     container.querySelectorAll('.dp-swipe-wrap').forEach(function (wrap) {
       dpWireSwipeRow(wrap.querySelector('.dp-swipe-row'));
     });
@@ -2076,10 +2084,155 @@
         if (!window.confirm('Eliminare definitivamente "' + client.nome + '" dai clienti salvati?')) return;
         state.deliveryClients = state.deliveryClients.filter(function (c) { return c.id !== savedId; });
         saveDeliveryClients(state.deliveryClients);
-        var input = document.getElementById('dp-add-search-input');
-        dpRenderAddClientResults(input ? input.value : ''); // re-render with the same query — the deleted one simply won't be there anymore
+        if (onDeleted) {
+          onDeleted();
+        } else {
+          var input = document.getElementById('dp-add-search-input');
+          dpRenderAddClientResults(input ? input.value : ''); // re-render with the same query — the deleted one simply won't be there anymore
+        }
       });
     });
+  }
+
+  // ---- Archivio clienti: full saved address book (view/edit/delete
+  // any saved client, independent of today's run), plus export/import
+  // as a shareable file — requested directly: "as putea da file poate
+  // unui coleg care sa faca acesti clienti el ii incarca si deja ii
+  // are si el in app". Reuses the exact same swipe-to-delete row
+  // markup/pattern already built for the "Aggiungi cliente" search
+  // results, just pointed at the FULL list instead of a filtered one.
+
+  function dpOpenArchiveModal() {
+    dpRenderArchiveList();
+    document.getElementById('modal-dp-archive').classList.add('open');
+  }
+
+  function dpRenderArchiveList() {
+    var container = document.getElementById('dp-archive-list');
+    var clients = state.deliveryClients.slice().sort(function (a, b) { return a.nome.localeCompare(b.nome); });
+
+    if (!clients.length) {
+      container.innerHTML = '<div class="card" style="text-align:center;color:var(--ink-soft);">Nessun cliente salvato ancora.</div>';
+      return;
+    }
+
+    var html = '';
+    clients.forEach(function (c) {
+      html += '<div class="dp-swipe-wrap" data-saved-id="' + c.id + '">' +
+        '<button type="button" class="dp-swipe-delete-btn" data-saved-id="' + c.id + '">Elimina</button>' +
+        '<div class="dp-search-result-row dp-swipe-row" data-saved-id="' + c.id + '">' +
+        '<div class="dp-search-result-name">' + escapeHtml(c.nome) + '</div>' +
+        '<div class="dp-search-result-addr">' + escapeHtml(c.indirizzo || '') + '</div>' +
+        '</div>' +
+        '</div>';
+    });
+    container.innerHTML = html;
+    dpWireSwipeToDelete(container, dpRenderArchiveList);
+
+    container.querySelectorAll('.dp-search-result-row').forEach(function (row) {
+      row.addEventListener('click', function () { dpArchiveOpenEdit(row.getAttribute('data-saved-id')); });
+    });
+  }
+
+  function dpArchiveOpenEdit(savedId) {
+    var c = state.deliveryClients.find(function (x) { return x.id === savedId; });
+    if (!c) return;
+    document.getElementById('dp-archive-edit-nome').value = c.nome;
+    document.getElementById('dp-archive-edit-indirizzo').value = c.indirizzo || '';
+    document.getElementById('dp-archive-edit-result').innerHTML = '';
+    document.getElementById('dp-archive-edit-close-x').onclick = function () { dpCloseModal('modal-dp-archive-edit'); };
+    document.getElementById('dp-archive-edit-remove-btn').onclick = function () {
+      if (!window.confirm('Eliminare definitivamente "' + c.nome + '" dai clienti salvati?')) return;
+      state.deliveryClients = state.deliveryClients.filter(function (x) { return x.id !== savedId; });
+      saveDeliveryClients(state.deliveryClients);
+      dpCloseModal('modal-dp-archive-edit');
+      dpRenderArchiveList();
+    };
+    document.getElementById('dp-archive-edit-save-btn').onclick = function () {
+      var nome = document.getElementById('dp-archive-edit-nome').value.trim();
+      var indirizzo = document.getElementById('dp-archive-edit-indirizzo').value.trim();
+      var resultEl = document.getElementById('dp-archive-edit-result');
+      if (!nome || !indirizzo) {
+        resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Inserisci nome e indirizzo.</div>';
+        return;
+      }
+      var addressChanged = indirizzo !== c.indirizzo;
+      c.nome = nome;
+      c.indirizzo = indirizzo;
+      if (addressChanged) { c.lat = null; c.lon = null; } // stale coordinates from the OLD address would silently mislead Reordina's ordering later — cleared until re-geocoded
+      saveDeliveryClients(state.deliveryClients);
+      dpCloseModal('modal-dp-archive-edit');
+      dpRenderArchiveList();
+      if (addressChanged) dpBackgroundGeocodeForOrdering(c.id, indirizzo); // re-geocodes silently in the background; already writes straight back into this saved-client record via savedClientId
+    };
+    document.getElementById('modal-dp-archive-edit').classList.add('open');
+  }
+
+  // Downloads every saved client as one JSON file — meant to be handed
+  // to a colleague (Bluetooth/email/USB/whatever), who then uses
+  // Importa below to load them straight into their own app. Deliberately
+  // scoped to ONLY the client list (not the full app backup), so
+  // sharing a client base doesn't also hand over the other driver's
+  // own foglio/fuel/profile data by mistake.
+  function dpExportClientsArchive() {
+    var payload = {
+      exportedAt: new Date().toISOString(),
+      appVersion: APP_VERSION,
+      clients: state.deliveryClients
+    };
+    var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'ADB-Smart-clienti-' + new Date().toISOString().slice(0, 10) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    toast('Elenco clienti esportato');
+  }
+
+  // Imports a client-list file (from dpExportClientsArchive, on this
+  // or another driver's phone) and MERGES it into the current saved
+  // clients — never replaces/wipes the existing list outright, since
+  // a colleague loading a shared base almost certainly wants to ADD
+  // to whatever they already have, not risk losing their own clients.
+  // Duplicates (matched by name+address, since imported entries won't
+  // share the same random ids as anything already saved here) are
+  // skipped silently rather than creating repeats.
+  function dpImportClientsArchive(file) {
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      var data;
+      try { data = JSON.parse(e.target.result); } catch (err) { toast('File non valido'); return; }
+      if (!data || !Array.isArray(data.clients)) { toast('File non riconosciuto — deve essere un export di clienti ADB Smart'); return; }
+
+      var existingKeys = {};
+      state.deliveryClients.forEach(function (c) {
+        existingKeys[(c.nome || '').trim().toLowerCase() + '|' + (c.indirizzo || '').trim().toLowerCase()] = true;
+      });
+
+      var added = 0;
+      data.clients.forEach(function (c) {
+        if (!c || !c.nome) return;
+        var key = (c.nome || '').trim().toLowerCase() + '|' + (c.indirizzo || '').trim().toLowerCase();
+        if (existingKeys[key]) return; // already have this exact name+address — skip, don't duplicate
+        existingKeys[key] = true;
+        state.deliveryClients.push({
+          id: 'imp' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
+          nome: c.nome,
+          indirizzo: c.indirizzo || '',
+          lat: c.lat != null ? c.lat : null,
+          lon: c.lon != null ? c.lon : null
+        });
+        added++;
+      });
+
+      saveDeliveryClients(state.deliveryClients);
+      dpRenderArchiveList();
+      toast(added > 0 ? added + ' client' + (added === 1 ? 'e aggiunto' : 'i aggiunti') + ' ✓' : 'Nessun nuovo cliente (già tutti presenti)');
+    };
+    reader.readAsText(file);
   }
 
   function dpAddSavedClientToRun(savedClientId) {
@@ -8339,6 +8492,20 @@
     document.getElementById('btn-vehicle-topbar').addEventListener('click', function () {
       populateNavVehicleForm();
       document.getElementById('modal-nav-vehicle').classList.add('open');
+    });
+
+    // Archivio clienti — static modal elements, wired once here.
+    document.getElementById('dp-archive-close-x').addEventListener('click', function () {
+      document.getElementById('modal-dp-archive').classList.remove('open');
+    });
+    document.getElementById('dp-archive-export-btn').addEventListener('click', dpExportClientsArchive);
+    document.getElementById('dp-archive-import-btn').addEventListener('click', function () {
+      document.getElementById('dp-archive-import-input').click();
+    });
+    document.getElementById('dp-archive-import-input').addEventListener('change', function (e) {
+      var file = e.target.files[0];
+      if (file) dpImportClientsArchive(file);
+      e.target.value = '';
     });
 
     // REAL BUG, found and confirmed while diagnosing a reported "Salva
