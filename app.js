@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v288") {
+          if (data && data.v && data.v !== "pt-foglio-v289") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v288"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v289"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2322,8 +2322,20 @@
       ? (dpGeoDeniedThisSession ? Promise.reject(new Error('User denied Geolocation')) : currentPositionSafe())
           .then(function (pos) { return dpCallOrsOptimization(pos, geolocatable); })
           .catch(function (err) {
-            if (err && err.code === 1) dpGeoDeniedThisSession = true;
-            if (navSearchFocusPoint) return dpCallOrsOptimization(navSearchFocusPoint, geolocatable);
+            // REAL BUG, reported directly: "nu poate merge un sofer cu
+            // adresa din alt loc, pornirea lui trebuie mereu sa fie
+            // din pozitia sa" — the route's starting point must ALWAYS
+            // be the driver's real position at that exact moment,
+            // never a remembered one. This used to fall back to
+            // navSearchFocusPoint (a position read at some earlier
+            // point, possibly hours old by now, possibly from
+            // somewhere completely different) the moment a fresh GPS
+            // read failed — silently computing a route from a place
+            // the driver may not even be near anymore. Now a failed
+            // live GPS read just fails the optimization outright (see
+            // the .catch below) — no stand-in position is ever
+            // substituted for "where I actually am right now".
+            if (err && err.code === 1) dpGeoDeniedThisSession = true; // 1 === GeolocationPositionError.PERMISSION_DENIED
             throw err;
           })
       : Promise.resolve([]);
@@ -2434,16 +2446,19 @@
       ? (dpGeoDeniedThisSession ? Promise.reject(new Error('User denied Geolocation')) : currentPositionSafe())
           .then(function (pos) { return dpCallOrsOptimization(pos, geolocatable); })
           .catch(function (err) {
-            // A fresh GPS request specifically can fail on its own
-            // (permission denied, no signal) even when the rest of
-            // the optimization would have worked fine — falling back
-            // to navSearchFocusPoint (a position already kept fresh
-            // in the background for other purposes, see
-            // renderDeliveryPlanner) instead of giving up on
-            // optimization entirely the moment a live GPS read fails.
-            // Only truly gives up if THAT'S also unavailable.
+            // REAL BUG, reported directly: the route's starting point
+            // must ALWAYS be the driver's real position at that exact
+            // moment, never a remembered one. This used to fall back
+            // to navSearchFocusPoint (a position read earlier,
+            // possibly hours old, possibly from somewhere completely
+            // different) the moment a fresh GPS read failed — see the
+            // matching fix in dpRunAutoOptimization above for the
+            // full reasoning. A failed live GPS read now just fails
+            // the optimization outright (handled by the .catch below,
+            // which already falls back to the current, unoptimized
+            // order — a real, always-usable list, just not
+            // reordered).
             if (err && err.code === 1) dpGeoDeniedThisSession = true; // 1 === GeolocationPositionError.PERMISSION_DENIED, the standard constant — more reliable than matching the message text, which can vary by browser
-            if (navSearchFocusPoint) return dpCallOrsOptimization(navSearchFocusPoint, geolocatable);
             throw err;
           })
       : Promise.resolve([]);
