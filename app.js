@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v304") {
+          if (data && data.v && data.v !== "pt-foglio-v305") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v304"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v305"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1299,7 +1299,7 @@
         '<div class="dp-client-badge' + (isDone ? ' dp-client-badge-done' : '') + '">' + badge + '</div>' +
         '<div class="dp-client-info">' +
         '<div class="dp-client-name">' + escapeHtml(c.nome) + '</div>' +
-        '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + (c.nonVerificato ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + '</div>' +
+        '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + (c.nonVerificato ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + (c.instradamentoNonTrovato ? ' <span style="color:var(--accent);">⚠ percorso non trovato</span>' : '') + '</div>' +
         (c.completedAt ? '<div style="color:var(--teal);font-size:13px;font-weight:700;margin-top:3px;">✓ Consegnato ~' + dpFormatTime(c.completedAt) + '</div>' : '') +
         '</div>' +
         '</div>';
@@ -1320,7 +1320,7 @@
       '<div class="dp-client-badge' + (isDone ? ' dp-client-badge-done' : '') + '">' + badge + '</div>' +
       '<div class="dp-client-info">' +
       '<div class="dp-client-name">' + escapeHtml(c.nome) + '</div>' +
-      '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + (c.nonVerificato ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + '</div>' +
+      '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + (c.nonVerificato ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + (c.instradamentoNonTrovato ? ' <span style="color:var(--accent);">⚠ percorso non trovato</span>' : '') + '</div>' +
       (c.completedAt ? '<div style="color:var(--teal);font-size:13px;font-weight:700;margin-top:3px;">✓ Consegnato ~' + dpFormatTime(c.completedAt) + '</div>' : '') +
       '</div>' +
       '<div class="dp-client-chevron">›</div>' +
@@ -2614,6 +2614,22 @@
       }
       var optimizedIds = {};
       optimized.forEach(function (c) { optimizedIds[c.id] = true; });
+      // Requested directly, after tracking down a real, specific case:
+      // ION's own client ERREM IMPIANTI SRL (Loreggia PD), with valid,
+      // verified coordinates, kept landing at the exact same position
+      // on every single auto-riordina run — never actually moved by
+      // the "smart" part of the reordering at all. The coordinates
+      // being valid ruled out the already-existing "non verificato"
+      // case; the real explanation is that VROOM/ORS's own
+      // optimization can decide a job is "unreachable" on its routing
+      // network and silently omit it from the solution — previously
+      // handled (appended at the end, never lost) but with NO visual
+      // sign at all that this was happening, so it looked exactly
+      // like the app was just ignoring this one client for no reason.
+      // Marked now (instradamentoNonTrovato) so the client row itself
+      // shows why — cleared on any run where the SAME client DOES get
+      // a route, so this never lingers as a stale, wrong warning.
+      geolocatable.forEach(function (c) { c.instradamentoNonTrovato = !optimizedIds[c.id]; });
       var droppedByOrs = geolocatable.filter(function (c) { return !optimizedIds[c.id]; });
       var finalOrder = optimized.concat(unverified).concat(droppedByOrs).concat(completed);
       dpAnimateListReorder(function () {
@@ -2763,6 +2779,7 @@
       // but never silently lost either.
       var optimizedIds = {};
       optimized.forEach(function (c) { optimizedIds[c.id] = true; });
+      geolocatable.forEach(function (c) { c.instradamentoNonTrovato = !optimizedIds[c.id]; }); // see the matching comment in dpRunAutoOptimization — same real, tracked-down case (ERREM IMPIANTI SRL)
       var droppedByOrs = geolocatable.filter(function (c) { return !optimizedIds[c.id]; });
       applyOrder(optimized.concat(unverified).concat(droppedByOrs));
     }).catch(function (err) {
