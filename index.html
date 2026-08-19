@@ -204,19 +204,12 @@
   /* Delivery Planner (replaces the old map-based Navigatore) */
   .dp-header-row{padding-top:0;display:flex;align-items:center;justify-content:space-between;}
   .btn-icon-text{background:var(--surface-2);border:none;border-radius:var(--radius-sm);padding:8px 12px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
-  /* Requested directly: the vehicle-type text should sit UNDER the
-     icon, not beside it — icon on top, small label underneath,
-     stacked. A variant on .btn-icon-text rather than changing it
-     globally, since Storico stays inline with its emoji. */
-  .btn-icon-text.stacked{flex-direction:column;gap:2px;padding:6px 14px;}
-  .btn-icon-text.stacked span{font-size:11px;font-weight:700;}
   .dp-title{margin:0;font-size:22px;font-weight:800;color:var(--ink);}
-  /* Requested directly: the vehicle-profile link should look and
-     behave like the other real icon-buttons here (Storico, the fuel/
-     gasolio button elsewhere) — same pill shape, icon + text, sitting
-     right next to Storico in the header row — not a separate,
-     differently-styled text link underneath. dp-header-actions groups
-     the two buttons together with even spacing between them. */
+  /* dp-header-actions groups the header's icon-buttons (currently just
+     Storico) with even spacing. The vehicle-profile button that used
+     to live here too was removed — a dedicated topbar icon button now
+     covers that same function, always visible on every screen, not
+     just inside Delivery Planner. */
   .dp-header-actions{display:flex;align-items:center;gap:8px;}
 
   /* Auto-riordina toggle — requested as a small light-switch/breaker
