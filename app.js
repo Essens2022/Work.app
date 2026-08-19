@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v315") {
+          if (data && data.v && data.v !== "pt-foglio-v316") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v315"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v316"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2285,11 +2285,23 @@
 
     var html = '';
     clients.forEach(function (c) {
+      // Requested directly: showing which clients lack precise
+      // coordinates directly from the archive itself, not only once
+      // they're already added to today's run — same condition
+      // dpClientRowHtml already uses elsewhere (c.lat == null ||
+      // c.lon == null), so it's the exact same meaning everywhere in
+      // the app. "⚠ non ottimizzato" isn't shown here on purpose —
+      // that one reflects the outcome of the LAST optimization
+      // attempt for a specific day's route, not a fixed property of
+      // the saved client, so it wouldn't mean anything reliable
+      // outside that context.
+      var unverifiedBadge = (c.lat == null || c.lon == null)
+        ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '';
       html += '<div class="dp-swipe-wrap" data-saved-id="' + c.id + '">' +
         '<button type="button" class="dp-swipe-delete-btn" data-saved-id="' + c.id + '">Elimina</button>' +
         '<div class="dp-search-result-row dp-swipe-row" data-saved-id="' + c.id + '">' +
         '<div class="dp-search-result-name">' + escapeHtml(c.nome) + '</div>' +
-        '<div class="dp-search-result-addr">' + escapeHtml(c.indirizzo || '') + '</div>' +
+        '<div class="dp-search-result-addr">' + escapeHtml(c.indirizzo || '') + unverifiedBadge + '</div>' +
         '</div>' +
         '</div>';
     });
