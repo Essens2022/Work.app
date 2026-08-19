@@ -1133,6 +1133,12 @@
         <button class="btn btn-ghost" id="settings-cancel">Annulla</button>
         <button class="btn btn-accent" id="settings-save">Salva</button>
       </div>
+      <!-- Requested directly: no way to tell which build is actually
+           running, which repeatedly made it hard to confirm whether a
+           fix had really reached the phone or was still showing a
+           cached, older version. Small, unobtrusive, always visible
+           right here. -->
+      <div id="settings-version-display" style="text-align:center;margin-top:8px;font-size:11px;color:var(--ink-soft);"></div>
     </div>
   </div>
 </div>
