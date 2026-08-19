@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v284") {
+          if (data && data.v && data.v !== "pt-foglio-v285") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v284"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v285"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1797,10 +1797,12 @@
       // speeds at every stage, so there's room to react and settle
       // the drop exactly where intended, not just wherever it happens
       // to be once the auto-scroll is noticed and released.
+      // Third tuning pass, still too aggressive per direct feedback:
+      // cut roughly in half again.
       var EDGE_ZONE = 100; // px from the real visible edge — wide enough to catch it about one row in
-      var MIN_TARGET_SPEED = 4; // px/frame felt as soon as the zone is entered
-      var MAX_SPEED = 10; // px/frame at the very edge
-      var EASE = 0.09; // how fast currentSpeed chases the target each frame — lower = smoother, more fluid start/stop
+      var MIN_TARGET_SPEED = 2.5; // px/frame felt as soon as the zone is entered
+      var MAX_SPEED = 6; // px/frame at the very edge
+      var EASE = 0.07; // how fast currentSpeed chases the target each frame — lower = smoother, more fluid start/stop
       var currentSpeed = 0; // signed px/frame, eases toward target both accelerating and decelerating
       var autoScrollRAF = null;
       var scrollAccum = 0; // net px the container has been auto-scrolled since drag start
@@ -1815,7 +1817,23 @@
         var dy = (touchY - startY) + scrollAccum;
         draggingWrap.style.transform = 'translateY(' + dy + 'px)';
 
-        var wantedOffset = Math.round(dy / wrapHeight);
+        // Requested directly: "trebuie sa inteleaga cand se afla intre
+        // doua" — this used a plain Math.round, switching slots the
+        // instant the drag crossed the exact midpoint between two
+        // rows, with no buffer at all. Ordinary finger tremor while
+        // hovering right around that midpoint made it flicker back
+        // and forth between two target slots rather than settling
+        // predictably. HYSTERESIS added: once past a point, the drag
+        // must cross a full 65% of a row's height (not just 50%)
+        // before committing to a NEW slot — a small "sticky" dead zone
+        // around each boundary so it clearly registers being between
+        // two rows and holds there steadily, instead of visually
+        // flip-flopping on tiny, involuntary movement.
+        var rawOffset = dy / wrapHeight;
+        var wantedOffset = currentOffsetIndex;
+        if (rawOffset > currentOffsetIndex + 0.65) wantedOffset = Math.round(rawOffset);
+        else if (rawOffset < currentOffsetIndex - 0.65) wantedOffset = Math.round(rawOffset);
+
         if (wantedOffset !== currentOffsetIndex) {
           var newIndex = startIndex + wantedOffset;
           if (newIndex < 0) newIndex = 0;
