@@ -635,6 +635,20 @@
   .sticky-panel{overflow:hidden;display:flex;flex-direction:column;min-height:0;}
   .sticky-fixed{flex:0 0 auto;}
   .sticky-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;position:relative;}
+  /* Archivio clienti's A-Z index — sits in the left margin next to
+     the (still independently scrolling) client list, itself NOT part
+     of the scrolling area so it stays visible the whole time. Mirrors
+     the same flex/min-height pattern as .sticky-scroll above, just
+     split into a fixed-width sidebar + the actual scrolling list
+     side by side instead of the list alone taking the full width. */
+  .dp-archive-body{flex:1 1 auto;min-height:0;display:flex;overflow:hidden;}
+  .dp-alphabet-index{
+    flex:0 0 auto;width:20px;display:flex;flex-direction:column;align-items:center;justify-content:space-between;
+    padding:4px 0;
+  }
+  .dp-alphabet-index span{font-size:8px;font-weight:600;color:var(--ink-soft);line-height:1;cursor:pointer;transition:all .1s ease;}
+  .dp-alphabet-index span.dp-letter-current{font-size:14px;font-weight:800;color:var(--accent);}
+  .dp-archive-list-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;position:relative;}
   .fuel-panel{max-height:74vh;position:relative;}
   #fuel-view-stage{
     position:relative;overflow:hidden;border-radius:12px;border:1px solid var(--line);
@@ -1310,7 +1324,16 @@
         <input type="file" id="dp-archive-import-input" accept="application/json" style="display:none;">
       </div>
     </div>
-    <div id="dp-archive-list" class="sticky-scroll"></div>
+    <!-- Requested directly: a vertical A-Z index in the left margin,
+         between the screen edge and where client rows start — the
+         current letter (based on scroll position) shown bigger and
+         in the app's own orange accent, so it's obvious at a glance
+         which letter is currently on screen while scrolling through a
+         long, alphabetically-sorted list. -->
+    <div class="dp-archive-body">
+      <div class="dp-alphabet-index" id="dp-alphabet-index"></div>
+      <div id="dp-archive-list" class="dp-archive-list-scroll"></div>
+    </div>
   </div>
 </div>
 

@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v320") {
+          if (data && data.v && data.v !== "pt-foglio-v321") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v320"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v321"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2336,7 +2336,7 @@
       // — .dp-search-result-row itself stays completely untouched, so
       // "Aggiungi cliente"'s own search results (where tapping the
       // row IS already the add-action) are unaffected.
-      html += '<div class="dp-swipe-wrap" data-saved-id="' + c.id + '">' +
+      html += '<div class="dp-swipe-wrap" data-saved-id="' + c.id + '" data-letter="' + escapeHtml((c.nome || '?').trim().charAt(0).toUpperCase()) + '">' +
         '<button type="button" class="dp-swipe-delete-btn" data-saved-id="' + c.id + '">Elimina</button>' +
         '<div class="dp-search-result-row dp-archive-row dp-swipe-row" data-saved-id="' + c.id + '">' +
         '<div class="dp-search-result-name">' + escapeHtml(c.nome) + '</div>' +
@@ -2359,6 +2359,54 @@
 
     container.querySelectorAll('.dp-search-result-row').forEach(function (row) {
       row.addEventListener('click', function () { dpArchiveOpenEdit(row.getAttribute('data-saved-id')); });
+    });
+
+    dpBuildAlphabetIndex(container);
+  }
+
+  // A-Z index in the left margin — requested directly. Shows the
+  // whole alphabet, small, running top to bottom; whichever letter
+  // the list is CURRENTLY scrolled to gets shown bigger, in the app's
+  // own orange accent, so it's obvious at a glance which part of the
+  // alphabetically-sorted list is on screen. Tapping a letter also
+  // jumps straight to it, a natural extra given the same lookup
+  // already has to exist for the highlighting itself.
+  function dpBuildAlphabetIndex(listContainer) {
+    var indexEl = document.getElementById('dp-alphabet-index');
+    var letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+    indexEl.innerHTML = letters.map(function (l) { return '<span data-letter="' + l + '">' + l + '</span>'; }).join('');
+
+    var letterSpans = {};
+    indexEl.querySelectorAll('span').forEach(function (s) { letterSpans[s.getAttribute('data-letter')] = s; });
+
+    var rows = Array.prototype.slice.call(listContainer.querySelectorAll('.dp-swipe-wrap[data-letter]'));
+
+    function updateCurrentLetter() {
+      if (!rows.length) return;
+      var containerTop = listContainer.getBoundingClientRect().top;
+      // The row whose top edge is closest to (but not below) the
+      // list's own top edge is the one currently "at the top" of
+      // what's visible — same idea as a sticky section header would
+      // track, without needing to build one.
+      var current = rows[0];
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i].getBoundingClientRect().top - containerTop <= 4) current = rows[i];
+        else break;
+      }
+      var letter = current.getAttribute('data-letter');
+      Object.keys(letterSpans).forEach(function (l) {
+        letterSpans[l].classList.toggle('dp-letter-current', l === letter);
+      });
+    }
+    listContainer.addEventListener('scroll', updateCurrentLetter);
+    updateCurrentLetter();
+
+    indexEl.querySelectorAll('span').forEach(function (s) {
+      s.addEventListener('click', function () {
+        var letter = s.getAttribute('data-letter');
+        var target = rows.filter(function (r) { return r.getAttribute('data-letter') === letter; })[0];
+        if (target) target.scrollIntoView({ block: 'start' });
+      });
     });
   }
 
