@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v264") {
+          if (data && data.v && data.v !== "pt-foglio-v265") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v264"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v265"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1761,13 +1761,33 @@
 
       function targetSpeedFor(touchY) {
         if (!scrollAncestor) return 0;
-        var rect = scrollAncestor.getBoundingClientRect();
-        if (touchY < rect.top + EDGE_ZONE && scrollAncestor.scrollTop > 0) {
-          var depthUp = Math.min(1, (rect.top + EDGE_ZONE - touchY) / EDGE_ZONE);
+        // REAL BUG, found on review: this used scrollAncestor's own
+        // (main's) bounding rect for the edge zone — but main spans
+        // the FULL physical screen top-to-bottom, just padded
+        // internally to leave room for the fixed topbar/sticky-header
+        // above and the fixed bottomnav below. So rect.top/rect.bottom
+        // were the true screen edges, not the visible list boundary —
+        // meaning the finger had to get within EDGE_ZONE px of the
+        // physical top/bottom of the phone (practically under the
+        // topbar or bottomnav) before anything triggered. Reported
+        // directly: in a small visible window like this one, it
+        // should trigger the moment the drag reaches the edge of what
+        // is actually VISIBLE (the last visible row), not the edge of
+        // the screen itself. Fixed by measuring from the real visible
+        // boundary instead — the sticky header's own bottom edge, and
+        // the bottomnav's own top edge — which is exactly where the
+        // driver's eyes (and thumb) actually judge "the edge" to be.
+        var stickyHeaderEl = document.querySelector('.dp-sticky-header');
+        var bottomNavEl = document.querySelector('.bottomnav');
+        var visibleTop = stickyHeaderEl ? stickyHeaderEl.getBoundingClientRect().bottom : scrollAncestor.getBoundingClientRect().top;
+        var visibleBottom = bottomNavEl ? bottomNavEl.getBoundingClientRect().top : scrollAncestor.getBoundingClientRect().bottom;
+
+        if (touchY < visibleTop + EDGE_ZONE && scrollAncestor.scrollTop > 0) {
+          var depthUp = Math.min(1, (visibleTop + EDGE_ZONE - touchY) / EDGE_ZONE);
           return -(MIN_TARGET_SPEED + (MAX_SPEED - MIN_TARGET_SPEED) * depthUp);
         }
-        if (touchY > rect.bottom - EDGE_ZONE && scrollAncestor.scrollTop < scrollAncestor.scrollHeight - scrollAncestor.clientHeight) {
-          var depthDown = Math.min(1, (touchY - (rect.bottom - EDGE_ZONE)) / EDGE_ZONE);
+        if (touchY > visibleBottom - EDGE_ZONE && scrollAncestor.scrollTop < scrollAncestor.scrollHeight - scrollAncestor.clientHeight) {
+          var depthDown = Math.min(1, (touchY - (visibleBottom - EDGE_ZONE)) / EDGE_ZONE);
           return MIN_TARGET_SPEED + (MAX_SPEED - MIN_TARGET_SPEED) * depthDown;
         }
         return 0;
