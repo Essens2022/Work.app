@@ -581,6 +581,17 @@
      even on shorter phone screens, instead of the sheet growing tall
      enough to cover it entirely. */
   #modal-settings .sheet-panel{max-height:calc(100vh - 170px);}
+  /* Requested directly: switching between days in Storico's detail
+     view (Giorno prec./succ.) should never change the panel's own
+     size based on how many clients that day happened to have — a
+     2-client day and a 10-client day should look like the exact same
+     "page", just with more or less to scroll through inside it. The
+     base .sheet-panel only caps height with max-height (shrinks to
+     fit shorter content) — a real, FIXED height here means the panel
+     is always this tall regardless of content, and the sticky-scroll
+     list inside simply has more empty space or more to scroll as
+     needed. */
+  #modal-dp-history-detail .sheet-panel{height:80vh;max-height:80vh;}
   /* Requested directly, now the standard pattern for ANY sheet modal
      in this app: header content (title, subtitle, primary buttons)
      stays fixed in place while only the middle content scrolls —
