@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v254") {
+          if (data && data.v && data.v !== "pt-foglio-v255") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v254"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v255"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2173,19 +2173,25 @@
       // prepared behind the scenes — looked exactly like "won't let
       // me proceed").
       //
-      // A DENIED geolocation permission gets its own message — but
-      // NOT a push toward enabling it. ION explained directly: he
+      // A DENIED geolocation permission is now handled completely
+      // silently — no toast at all. ION explained directly: he
       // deliberately keeps location off for ADB Smart specifically
       // (only grants it to the actual Google Maps app), and has
-      // manual drag-reordering as a real alternative that needs no
-      // location at all — telling him to change a phone setting he's
-      // intentionally chosen would be unwanted, wrong advice for his
-      // case.
+      // manual drag-reordering as a real, always-available
+      // alternative that needs no location at all. Given that, this
+      // isn't an unexpected problem worth surfacing every time — it's
+      // his own standing, intentional setting, and a notification
+      // about it every single Reordina press is just unwanted noise,
+      // per his own explicit request. Falls back to the current order
+      // exactly the same as before, just without announcing it.
+      //
+      // Any OTHER, genuinely unexpected failure (network issue, ORS
+      // quota, a real error) still gets a toast — that IS worth
+      // knowing about, unlike the routine, expected permission case.
       var isPermissionDenied = (err && err.code === 1) || dpGeoDeniedThisSession;
-      var msg = isPermissionDenied
-        ? 'Posizione non disponibile — nessun problema: trascina i clienti con ⠿ per riordinarli manualmente. (Ordine automatico disponibile solo se attivi la posizione per questo sito.)'
-        : 'Impossibile ottimizzare (' + (err && err.message ? escapeHtml(err.message) : 'errore') + ') — uso l\'ordine attuale.';
-      toast(msg, 6000); // longer than the default 3s — this specific message is genuinely informative, not just a quick confirmation, and needs a moment to actually read
+      if (!isPermissionDenied) {
+        toast('Impossibile ottimizzare (' + (err && err.message ? escapeHtml(err.message) : 'errore') + ') — uso l\'ordine attuale.', 6000);
+      }
       applyOrder(remaining);
     });
   }
