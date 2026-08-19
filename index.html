@@ -198,13 +198,23 @@
   .dp-client-row{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;}
   .dp-drag-handle{flex:0 0 auto;width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:var(--ink);background:var(--surface-2);border-radius:8px;touch-action:none;cursor:grab;}
   .dp-dragging{box-shadow:var(--shadow-md);opacity:.95;}
-  .dp-client-row.dp-client-done{opacity:.55;}
+  /* Completed clients — a fully OPAQUE, distinct background instead
+     of transparency. Reported directly: opacity made the row see-
+     through, letting the red Elimina button (positioned behind it for
+     swipe-to-delete) visibly show through even when not swiped open —
+     looked unfinished/broken, and dimmed the name/address/Consegnato
+     text along with it, making everything harder to read exactly
+     where it should be clearest (this IS the confirmation that a
+     delivery is done). Solid teal-tinted background instead — reads
+     clearly as "done" (matches the existing teal checkmark badge)
+     without hiding anything or being see-through in any way. */
+  .dp-client-row.dp-client-done{background:var(--teal-soft);}
   .dp-client-badge{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;}
   .dp-client-badge-done{background:var(--teal-soft);color:var(--teal);}
   .dp-client-info{flex:1;min-width:0;}
   .dp-client-chevron{flex:0 0 auto;color:var(--ink-faint);font-size:20px;}
-  .dp-client-name{font-weight:700;font-size:15px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .dp-client-addr{font-size:13px;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
+  .dp-client-name{font-weight:700;font-size:15px;color:var(--ink);white-space:normal;overflow-wrap:break-word;line-height:1.3;}
+  .dp-client-addr{font-size:13.5px;color:#4A4A4E;white-space:normal;overflow-wrap:break-word;margin-top:2px;line-height:1.35;}
   .dp-bottom-actions{margin-top:18px;padding-bottom:20px;}
   .dp-search-result-row{display:flex;flex-direction:column;padding:12px 14px;border-bottom:1px solid var(--line);cursor:pointer;}
   .dp-swipe-wrap{position:relative;overflow:hidden;}
