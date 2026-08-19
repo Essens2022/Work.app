@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v301") {
+          if (data && data.v && data.v !== "pt-foglio-v302") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v301"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v302"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -7917,6 +7917,76 @@
     if (changed) saveFuel(state.fuel);
   }
 
+  // One-time re-verification of every SAVED client's stored
+  // coordinates, using the precision check already added to
+  // geocodeAddress() above (PRECISE_LAYERS) — that fix only guards
+  // NEW geocodes going forward; any client saved BEFORE it existed
+  // could still be sitting on an old, low-precision (city-level-only)
+  // coordinate. Confirmed directly, concretely: ION's own real client
+  // "ERREM IMPIANTI SRL" (Via Dell'Artigianato, Loreggia PD) — a
+  // longtime, already-saved client — was exactly this case, and
+  // auto-riordina's ordering fell apart specifically once it entered
+  // the mix. Re-geocodes every already-saved client with existing
+  // coordinates through the SAME (now-fixed) geocodeAddress(), and
+  // corrects or clears the stored position wherever the fresh,
+  // precision-checked result meaningfully disagrees with what was
+  // saved. Runs once (a flag guards repeats), fully in the
+  // background, rate-limited so it doesn't hammer the free-tier API
+  // or the driver's data connection all at once.
+  var LS_GEOCODE_PRECISION_MIGRATION_DONE = 'pt_geocode_precision_migration_v1_done';
+  function migrateReverifyClientPrecision() {
+    if (localStorage.getItem(LS_GEOCODE_PRECISION_MIGRATION_DONE) === '1') return;
+    var toCheck = state.deliveryClients.filter(function (c) { return c.lat != null && c.lon != null && c.indirizzo; });
+    if (!toCheck.length) { localStorage.setItem(LS_GEOCODE_PRECISION_MIGRATION_DONE, '1'); return; }
+
+    var idx = 0;
+    var changedCount = 0;
+    function processNext() {
+      if (idx >= toCheck.length) {
+        localStorage.setItem(LS_GEOCODE_PRECISION_MIGRATION_DONE, '1');
+        if (changedCount > 0) {
+          saveDeliveryClients(state.deliveryClients);
+          saveDeliveryRun(state.deliveryRun); // any today's-run entries updated below get persisted here too
+        }
+        return;
+      }
+      var c = toCheck[idx];
+      idx++;
+      geocodeAddress(c.indirizzo).then(function (result) {
+        var oldLat = c.lat, oldLon = c.lon;
+        if (!result) {
+          // Nothing precise found at all now — clear rather than keep
+          // a known-bad position; the client falls back to
+          // "unverified" (queued at the end during Reordina) instead
+          // of silently corrupting the route the way a wrong
+          // coordinate does.
+          c.lat = null; c.lon = null;
+        } else if (Math.abs(result.lat - oldLat) > 0.01 || Math.abs(result.lon - oldLon) > 0.01) {
+          // ~1km+ difference from the old saved position — far more
+          // than normal geocoding precision variance for the SAME
+          // real address, a strong sign the old value was a
+          // different, less precise match (e.g. city-center instead
+          // of the actual street).
+          c.lat = result.lat; c.lon = result.lon;
+        } else {
+          return; // close enough to what was already saved — no real change, don't count it
+        }
+        changedCount++;
+        state.deliveryRun.clients.forEach(function (rc) {
+          if (rc.clientId === c.id) { rc.lat = c.lat; rc.lon = c.lon; }
+        });
+      }).catch(function () {
+        // Network hiccup or similar — leave this one exactly as it
+        // was, no worse than before. It'll simply be picked up again
+        // whenever it's next re-geocoded for an unrelated reason
+        // (e.g. the driver edits its address).
+      }).then(function () {
+        setTimeout(processNext, 350); // gentle pacing, not a burst of simultaneous requests
+      });
+    }
+    processNext();
+  }
+
   // Measures the real rendered height of the fixed top/bottom bars and
   // exposes them as CSS variables, so the scrollable content in <main> is
   // padded to clear them exactly — no guessing, works identically on every
@@ -8531,6 +8601,7 @@
   function init() {
     migrateUppercaseLocalities();
     migrateFuelToArrays();
+    migrateReverifyClientPrecision(); // async, rate-limited, runs fully in the background — never blocks anything else in init()
     reportActivity();
     syncBarHeights();
     window.addEventListener('resize', syncBarHeights);
