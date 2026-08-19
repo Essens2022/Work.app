@@ -1305,23 +1305,9 @@
       <input type="text" id="dp-archive-edit-nome" autocomplete="off">
     </div>
     <div class="field" style="margin-top:10px;">
-      <label>Indirizzo o link Google Maps</label>
+      <label>Indirizzo, coordinate o link Google Maps</label>
       <input type="text" id="dp-archive-edit-indirizzo" autocomplete="off">
     </div>
-    <!-- Requested directly: a way to see AND correct the exact
-         coordinates ADB Smart has stored for a client — for the rare
-         cases where automatic geocoding keeps getting a specific
-         address wrong (e.g. a smaller street with poor map-data
-         coverage), the driver can paste the real, correct
-         coordinates straight from Google Maps himself, permanently
-         overriding whatever the automatic geocoder produced.
-         Optional — leave blank to keep relying on automatic geocoding
-         as before. -->
-    <div class="field-row" style="margin-top:10px;">
-      <div class="field"><label>Lat (opzionale)</label><input type="text" inputmode="decimal" id="dp-archive-edit-lat" placeholder="es. 45.6041275"></div>
-      <div class="field"><label>Lon (opzionale)</label><input type="text" inputmode="decimal" id="dp-archive-edit-lon" placeholder="es. 11.9425809"></div>
-    </div>
-    <div class="settings-driver-note" style="margin-top:-4px;">Se l'indirizzo non viene geocodificato correttamente, puoi incollare qui le coordinate esatte prese da Google Maps — verranno usate al posto della geocodifica automatica per questo cliente.</div>
     <div id="dp-archive-edit-result" style="margin-top:8px;"></div>
     <button type="button" class="btn btn-accent btn-block" id="dp-archive-edit-save-btn" style="margin-top:10px;">Salva modifiche</button>
     <button type="button" class="btn btn-danger btn-block" id="dp-archive-edit-remove-btn" style="margin-top:10px;">Elimina definitivamente</button>
