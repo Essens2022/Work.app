@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v271") {
+          if (data && data.v && data.v !== "pt-foglio-v272") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v271"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v272"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -8086,13 +8086,30 @@
   // shortcut, and normally survives that on its own). Exports every
   // piece of real data into one JSON file the person can keep anywhere.
   function exportBackup() {
+    // REAL BUG, found and confirmed directly by ION: this only ever
+    // exported profile/sheets/currentSheetId/fuel — everything built
+    // SINCE then (vehicle config, and the entire Delivery Planner:
+    // saved clients, today's run, archived history, remembered
+    // addresses, Casa/Deposito shortcuts) was silently left out. A
+    // driver restoring this backup after reinstalling would get their
+    // foglio viaggi back but lose every delivery client and the whole
+    // route history — exactly the gap ION described ("imi salveaza
+    // totul inafara de ultimile schimbari, clientii nu-i salveaza").
+    // Every real piece of local data is included now, so a restore is
+    // genuinely a full return to where the driver left off.
     var backup = {
       exportedAt: new Date().toISOString(),
       appVersion: APP_VERSION,
       profile: JSON.parse(localStorage.getItem(LS_PROFILE) || 'null'),
       sheets: JSON.parse(localStorage.getItem(LS_SHEETS) || 'null'),
       currentSheetId: localStorage.getItem(LS_CURRENT),
-      fuel: JSON.parse(localStorage.getItem(LS_FUEL) || 'null')
+      fuel: JSON.parse(localStorage.getItem(LS_FUEL) || 'null'),
+      vehicle: JSON.parse(localStorage.getItem(LS_VEHICLE) || 'null'),
+      deliveryClients: JSON.parse(localStorage.getItem(LS_DELIVERY_CLIENTS) || 'null'),
+      deliveryRun: JSON.parse(localStorage.getItem(LS_DELIVERY_RUN) || 'null'),
+      deliveryHistory: JSON.parse(localStorage.getItem(LS_DELIVERY_HISTORY) || 'null'),
+      navFrequent: JSON.parse(localStorage.getItem(LS_NAV_FREQUENT) || 'null'),
+      navHomework: JSON.parse(localStorage.getItem(LS_NAV_HOMEWORK) || 'null')
     };
     var blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     var url = URL.createObjectURL(blob);
@@ -8111,11 +8128,11 @@
     reader.onload = function (e) {
       var data;
       try { data = JSON.parse(e.target.result); } catch (err) { toast('File non valido'); return; }
-      if (!data || (!data.sheets && !data.profile)) { toast('File di backup non riconosciuto'); return; }
+      if (!data || (!data.sheets && !data.profile && !data.deliveryClients && !data.deliveryRun)) { toast('File di backup non riconosciuto'); return; }
       var dateLabel = data.exportedAt ? new Date(data.exportedAt).toLocaleDateString('it-IT') : 'data sconosciuta';
       showConfirm({
         title: 'Ripristinare questo backup?',
-        message: 'I dati attuali su questo telefono (foglio, scontrini, profilo) verranno sostituiti con quelli del file (' + dateLabel + '). Questa azione non può essere annullata.',
+        message: 'Tutti i dati attuali su questo telefono (foglio, scontrini, profilo, veicolo, clienti e percorso di consegna) verranno sostituiti con quelli del file (' + dateLabel + '). Questa azione non può essere annullata.',
         danger: true,
         confirmLabel: 'Ripristina',
         onConfirm: function () {
@@ -8123,6 +8140,12 @@
           if (data.sheets) localStorage.setItem(LS_SHEETS, JSON.stringify(data.sheets));
           if (data.currentSheetId) localStorage.setItem(LS_CURRENT, data.currentSheetId);
           if (data.fuel) localStorage.setItem(LS_FUEL, JSON.stringify(data.fuel));
+          if (data.vehicle) localStorage.setItem(LS_VEHICLE, JSON.stringify(data.vehicle));
+          if (data.deliveryClients) localStorage.setItem(LS_DELIVERY_CLIENTS, JSON.stringify(data.deliveryClients));
+          if (data.deliveryRun) localStorage.setItem(LS_DELIVERY_RUN, JSON.stringify(data.deliveryRun));
+          if (data.deliveryHistory) localStorage.setItem(LS_DELIVERY_HISTORY, JSON.stringify(data.deliveryHistory));
+          if (data.navFrequent) localStorage.setItem(LS_NAV_FREQUENT, JSON.stringify(data.navFrequent));
+          if (data.navHomework) localStorage.setItem(LS_NAV_HOMEWORK, JSON.stringify(data.navHomework));
           window.location.reload();
         }
       });
