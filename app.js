@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v268") {
+          if (data && data.v && data.v !== "pt-foglio-v269") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v268"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v269"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1329,6 +1329,7 @@
   var navLocateMarker = null; // "you are here" marker dropped by the standalone locate button, kept separate from the active-navigation position marker
   var navSearchFocusPoint = null; // driver's GPS position, used to bias/rank geocoding results toward nearby places first
   var dpGeoDeniedThisSession = false; // once a fresh GPS request is denied, skip repeating the attempt for the rest of this session — see dpConfirmReordina
+  var dpLastAutoOptimizedSignature = null; // ids of pending clients last auto-optimized (sorted, joined) — see the auto-riordina check at the top of renderDeliveryPlanner
 
   // Auto-archives the previous day's run the moment a new calendar day
   // is detected — no manual "end of day" action needed, matching what
@@ -1456,6 +1457,25 @@
     var stats = dpStats(run);
     var html = '';
 
+    // ---- Auto-riordina: run the same optimization Reordina does
+    // manually, automatically, whenever the pending client list has
+    // actually CHANGED since the last time it ran (not on every
+    // render — re-renders happen constantly for unrelated reasons,
+    // like just checking off a delivery). Compared as a SET of
+    // pending ids (sorted, order-independent) rather than the raw
+    // array order: after this itself reorders the array, that
+    // wouldn't count as "changed" again on the next render, avoiding
+    // an infinite optimize-render-optimize loop. Only the actual SET
+    // changing (a client added, removed, or completed) re-triggers it.
+    if (dpAutoRiordinaEnabled()) {
+      var pendingForAuto = run.clients.filter(function (c) { return c.status !== 'completed'; });
+      var autoSig = pendingForAuto.map(function (c) { return c.id; }).sort().join(',');
+      if (pendingForAuto.length > 1 && autoSig !== dpLastAutoOptimizedSignature) {
+        dpLastAutoOptimizedSignature = autoSig; // set BEFORE the async call — a render triggered elsewhere while this is in flight must not re-fire it
+        dpRunAutoOptimization();
+      }
+    }
+
     // Everything from here down to the closing </div> below (title,
     // vehicle, stats, the three action buttons, and the Casa/Deposito
     // card when it's showing) is wrapped as one sticky block — it
@@ -1475,6 +1495,7 @@
       '</div>';
 
     html += '<button type="button" class="btn btn-accent btn-block" id="dp-add-client-btn" style="margin:14px 0 10px;">+ Aggiungi cliente</button>';
+    html += '<div class="dp-auto-row"><span class="dp-auto-label">Auto</span><button type="button" class="dp-auto-toggle' + (dpAutoRiordinaEnabled() ? ' on' : '') + '" id="dp-auto-riordina-toggle" role="switch" aria-checked="' + (dpAutoRiordinaEnabled() ? 'true' : 'false') + '" aria-label="Riordino automatico"></button></div>';
     html += '<button type="button" class="btn btn-outline btn-block" id="dp-reordina-btn"' + (stats.remaining === 0 ? ' disabled' : '') + ' style="margin-bottom:6px;">Reordina</button>';
     // Always available whenever there's at least one pending client —
     // reads run.clients directly, in whatever order it's CURRENTLY
@@ -1540,6 +1561,11 @@
     });
     var reordinaBtn = document.getElementById('dp-reordina-btn');
     if (reordinaBtn) reordinaBtn.addEventListener('click', dpOpenReordinaModal);
+    var autoToggle = document.getElementById('dp-auto-riordina-toggle');
+    if (autoToggle) autoToggle.addEventListener('click', function () {
+      dpSetAutoRiordinaEnabled(!dpAutoRiordinaEnabled());
+      renderDeliveryPlanner(); // re-render flips the visual state immediately, and (via the auto-run check at the top of this function) triggers an optimization right away if it was just switched on
+    });
     var gmapsBtn = document.getElementById('dp-open-gmaps-btn');
     if (gmapsBtn) gmapsBtn.addEventListener('click', dpOpenInGoogleMaps);
     var homeBtn = document.getElementById('dp-nav-home-btn');
@@ -2154,6 +2180,57 @@
     saveDeliveryRun(state.deliveryRun);
     dpCloseModal('modal-dp-edit-client');
     renderDeliveryPlanner();
+  }
+
+  // ---- Auto-riordina: on/off state + the automatic re-optimization itself ----
+
+  var DP_AUTO_RIORDINA_KEY = 'pt_dp_auto_riordina_v1';
+
+  function dpAutoRiordinaEnabled() {
+    return localStorage.getItem(DP_AUTO_RIORDINA_KEY) === '1';
+  }
+
+  function dpSetAutoRiordinaEnabled(on) {
+    localStorage.setItem(DP_AUTO_RIORDINA_KEY, on ? '1' : '0');
+  }
+
+  // Same ORS-optimization logic as dpConfirmReordina below (geolocatable
+  // vs. unverified split, GPS/navSearchFocusPoint fallback, ORS's own
+  // silently-dropped-job handling), just without the confirmation modal
+  // and without touching completion status — auto mode only ever
+  // reorders, it never marks anything done. Silent on failure by
+  // design, same reasoning as manual Reordina's permission-denied case:
+  // this runs unattended in the background, so a toast on every offline
+  // moment or GPS hiccup would just be noise; it leaves the current
+  // order untouched instead.
+  function dpRunAutoOptimization() {
+    var completed = state.deliveryRun.clients.filter(function (c) { return c.status === 'completed'; });
+    var remaining = state.deliveryRun.clients.filter(function (c) { return c.status !== 'completed'; });
+    if (remaining.length < 2) return;
+
+    var geolocatable = remaining.filter(function (c) { return c.lat != null && c.lon != null; });
+    var unverified = remaining.filter(function (c) { return c.lat == null || c.lon == null; });
+
+    var optimizePromise = geolocatable.length
+      ? (dpGeoDeniedThisSession ? Promise.reject(new Error('User denied Geolocation')) : currentPosition())
+          .then(function (pos) { return dpCallOrsOptimization(pos, geolocatable); })
+          .catch(function (err) {
+            if (err && err.code === 1) dpGeoDeniedThisSession = true;
+            if (navSearchFocusPoint) return dpCallOrsOptimization(navSearchFocusPoint, geolocatable);
+            throw err;
+          })
+      : Promise.resolve([]);
+
+    optimizePromise.then(function (optimized) {
+      var optimizedIds = {};
+      optimized.forEach(function (c) { optimizedIds[c.id] = true; });
+      var droppedByOrs = geolocatable.filter(function (c) { return !optimizedIds[c.id]; });
+      state.deliveryRun.clients = optimized.concat(unverified).concat(droppedByOrs).concat(completed);
+      saveDeliveryRun(state.deliveryRun);
+      renderDeliveryPlanner();
+    }).catch(function () {
+      // Silent — see comment above the function.
+    });
   }
 
   // ---- Reordina: conferma completati, poi ricalcola con ORS Optimization ----

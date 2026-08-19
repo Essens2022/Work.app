@@ -206,6 +206,30 @@
   .btn-icon-text{background:var(--surface-2);border:none;border-radius:var(--radius-sm);padding:8px 12px;font-size:13px;font-weight:700;color:var(--ink);cursor:pointer;}
   .dp-title{margin:0;font-size:22px;font-weight:800;color:var(--ink);}
   .dp-vehicle-quick{margin-top:4px;font-size:13px;color:var(--ink-soft);cursor:pointer;}
+
+  /* Auto-riordina toggle — requested as a small light-switch/breaker
+     style control: purely visual on/off, no text needed to understand
+     it (orange = on, grey = off, matching the rest of the app's own
+     on/active color), placed right beside the Reordina button it
+     governs. When on, the app re-runs the same route optimization
+     Reordina does manually, automatically, any time the pending
+     client list changes (a client added/removed, or simply opening
+     this screen) — for drivers who get handed an out-of-order route
+     from the office and don't want to press Reordina by hand. */
+  .dp-auto-row{display:flex;align-items:center;justify-content:flex-end;gap:8px;margin:2px 0 8px;}
+  .dp-auto-label{font-size:10px;font-weight:800;letter-spacing:.14em;color:var(--ink-faint);text-transform:uppercase;}
+  .dp-auto-toggle{
+    appearance:none;-webkit-appearance:none;border:none;cursor:pointer;
+    width:42px;height:24px;border-radius:999px;background:var(--line);
+    position:relative;flex:none;padding:0;transition:background .18s ease;
+  }
+  .dp-auto-toggle.on{background:var(--accent);}
+  .dp-auto-toggle::after{
+    content:'';position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;
+    background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.25);
+    transition:transform .18s ease;
+  }
+  .dp-auto-toggle.on::after{transform:translateX(18px);}
   .dp-stats-row{display:flex;gap:10px;margin-top:12px;}
   .dp-stat{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md);padding:12px 8px;text-align:center;box-shadow:var(--shadow-sm);}
   .dp-stat-num{font-size:24px;font-weight:800;color:var(--ink);line-height:1.1;}
