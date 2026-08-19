@@ -179,7 +179,23 @@
   .more-option-danger .more-option-text b{color:var(--danger);}
   .screen{display:none;animation:fadein .18s ease;}
   .screen.active{display:block;}
-  @keyframes fadein{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+  /* transform REMOVED from this animation on purpose (was translateY,
+     fade+slide). REAL BUG this caused, reported directly on the
+     Delivery Planner screen: `.screen` is the animating element here,
+     and ANY active `transform` on an ancestor -- even a brief,
+     temporary one from a CSS animation -- creates a new "containing
+     block" for every `position:fixed` descendant inside it. That
+     means `.dp-sticky-header` (fixed, meant to stay rock-solid
+     relative to the real viewport) was instead being pulled along by
+     `.screen`'s own entrance transform for the ~0.18s the animation
+     ran, then visibly snapping to its correct viewport-fixed position
+     the instant the animation finished and the transform cleared --
+     exactly the "table starts lower, then jumps up" glitch. Opacity-
+     only fade keeps the same soft entrance feel without ever creating
+     that containing block, so fixed-position headers on ANY screen
+     (not just this one) now hold their true final position from the
+     very first rendered frame, no jump. */
+  @keyframes fadein{from{opacity:0;}to{opacity:1;}}
 
   /* Cards */
   .card{background:var(--surface);border-radius:var(--radius-lg);padding:20px;box-shadow:var(--shadow-sm);border:1px solid var(--line);}
