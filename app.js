@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v275") {
+          if (data && data.v && data.v !== "pt-foglio-v276") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v275"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v276"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2549,13 +2549,19 @@
     var url = 'https://www.google.com/maps/dir/?api=1' +
       '&destination=' + encodeURIComponent(dpLocationParam(destination)) +
       '&travelmode=driving';
-    // Origin set explicitly to the driver's actual current coordinates
-    // (fetched fresh, not reused from whenever Reordina last ran) —
-    // more deterministic than relying on Google Maps' own "blank
-    // origin defaults to current location" behavior, which depends on
-    // the Maps app itself having location access granted, a separate
-    // permission from ADB Smart's own.
-    if (originPos) url += '&origin=' + encodeURIComponent(originPos.lat + ',' + originPos.lon);
+    // Origin left BLANK on purpose (not set explicitly), so Google
+    // Maps uses its own live "current location" detection when it
+    // opens — reported directly: passing an explicit lat,lon here
+    // made Maps show it as a generic dropped pin ("Un segnaposto")
+    // instead of recognizing it as "La tua posizione" (your position).
+    // Google Maps doesn't know an arbitrary coordinate is meant to
+    // represent the driver — it just plots it as a point. Confirmed
+    // separately that Google Maps' own location detection already
+    // works reliably here, so there's no real upside left to passing
+    // ADB Smart's own (older, less certain) GPS read instead — this
+    // also means the start point Maps actually shows is always the
+    // freshest possible, read at the moment Maps itself opens, not
+    // whatever ADB Smart happened to capture earlier.
     if (waypoints.length) {
       url += '&waypoints=' + waypoints.map(function (c) { return encodeURIComponent(dpLocationParam(c)); }).join('%7C');
     }
