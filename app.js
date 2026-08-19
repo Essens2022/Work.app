@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v305") {
+          if (data && data.v && data.v !== "pt-foglio-v306") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v305"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v306"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2164,7 +2164,15 @@
   // results, just pointed at the FULL list instead of a filtered one.
 
   function dpOpenArchiveModal() {
+    var searchInput = document.getElementById('dp-archive-search-input');
+    searchInput.value = '';
     dpRenderArchiveList();
+    searchInput.oninput = function (e) { dpRenderArchiveList(e.target.value); };
+    wireNavClearButton(
+      searchInput,
+      document.getElementById('dp-archive-search-clear'),
+      function () { dpRenderArchiveList(); } // clearing the field also clears the filter, back to the full list
+    );
     document.getElementById('modal-dp-archive').classList.add('open');
   }
 
@@ -2204,17 +2212,30 @@
     state.deliveryClients.push(saved);
     saveDeliveryClients(state.deliveryClients);
     dpCloseModal('modal-dp-new-client');
-    dpRenderArchiveList(); // the archive list underneath was never closed — just refreshes what's now visible again
+    dpRenderArchiveList(document.getElementById('dp-archive-search-input') ? document.getElementById('dp-archive-search-input').value : ''); // the archive list underneath was never closed — just refreshes what's now visible again, keeping any active search filter
     dpBackgroundGeocodeForOrdering(saved.id, indirizzo); // same silent, best-effort background geocode as the normal add-client flow — for Reordina's ordering later, never for the address shown/sent to Google Maps
   }
 
-  function dpRenderArchiveList() {
+  function dpRenderArchiveList(query) {
     var container = document.getElementById('dp-archive-list');
-    var clients = state.deliveryClients.slice().sort(function (a, b) { return a.nome.localeCompare(b.nome); });
-    document.getElementById('dp-archive-count').textContent = clients.length;
+    var all = state.deliveryClients.slice().sort(function (a, b) { return a.nome.localeCompare(b.nome); });
+    document.getElementById('dp-archive-count').textContent = all.length;
 
-    if (!clients.length) {
+    // Same 2-letter threshold and name-OR-address matching already
+    // used for "Aggiungi cliente" — requested directly, so the archive
+    // behaves the same way once there are enough clients that
+    // scrolling through all of them isn't practical anymore.
+    var q = (query || '').trim().toLowerCase();
+    var clients = q.length >= 2
+      ? all.filter(function (c) { return c.nome.toLowerCase().indexOf(q) !== -1 || (c.indirizzo || '').toLowerCase().indexOf(q) !== -1; })
+      : all;
+
+    if (!all.length) {
       container.innerHTML = '<div class="card" style="text-align:center;color:var(--ink-soft);">Nessun cliente salvato ancora.</div>';
+      return;
+    }
+    if (!clients.length) {
+      container.innerHTML = '<div class="card" style="text-align:center;color:var(--ink-soft);">Nessun cliente trovato per "' + escapeHtml(query) + '".</div>';
       return;
     }
 
@@ -2229,7 +2250,10 @@
         '</div>';
     });
     container.innerHTML = html;
-    dpWireSwipeToDelete(container, dpRenderArchiveList);
+    dpWireSwipeToDelete(container, function () {
+      var searchInput = document.getElementById('dp-archive-search-input');
+      dpRenderArchiveList(searchInput ? searchInput.value : '');
+    });
 
     container.querySelectorAll('.dp-search-result-row').forEach(function (row) {
       row.addEventListener('click', function () { dpArchiveOpenEdit(row.getAttribute('data-saved-id')); });
@@ -2248,7 +2272,7 @@
       state.deliveryClients = state.deliveryClients.filter(function (x) { return x.id !== savedId; });
       saveDeliveryClients(state.deliveryClients);
       dpCloseModal('modal-dp-archive-edit');
-      dpRenderArchiveList();
+      dpRenderArchiveList(document.getElementById('dp-archive-search-input') ? document.getElementById('dp-archive-search-input').value : '');
     };
     document.getElementById('dp-archive-edit-save-btn').onclick = function () {
       var nome = document.getElementById('dp-archive-edit-nome').value.trim();
@@ -2264,7 +2288,7 @@
       if (addressChanged) { c.lat = null; c.lon = null; } // stale coordinates from the OLD address would silently mislead Reordina's ordering later — cleared until re-geocoded
       saveDeliveryClients(state.deliveryClients);
       dpCloseModal('modal-dp-archive-edit');
-      dpRenderArchiveList();
+      dpRenderArchiveList(document.getElementById('dp-archive-search-input') ? document.getElementById('dp-archive-search-input').value : '');
       if (addressChanged) dpBackgroundGeocodeForOrdering(c.id, indirizzo); // re-geocodes silently in the background; already writes straight back into this saved-client record via savedClientId
     };
     document.getElementById('modal-dp-archive-edit').classList.add('open');
