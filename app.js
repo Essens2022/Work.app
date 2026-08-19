@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v301") {
+          if (data && data.v && data.v !== "pt-foglio-v303") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v301"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v303"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1342,7 +1342,8 @@
   var navLocateMarker = null; // "you are here" marker dropped by the standalone locate button, kept separate from the active-navigation position marker
   var navSearchFocusPoint = null; // driver's GPS position, used to bias/rank geocoding results toward nearby places first
   var dpGeoDeniedThisSession = false; // once a fresh GPS request is denied, skip repeating the attempt for the rest of this session — see dpConfirmReordina
-  var dpLastAutoOptimizedSignature = null; // ids of pending clients last auto-optimized (sorted, joined) — see the auto-riordina check at the top of renderDeliveryPlanner
+  var dpLastAutoOptimizedSignature = null; // exact ORDER of pending client ids last successfully applied by auto-riordina — see the auto-riordina check at the top of renderDeliveryPlanner
+  var dpAutoOptimizationInFlight = false; // guards against a second auto-riordina call firing while one is still waiting on a network response
 
   // Auto-archives the previous day's run the moment a new calendar day
   // is detected — no manual "end of day" action needed, matching what
@@ -1525,20 +1526,37 @@
     var html = '';
 
     // ---- Auto-riordina: run the same optimization Reordina does
-    // manually, automatically, whenever the pending client list has
-    // actually CHANGED since the last time it ran (not on every
-    // render — re-renders happen constantly for unrelated reasons,
-    // like just checking off a delivery). Compared as a SET of
-    // pending ids (sorted, order-independent) rather than the raw
-    // array order: after this itself reorders the array, that
-    // wouldn't count as "changed" again on the next render, avoiding
-    // an infinite optimize-render-optimize loop. Only the actual SET
-    // changing (a client added, removed, or completed) re-triggers it.
-    if (dpAutoRiordinaEnabled()) {
+    // manually, automatically, whenever the pending clients (or their
+    // ORDER) have actually changed since the last time it ran — not
+    // on every render, since re-renders happen constantly for
+    // unrelated reasons (e.g. just checking off a delivery).
+    //
+    // REAL GAP, reported directly: this used to compare a SORTED set
+    // of ids, meaning it only reacted to a client being added or
+    // removed — dragging clients into a different manual order left
+    // the set identical, so AUTO never noticed and never corrected
+    // it back. ION was explicit: "orice modificare eu o fac manual,
+    // el trebuie sa o refaca asa cum crede el" — ANY manual change,
+    // including pure reordering, should be overridden the next time
+    // AUTO runs, not just additions/removals. Signature is now the
+    // exact ORDER of pending ids (no more .sort()), so a manual drag
+    // is detected as a real change too.
+    //
+    // dpLastAutoOptimizedSignature is deliberately NOT updated here
+    // at trigger time anymore — only once dpRunAutoOptimization
+    // actually finishes applying a result (see there), matching the
+    // REAL final order rather than the pre-optimization one. Setting
+    // it here (to the order-sensitive pre-optimization signature)
+    // would otherwise immediately mismatch the post-optimization
+    // order on the very next render and re-trigger forever.
+    // dpAutoOptimizationInFlight guards against firing a second,
+    // overlapping call while one is still waiting on a network
+    // response.
+    if (dpAutoRiordinaEnabled() && !dpAutoOptimizationInFlight) {
       var pendingForAuto = run.clients.filter(function (c) { return c.status !== 'completed'; });
-      var autoSig = pendingForAuto.map(function (c) { return c.id; }).sort().join(',');
+      var autoSig = pendingForAuto.map(function (c) { return c.id; }).join(',');
       if (pendingForAuto.length > 1 && autoSig !== dpLastAutoOptimizedSignature) {
-        dpLastAutoOptimizedSignature = autoSig; // set BEFORE the async call — a render triggered elsewhere while this is in flight must not re-fire it
+        dpAutoOptimizationInFlight = true;
         dpRunAutoOptimization();
       }
     }
@@ -2515,7 +2533,7 @@
   function dpRunAutoOptimization() {
     var completed = state.deliveryRun.clients.filter(function (c) { return c.status === 'completed'; });
     var remaining = state.deliveryRun.clients.filter(function (c) { return c.status !== 'completed'; });
-    if (remaining.length < 2) return;
+    if (remaining.length < 2) { dpAutoOptimizationInFlight = false; return; }
 
     var geolocatable = remaining.filter(function (c) { return c.lat != null && c.lon != null; });
     var unverified = remaining.filter(function (c) { return c.lat == null || c.lon == null; });
@@ -2566,23 +2584,36 @@
       // switched.
       if (!dpAutoRiordinaEnabled()) {
         if (toggleEl) toggleEl.classList.remove('calculating');
+        dpAutoOptimizationInFlight = false;
         return;
       }
       var optimizedIds = {};
       optimized.forEach(function (c) { optimizedIds[c.id] = true; });
       var droppedByOrs = geolocatable.filter(function (c) { return !optimizedIds[c.id]; });
+      var finalOrder = optimized.concat(unverified).concat(droppedByOrs).concat(completed);
       dpAnimateListReorder(function () {
-        state.deliveryRun.clients = optimized.concat(unverified).concat(droppedByOrs).concat(completed);
+        state.deliveryRun.clients = finalOrder;
         saveDeliveryRun(state.deliveryRun);
         renderDeliveryPlanner(); // rebuilds the toggle fresh too, so the .calculating class from above is gone the instant this replaces it — no separate cleanup needed on the success path
       });
+      // Signature recorded from the REAL final order actually applied
+      // (excluding completed ones, same as what the auto-check itself
+      // compares against) — not the order that existed before this
+      // ran. Recording it any earlier would immediately mismatch on
+      // the very next render and trigger this all over again.
+      dpLastAutoOptimizedSignature = finalOrder.filter(function (c) { return c.status !== 'completed'; }).map(function (c) { return c.id; }).join(',');
+      dpAutoOptimizationInFlight = false;
       toast('Percorso riordinato automaticamente ✓', 2500);
     }).catch(function () {
       // Silent — see comment above the function. Still need to clear
-      // the calculating pulse on this path though, since a failure
-      // here does NOT re-render (the toggle element from above is
-      // still the live one in the DOM).
+      // the calculating pulse and the in-flight guard on this path
+      // too, since a failure here does NOT re-render (the toggle
+      // element from above is still the live one in the DOM) — and
+      // deliberately does NOT touch dpLastAutoOptimizedSignature, so
+      // the very next render tries again fresh rather than treating a
+      // failed attempt as if it had actually succeeded.
       if (toggleEl) toggleEl.classList.remove('calculating');
+      dpAutoOptimizationInFlight = false;
     });
   }
 
@@ -7917,6 +7948,76 @@
     if (changed) saveFuel(state.fuel);
   }
 
+  // One-time re-verification of every SAVED client's stored
+  // coordinates, using the precision check already added to
+  // geocodeAddress() above (PRECISE_LAYERS) — that fix only guards
+  // NEW geocodes going forward; any client saved BEFORE it existed
+  // could still be sitting on an old, low-precision (city-level-only)
+  // coordinate. Confirmed directly, concretely: ION's own real client
+  // "ERREM IMPIANTI SRL" (Via Dell'Artigianato, Loreggia PD) — a
+  // longtime, already-saved client — was exactly this case, and
+  // auto-riordina's ordering fell apart specifically once it entered
+  // the mix. Re-geocodes every already-saved client with existing
+  // coordinates through the SAME (now-fixed) geocodeAddress(), and
+  // corrects or clears the stored position wherever the fresh,
+  // precision-checked result meaningfully disagrees with what was
+  // saved. Runs once (a flag guards repeats), fully in the
+  // background, rate-limited so it doesn't hammer the free-tier API
+  // or the driver's data connection all at once.
+  var LS_GEOCODE_PRECISION_MIGRATION_DONE = 'pt_geocode_precision_migration_v1_done';
+  function migrateReverifyClientPrecision() {
+    if (localStorage.getItem(LS_GEOCODE_PRECISION_MIGRATION_DONE) === '1') return;
+    var toCheck = state.deliveryClients.filter(function (c) { return c.lat != null && c.lon != null && c.indirizzo; });
+    if (!toCheck.length) { localStorage.setItem(LS_GEOCODE_PRECISION_MIGRATION_DONE, '1'); return; }
+
+    var idx = 0;
+    var changedCount = 0;
+    function processNext() {
+      if (idx >= toCheck.length) {
+        localStorage.setItem(LS_GEOCODE_PRECISION_MIGRATION_DONE, '1');
+        if (changedCount > 0) {
+          saveDeliveryClients(state.deliveryClients);
+          saveDeliveryRun(state.deliveryRun); // any today's-run entries updated below get persisted here too
+        }
+        return;
+      }
+      var c = toCheck[idx];
+      idx++;
+      geocodeAddress(c.indirizzo).then(function (result) {
+        var oldLat = c.lat, oldLon = c.lon;
+        if (!result) {
+          // Nothing precise found at all now — clear rather than keep
+          // a known-bad position; the client falls back to
+          // "unverified" (queued at the end during Reordina) instead
+          // of silently corrupting the route the way a wrong
+          // coordinate does.
+          c.lat = null; c.lon = null;
+        } else if (Math.abs(result.lat - oldLat) > 0.01 || Math.abs(result.lon - oldLon) > 0.01) {
+          // ~1km+ difference from the old saved position — far more
+          // than normal geocoding precision variance for the SAME
+          // real address, a strong sign the old value was a
+          // different, less precise match (e.g. city-center instead
+          // of the actual street).
+          c.lat = result.lat; c.lon = result.lon;
+        } else {
+          return; // close enough to what was already saved — no real change, don't count it
+        }
+        changedCount++;
+        state.deliveryRun.clients.forEach(function (rc) {
+          if (rc.clientId === c.id) { rc.lat = c.lat; rc.lon = c.lon; }
+        });
+      }).catch(function () {
+        // Network hiccup or similar — leave this one exactly as it
+        // was, no worse than before. It'll simply be picked up again
+        // whenever it's next re-geocoded for an unrelated reason
+        // (e.g. the driver edits its address).
+      }).then(function () {
+        setTimeout(processNext, 350); // gentle pacing, not a burst of simultaneous requests
+      });
+    }
+    processNext();
+  }
+
   // Measures the real rendered height of the fixed top/bottom bars and
   // exposes them as CSS variables, so the scrollable content in <main> is
   // padded to clear them exactly — no guessing, works identically on every
@@ -8531,6 +8632,7 @@
   function init() {
     migrateUppercaseLocalities();
     migrateFuelToArrays();
+    migrateReverifyClientPrecision(); // async, rate-limited, runs fully in the background — never blocks anything else in init()
     reportActivity();
     syncBarHeights();
     window.addEventListener('resize', syncBarHeights);
