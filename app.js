@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v286") {
+          if (data && data.v && data.v !== "pt-foglio-v287") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v286"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v287"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1426,11 +1426,20 @@
     var day = history[idx];
     if (!day) return;
     var detailEl = document.getElementById('dp-history-detail');
-    var html = '<div class="modal-title" style="margin-bottom:14px;">' + dpFormatDateIt(day.date) + '</div>';
+    var hasPrev = idx < history.length - 1; // history is stored newest-first, so "previous day" (further back) is the NEXT array index
+    var hasNext = idx > 0;
+    var html = '<div class="dp-history-nav-row">' +
+      '<button type="button" class="dp-history-nav-btn" id="dp-history-prev-day"' + (hasPrev ? '' : ' disabled') + '>‹ Giorno prec.</button>' +
+      '<div class="modal-title" style="margin:0;">' + dpFormatDateIt(day.date) + '</div>' +
+      '<button type="button" class="dp-history-nav-btn" id="dp-history-next-day"' + (hasNext ? '' : ' disabled') + '>Giorno succ. ›</button>' +
+      '</div>';
     day.clients.forEach(function (c, i) { html += dpClientRowHtml(c, i, true); });
     detailEl.innerHTML = html;
     document.getElementById('dp-history-detail-close-x').onclick = function () { dpCloseModal('modal-dp-history-detail'); };
     document.getElementById('modal-dp-history-detail').classList.add('open');
+    if (hasPrev) document.getElementById('dp-history-prev-day').addEventListener('click', function () { dpOpenHistoryDayDetail(idx + 1); });
+    if (hasNext) document.getElementById('dp-history-next-day').addEventListener('click', function () { dpOpenHistoryDayDetail(idx - 1); });
+    detailEl.scrollTop = 0; // jumping to a different day should always start at the top, not wherever the previous day happened to be scrolled to
   }
 
   function renderDeliveryPlanner() {
