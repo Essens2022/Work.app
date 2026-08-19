@@ -1300,13 +1300,15 @@
     <button type="button" class="modal-close-x" id="dp-archive-edit-close-x" aria-label="Chiudi">×</button>
     <div class="grabber"></div>
     <div class="modal-title">Modifica cliente</div>
-    <div class="field">
+    <div class="field autocomplete-wrap">
       <label>Nome azienda</label>
       <input type="text" id="dp-archive-edit-nome" autocomplete="off">
+      <button type="button" class="ac-clear-btn" id="dp-archive-edit-nome-clear" aria-label="Cancella">✕</button>
     </div>
-    <div class="field" style="margin-top:10px;">
+    <div class="field autocomplete-wrap" style="margin-top:10px;">
       <label>Indirizzo, coordinate o link Google Maps</label>
       <input type="text" id="dp-archive-edit-indirizzo" autocomplete="off">
+      <button type="button" class="ac-clear-btn" id="dp-archive-edit-indirizzo-clear" aria-label="Cancella">✕</button>
     </div>
     <div id="dp-archive-edit-result" style="margin-top:8px;"></div>
     <button type="button" class="btn btn-accent btn-block" id="dp-archive-edit-save-btn" style="margin-top:10px;">Salva modifiche</button>
