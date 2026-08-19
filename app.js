@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v277") {
+          if (data && data.v && data.v !== "pt-foglio-v278") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v277"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v278"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1512,8 +1512,11 @@
     // sticky approach doesn't touch main's proven-working scroll
     // mechanism at all, just pins this block visually within it).
     html += '<div class="dp-sticky-header">';
-    html += '<div class="dp-header-row"><h2 class="dp-title">Percorso di oggi</h2><button type="button" class="btn-icon-text" id="dp-history-btn">📋 Storico</button></div>';
-    html += '<div class="dp-vehicle-quick" id="dp-vehicle-quick">Profilo veicolo: ' + dpVehicleSummary() + ' &rsaquo;</div>';
+    html += '<div class="dp-header-row"><h2 class="dp-title">Percorso di oggi</h2>' +
+      '<div class="dp-header-actions">' +
+      '<button type="button" class="btn-icon-text" id="dp-vehicle-btn">🚛 ' + dpVehicleSummary() + ' &rsaquo;</button>' +
+      '<button type="button" class="btn-icon-text" id="dp-history-btn">📋 Storico</button>' +
+      '</div></div>';
     html += '<div class="dp-stats-row">' +
       '<div class="dp-stat"><div class="dp-stat-num">' + stats.total + '</div><div class="dp-stat-label">clienti</div></div>' +
       '<div class="dp-stat"><div class="dp-stat-num" style="color:var(--teal)">' + stats.completed + '</div><div class="dp-stat-label">completati</div></div>' +
@@ -1581,7 +1584,7 @@
     dpSyncStickyHeaderHeight(); // real, rendered height of the just-inserted header — must run AFTER innerHTML, not before
 
     document.getElementById('dp-add-client-btn').addEventListener('click', dpOpenAddClientModal);
-    document.getElementById('dp-vehicle-quick').addEventListener('click', function () {
+    document.getElementById('dp-vehicle-btn').addEventListener('click', function () {
       populateNavVehicleForm(); // fills the (pre-existing, unchanged) vehicle modal with current values — nothing else does this now that the old screen isn't rendering anymore
       document.getElementById('modal-nav-vehicle').classList.add('open');
     });
