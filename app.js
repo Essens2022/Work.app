@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v300") {
+          if (data && data.v && data.v !== "pt-foglio-v301") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v300"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v301"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1404,6 +1404,19 @@
     return giorni[d.getDay()] + ' ' + d.getDate() + ' ' + mesi[d.getMonth()];
   }
 
+  // Requested directly, specifically for the nav row between Giorno
+  // prec./succ.: the weekday name on its own line, day+month below —
+  // deliberate two-line HTML (not just left to wrap wherever it
+  // happens to break), same underlying date pieces as
+  // dpFormatDateIt() above, just laid out explicitly.
+  function dpFormatDateItTwoLines(dateStr) {
+    var parts = dateStr.split('-');
+    var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    var giorni = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
+    var mesi = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+    return '<div>' + giorni[d.getDay()] + '</div><div>' + d.getDate() + ' ' + mesi[d.getMonth()] + '</div>';
+  }
+
   function dpOpenHistoryModal() {
     var history = loadDeliveryHistory();
     var listEl = document.getElementById('dp-history-list');
@@ -1441,7 +1454,7 @@
     // stays put, only the content scrolls.
     navEl.innerHTML = '<div class="dp-history-nav-row">' +
       '<button type="button" class="dp-history-nav-btn" id="dp-history-prev-day"' + (hasPrev ? '' : ' disabled') + '>‹ Giorno prec.</button>' +
-      '<div class="dp-history-nav-date">' + dpFormatDateIt(day.date) + '</div>' +
+      '<div class="dp-history-nav-date">' + dpFormatDateItTwoLines(day.date) + '</div>' +
       '<button type="button" class="dp-history-nav-btn" id="dp-history-next-day"' + (hasNext ? '' : ' disabled') + '>Giorno succ. ›</button>' +
       '</div>';
     var html = '';
