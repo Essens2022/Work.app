@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v278") {
+          if (data && data.v && data.v !== "pt-foglio-v279") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v278"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v279"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2792,24 +2792,6 @@
     document.getElementById('nav-gear-btn').addEventListener('click', function (e) {
       e.stopPropagation();
       document.getElementById('modal-nav-vehicle').classList.add('open');
-    });
-    document.getElementById('nav-vehicle-close-x').addEventListener('click', function () {
-      document.getElementById('modal-nav-vehicle').classList.remove('open');
-    });
-    document.getElementById('nav-vehicle-save').addEventListener('click', function () {
-      state.vehicle = {
-        tipo: document.getElementById('veh-tipo').value,
-        altezza: document.getElementById('veh-altezza').value,
-        larghezza: document.getElementById('veh-larghezza').value,
-        lunghezza: document.getElementById('veh-lunghezza').value,
-        massa: document.getElementById('veh-massa').value,
-        massaAssi: document.getElementById('veh-massaAssi').value,
-        rimorchio: document.getElementById('veh-rimorchio').checked,
-        classeEmissioni: document.getElementById('veh-classeEmissioni').value
-      };
-      saveVehicle(state.vehicle);
-      toast('Veicolo salvato');
-      document.getElementById('modal-nav-vehicle').classList.remove('open');
     });
     document.getElementById('nav-calc-btn').addEventListener('click', calculateNavRoute);
     document.getElementById('nav-add-stop').addEventListener('click', addNavWaypointBeforeDest);
@@ -8296,6 +8278,39 @@
     // if .dp-sticky-header doesn't exist in the DOM right now).
     window.addEventListener('resize', dpSyncStickyHeaderHeight);
     window.addEventListener('orientationchange', function () { setTimeout(dpSyncStickyHeaderHeight, 200); });
+
+    // REAL BUG, found and confirmed while diagnosing a reported "Salva
+    // veicolo does nothing": these two listeners were only ever wired
+    // inside renderNavigatore() — a function that isn't called ANYWHERE
+    // in the app anymore (the old turn-by-turn Navigator screen this
+    // belonged to was fully replaced by the Delivery Planner). The
+    // #modal-nav-vehicle form itself (opened from the Delivery
+    // Planner's own vehicle button, and from Impostazioni) is very
+    // much alive and used — but its Save button's click listener, and
+    // its × close button's listener, were dead code that never
+    // actually attached to anything. Both are static elements already
+    // present in index.html (not rebuilt per-screen), so wiring them
+    // once here, at real app init, is all that's needed — no per-
+    // render re-wiring required.
+    document.getElementById('nav-vehicle-close-x').addEventListener('click', function () {
+      document.getElementById('modal-nav-vehicle').classList.remove('open');
+    });
+    document.getElementById('nav-vehicle-save').addEventListener('click', function () {
+      state.vehicle = {
+        tipo: document.getElementById('veh-tipo').value,
+        altezza: document.getElementById('veh-altezza').value,
+        larghezza: document.getElementById('veh-larghezza').value,
+        lunghezza: document.getElementById('veh-lunghezza').value,
+        massa: document.getElementById('veh-massa').value,
+        massaAssi: document.getElementById('veh-massaAssi').value,
+        rimorchio: document.getElementById('veh-rimorchio').checked,
+        classeEmissioni: document.getElementById('veh-classeEmissioni').value
+      };
+      saveVehicle(state.vehicle);
+      toast('Veicolo salvato ✓');
+      document.getElementById('modal-nav-vehicle').classList.remove('open');
+      if (currentScreen === 'navigatore') renderDeliveryPlanner(); // refreshes the vehicle-summary text on the header button immediately, so the new type/dimensions are visibly reflected right away, not just on the next unrelated re-render
+    });
 
     // Tapping the dimmed backdrop (outside the sheet itself) closes
     // whichever modal is open — same convention as every native picker
