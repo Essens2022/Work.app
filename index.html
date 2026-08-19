@@ -122,22 +122,23 @@
   body.nav-fullbleed #screen-navigatore{padding:0;}
 
   /* Delivery Planner — everything above the client list (title,
-     stats, buttons) sticks to the top of main's OWN existing scroll
-     as the list moves underneath it, rather than disabling main's
-     scroll and building a separate flex/overflow chain for a
-     supposedly-pinned header. REVERTED TWICE now from earlier
-     attempts: first a fully flex-based "disable main's scroll
-     entirely" version (broke scrolling outright, reportedly), then a
-     simpler max-height-on-the-list-only version (fixed scrolling, but
-     brought back whole-page scroll instead of keeping the header
-     visually pinned, which was the actual point). This sticky version
-     keeps main's own proven, working scroll completely untouched —
-     no overflow overrides on it at all — while still visually pinning
-     the header block via position:sticky, a technique that doesn't
-     require taking over scroll behavior itself. Needs an opaque
-     background so the list doesn't visibly show through/behind it
-     while scrolling past. */
-  .dp-sticky-header{position:sticky;top:0;z-index:5;background:var(--bg);margin:0 -16px;padding:0 16px;}
+     stats, buttons) is TRULY fixed now, same technique as .topbar
+     itself (position:fixed, not sticky). REVERTED THREE TIMES from
+     earlier attempts: a fully flex-based "disable main's scroll"
+     version (broke scrolling outright), a max-height-on-the-list
+     version (fixed scrolling, but brought back whole-page scroll),
+     then position:sticky (fixed both, but iOS's own overscroll bounce
+     at the very top/bottom of a scroll still visibly nudges a sticky
+     element — reported directly). position:fixed is immune to that
+     bounce the same way .topbar already is — genuinely removed from
+     scroll flow entirely, not just "stuck" within it. Positioned
+     right below .topbar (top: var(--topbar-h)); its own height is
+     measured dynamically in JS (dpSyncStickyHeaderHeight, same
+     pattern as syncBarHeights for topbar/bottomnav) and exposed as
+     --dp-header-h, which the list below pads itself by so nothing
+     ends up hidden underneath the fixed block. */
+  .dp-sticky-header{position:fixed;top:var(--topbar-h, 70px);left:50%;transform:translateX(-50%);width:100%;max-width:560px;z-index:15;background:var(--bg);padding:0 16px 12px;box-sizing:border-box;}
+  .dp-list{padding-top:var(--dp-header-h, 0px);}
   .install-cta-wrap{position:relative;margin-bottom:14px;}
   .install-cta-btn{
     width:100%;display:flex;align-items:center;justify-content:center;gap:10px;
