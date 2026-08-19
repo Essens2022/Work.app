@@ -287,6 +287,19 @@
   .dp-client-addr{font-size:13.5px;color:#4A4A4E;white-space:normal;overflow-wrap:break-word;margin-top:2px;line-height:1.35;}
   .dp-bottom-actions{margin-top:18px;padding-bottom:20px;}
   .dp-search-result-row{display:flex;flex-direction:column;padding:12px 14px;border-bottom:1px solid var(--line);cursor:pointer;}
+  /* Requested directly: a standalone "+" button in Archivio clienti's
+     rows, to add straight to today's run without opening Modifica
+     cliente — scoped to .dp-archive-row specifically so "Aggiungi
+     cliente"'s own search results (plain .dp-search-result-row,
+     where tapping the row IS the add-action already) stay completely
+     unaffected. */
+  .dp-archive-row{position:relative;padding-right:56px;}
+  .dp-archive-add-today-btn{
+    position:absolute;top:50%;right:14px;transform:translateY(-50%);
+    width:34px;height:34px;border-radius:50%;border:none;background:var(--accent);color:#fff;
+    font-size:20px;font-weight:700;line-height:1;display:flex;align-items:center;justify-content:center;
+    box-shadow:0 2px 6px rgba(0,0,0,.15);
+  }
   .dp-swipe-wrap{position:relative;overflow:hidden;}
   .dp-swipe-row{position:relative;background:var(--surface);z-index:1;touch-action:pan-y;}
   .dp-swipe-delete-btn{position:absolute;top:0;right:0;bottom:0;width:84px;background:var(--danger);color:#fff;border:none;font-weight:700;font-size:13px;z-index:0;}

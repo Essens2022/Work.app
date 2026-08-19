@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v319") {
+          if (data && data.v && data.v !== "pt-foglio-v320") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v319"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v320"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2216,6 +2216,26 @@
   // markup/pattern already built for the "Aggiungi cliente" search
   // results, just pointed at the FULL list instead of a filtered one.
 
+  // "+" button in Archivio clienti — adds a saved client straight to
+  // today's run, staying on the archive screen the whole time (no
+  // navigation, no modal closing) so the driver can keep scrolling
+  // and adding several more in a row. Same core effect as
+  // dpAddSavedClientToRun (used by "Aggiungi cliente"'s own search),
+  // just without closing that OTHER modal (which isn't even open
+  // here) and with its own toast confirmation instead, since nothing
+  // else visually signals success in this context.
+  function dpArchiveAddToTodayRun(savedClientId) {
+    var saved = state.deliveryClients.find(function (c) { return c.id === savedClientId; });
+    if (!saved) return;
+    state.deliveryRun.clients.push({
+      id: uid(), clientId: saved.id, nome: saved.nome, indirizzo: saved.indirizzo,
+      lat: saved.lat, lon: saved.lon, status: 'pending'
+    });
+    saveDeliveryRun(state.deliveryRun);
+    if (currentScreen === 'navigatore') renderDeliveryPlanner(); // reflects immediately underneath if that screen happens to be showing right now
+    toast(saved.nome + ' aggiunto al percorso di oggi ✓', 2000);
+  }
+
   function dpOpenArchiveModal() {
     var searchInput = document.getElementById('dp-archive-search-input');
     searchInput.value = '';
@@ -2306,15 +2326,32 @@
       // outside that context.
       var unverifiedBadge = (c.lat == null || c.lon == null)
         ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '';
+      // Requested directly: a standalone "+" button, independent from
+      // tapping the row itself (which opens Modifica cliente) — since
+      // the archive is already sorted alphabetically, scrolling to
+      // find a client and adding it straight to today's run from
+      // here, without detouring through the separate "Aggiungi
+      // cliente" search, is a real, faster path for a driver who
+      // already knows exactly who they need. Only in Archivio clienti
+      // — .dp-search-result-row itself stays completely untouched, so
+      // "Aggiungi cliente"'s own search results (where tapping the
+      // row IS already the add-action) are unaffected.
       html += '<div class="dp-swipe-wrap" data-saved-id="' + c.id + '">' +
         '<button type="button" class="dp-swipe-delete-btn" data-saved-id="' + c.id + '">Elimina</button>' +
-        '<div class="dp-search-result-row dp-swipe-row" data-saved-id="' + c.id + '">' +
+        '<div class="dp-search-result-row dp-archive-row dp-swipe-row" data-saved-id="' + c.id + '">' +
         '<div class="dp-search-result-name">' + escapeHtml(c.nome) + '</div>' +
         '<div class="dp-search-result-addr">' + escapeHtml(c.indirizzo || '') + unverifiedBadge + '</div>' +
+        '<button type="button" class="dp-archive-add-today-btn" data-saved-id="' + c.id + '" aria-label="Aggiungi al percorso di oggi">+</button>' +
         '</div>' +
         '</div>';
     });
     container.innerHTML = html;
+    container.querySelectorAll('.dp-archive-add-today-btn').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation(); // must never also trigger the row's own click (which opens Modifica cliente)
+        dpArchiveAddToTodayRun(btn.getAttribute('data-saved-id'));
+      });
+    });
     dpWireSwipeToDelete(container, function () {
       var searchInput = document.getElementById('dp-archive-search-input');
       dpRenderArchiveList(searchInput ? searchInput.value : '');
