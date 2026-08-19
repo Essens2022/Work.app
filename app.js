@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v276") {
+          if (data && data.v && data.v !== "pt-foglio-v277") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v276"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v277"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -8156,6 +8156,22 @@
       .catch(function () {
         toast('Impossibile verificare — controlla la connessione');
       });
+  });
+  // Requested directly: the vehicle profile was only reachable through
+  // a small text link on the Delivery Planner screen itself ("Profilo
+  // veicolo: Furgone ›") — easy to miss entirely if the driver never
+  // happened to notice it, meaning some drivers may never have
+  // discovered they could switch off the default HGV-restricted
+  // routing profile (which meaningfully changes how routes get
+  // calculated — see dpCallOrsOptimization) even when their real
+  // vehicle doesn't need those restrictions. Added here too, in
+  // Impostazioni's own "Altre opzioni" menu — a place any driver
+  // already knows to check for settings, independent of whether
+  // they've ever opened the Delivery Planner screen at all.
+  document.getElementById('more-opt-vehicle').addEventListener('click', function () {
+    moreOptionsModal.classList.remove('open');
+    populateNavVehicleForm();
+    document.getElementById('modal-nav-vehicle').classList.add('open');
   });
   document.getElementById('more-opt-share').addEventListener('click', function () {
     moreOptionsModal.classList.remove('open');
