@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v303") {
+          if (data && data.v && data.v !== "pt-foglio-v304") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v303"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v304"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1344,6 +1344,7 @@
   var dpGeoDeniedThisSession = false; // once a fresh GPS request is denied, skip repeating the attempt for the rest of this session — see dpConfirmReordina
   var dpLastAutoOptimizedSignature = null; // exact ORDER of pending client ids last successfully applied by auto-riordina — see the auto-riordina check at the top of renderDeliveryPlanner
   var dpAutoOptimizationInFlight = false; // guards against a second auto-riordina call firing while one is still waiting on a network response
+  var dpAutoOptimizationSafetyTimer = null; // independent 20s safety net — force-clears dpAutoOptimizationInFlight no matter what, so a single failure can never permanently disable auto-riordina for the rest of the session
 
   // Auto-archives the previous day's run the moment a new calendar day
   // is detected — no manual "end of day" action needed, matching what
@@ -1557,7 +1558,30 @@
       var autoSig = pendingForAuto.map(function (c) { return c.id; }).join(',');
       if (pendingForAuto.length > 1 && autoSig !== dpLastAutoOptimizedSignature) {
         dpAutoOptimizationInFlight = true;
-        dpRunAutoOptimization();
+        // REAL BUG, reported directly: "deja nu mai functioneaza nici
+        // cum functiona" — worse than before this change. Root cause:
+        // dpAutoOptimizationInFlight had no recovery path. If
+        // dpRunAutoOptimization() ever threw synchronously, or its
+        // promise chain somehow never settled, this flag stayed stuck
+        // at true FOREVER — the guard above then silently blocked
+        // every future attempt for the rest of the session, no
+        // visible error, no recovery short of reloading. A single
+        // failure anywhere permanently bricked the feature — strictly
+        // worse than having no guard at all. Fixed two ways: wrapped
+        // in try/catch (a synchronous throw resets the flag right
+        // away), AND an independent safety-net timeout
+        // (dpAutoOptimizationSafetyTimer, force-cleared inside
+        // dpRunAutoOptimization on every real exit path) force-clears
+        // the flag after 20s no matter what — same "never trust a
+        // single flag with no way out" principle already used for
+        // currentPositionSafe() elsewhere in this file.
+        dpAutoOptimizationSafetyTimer = setTimeout(function () { dpAutoOptimizationInFlight = false; }, 20000);
+        try {
+          dpRunAutoOptimization();
+        } catch (err) {
+          dpAutoOptimizationInFlight = false;
+          clearTimeout(dpAutoOptimizationSafetyTimer);
+        }
       }
     }
 
@@ -2533,7 +2557,7 @@
   function dpRunAutoOptimization() {
     var completed = state.deliveryRun.clients.filter(function (c) { return c.status === 'completed'; });
     var remaining = state.deliveryRun.clients.filter(function (c) { return c.status !== 'completed'; });
-    if (remaining.length < 2) { dpAutoOptimizationInFlight = false; return; }
+    if (remaining.length < 2) { dpAutoOptimizationInFlight = false; clearTimeout(dpAutoOptimizationSafetyTimer); return; }
 
     var geolocatable = remaining.filter(function (c) { return c.lat != null && c.lon != null; });
     var unverified = remaining.filter(function (c) { return c.lat == null || c.lon == null; });
@@ -2585,6 +2609,7 @@
       if (!dpAutoRiordinaEnabled()) {
         if (toggleEl) toggleEl.classList.remove('calculating');
         dpAutoOptimizationInFlight = false;
+        clearTimeout(dpAutoOptimizationSafetyTimer);
         return;
       }
       var optimizedIds = {};
@@ -2596,13 +2621,9 @@
         saveDeliveryRun(state.deliveryRun);
         renderDeliveryPlanner(); // rebuilds the toggle fresh too, so the .calculating class from above is gone the instant this replaces it — no separate cleanup needed on the success path
       });
-      // Signature recorded from the REAL final order actually applied
-      // (excluding completed ones, same as what the auto-check itself
-      // compares against) — not the order that existed before this
-      // ran. Recording it any earlier would immediately mismatch on
-      // the very next render and trigger this all over again.
       dpLastAutoOptimizedSignature = finalOrder.filter(function (c) { return c.status !== 'completed'; }).map(function (c) { return c.id; }).join(',');
       dpAutoOptimizationInFlight = false;
+      clearTimeout(dpAutoOptimizationSafetyTimer);
       toast('Percorso riordinato automaticamente ✓', 2500);
     }).catch(function () {
       // Silent — see comment above the function. Still need to clear
@@ -2614,6 +2635,7 @@
       // failed attempt as if it had actually succeeded.
       if (toggleEl) toggleEl.classList.remove('calculating');
       dpAutoOptimizationInFlight = false;
+      clearTimeout(dpAutoOptimizationSafetyTimer);
     });
   }
 
