@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v310") {
+          if (data && data.v && data.v !== "pt-foglio-v311") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v310"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v311"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2296,10 +2296,6 @@
     if (!c) return;
     document.getElementById('dp-archive-edit-nome').value = c.nome;
     document.getElementById('dp-archive-edit-indirizzo').value = c.indirizzo || '';
-    var initialLatStr = c.lat != null ? String(c.lat) : '';
-    var initialLonStr = c.lon != null ? String(c.lon) : '';
-    document.getElementById('dp-archive-edit-lat').value = initialLatStr;
-    document.getElementById('dp-archive-edit-lon').value = initialLonStr;
     document.getElementById('dp-archive-edit-result').innerHTML = '';
     document.getElementById('dp-archive-edit-close-x').onclick = function () { dpCloseModal('modal-dp-archive-edit'); };
     document.getElementById('dp-archive-edit-remove-btn').onclick = function () {
@@ -2322,54 +2318,19 @@
     document.getElementById('dp-archive-edit-save-btn').onclick = function () {
       var nome = document.getElementById('dp-archive-edit-nome').value.trim();
       var indirizzo = document.getElementById('dp-archive-edit-indirizzo').value.trim();
-      var latRaw = document.getElementById('dp-archive-edit-lat').value.trim();
-      var lonRaw = document.getElementById('dp-archive-edit-lon').value.trim();
       var resultEl = document.getElementById('dp-archive-edit-result');
       if (!nome || !indirizzo) {
         resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Inserisci nome e indirizzo.</div>';
         return;
       }
-      // If BOTH lat and lon fields are filled in (either left as-is
-      // from what was already saved, or pasted fresh from Google
-      // Maps), they're trusted directly — no re-geocoding happens at
-      // all, exactly like a driver pasting the real, correct
-      // coordinates to permanently fix a client whose address
-      // automatic geocoding kept getting wrong. Only truly cleared
-      // (both fields emptied) or an address change with no manual
-      // coordinates given falls back to the normal automatic
-      // geocoding flow.
-      var manualLat = latRaw !== '' ? parseFloat(latRaw) : null;
-      var manualLon = lonRaw !== '' ? parseFloat(lonRaw) : null;
-      var hasValidManualCoords = manualLat != null && manualLon != null && !isNaN(manualLat) && !isNaN(manualLon);
-      if ((latRaw !== '' || lonRaw !== '') && !hasValidManualCoords) {
-        resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Lat/Lon non validi — lascia entrambi vuoti per usare la geocodifica automatica.</div>';
-        return;
-      }
-      // REAL BUG, caught before shipping: the lat/lon fields are
-      // pre-filled with whatever was ALREADY saved when this form
-      // opened — if the driver only edits the address and never
-      // touches these fields, they'd still contain the OLD address's
-      // coordinates. Treating those untouched leftovers as a fresh
-      // manual override would silently pair a brand new address with
-      // a stale position. Only actually counts as a deliberate manual
-      // override if the fields were genuinely CHANGED from what they
-      // showed at open time — otherwise this behaves exactly as
-      // before (auto-clears + re-geocodes on an address change, or
-      // does nothing if the address didn't change either).
-      var coordsWereEdited = (latRaw !== initialLatStr) || (lonRaw !== initialLonStr);
       var addressChanged = indirizzo !== c.indirizzo;
       c.nome = nome;
       c.indirizzo = indirizzo;
-      if (hasValidManualCoords && coordsWereEdited) {
-        c.lat = manualLat;
-        c.lon = manualLon;
-      } else if (addressChanged) {
-        c.lat = null; c.lon = null; // stale coordinates from the OLD address would silently mislead Reordina's ordering later — cleared until re-geocoded
-      }
+      if (addressChanged) { c.lat = null; c.lon = null; } // stale coordinates from the OLD address would silently mislead Reordina's ordering later — cleared until re-geocoded (or set directly below, if the new text is itself coordinates)
       saveDeliveryClients(state.deliveryClients);
       dpCloseModal('modal-dp-archive-edit');
       dpRenderArchiveList(document.getElementById('dp-archive-search-input') ? document.getElementById('dp-archive-search-input').value : '');
-      if (addressChanged && !(hasValidManualCoords && coordsWereEdited)) dpBackgroundGeocodeForOrdering(c.id, indirizzo); // only auto-geocodes when the driver DIDN'T just provide a genuine manual override himself
+      if (addressChanged) dpBackgroundGeocodeForOrdering(c.id, indirizzo); // re-geocodes silently in the background — or, if the text is itself a coordinate pair, uses it directly with no network call at all; see dpParseCoordinatesFromText
     };
     document.getElementById('modal-dp-archive-edit').classList.add('open');
   }
@@ -2536,7 +2497,53 @@
   // Fills in lat/lon on a saved client purely for Reordina's distance
   // calculations — completely separate from, and never overriding,
   // the trusted address text itself.
+  // Recognizes when the "address" text a driver typed is actually
+  // coordinates, not a street address — requested directly, in these
+  // exact words: "era deja bara unde scrii adresa, puteai sa scrii
+  // sau adresa sau coordinatele, exact in aceeasi bara, nu am nevoie
+  // 30 de bare". No separate fields anywhere — the SAME address bar
+  // already used everywhere (new client, edit, Google Maps hand-off)
+  // just also recognizes coordinates when that's what's actually
+  // typed there, and uses them directly with no geocoding call at
+  // all needed. Handles both plain decimal ("45.6041275,
+  // 11.9425809") and the DMS format Google Maps itself shows when you
+  // copy a pin's coordinates (45°42'45.1"N 12°12'57.1"E) — ION has
+  // used both forms already in this same conversation.
+  function dpParseCoordinatesFromText(text) {
+    if (!text) return null;
+    var t = text.trim();
+    var decimalMatch = t.match(/^(-?\d{1,3}(?:\.\d+)?)[,\s]+(-?\d{1,3}(?:\.\d+)?)$/);
+    if (decimalMatch) {
+      var lat = parseFloat(decimalMatch[1]);
+      var lon = parseFloat(decimalMatch[2]);
+      if (Math.abs(lat) <= 90 && Math.abs(lon) <= 180) return { lat: lat, lon: lon };
+    }
+    var dmsMatch = t.match(/(\d+)\s*°\s*(\d+)\s*['′]\s*([\d.]+)\s*["″]\s*([NS])[,\s]+(\d+)\s*°\s*(\d+)\s*['′]\s*([\d.]+)\s*["″]\s*([EW])/i);
+    if (dmsMatch) {
+      var latVal = parseInt(dmsMatch[1], 10) + parseInt(dmsMatch[2], 10) / 60 + parseFloat(dmsMatch[3]) / 3600;
+      if (dmsMatch[4].toUpperCase() === 'S') latVal = -latVal;
+      var lonVal = parseInt(dmsMatch[5], 10) + parseInt(dmsMatch[6], 10) / 60 + parseFloat(dmsMatch[7]) / 3600;
+      if (dmsMatch[8].toUpperCase() === 'W') lonVal = -lonVal;
+      return { lat: latVal, lon: lonVal };
+    }
+    return null;
+  }
+
   function dpBackgroundGeocodeForOrdering(savedClientId, indirizzo) {
+    // Coordinates typed directly need no network geocoding at all —
+    // applied immediately, synchronously, with the exact same
+    // downstream effect (writes into the saved client AND any
+    // matching today's-run entry) as a successful geocode result.
+    var directCoords = dpParseCoordinatesFromText(indirizzo);
+    if (directCoords) {
+      var savedDirect = state.deliveryClients.find(function (c) { return c.id === savedClientId; });
+      if (savedDirect) { savedDirect.lat = directCoords.lat; savedDirect.lon = directCoords.lon; saveDeliveryClients(state.deliveryClients); }
+      state.deliveryRun.clients.forEach(function (c) {
+        if (c.clientId === savedClientId && c.lat == null) { c.lat = directCoords.lat; c.lon = directCoords.lon; }
+      });
+      saveDeliveryRun(state.deliveryRun);
+      return;
+    }
     geocodeAddress(indirizzo).then(function (result) {
       if (!result) return;
       var saved = state.deliveryClients.find(function (c) { return c.id === savedClientId; });
