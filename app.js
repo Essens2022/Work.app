@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v281") {
+          if (data && data.v && data.v !== "pt-foglio-v282") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v281"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v282"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -644,6 +644,13 @@
   function svgIcon(name) {
     var icons = {
       truck: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="6" width="14" height="11"/><path d="M15 10h4l3 3v4h-7z"/><circle cx="6" cy="19" r="1.6"/><circle cx="17.5" cy="19" r="1.6"/></svg>',
+      // Front-view heavy-truck cab — commissioned separately, drawn to
+      // ION's own detailed spec after two review rounds (a rounder
+      // first draft was rejected as "not even close, needs to be a
+      // modern cab" — European trucks like the Actros/Volvo FH/Scania
+      // have flat-topped, angular fronts, not a domed van-style roof).
+      // Same stroke width/size/style as every other topbar icon here.
+      'truck-cab': '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 21 L6.5 6.5 Q6.5 4.5 8.5 4.5 L15.5 4.5 Q17.5 4.5 17.5 6.5 L17.5 21" /><path d="M7.7 6 L16.3 6 L16.3 11.5 Q16.3 12.5 15.3 12.5 L8.7 12.5 Q7.7 12.5 7.7 11.5 Z" stroke-width="1.5"/><path d="M6.5 9.5 L5 9.5" stroke-width="1.3"/><path d="M5 8.3 L5 10.7 L4 10.7 L4 8.3 Z" stroke-width="1.3"/><path d="M17.5 9.5 L19 9.5" stroke-width="1.3"/><path d="M19 8.3 L19 10.7 L20 10.7 L20 8.3 Z" stroke-width="1.3"/><path d="M9 15 L15 15" stroke-width="1.3"/><path d="M9 16.4 L15 16.4" stroke-width="1.3"/><path d="M9 17.8 L15 17.8" stroke-width="1.3"/><path d="M7.3 19 L9.3 19 L9.3 20.5 L7.6 20.5 Z" stroke-width="1.3"/><path d="M16.7 19 L14.7 19 L14.7 20.5 L16.4 20.5 Z" stroke-width="1.3"/></svg>',
       route: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M5 8v4a4 4 0 0 0 4 4h6" stroke-dasharray="3 3"/></svg>',
       fuel: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="9" height="18" rx="1"/><rect x="6.3" y="5.5" width="4.4" height="4" rx="0.5"/><path d="M13 9h2.5l3 2.5v6.5a1.5 1.5 0 0 1-3 0v-3.5a1 1 0 0 0-1-1h-1.5"/></svg>',
       share: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg>',
@@ -8278,6 +8285,17 @@
     // if .dp-sticky-header doesn't exist in the DOM right now).
     window.addEventListener('resize', dpSyncStickyHeaderHeight);
     window.addEventListener('orientationchange', function () { setTimeout(dpSyncStickyHeaderHeight, 200); });
+
+    // Requested directly: a dedicated vehicle-profile icon button in
+    // the topbar itself (always visible, on every screen), right next
+    // to the arrow that opens Percorso di oggi — not just reachable
+    // from inside the Delivery Planner or Impostazioni. Icon only, no
+    // text, same size/stroke/style as the other topbar icons here.
+    document.getElementById('btn-vehicle-topbar').innerHTML = svgIcon('truck-cab');
+    document.getElementById('btn-vehicle-topbar').addEventListener('click', function () {
+      populateNavVehicleForm();
+      document.getElementById('modal-nav-vehicle').classList.add('open');
+    });
 
     // REAL BUG, found and confirmed while diagnosing a reported "Salva
     // veicolo does nothing": these two listeners were only ever wired
