@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v272") {
+          if (data && data.v && data.v !== "pt-foglio-v273") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v272"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v273"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2254,7 +2254,7 @@
     if (toggleEl) toggleEl.classList.add('calculating');
 
     var optimizePromise = geolocatable.length
-      ? (dpGeoDeniedThisSession ? Promise.reject(new Error('User denied Geolocation')) : currentPosition())
+      ? (dpGeoDeniedThisSession ? Promise.reject(new Error('User denied Geolocation')) : currentPositionSafe())
           .then(function (pos) { return dpCallOrsOptimization(pos, geolocatable); })
           .catch(function (err) {
             if (err && err.code === 1) dpGeoDeniedThisSession = true;
@@ -2352,7 +2352,7 @@
     // resets on the next app open, in case anything changes, without
     // needing a settings toggle for it.
     var optimizePromise = geolocatable.length
-      ? (dpGeoDeniedThisSession ? Promise.reject(new Error('User denied Geolocation')) : currentPosition())
+      ? (dpGeoDeniedThisSession ? Promise.reject(new Error('User denied Geolocation')) : currentPositionSafe())
           .then(function (pos) { return dpCallOrsOptimization(pos, geolocatable); })
           .catch(function (err) {
             // A fresh GPS request specifically can fail on its own
@@ -4311,6 +4311,43 @@
         // most likely why "la mia posizione" felt broken.
         { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
       );
+    });
+  }
+
+  // Independent, JS-level safety net around currentPosition() — added
+  // specifically because there's a documented, longstanding iOS bug
+  // where getCurrentPosition() inside an installed (standalone)
+  // PWA can fail to ever call EITHER callback at all: no success, no
+  // error, indefinitely — the browser's own `timeout` option above is
+  // supposed to guarantee an error callback, but on the affected iOS
+  // versions the permission prompt itself gets misdirected/lost, so
+  // even that safeguard doesn't reliably fire. This wraps the call in
+  // a plain race against an independent timer that this code fully
+  // controls, so a driver on an affected iPhone gets a clean,
+  // predictable failure (falling through to whatever fallback the
+  // caller has) instead of auto-riordina silently hanging forever.
+  // On Android and on iPhone via Safari — where this bug doesn't
+  // apply — the real GPS position simply wins the race normally,
+  // well under this ceiling.
+  function currentPositionSafe(timeoutMs) {
+    return new Promise(function (resolve, reject) {
+      var settled = false;
+      var timer = setTimeout(function () {
+        if (settled) return;
+        settled = true;
+        reject(new Error('currentPositionSafe: timed out waiting for a GPS fix'));
+      }, timeoutMs || 16000);
+      currentPosition().then(function (pos) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(pos);
+      }).catch(function (err) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(err);
+      });
     });
   }
 
