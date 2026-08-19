@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v304") {
+          if (data && data.v && data.v !== "pt-foglio-v305") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v304"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v305"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1299,7 +1299,7 @@
         '<div class="dp-client-badge' + (isDone ? ' dp-client-badge-done' : '') + '">' + badge + '</div>' +
         '<div class="dp-client-info">' +
         '<div class="dp-client-name">' + escapeHtml(c.nome) + '</div>' +
-        '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + (c.nonVerificato ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + '</div>' +
+        '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + (c.nonVerificato ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + (c.orsUnreachable ? ' <span style="color:var(--accent);">⚠ non ottimizzato</span>' : '') + '</div>' +
         (c.completedAt ? '<div style="color:var(--teal);font-size:13px;font-weight:700;margin-top:3px;">✓ Consegnato ~' + dpFormatTime(c.completedAt) + '</div>' : '') +
         '</div>' +
         '</div>';
@@ -1320,7 +1320,7 @@
       '<div class="dp-client-badge' + (isDone ? ' dp-client-badge-done' : '') + '">' + badge + '</div>' +
       '<div class="dp-client-info">' +
       '<div class="dp-client-name">' + escapeHtml(c.nome) + '</div>' +
-      '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + (c.nonVerificato ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + '</div>' +
+      '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + (c.nonVerificato ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + (c.orsUnreachable ? ' <span style="color:var(--accent);">⚠ non ottimizzato</span>' : '') + '</div>' +
       (c.completedAt ? '<div style="color:var(--teal);font-size:13px;font-weight:700;margin-top:3px;">✓ Consegnato ~' + dpFormatTime(c.completedAt) + '</div>' : '') +
       '</div>' +
       '<div class="dp-client-chevron">›</div>' +
@@ -2477,7 +2477,7 @@
     var addressChanged = indirizzo !== client.indirizzo;
     client.nome = nome;
     client.indirizzo = indirizzo;
-    if (addressChanged) { client.lat = null; client.lon = null; } // stale coordinates from the OLD address would silently mislead Reordina's ordering — cleared until the new address is (silently) re-geocoded below
+    if (addressChanged) { client.lat = null; client.lon = null; client.orsUnreachable = false; } // stale coordinates from the OLD address would silently mislead Reordina's ordering — cleared until the new address is (silently) re-geocoded below; orsUnreachable cleared too since that verdict was about the OLD address's position, not this new one
     if (client.clientId) {
       var saved = state.deliveryClients.find(function (s) { return s.id === client.clientId; });
       if (saved) {
@@ -2615,6 +2615,22 @@
       var optimizedIds = {};
       optimized.forEach(function (c) { optimizedIds[c.id] = true; });
       var droppedByOrs = geolocatable.filter(function (c) { return !optimizedIds[c.id]; });
+      // Requested directly: ION found ERREM IMPIANTI SRL "never moved"
+      // during auto-riordina — no error, valid coordinates, no
+      // "non verificato" warning either, just silently stuck in the
+      // same spot no matter what changed elsewhere. This is exactly
+      // ORS/VROOM's own silent job-dropping behavior, already handled
+      // functionally (droppedByOrs gets appended, never lost) — but
+      // with NOTHING visible telling the driver this specific client
+      // is why. Marked here now, distinctly from "non verificato" (a
+      // geocoding problem) since this is a DIFFERENT, real issue —
+      // valid coordinates that VROOM's own road-network routing
+      // considers unreachable from the rest of the route. Cleared for
+      // anything that succeeds this time, in case a later attempt
+      // (different start position, different set of stops) manages to
+      // include it after all.
+      optimized.forEach(function (c) { c.orsUnreachable = false; });
+      droppedByOrs.forEach(function (c) { c.orsUnreachable = true; });
       var finalOrder = optimized.concat(unverified).concat(droppedByOrs).concat(completed);
       dpAnimateListReorder(function () {
         state.deliveryRun.clients = finalOrder;
@@ -2764,6 +2780,8 @@
       var optimizedIds = {};
       optimized.forEach(function (c) { optimizedIds[c.id] = true; });
       var droppedByOrs = geolocatable.filter(function (c) { return !optimizedIds[c.id]; });
+      optimized.forEach(function (c) { c.orsUnreachable = false; }); // see the matching comment in dpRunAutoOptimization above — same real, visible-now issue
+      droppedByOrs.forEach(function (c) { c.orsUnreachable = true; });
       applyOrder(optimized.concat(unverified).concat(droppedByOrs));
     }).catch(function (err) {
       // Honest fallback, not a silent failure — if the optimization
