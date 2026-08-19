@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v306") {
+          if (data && data.v && data.v !== "pt-foglio-v308") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v306"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v308"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2142,9 +2142,24 @@
         var savedId = btn.getAttribute('data-saved-id');
         var client = state.deliveryClients.find(function (c) { return c.id === savedId; });
         if (!client) return;
-        if (!window.confirm('Eliminare definitivamente "' + client.nome + '" dai clienti salvati?')) return;
+        // Requested directly: deleting a client from the saved archive
+        // should also remove it from today's active run, if it's
+        // there — before this, deleting from the archive left an
+        // "orphaned" entry sitting in Percorso di oggi, still pointing
+        // at a clientId that no longer existed anywhere. The
+        // confirmation message says so explicitly whenever this would
+        // actually happen, so it's never a silent surprise.
+        var inTodayRun = state.deliveryRun.clients.filter(function (c) { return c.clientId === savedId; });
+        var confirmMsg = 'Eliminare definitivamente "' + client.nome + '" dai clienti salvati?';
+        if (inTodayRun.length) confirmMsg += ' Verrà rimosso anche dal percorso di oggi.';
+        if (!window.confirm(confirmMsg)) return;
         state.deliveryClients = state.deliveryClients.filter(function (c) { return c.id !== savedId; });
         saveDeliveryClients(state.deliveryClients);
+        if (inTodayRun.length) {
+          state.deliveryRun.clients = state.deliveryRun.clients.filter(function (c) { return c.clientId !== savedId; });
+          saveDeliveryRun(state.deliveryRun);
+          if (currentScreen === 'navigatore') renderDeliveryPlanner(); // reflects the removal immediately if that screen happens to be showing right now, not just after navigating away and back
+        }
         if (onDeleted) {
           onDeleted();
         } else {
@@ -2268,9 +2283,19 @@
     document.getElementById('dp-archive-edit-result').innerHTML = '';
     document.getElementById('dp-archive-edit-close-x').onclick = function () { dpCloseModal('modal-dp-archive-edit'); };
     document.getElementById('dp-archive-edit-remove-btn').onclick = function () {
-      if (!window.confirm('Eliminare definitivamente "' + c.nome + '" dai clienti salvati?')) return;
+      // Same cascade as the swipe-to-delete path — see the matching
+      // comment there.
+      var inTodayRun = state.deliveryRun.clients.filter(function (rc) { return rc.clientId === savedId; });
+      var confirmMsg = 'Eliminare definitivamente "' + c.nome + '" dai clienti salvati?';
+      if (inTodayRun.length) confirmMsg += ' Verrà rimosso anche dal percorso di oggi.';
+      if (!window.confirm(confirmMsg)) return;
       state.deliveryClients = state.deliveryClients.filter(function (x) { return x.id !== savedId; });
       saveDeliveryClients(state.deliveryClients);
+      if (inTodayRun.length) {
+        state.deliveryRun.clients = state.deliveryRun.clients.filter(function (rc) { return rc.clientId !== savedId; });
+        saveDeliveryRun(state.deliveryRun);
+        if (currentScreen === 'navigatore') renderDeliveryPlanner();
+      }
       dpCloseModal('modal-dp-archive-edit');
       dpRenderArchiveList(document.getElementById('dp-archive-search-input') ? document.getElementById('dp-archive-search-input').value : '');
     };

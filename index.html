@@ -599,6 +599,12 @@
      list inside simply has more empty space or more to scroll as
      needed. */
   #modal-dp-history-detail .sheet-panel{height:80vh;max-height:80vh;}
+  /* Requested directly, same principle as Storico's detail view above:
+     the archive's page size must stay constant whether it's showing
+     20 clients or 1 (or a search result with very few matches) — the
+     list inside gets more empty space or more to scroll through, but
+     the panel itself never shrinks or grows based on content. */
+  #modal-dp-archive .sheet-panel{height:80vh;max-height:80vh;}
   /* Requested directly, now the standard pattern for ANY sheet modal
      in this app: header content (title, subtitle, primary buttons)
      stays fixed in place while only the middle content scrolls —
@@ -661,6 +667,13 @@
   }
   .ac-clear-btn.show{display:flex;}
   .field.autocomplete-wrap input{padding-right:36px;}
+  /* Requested directly: the archive search field's clear-X sat too
+     low. .ac-clear-btn's top:31px above is calibrated for fields
+     that have a <label> pushing the input down (Nome azienda, etc.)
+     — this search field has no label, so the input starts right at
+     the top of its wrapper, and the button needs a smaller offset to
+     land centered on it instead. */
+  #dp-archive-search-clear{top:8px;}
 
   .nav-checkbox-row{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--ink);margin-bottom:14px;}
   .nav-checkbox-row input{width:18px;height:18px;}
