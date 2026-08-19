@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v273") {
+          if (data && data.v && data.v !== "pt-foglio-v274") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v273"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v274"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1441,15 +1441,41 @@
     // (no permission-prompt banner needed — this is a soft ranking
     // input, not a hard requirement the way active navigation was).
     if (navigator.geolocation && !dpGeoDeniedThisSession) {
-      navigator.geolocation.getCurrentPosition(function (pos) {
-        navSearchFocusPoint = { lat: pos.coords.latitude, lon: pos.coords.longitude };
-      }, function (err) {
+      // REAL BUG, found and confirmed while diagnosing a reported bad
+      // auto-riordina ordering: this used the browser's raw
+      // getCurrentPosition directly, relying only on its own internal
+      // `timeout` option. On the affected iOS standalone-PWA bug, that
+      // internal timeout can be silently ignored — neither callback
+      // ever fires. Since this runs on every single visit/re-render of
+      // this screen (not just once), a hang here doesn't just fail
+      // once — it means navSearchFocusPoint stays FROZEN at whatever
+      // its last successful value was (which could be from early in
+      // the day, even from home) for the rest of the session, since
+      // dpGeoDeniedThisSession never gets set either (no error
+      // callback fires to set it). Every later auto-riordina fallback
+      // to this stale point would then compute a route relative to a
+      // WRONG starting location — exactly matching the report that
+      // stops which should logically come first were ending up last.
+      // Wrapped in the same independent safety-net timeout used
+      // elsewhere now, so a hang here reliably clears within a few
+      // seconds instead of freezing this position for the rest of the
+      // session.
+      currentPositionSafe(8000, { enableHighAccuracy: false, maximumAge: 300000 }).then(function (pos) {
+        navSearchFocusPoint = { lat: pos.lat, lon: pos.lon };
+      }).catch(function (err) {
         // no GPS fix available — searches still work, just without the nearby-bias.
         // A DENIED result specifically also stops every later visit to
         // this screen from re-attempting for the rest of the session —
-        // same reasoning as dpConfirmReordina below.
-        if (err && err.code === err.PERMISSION_DENIED) dpGeoDeniedThisSession = true;
-      }, { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 });
+        // same reasoning as dpConfirmReordina below. Checked as the
+        // literal code 1 (not err.PERMISSION_DENIED) on purpose — a
+        // plain Error (from currentPositionSafe's own timeout) has
+        // neither .code nor .PERMISSION_DENIED, so comparing against
+        // .PERMISSION_DENIED would silently compare undefined===
+        // undefined and misclassify a mere timeout as a permanent
+        // denial, wrongly disabling every later GPS attempt this
+        // session over what might have been a one-off hang.
+        if (err && err.code === 1) dpGeoDeniedThisSession = true;
+      });
     }
 
     var el = document.getElementById('screen-navigatore');
@@ -4296,7 +4322,7 @@
       });
   }
 
-  function currentPosition() {
+  function currentPosition(geoOpts) {
     return new Promise(function (resolve, reject) {
       if (!navigator.geolocation) { reject(new Error('no geolocation')); return; }
       navigator.geolocation.getCurrentPosition(
@@ -4308,8 +4334,11 @@
         // enableHighAccuracy nor a realistic timeout, so it was
         // meaningfully more likely to fail (or silently take too long)
         // right when GPS genuinely needs a moment for a first fix —
-        // most likely why "la mia posizione" felt broken.
-        { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+        // most likely why "la mia posizione" felt broken. A caller can
+        // still override any of these (e.g. a soft background bias
+        // fetch that doesn't need pinpoint accuracy and is fine with
+        // an older cached fix) via geoOpts.
+        Object.assign({ enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }, geoOpts || {})
       );
     });
   }
@@ -4329,7 +4358,7 @@
   // On Android and on iPhone via Safari — where this bug doesn't
   // apply — the real GPS position simply wins the race normally,
   // well under this ceiling.
-  function currentPositionSafe(timeoutMs) {
+  function currentPositionSafe(timeoutMs, geoOpts) {
     return new Promise(function (resolve, reject) {
       var settled = false;
       var timer = setTimeout(function () {
@@ -4337,7 +4366,7 @@
         settled = true;
         reject(new Error('currentPositionSafe: timed out waiting for a GPS fix'));
       }, timeoutMs || 16000);
-      currentPosition().then(function (pos) {
+      currentPosition(geoOpts).then(function (pos) {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
