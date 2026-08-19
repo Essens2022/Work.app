@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v312") {
+          if (data && data.v && data.v !== "pt-foglio-v314") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v312"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v314"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1376,7 +1376,20 @@
   function dpArchiveRunToHistory(run) {
     if (run.date && run.clients && run.clients.length) {
       var history = loadDeliveryHistory();
-      history.unshift({ date: run.date, clients: run.clients });
+      // REAL BUG, reported directly, with a concrete example: archiving
+      // more than once on the SAME calendar day (e.g. manually starting
+      // a fresh route mid-day after finishing an earlier batch) used to
+      // just unshift a brand new, separate entry every time — "Mercoledì
+      // 19 ago" ended up appearing three separate times in Storico,
+      // fragmented (9 clienti, then 6, then 2), instead of reading as
+      // one coherent day. Now merges into the most recent entry when it
+      // already has TODAY'S same date, appending the newly-archived
+      // clients onto it, rather than creating another separate row.
+      if (history.length && history[0].date === run.date) {
+        history[0].clients = history[0].clients.concat(run.clients);
+      } else {
+        history.unshift({ date: run.date, clients: run.clients });
+      }
       if (history.length > 90) history = history.slice(0, 90);
       saveDeliveryHistory(history);
     }
@@ -8714,7 +8727,13 @@
       deliveryRun: JSON.parse(localStorage.getItem(LS_DELIVERY_RUN) || 'null'),
       deliveryHistory: JSON.parse(localStorage.getItem(LS_DELIVERY_HISTORY) || 'null'),
       navFrequent: JSON.parse(localStorage.getItem(LS_NAV_FREQUENT) || 'null'),
-      navHomework: JSON.parse(localStorage.getItem(LS_NAV_HOMEWORK) || 'null')
+      navHomework: JSON.parse(localStorage.getItem(LS_NAV_HOMEWORK) || 'null'),
+      // REAL GAP, found and confirmed directly, testing the full
+      // round-trip: every other category restored perfectly, but the
+      // AUTO toggle (auto-riordina) was silently missing — a restore
+      // would leave it back at OFF even if the driver had deliberately
+      // turned it on, with no indication anything was lost.
+      autoRiordina: localStorage.getItem(DP_AUTO_RIORDINA_KEY)
     };
     var blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     var url = URL.createObjectURL(blob);
@@ -8751,6 +8770,7 @@
           if (data.deliveryHistory) localStorage.setItem(LS_DELIVERY_HISTORY, JSON.stringify(data.deliveryHistory));
           if (data.navFrequent) localStorage.setItem(LS_NAV_FREQUENT, JSON.stringify(data.navFrequent));
           if (data.navHomework) localStorage.setItem(LS_NAV_HOMEWORK, JSON.stringify(data.navHomework));
+          if (data.autoRiordina != null) localStorage.setItem(DP_AUTO_RIORDINA_KEY, data.autoRiordina); // only set when the backup actually has it — older backups from before this fix simply leave whatever's already on this phone untouched
           window.location.reload();
         }
       });
