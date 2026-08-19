@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v283") {
+          if (data && data.v && data.v !== "pt-foglio-v284") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v283"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v284"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1790,10 +1790,17 @@
       // redesign, just gentler numbers.
       // Another small tuning pass, same direction as the last: still
       // a bit more speed and smoothness to take off.
+      // Feedback after the earlier tuning passes: now the opposite
+      // problem — starts too fast, overshoots past where the client
+      // actually needs to go before there's time to react and stop.
+      // Priority shifted from "responsive" to "controllable": lower
+      // speeds at every stage, so there's room to react and settle
+      // the drop exactly where intended, not just wherever it happens
+      // to be once the auto-scroll is noticed and released.
       var EDGE_ZONE = 100; // px from the real visible edge — wide enough to catch it about one row in
-      var MIN_TARGET_SPEED = 6; // px/frame felt as soon as the zone is entered
-      var MAX_SPEED = 17; // px/frame at the very edge
-      var EASE = 0.11; // how fast currentSpeed chases the target each frame — lower = smoother, more fluid start/stop
+      var MIN_TARGET_SPEED = 4; // px/frame felt as soon as the zone is entered
+      var MAX_SPEED = 10; // px/frame at the very edge
+      var EASE = 0.09; // how fast currentSpeed chases the target each frame — lower = smoother, more fluid start/stop
       var currentSpeed = 0; // signed px/frame, eases toward target both accelerating and decelerating
       var autoScrollRAF = null;
       var scrollAccum = 0; // net px the container has been auto-scrolled since drag start
