@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v308") {
+          if (data && data.v && data.v !== "pt-foglio-v309") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v308"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v309"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1289,6 +1289,22 @@
     return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
   }
 
+  // REAL BUG, found and confirmed directly: the "⚠ non verificato"
+  // warning below used to check c.nonVerificato — a flag that was
+  // never actually SET anywhere in this file. The badge never showed
+  // for ANY client, ever, regardless of whether their address genuinely
+  // had no coordinates. A driver reported a client ("Elettropadana",
+  // Via Fratta, Borgoricco) that just silently stayed stuck, never
+  // included in auto-riordina's ordering, with no warning shown at
+  // all — this explains exactly that: it very plausibly had no
+  // coordinates yet (freshly added, background geocode not finished
+  // or failed), was correctly excluded from the ordering as
+  // "unverified" behind the scenes, but the UI gave zero indication
+  // why. Now checks the client's REAL coordinate state directly
+  // (c.lat == null || c.lon == null) instead of the dead flag — the
+  // exact same condition ordering itself already used to decide
+  // "unverified" (see the unverified/geolocatable split in
+  // dpRunAutoOptimization and dpConfirmReordina).
   function dpClientRowHtml(c, idx, readOnly) {
     var isDone = c.status === 'completed';
     var badge = isDone ? '✓' : String(idx + 1);
@@ -1299,7 +1315,7 @@
         '<div class="dp-client-badge' + (isDone ? ' dp-client-badge-done' : '') + '">' + badge + '</div>' +
         '<div class="dp-client-info">' +
         '<div class="dp-client-name">' + escapeHtml(c.nome) + '</div>' +
-        '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + (c.nonVerificato ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + (c.orsUnreachable ? ' <span style="color:var(--accent);">⚠ non ottimizzato</span>' : '') + '</div>' +
+        '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + ((c.lat == null || c.lon == null) ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + (c.orsUnreachable ? ' <span style="color:var(--accent);">⚠ non ottimizzato</span>' : '') + '</div>' +
         (c.completedAt ? '<div style="color:var(--teal);font-size:13px;font-weight:700;margin-top:3px;">✓ Consegnato ~' + dpFormatTime(c.completedAt) + '</div>' : '') +
         '</div>' +
         '</div>';
@@ -1320,7 +1336,7 @@
       '<div class="dp-client-badge' + (isDone ? ' dp-client-badge-done' : '') + '">' + badge + '</div>' +
       '<div class="dp-client-info">' +
       '<div class="dp-client-name">' + escapeHtml(c.nome) + '</div>' +
-      '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + (c.nonVerificato ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + (c.orsUnreachable ? ' <span style="color:var(--accent);">⚠ non ottimizzato</span>' : '') + '</div>' +
+      '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + ((c.lat == null || c.lon == null) ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + (c.orsUnreachable ? ' <span style="color:var(--accent);">⚠ non ottimizzato</span>' : '') + '</div>' +
       (c.completedAt ? '<div style="color:var(--teal);font-size:13px;font-weight:700;margin-top:3px;">✓ Consegnato ~' + dpFormatTime(c.completedAt) + '</div>' : '') +
       '</div>' +
       '<div class="dp-client-chevron">›</div>' +
