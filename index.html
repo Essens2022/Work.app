@@ -619,9 +619,9 @@
      independent scrolling region (.sticky-scroll) within the panel's
      own fixed height.
   */
-  .sticky-panel{overflow:hidden;display:flex;flex-direction:column;}
+  .sticky-panel{overflow:hidden;display:flex;flex-direction:column;min-height:0;}
   .sticky-fixed{flex:0 0 auto;}
-  .sticky-scroll{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;}
+  .sticky-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;position:relative;}
   .fuel-panel{max-height:74vh;position:relative;}
   #fuel-view-stage{
     position:relative;overflow:hidden;border-radius:12px;border:1px solid var(--line);
