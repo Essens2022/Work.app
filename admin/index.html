@@ -254,12 +254,32 @@
         }
       }
       (d.sheets || []).forEach(function (s) {
+        // REAL BUG, found and confirmed directly: on iOS, the same
+        // installed app can lose its stored device_id (a storage
+        // eviction issue, believed tied to switching between the
+        // installed PWA and Safari — a workaround used elsewhere in
+        // this app for a separate GPS limitation) and silently start
+        // syncing under a FRESH device_id — but it's still reporting
+        // the exact same underlying local sheet, unchanged. Concretely
+        // confirmed: 4 different device_ids in one single day, all
+        // reporting the IDENTICAL sheet_id with identical values,
+        // summed here into 4x the real total (10 giorni became 40).
+        // Deduplicates by sheet_id across every device under this same
+        // person BEFORE summing — a sheet_id already counted once for
+        // this group is skipped entirely on any later device reporting
+        // that exact same sheet_id again. Only genuinely DIFFERENT
+        // sheet_ids (a real second sheet, e.g. from an actual
+        // reinstall that split real data across two distinct local
+        // sheet objects) still add together, same as before.
+        if (s.sheet_id) {
+          if (!g._seenSheetIds) g._seenSheetIds = {};
+          if (g._seenSheetIds[s.sheet_id]) return; // already counted this exact sheet from another device — skip
+          g._seenSheetIds[s.sheet_id] = true;
+        }
         var sKey = s.month + '-' + s.year + '-' + s.client;
         if (!g.sheetsByKey[sKey]) {
           g.sheetsByKey[sKey] = { month: s.month, year: s.year, client: s.client, total_km: 0, giorni_count: 0 };
         }
-        // Sum across devices for the same sheet — covers the case where a
-        // reinstall split one real sheet's data across two device rows.
         g.sheetsByKey[sKey].total_km += Number(s.total_km) || 0;
         g.sheetsByKey[sKey].giorni_count += Number(s.giorni_count) || 0;
         if (s.daily_rate != null) g.dailyRate = Number(s.daily_rate);
