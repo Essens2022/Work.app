@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v253") {
+          if (data && data.v && data.v !== "pt-foglio-v254") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v253"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v254"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1456,6 +1456,16 @@
     var stats = dpStats(run);
     var html = '';
 
+    // Everything from here down to the closing </div> below (title,
+    // vehicle, stats, the three action buttons, and the Casa/Deposito
+    // card when it's showing) is wrapped as one sticky block — it
+    // stays pinned to the top of the SAME scrolling area main already
+    // uses everywhere else in the app, rather than disabling main's
+    // own scroll and building a separate flex/overflow chain for it
+    // (an earlier attempt at that broke scrolling outright — this
+    // sticky approach doesn't touch main's proven-working scroll
+    // mechanism at all, just pins this block visually within it).
+    html += '<div class="dp-sticky-header">';
     html += '<div class="dp-header-row"><h2 class="dp-title">Percorso di oggi</h2><button type="button" class="btn-icon-text" id="dp-history-btn">📋 Storico</button></div>';
     html += '<div class="dp-vehicle-quick" id="dp-vehicle-quick">Profilo veicolo: ' + dpVehicleSummary() + ' &rsaquo;</div>';
     html += '<div class="dp-stats-row">' +
@@ -1505,18 +1515,17 @@
       html += '<button type="button" class="btn btn-outline btn-block" id="dp-archive-now-btn" style="margin-top:8px;">Archivia e inizia nuova lista</button>';
       html += '</div>';
     }
+    html += '</div>'; // closes dp-sticky-header
 
     if (run.clients.length === 0) {
       html += '<div class="card" style="text-align:center;color:var(--ink-soft);">Nessun cliente ancora. Aggiungi il primo per iniziare.</div>';
     } else {
-      // Capped height, internal scroll — the list used to just keep
-      // growing the WHOLE page downward with no limit, meaning past a
-      // handful of clients the buttons above scrolled out of view too
-      // and the page itself grew unboundedly. Capped to roughly 5 rows
-      // tall now (dp-client-row's own height × 5, see CSS) — the
-      // buttons/header stay put, only the client list itself scrolls,
-      // both up and down, once there are more than fit.
-      html += '<div class="dp-list dp-list-scroll">';
+      // No height cap needed anymore — main's own scroll (the same
+      // proven mechanism every other screen already uses) handles
+      // however tall this gets; the sticky header above just stays
+      // pinned to the top of that same scroll as the list moves
+      // underneath it.
+      html += '<div class="dp-list">';
       run.clients.forEach(function (c, idx) { html += dpClientRowHtml(c, idx); });
       html += '</div>';
     }
@@ -1649,10 +1658,10 @@
   }
 
   function dpWireClientListSwipeToDelete() {
-    document.querySelectorAll('.dp-list-scroll .dp-swipe-wrap').forEach(function (wrap) {
+    document.querySelectorAll('.dp-list .dp-swipe-wrap').forEach(function (wrap) {
       dpWireSwipeRow(wrap.querySelector('.dp-swipe-row'));
     });
-    document.querySelectorAll('.dp-list-scroll .dp-swipe-delete-btn').forEach(function (btn) {
+    document.querySelectorAll('.dp-list .dp-swipe-delete-btn').forEach(function (btn) {
       btn.addEventListener('click', function () { dpConfirmRemoveClient(btn.getAttribute('data-client-id')); });
     });
   }
@@ -1671,8 +1680,13 @@
   // final visual position — not on every frame — keeping the data
   // model simple even though the visuals update continuously.
   function dpWireDragReorder() {
-    var container = document.querySelector('.dp-list-scroll');
+    var container = document.querySelector('.dp-list');
     if (!container) return;
+    // The actual SCROLLING ancestor is main now (the list itself has
+    // no scroll of its own anymore, see the sticky-header rework) —
+    // this is what needs its scroll suspended during a drag, not the
+    // list div itself.
+    var scrollAncestor = document.querySelector('main');
     var wraps = Array.prototype.slice.call(container.querySelectorAll('.dp-swipe-wrap'));
     if (wraps.length < 2) return; // nothing to reorder with 0 or 1 clients
 
@@ -1692,7 +1706,7 @@
         wrap.classList.add('dp-dragging');
         wrap.style.zIndex = '10';
         wrap.style.transition = 'none';
-        container.style.overflowY = 'hidden'; // no competing scroll mid-drag
+        if (scrollAncestor) scrollAncestor.style.overflowY = 'hidden'; // no competing scroll mid-drag
       }, { passive: false });
 
       handle.addEventListener('touchmove', function (e) {
@@ -1724,7 +1738,7 @@
         if (!draggingWrap) return;
         wraps.forEach(function (w) { w.style.transition = ''; w.style.transform = ''; w.style.zIndex = ''; });
         draggingWrap.classList.remove('dp-dragging');
-        container.style.overflowY = '';
+        if (scrollAncestor) scrollAncestor.style.overflowY = '';
 
         var finalIndex = startIndex + currentOffsetIndex;
         if (finalIndex !== startIndex) {
@@ -1744,7 +1758,7 @@
 
       // REAL BUG, found on review: no touchcancel handler existed at
       // all — if the OS interrupted a drag mid-gesture (an incoming
-      // call, a notification, switching apps), container.overflowY
+      // call, a notification, switching apps), scrollAncestor.overflowY
       // stayed stuck at 'hidden' FOREVER, since only touchend ever
       // reset it back. This is very plausibly why scrolling the list
       // stopped working entirely after some point — one interrupted
@@ -1758,7 +1772,7 @@
         if (!draggingWrap) return;
         wraps.forEach(function (w) { w.style.transition = ''; w.style.transform = ''; w.style.zIndex = ''; });
         draggingWrap.classList.remove('dp-dragging');
-        container.style.overflowY = '';
+        if (scrollAncestor) scrollAncestor.style.overflowY = '';
         draggingWrap = null;
         startY = null;
       });
