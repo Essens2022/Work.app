@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v280") {
+          if (data && data.v && data.v !== "pt-foglio-v281") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v280"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v281"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1514,7 +1514,7 @@
     html += '<div class="dp-sticky-header">';
     html += '<div class="dp-header-row"><h2 class="dp-title">Percorso di oggi</h2>' +
       '<div class="dp-header-actions">' +
-      '<button type="button" class="btn-icon-text" id="dp-vehicle-btn">' + svgIcon('truck') + ' <span>' + escapeHtml(TIPO_VEICOLO_LABELS[state.vehicle.tipo] || state.vehicle.tipo) + '</span></button>' +
+      '<button type="button" class="btn-icon-text stacked" id="dp-vehicle-btn">' + svgIcon('truck') + ' <span>' + escapeHtml(TIPO_VEICOLO_LABELS[state.vehicle.tipo] || state.vehicle.tipo) + '</span></button>' +
       '<button type="button" class="btn-icon-text" id="dp-history-btn">📋 Storico</button>' +
       '</div></div>';
     html += '<div class="dp-stats-row">' +
