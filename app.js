@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v262") {
+          if (data && data.v && data.v !== "pt-foglio-v263") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v262"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v263"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1702,15 +1702,21 @@
       // Requested directly: when dragging a client past the visible
       // rows, the list should start scrolling itself once the finger
       // nears the screen edge, rather than forcing a manual lift-and-
-      // reposition. Also requested: it should ease in gradually (slow
-      // start, gaining speed the longer it holds), the way polished
-      // apps do it, not an abrupt constant-speed scroll.
-      var EDGE_ZONE = 80; // px from the scrollable area's own edge that triggers auto-scroll
-      var MIN_SPEED = 3; // px/frame at the very start of a hold
-      var MAX_SPEED = 20; // px/frame once fully ramped up
-      var RAMP_MS = 700; // time to go from MIN_SPEED to MAX_SPEED while held
-      var autoScrollDir = 0; // -1 up, 0 none, 1 down
-      var autoScrollStartTime = null;
+      // reposition. Refined after first feedback: too insensitive —
+      // had to drag too close to the edge and then wait for it to
+      // kick in. Reworked to a single continuous speed that eases
+      // toward a target every frame, tied directly to how deep the
+      // finger sits in the edge zone rather than to how long it's
+      // been held — this makes it trigger immediately on entering the
+      // zone (already moving at a felt starting speed, not zero),
+      // keep gaining speed smoothly the deeper the finger pushes
+      // toward the true edge, and ease back down just as smoothly the
+      // moment it leaves the zone, instead of an abrupt cutoff.
+      var EDGE_ZONE = 120; // px from the scrollable area's own edge that triggers auto-scroll — larger, easier to enter
+      var MIN_TARGET_SPEED = 7; // px/frame felt the instant the zone is entered, so it never feels like "waiting"
+      var MAX_SPEED = 26; // px/frame at the very edge
+      var EASE = 0.22; // how fast currentSpeed chases the target each frame — higher = snappier start/stop
+      var currentSpeed = 0; // signed px/frame, eases toward target both accelerating and decelerating
       var autoScrollRAF = null;
       var scrollAccum = 0; // net px the container has been auto-scrolled since drag start
       var lastTouchY = null;
@@ -1744,33 +1750,38 @@
         }
       }
 
-      function autoScrollStep(now) {
-        if (!draggingWrap || autoScrollDir === 0 || !scrollAncestor) { autoScrollRAF = null; return; }
-        if (autoScrollStartTime == null) autoScrollStartTime = now;
-        var held = now - autoScrollStartTime;
-        var t = Math.min(1, held / RAMP_MS);
-        var eased = t * t; // ease-in: slow start, gains speed smoothly rather than linearly
-        var speed = MIN_SPEED + (MAX_SPEED - MIN_SPEED) * eased;
+      function targetSpeedFor(touchY) {
+        if (!scrollAncestor) return 0;
+        var rect = scrollAncestor.getBoundingClientRect();
+        if (touchY < rect.top + EDGE_ZONE && scrollAncestor.scrollTop > 0) {
+          var depthUp = Math.min(1, (rect.top + EDGE_ZONE - touchY) / EDGE_ZONE);
+          return -(MIN_TARGET_SPEED + (MAX_SPEED - MIN_TARGET_SPEED) * depthUp);
+        }
+        if (touchY > rect.bottom - EDGE_ZONE && scrollAncestor.scrollTop < scrollAncestor.scrollHeight - scrollAncestor.clientHeight) {
+          var depthDown = Math.min(1, (touchY - (rect.bottom - EDGE_ZONE)) / EDGE_ZONE);
+          return MIN_TARGET_SPEED + (MAX_SPEED - MIN_TARGET_SPEED) * depthDown;
+        }
+        return 0;
+      }
 
-        var before = scrollAncestor.scrollTop;
-        scrollAncestor.scrollTop += speed * autoScrollDir;
-        var actualDelta = scrollAncestor.scrollTop - before; // 0 once it hits the top/bottom of the page
-        scrollAccum += actualDelta;
+      function autoScrollStep() {
+        if (!draggingWrap) { autoScrollRAF = null; return; }
+        var target = lastTouchY != null ? targetSpeedFor(lastTouchY) : 0;
+        currentSpeed += (target - currentSpeed) * EASE; // eases toward target every frame — accelerates AND decelerates smoothly, no separate "stop" logic needed
+        if (Math.abs(currentSpeed) < 0.4) currentSpeed = 0;
 
-        if (actualDelta !== 0 && lastTouchY != null) updateDragPosition(lastTouchY);
+        if (currentSpeed !== 0 && scrollAncestor) {
+          var before = scrollAncestor.scrollTop;
+          scrollAncestor.scrollTop += currentSpeed;
+          var actualDelta = scrollAncestor.scrollTop - before; // 0 once it hits the top/bottom of the page
+          scrollAccum += actualDelta;
+          if (actualDelta !== 0 && lastTouchY != null) updateDragPosition(lastTouchY);
+        }
         autoScrollRAF = requestAnimationFrame(autoScrollStep);
       }
 
-      function setAutoScrollDir(dir) {
-        if (dir === autoScrollDir) return;
-        autoScrollDir = dir;
-        autoScrollStartTime = null; // reset the ramp so every fresh entry into the edge zone eases in again
-        if (dir !== 0 && autoScrollRAF == null) autoScrollRAF = requestAnimationFrame(autoScrollStep);
-      }
-
       function stopAutoScroll() {
-        autoScrollDir = 0;
-        autoScrollStartTime = null;
+        currentSpeed = 0;
         if (autoScrollRAF != null) { cancelAnimationFrame(autoScrollRAF); autoScrollRAF = null; }
       }
 
@@ -1781,33 +1792,24 @@
         startIndex = wraps.indexOf(wrap);
         currentOffsetIndex = 0;
         scrollAccum = 0;
+        currentSpeed = 0;
         draggingWrap = wrap;
         wrap.classList.add('dp-dragging');
         wrap.style.zIndex = '10';
         wrap.style.transition = 'none';
         if (scrollAncestor) scrollAncestor.style.overflowY = 'hidden'; // no competing scroll mid-drag
+        if (autoScrollRAF == null) autoScrollRAF = requestAnimationFrame(autoScrollStep); // runs continuously for the whole drag — handles both accel and decel by itself, frame to frame
       }, { passive: false });
 
       handle.addEventListener('touchmove', function (e) {
         if (!draggingWrap || startY == null) return;
-        var touchY = e.touches[0].clientY;
-        lastTouchY = touchY;
-        updateDragPosition(touchY);
-
-        if (scrollAncestor) {
-          var rect = scrollAncestor.getBoundingClientRect();
-          if (touchY < rect.top + EDGE_ZONE && scrollAncestor.scrollTop > 0) {
-            setAutoScrollDir(-1);
-          } else if (touchY > rect.bottom - EDGE_ZONE && scrollAncestor.scrollTop < scrollAncestor.scrollHeight - scrollAncestor.clientHeight) {
-            setAutoScrollDir(1);
-          } else {
-            setAutoScrollDir(0);
-          }
-        }
+        lastTouchY = e.touches[0].clientY;
+        updateDragPosition(lastTouchY);
       }, { passive: true });
 
       handle.addEventListener('touchend', function () {
         if (!draggingWrap) return;
+
         stopAutoScroll();
         wraps.forEach(function (w) { w.style.transition = ''; w.style.transform = ''; w.style.zIndex = ''; });
         draggingWrap.classList.remove('dp-dragging');
