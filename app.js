@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v270") {
+          if (data && data.v && data.v !== "pt-foglio-v271") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v270"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v271"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2203,6 +2203,37 @@
   // this runs unattended in the background, so a toast on every offline
   // moment or GPS hiccup would just be noise; it leaves the current
   // order untouched instead.
+  // FLIP-style reorder animation (capture old positions, apply the
+  // change, animate from old to new) — requested directly: pressing
+  // AUTO changed the list instantly with no visible motion, felt like
+  // nothing happened even though it had. Now every row that actually
+  // moves visibly slides — smoothly, not a jump — from where it WAS
+  // to where it ends up: one lower in the list slides up past ones
+  // that moved down, exactly like the manual drag-reorder already
+  // looks, so the reordering itself is seen, not just its end result.
+  function dpAnimateListReorder(applyFn) {
+    var oldWraps = Array.prototype.slice.call(document.querySelectorAll('.dp-swipe-wrap[data-client-id]'));
+    var oldTops = {};
+    oldWraps.forEach(function (el) { oldTops[el.getAttribute('data-client-id')] = el.getBoundingClientRect().top; });
+
+    applyFn(); // mutates state + re-renders — the DOM below is the NEW order
+
+    var newWraps = Array.prototype.slice.call(document.querySelectorAll('.dp-swipe-wrap[data-client-id]'));
+    newWraps.forEach(function (el) {
+      var id = el.getAttribute('data-client-id');
+      var oldTop = oldTops[id];
+      if (oldTop == null) return; // a newly-added row — nothing to animate FROM, just appears
+      var deltaY = oldTop - el.getBoundingClientRect().top;
+      if (Math.abs(deltaY) < 1) return; // didn't actually move — skip, no pointless animation
+      el.style.transition = 'none';
+      el.style.transform = 'translateY(' + deltaY + 'px)';
+      void el.offsetHeight; // forces a reflow so the browser registers the offset starting point BEFORE the transition below kicks in — without this it would just jump straight to the end position with no visible motion at all
+      el.style.transition = 'transform .35s ease';
+      el.style.transform = '';
+      setTimeout(function () { el.style.transition = ''; }, 380); // cleans up the inline transition afterward so it doesn't linger and accidentally ease later, unrelated transform changes (e.g. manual dragging this same row)
+    });
+  }
+
   function dpRunAutoOptimization() {
     var completed = state.deliveryRun.clients.filter(function (c) { return c.status === 'completed'; });
     var remaining = state.deliveryRun.clients.filter(function (c) { return c.status !== 'completed'; });
@@ -2236,9 +2267,11 @@
       var optimizedIds = {};
       optimized.forEach(function (c) { optimizedIds[c.id] = true; });
       var droppedByOrs = geolocatable.filter(function (c) { return !optimizedIds[c.id]; });
-      state.deliveryRun.clients = optimized.concat(unverified).concat(droppedByOrs).concat(completed);
-      saveDeliveryRun(state.deliveryRun);
-      renderDeliveryPlanner(); // rebuilds the toggle fresh too, so the .calculating class from above is gone the instant this replaces it — no separate cleanup needed on the success path
+      dpAnimateListReorder(function () {
+        state.deliveryRun.clients = optimized.concat(unverified).concat(droppedByOrs).concat(completed);
+        saveDeliveryRun(state.deliveryRun);
+        renderDeliveryPlanner(); // rebuilds the toggle fresh too, so the .calculating class from above is gone the instant this replaces it — no separate cleanup needed on the success path
+      });
       toast('Percorso riordinato automaticamente ✓', 2500);
     }).catch(function () {
       // Silent — see comment above the function. Still need to clear
