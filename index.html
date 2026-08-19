@@ -418,6 +418,14 @@
   .btn-light{background:rgba(255,255,255,.14);color:#fff;}
   .btn-ghost{background:var(--surface-2);color:var(--ink);}
   .btn-outline{background:transparent;color:var(--ink);border:1px solid var(--line);}
+  /* Requested directly: "Reordina" didn't read clearly as a button —
+     a filled, tinted background (instead of the plain outline every
+     other secondary button uses) plus a small icon make it obviously
+     pressable, while staying visually secondary to "+ Aggiungi
+     cliente" (still solid orange, the primary action on this
+     screen). Scoped to this one button specifically, not to
+     .btn-outline itself, so nothing else changes. */
+  .dp-reordina-btn{background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-soft);font-weight:800;}
   .btn-danger{background:var(--danger-soft);color:var(--danger);}
   .btn-sm{padding:10px 14px;font-size:13px;border-radius:12px;}
   .btn[disabled]{opacity:.45;pointer-events:none;}

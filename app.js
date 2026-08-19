@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v321") {
+          if (data && data.v && data.v !== "pt-foglio-v322") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v321"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v322"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -657,6 +657,11 @@
       // colleague) — icon only, no text, same stroke style as every
       // other icon here.
       archive: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M4 8v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 13h4"/></svg>',
+      // Requested directly: "Reordina" didn't read clearly as a
+      // button — added this icon (two opposite-direction arrows,
+      // the standard sort/reorder symbol) alongside a filled
+      // background, so it reads unmistakably as a pressable action.
+      sort: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16"/><path d="M4 7l3-3 3 3"/><path d="M17 20V4"/><path d="M20 17l-3 3-3-3"/></svg>',
       route: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M5 8v4a4 4 0 0 0 4 4h6" stroke-dasharray="3 3"/></svg>',
       fuel: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="9" height="18" rx="1"/><rect x="6.3" y="5.5" width="4.4" height="4" rx="0.5"/><path d="M13 9h2.5l3 2.5v6.5a1.5 1.5 0 0 1-3 0v-3.5a1 1 0 0 0-1-1h-1.5"/></svg>',
       share: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg>',
@@ -1646,7 +1651,7 @@
 
     html += '<button type="button" class="btn btn-accent btn-block" id="dp-add-client-btn" style="margin:14px 0 10px;">+ Aggiungi cliente</button>';
     html += '<div class="dp-auto-row"><span class="dp-auto-label">Auto</span><button type="button" class="dp-auto-toggle' + (dpAutoRiordinaEnabled() ? ' on' : '') + '" id="dp-auto-riordina-toggle" role="switch" aria-checked="' + (dpAutoRiordinaEnabled() ? 'true' : 'false') + '" aria-label="Riordino automatico"></button></div>';
-    html += '<button type="button" class="btn btn-outline btn-block" id="dp-reordina-btn"' + (stats.remaining === 0 ? ' disabled' : '') + ' style="margin-bottom:6px;">Reordina</button>';
+    html += '<button type="button" class="btn btn-block dp-reordina-btn" id="dp-reordina-btn"' + (stats.remaining === 0 ? ' disabled' : '') + ' style="margin-bottom:6px;">' + svgIcon('sort') + ' Reordina</button>';
     // Always available whenever there's at least one pending client —
     // reads run.clients directly, in whatever order it's CURRENTLY
     // in (drag-reordered, Reordina-optimized, or just insertion
