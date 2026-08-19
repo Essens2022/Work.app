@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v309") {
+          if (data && data.v && data.v !== "pt-foglio-v310") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v309"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v310"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2296,6 +2296,10 @@
     if (!c) return;
     document.getElementById('dp-archive-edit-nome').value = c.nome;
     document.getElementById('dp-archive-edit-indirizzo').value = c.indirizzo || '';
+    var initialLatStr = c.lat != null ? String(c.lat) : '';
+    var initialLonStr = c.lon != null ? String(c.lon) : '';
+    document.getElementById('dp-archive-edit-lat').value = initialLatStr;
+    document.getElementById('dp-archive-edit-lon').value = initialLonStr;
     document.getElementById('dp-archive-edit-result').innerHTML = '';
     document.getElementById('dp-archive-edit-close-x').onclick = function () { dpCloseModal('modal-dp-archive-edit'); };
     document.getElementById('dp-archive-edit-remove-btn').onclick = function () {
@@ -2318,19 +2322,54 @@
     document.getElementById('dp-archive-edit-save-btn').onclick = function () {
       var nome = document.getElementById('dp-archive-edit-nome').value.trim();
       var indirizzo = document.getElementById('dp-archive-edit-indirizzo').value.trim();
+      var latRaw = document.getElementById('dp-archive-edit-lat').value.trim();
+      var lonRaw = document.getElementById('dp-archive-edit-lon').value.trim();
       var resultEl = document.getElementById('dp-archive-edit-result');
       if (!nome || !indirizzo) {
         resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Inserisci nome e indirizzo.</div>';
         return;
       }
+      // If BOTH lat and lon fields are filled in (either left as-is
+      // from what was already saved, or pasted fresh from Google
+      // Maps), they're trusted directly — no re-geocoding happens at
+      // all, exactly like a driver pasting the real, correct
+      // coordinates to permanently fix a client whose address
+      // automatic geocoding kept getting wrong. Only truly cleared
+      // (both fields emptied) or an address change with no manual
+      // coordinates given falls back to the normal automatic
+      // geocoding flow.
+      var manualLat = latRaw !== '' ? parseFloat(latRaw) : null;
+      var manualLon = lonRaw !== '' ? parseFloat(lonRaw) : null;
+      var hasValidManualCoords = manualLat != null && manualLon != null && !isNaN(manualLat) && !isNaN(manualLon);
+      if ((latRaw !== '' || lonRaw !== '') && !hasValidManualCoords) {
+        resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Lat/Lon non validi — lascia entrambi vuoti per usare la geocodifica automatica.</div>';
+        return;
+      }
+      // REAL BUG, caught before shipping: the lat/lon fields are
+      // pre-filled with whatever was ALREADY saved when this form
+      // opened — if the driver only edits the address and never
+      // touches these fields, they'd still contain the OLD address's
+      // coordinates. Treating those untouched leftovers as a fresh
+      // manual override would silently pair a brand new address with
+      // a stale position. Only actually counts as a deliberate manual
+      // override if the fields were genuinely CHANGED from what they
+      // showed at open time — otherwise this behaves exactly as
+      // before (auto-clears + re-geocodes on an address change, or
+      // does nothing if the address didn't change either).
+      var coordsWereEdited = (latRaw !== initialLatStr) || (lonRaw !== initialLonStr);
       var addressChanged = indirizzo !== c.indirizzo;
       c.nome = nome;
       c.indirizzo = indirizzo;
-      if (addressChanged) { c.lat = null; c.lon = null; } // stale coordinates from the OLD address would silently mislead Reordina's ordering later — cleared until re-geocoded
+      if (hasValidManualCoords && coordsWereEdited) {
+        c.lat = manualLat;
+        c.lon = manualLon;
+      } else if (addressChanged) {
+        c.lat = null; c.lon = null; // stale coordinates from the OLD address would silently mislead Reordina's ordering later — cleared until re-geocoded
+      }
       saveDeliveryClients(state.deliveryClients);
       dpCloseModal('modal-dp-archive-edit');
       dpRenderArchiveList(document.getElementById('dp-archive-search-input') ? document.getElementById('dp-archive-search-input').value : '');
-      if (addressChanged) dpBackgroundGeocodeForOrdering(c.id, indirizzo); // re-geocodes silently in the background; already writes straight back into this saved-client record via savedClientId
+      if (addressChanged && !(hasValidManualCoords && coordsWereEdited)) dpBackgroundGeocodeForOrdering(c.id, indirizzo); // only auto-geocodes when the driver DIDN'T just provide a genuine manual override himself
     };
     document.getElementById('modal-dp-archive-edit').classList.add('open');
   }
