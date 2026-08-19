@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v263") {
+          if (data && data.v && data.v !== "pt-foglio-v264") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v263"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v264"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1712,10 +1712,19 @@
       // keep gaining speed smoothly the deeper the finger pushes
       // toward the true edge, and ease back down just as smoothly the
       // moment it leaves the zone, instead of an abrupt cutoff.
-      var EDGE_ZONE = 120; // px from the scrollable area's own edge that triggers auto-scroll — larger, easier to enter
-      var MIN_TARGET_SPEED = 7; // px/frame felt the instant the zone is entered, so it never feels like "waiting"
-      var MAX_SPEED = 26; // px/frame at the very edge
-      var EASE = 0.22; // how fast currentSpeed chases the target each frame — higher = snappier start/stop
+      // Feedback after the last change: starting LATER than before,
+      // not earlier — the zone got bigger (120px) but the speed right
+      // at that outer boundary was barely above zero, so scrolling
+      // wasn't actually FELT until the finger was already deep inside
+      // it, near the true edge. Direct request: smaller trigger zone.
+      // Fixed by shrinking the zone back down AND raising the speed
+      // felt the instant it's entered, so crossing into the (smaller,
+      // closer-to-the-edge) zone is immediately, unmistakably felt as
+      // "scrolling now", not a slow fade-in from near-zero.
+      var EDGE_ZONE = 55; // px from the scrollable area's own edge — smaller, tighter, closer to the true edge
+      var MIN_TARGET_SPEED = 12; // px/frame felt the instant the zone is entered — solidly perceptible right away
+      var MAX_SPEED = 30; // px/frame at the very edge
+      var EASE = 0.32; // how fast currentSpeed chases the target each frame — higher = snappier start/stop
       var currentSpeed = 0; // signed px/frame, eases toward target both accelerating and decelerating
       var autoScrollRAF = null;
       var scrollAccum = 0; // net px the container has been auto-scrolled since drag start
