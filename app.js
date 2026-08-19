@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v269") {
+          if (data && data.v && data.v !== "pt-foglio-v270") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v269"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v270"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2211,6 +2211,17 @@
     var geolocatable = remaining.filter(function (c) { return c.lat != null && c.lon != null; });
     var unverified = remaining.filter(function (c) { return c.lat == null || c.lon == null; });
 
+    // Visual feedback while it works — raised directly: pressing the
+    // toggle (or it triggering after a list change) gave no sign
+    // anything was actually happening, calculating, or done. The
+    // toggle itself pulses while a calculation is in flight (a real
+    // ORS network call, not instant), and a brief toast confirms once
+    // the new order is actually applied — same toast() mechanism
+    // already used elsewhere in this screen (e.g. manual Reordina's
+    // own failure message), so it matches the app's existing pattern.
+    var toggleEl = document.getElementById('dp-auto-riordina-toggle');
+    if (toggleEl) toggleEl.classList.add('calculating');
+
     var optimizePromise = geolocatable.length
       ? (dpGeoDeniedThisSession ? Promise.reject(new Error('User denied Geolocation')) : currentPosition())
           .then(function (pos) { return dpCallOrsOptimization(pos, geolocatable); })
@@ -2227,11 +2238,17 @@
       var droppedByOrs = geolocatable.filter(function (c) { return !optimizedIds[c.id]; });
       state.deliveryRun.clients = optimized.concat(unverified).concat(droppedByOrs).concat(completed);
       saveDeliveryRun(state.deliveryRun);
-      renderDeliveryPlanner();
+      renderDeliveryPlanner(); // rebuilds the toggle fresh too, so the .calculating class from above is gone the instant this replaces it — no separate cleanup needed on the success path
+      toast('Percorso riordinato automaticamente ✓', 2500);
     }).catch(function () {
-      // Silent — see comment above the function.
+      // Silent — see comment above the function. Still need to clear
+      // the calculating pulse on this path though, since a failure
+      // here does NOT re-render (the toggle element from above is
+      // still the live one in the DOM).
+      if (toggleEl) toggleEl.classList.remove('calculating');
     });
   }
+
 
   // ---- Reordina: conferma completati, poi ricalcola con ORS Optimization ----
 

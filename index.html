@@ -230,6 +230,13 @@
     transition:transform .18s ease;
   }
   .dp-auto-toggle.on::after{transform:translateX(18px);}
+  /* Calculating state — while an auto-riordina pass is actually
+     running (a real network call, not instant), the toggle pulses so
+     pressing it (or it triggering on its own after a list change)
+     visibly shows something is happening, not just a silent color
+     flip with no confirmation either way. */
+  .dp-auto-toggle.calculating{animation:dp-auto-pulse 1s ease-in-out infinite;}
+  @keyframes dp-auto-pulse{0%,100%{opacity:1;}50%{opacity:.45;}}
   .dp-stats-row{display:flex;gap:10px;margin-top:12px;}
   .dp-stat{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-md);padding:12px 8px;text-align:center;box-shadow:var(--shadow-sm);}
   .dp-stat-num{font-size:24px;font-weight:800;color:var(--ink);line-height:1.1;}
