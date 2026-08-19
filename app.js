@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v274") {
+          if (data && data.v && data.v !== "pt-foglio-v275") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v274"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v275"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2290,6 +2290,20 @@
       : Promise.resolve([]);
 
     optimizePromise.then(function (optimized) {
+      // REAL BUG, reported directly: turning the toggle OFF while a
+      // calculation was already in flight from being ON a moment ago
+      // (a real network call, takes a few seconds) still applied the
+      // result unconditionally once it finished — as if it had stayed
+      // on the whole time. Re-checks the CURRENT state right before
+      // applying anything: if the driver switched it off in the
+      // meantime, the now-stale result is simply discarded, and the
+      // list is left exactly as it is — matching what "off" actually
+      // means, regardless of what was already running when it was
+      // switched.
+      if (!dpAutoRiordinaEnabled()) {
+        if (toggleEl) toggleEl.classList.remove('calculating');
+        return;
+      }
       var optimizedIds = {};
       optimized.forEach(function (c) { optimizedIds[c.id] = true; });
       var droppedByOrs = geolocatable.filter(function (c) { return !optimizedIds[c.id]; });
