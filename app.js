@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v292") {
+          if (data && data.v && data.v !== "pt-foglio-v293") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v292"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v293"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2113,14 +2113,18 @@
   // NOT also pushed into today's active delivery run (which is what
   // the normal add-client flow does).
   function dpArchiveOpenNewClientModal() {
-    dpCloseModal('modal-dp-archive'); // matches the established pattern (dpOpenNewClientModal does the same for modal-dp-add-client) — having two sheet modals open stacked at once isn't a scenario the rest of the app is built for
+    // Requested directly: opening "Nuovo cliente" from the archive
+    // should visually keep the archive list showing behind it, not
+    // jump back to whatever screen was underneath (Percorso di oggi).
+    // The archive modal is left open the whole time now — the z-index
+    // rule on #modal-dp-new-client above is what makes this safe
+    // (guarantees this form still receives clicks correctly, layered
+    // on top, instead of the earlier close/reopen dance that was only
+    // needed to work around the stacking bug).
     document.getElementById('dp-new-nome').value = '';
     document.getElementById('dp-new-indirizzo').value = '';
     document.getElementById('dp-new-save-result').innerHTML = '';
-    document.getElementById('dp-new-close-x').onclick = function () {
-      dpCloseModal('modal-dp-new-client');
-      document.getElementById('modal-dp-archive').classList.add('open'); // cancelling also returns to the archive list, same as saving does
-    };
+    document.getElementById('dp-new-close-x').onclick = function () { dpCloseModal('modal-dp-new-client'); };
     document.getElementById('dp-new-save-btn').onclick = dpArchiveSaveNewClient;
     wireNavClearButton(document.getElementById('dp-new-nome'), document.getElementById('dp-new-nome-clear'), function () {});
     wireNavClearButton(document.getElementById('dp-new-indirizzo'), document.getElementById('dp-new-indirizzo-clear'), function () {});
@@ -2139,8 +2143,7 @@
     state.deliveryClients.push(saved);
     saveDeliveryClients(state.deliveryClients);
     dpCloseModal('modal-dp-new-client');
-    dpRenderArchiveList();
-    document.getElementById('modal-dp-archive').classList.add('open'); // return to the archive list, since opening this form closed it first
+    dpRenderArchiveList(); // the archive list underneath was never closed — just refreshes what's now visible again
     dpBackgroundGeocodeForOrdering(saved.id, indirizzo); // same silent, best-effort background geocode as the normal add-client flow — for Reordina's ordering later, never for the address shown/sent to Google Maps
   }
 

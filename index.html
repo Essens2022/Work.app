@@ -549,6 +549,18 @@
     display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .18s ease;
   }
   .modal-overlay.open{opacity:1;pointer-events:auto;}
+  /* REAL BUG, found and confirmed directly: opening "Nuovo cliente" ON
+     TOP of an already-open Archivio clienti (rather than closing it
+     first) put them at the SAME z-index — since modal-dp-new-client
+     sits earlier in the HTML than modal-dp-archive, the archive
+     visually and functionally stacked on top when both were open,
+     silently eating every click meant for the new-client form
+     underneath it (Salva did nothing at all). A fixed higher z-index
+     here guarantees this modal always layers above any other
+     .modal-overlay it might be opened on top of, regardless of
+     source order in the HTML.
+  */
+  #modal-dp-new-client{z-index:2001;}
   .modal-overlay.center{align-items:center;padding:20px;}
   .crop-handle{background:var(--accent);border:3px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.3);}
   .crop-handle[data-corner="tl"]{cursor:nwse-resize;}
