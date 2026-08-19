@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v316") {
+          if (data && data.v && data.v !== "pt-foglio-v317") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v316"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v317"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -1390,7 +1390,16 @@
       } else {
         history.unshift({ date: run.date, clients: run.clients });
       }
-      if (history.length > 90) history = history.slice(0, 90);
+      // Requested directly: needs to be able to scroll back and find
+      // real days from months ago (explicitly: "jumatate de an in
+      // urma" — half a year back), to check what was delivered and at
+      // what time. 90 days was too short a cutoff for that. Raised to
+      // a full year (365) — comfortably covers his stated need with
+      // margin, while still keeping a sane upper bound so this can
+      // never grow completely unbounded (a real, if distant, concern
+      // for localStorage's own size limits over many years of daily
+      // use).
+      if (history.length > 365) history = history.slice(0, 365);
       saveDeliveryHistory(history);
     }
     return { clients: [], date: todayDateStr() };
