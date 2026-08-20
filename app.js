@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v339") {
+          if (data && data.v && data.v !== "pt-foglio-v340") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v339"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v340"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -8136,7 +8136,7 @@
     }
 
     var versionEl = document.getElementById('settings-version-display');
-    // Requested directly: "pt-foglio-v339" read as an ugly, internal-
+    // Requested directly: "pt-foglio-v340" read as an ugly, internal-
     // looking string — the number itself matters (still needed to
     // confirm a fresh build reached the phone), the "pt-foglio-"
     // prefix doesn't. Shown as "ADB Smart · v335" instead — same
@@ -8255,13 +8255,23 @@
     }
     var email = state.profile.pendingEmail;
     if (!email) return;
+    // REAL SECURITY GAP, found and fixed directly: this used to check
+    // data.confirmed — a PERMANENT flag, true forever once an email is
+    // EVER confirmed, by anyone, on any device. Typing in any email
+    // that had been confirmed before granted access almost immediately,
+    // with no actual click required this time. Now sends the baseline
+    // captured right before THIS specific magic link was sent (see the
+    // account-send-btn handler), and only trusts justSignedIn — true
+    // only once a genuinely NEW sign-in happened after that exact
+    // baseline, proving THIS request's link (not some unrelated,
+    // earlier login) was the one actually clicked.
     fetch(SUPABASE_URL + '/functions/v1/check-email-confirmed', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
-      body: JSON.stringify({ email: email })
+      body: JSON.stringify({ email: email, since: state.profile.pendingEmailBaseline || null })
     }).then(function (res) { return res.json(); })
       .then(function (data) {
-        if (data && data.confirmed) {
+        if (data && data.justSignedIn) {
           stopWatchingForConfirmation();
           state.profile.emailConfirmed = true;
           saveProfile(state.profile);
@@ -8388,7 +8398,27 @@
     // how many times it's confirmed, and the admin view already groups
     // by name+targa, not by device — so this was pure friction with no
     // real protective benefit.
-    requestMagicLink(email)
+    //
+    // REAL SECURITY GAP, found and fixed directly ("acest email este
+    // deja in baza de date, si vine recunoscut fara sa astepte
+    // confirmarea"): a baseline last_sign_in_at is captured HERE, from
+    // the server, BEFORE the magic link is actually sent — the later
+    // polling (checkForConfirmationNow) only grants access once a
+    // genuinely NEW sign-in happens AFTER this exact baseline, never
+    // just because the email was confirmed by its real owner at some
+    // earlier, unrelated point. Without this, typing in any email that
+    // had EVER been confirmed before (by anyone, on any device) granted
+    // access almost immediately, with no actual click required.
+    fetch(SUPABASE_URL + '/functions/v1/check-email-confirmed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+      body: JSON.stringify({ email: email })
+    }).then(function (r) { return r.json(); })
+      .catch(function () { return {}; }) // best-effort baseline — a failed read here just means the very first poll after sending might need one extra tick to confirm, never a security downgrade
+      .then(function (baselineData) {
+        state.profile.pendingEmailBaseline = (baselineData && baselineData.lastSignInAt) || null;
+        return requestMagicLink(email);
+      })
       .then(function () {
         state.profile.pendingEmail = email;
         saveProfile(state.profile);
