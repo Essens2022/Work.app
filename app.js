@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v323") {
+          if (data && data.v && data.v !== "pt-foglio-v324") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v323"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v324"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -3067,7 +3067,15 @@
     var dataUrl = canvas.toDataURL('image/jpeg', 0.92);
     var img = document.getElementById('dp-camera-preview-img');
     img.src = dataUrl;
-    img.style.display = '';
+    // REAL BUG, reported directly and confirmed: setting style.display
+    // to an empty string only clears the INLINE style — it does NOT
+    // override the base CSS rule (#dp-camera-preview-img{display:none;...}),
+    // which stays in effect regardless. The captured photo was really
+    // there (confirmed separately, at the pixel level) but stayed
+    // invisible the whole time, showing as a plain black screen with
+    // just the two buttons floating over it. Needs an explicit
+    // display value that actually overrides the hidden default.
+    img.style.display = 'block';
     video.style.display = 'none';
     document.getElementById('dp-camera-info-overlay').style.display = 'none'; // already baked into the image now — the separate CSS overlay would just double it up
     document.getElementById('dp-camera-capture-btn').style.display = 'none';
