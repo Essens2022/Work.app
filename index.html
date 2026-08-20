@@ -9,7 +9,15 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="ADB Smart">
 <link rel="manifest" href="manifest.json">
-<link rel="icon" href="icon-192.png">
+<!-- Requested directly: the logo wasn't showing up next to the site
+     name in search results / browser tabs. icon-192.png alone (only
+     referenced via <link>) isn't enough — many browsers and search
+     crawlers (Google specifically) look for /favicon.ico at the
+     site's root by default, regardless of any <link> tag present.
+     Both are kept, pointing at the same actual artwork, for maximum
+     compatibility across old and new browsers alike. -->
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-192.png">
 
 <!-- The native iOS "startup image" mechanism was removed here — it only
