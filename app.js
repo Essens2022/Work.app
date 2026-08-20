@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v345") {
+          if (data && data.v && data.v !== "pt-foglio-v347") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v345"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v347"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -8136,7 +8136,7 @@
     }
 
     var versionEl = document.getElementById('settings-version-display');
-    // Requested directly: "pt-foglio-v345" read as an ugly, internal-
+    // Requested directly: "pt-foglio-v347" read as an ugly, internal-
     // looking string — the number itself matters (still needed to
     // confirm a fresh build reached the phone), the "pt-foglio-"
     // prefix doesn't. Shown as "ADB Smart · v335" instead — same
@@ -8394,7 +8394,20 @@
     // later).
     var emailForClaim = currentAccountEmail();
     if (emailForClaim && state.profile.nome) {
+      // Requested directly: the name only actually gets set/applied
+      // here, at the moment of a GENUINE confirmation — if the
+      // identity-conflict flow ("Sì, sono io") happened earlier for
+      // THIS specific request, its proposed name is applied for real
+      // right now, overriding whatever's currently typed; otherwise
+      // this is just a normal, brand-new registration, and whatever
+      // name is already there simply gets locked as-is.
+      if (state.profile.pendingCanonicalName) {
+        state.profile.nome = state.profile.pendingCanonicalName;
+        var nomeInputEl = document.getElementById('in-nome');
+        if (nomeInputEl) nomeInputEl.value = state.profile.nome;
+      }
       state.profile.nomeLocked = true;
+      state.profile.pendingCanonicalName = null;
       saveProfile(state.profile);
       fetch(SUPABASE_URL + '/functions/v1/email-identity-check', {
         method: 'POST',
@@ -8465,17 +8478,20 @@
             confirmLabel: 'Sì, sono io',
             cancelLabel: 'No, non sono io',
             onConfirm: function () {
-              // Locks the local name to the already-confirmed one —
-              // requested directly: from here on the name field
-              // becomes fixed, so every PDF and document this device
-              // produces consistently shows the ONE real person this
-              // email belongs to, regardless of what was typed before
-              // this point.
-              state.profile.nome = identityData.canonicalName;
-              state.profile.nomeLocked = true;
+              // Requested directly: the name must only actually change
+              // once the email is GENUINELY confirmed — not the moment
+              // "Sì, sono io" is tapped. The field stays exactly as it
+              // was, still editable, while this pending request is in
+              // flight; only pendingCanonicalName is recorded here, as
+              // a note for onEmailConfirmed() to apply for real if (and
+              // only if) a genuine confirmation actually happens. If
+              // the driver instead gets stuck on the pending screen
+              // (an email they don't have access to) and taps "Cambia
+              // email", this note is simply discarded — nothing to
+              // undo, since nothing was ever changed in the first
+              // place.
+              state.profile.pendingCanonicalName = identityData.canonicalName;
               saveProfile(state.profile);
-              var nomeInput = document.getElementById('in-nome');
-              if (nomeInput) { nomeInput.value = identityData.canonicalName; nomeInput.disabled = true; }
               proceedWithSend();
             },
             onCancel: function () {
@@ -8561,6 +8577,25 @@
       .then(function () { toast('Link inviato di nuovo a: ' + email); })
       .catch(function (err) { toast(magicLinkErrorMessage(err)); })
       .then(function () { btn.disabled = false; });
+  });
+
+  // Requested directly: no way back existed from the "waiting for
+  // confirmation" screen — only re-sending the SAME email over and
+  // over. Real scenario: someone taps "Sì, sono io" on the identity-
+  // conflict prompt out of curiosity or by mistake, ends up stuck
+  // waiting on an email they don't actually have access to, with no
+  // way to try their own, correct one instead.
+  document.getElementById('account-change-email-btn').addEventListener('click', function () {
+    state.profile.pendingEmail = '';
+    state.profile.pendingEmailBaseline = null;
+    // Simply discarded — the nome/nomeLocked fields were never actually
+    // touched by the "Sì, sono io" identity-conflict confirmation (that
+    // change only happens for real inside onEmailConfirmed(), once a
+    // genuine confirmation actually goes through), so there's nothing
+    // to restore here, just the pending note itself.
+    state.profile.pendingCanonicalName = null;
+    saveProfile(state.profile);
+    renderEmailRequiredModal();
   });
 
   document.getElementById('account-remind-btn').addEventListener('click', function () {
