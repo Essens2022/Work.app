@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v331") {
+          if (data && data.v && data.v !== "pt-foglio-v332") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,8 +92,17 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v331"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v332"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
+  // Requested directly: a small, discreet way to see how much of the
+  // shared ORS daily quota remains — no label, just a bare
+  // "remaining/total" number in Impostazioni, meant to be recognized
+  // by ION specifically, not explained to every driver. Read directly
+  // from the REAL rate-limit headers ORS itself returns on every
+  // actual optimization/geocoding call THIS phone makes — reflects
+  // the true, shared, global count at that moment, but only refreshes
+  // when this specific device happens to make a request.
+  var LS_ORS_QUOTA = "pt_ors_quota_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
   var LS_FUEL = "pt_fuel_v1"; // fuel receipts, keyed by month — independent of any client sheet
@@ -1293,6 +1302,25 @@
   function dpFormatTime(ts) {
     var d = new Date(ts);
     return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+
+  // Reads the REAL rate-limit headers ORS returns on every response
+  // (x-ratelimit-remaining, x-ratelimit-limit) and stores the latest
+  // reading — called right after every actual optimization/geocoding
+  // fetch, success or failure alike (ORS includes these headers even
+  // on a 429/403 rate-limited response, arguably the most useful
+  // moment to catch them). Silently does nothing if the headers
+  // aren't present (fetch failed before a real response, or ORS
+  // changes its header names) — never throws, never surfaces
+  // anything to the driver.
+  function dpTrackOrsQuota(response) {
+    try {
+      if (!response || !response.headers) return;
+      var remaining = response.headers.get('x-ratelimit-remaining');
+      var limit = response.headers.get('x-ratelimit-limit');
+      if (remaining == null) return;
+      localStorage.setItem(LS_ORS_QUOTA, JSON.stringify({ remaining: remaining, limit: limit, at: Date.now() }));
+    } catch (e) { /* best-effort only */ }
   }
 
   // REAL BUG, found and confirmed directly: the "⚠ non verificato"
@@ -3438,6 +3466,7 @@
       headers: { 'Content-Type': 'application/json', 'Authorization': ORS_API_KEY },
       body: JSON.stringify(body)
     }).then(function (r) {
+      dpTrackOrsQuota(r);
       if (!r.ok) throw new Error('ORS ' + r.status);
       return r.json();
     }).then(function (data) {
@@ -4507,7 +4536,7 @@
     // point itself is already set and usable even if this fails or is
     // slow (offline, rate-limited, etc.).
     fetch('https://api.openrouteservice.org/geocode/reverse?api_key=' + encodeURIComponent(ORS_API_KEY) + '&point.lon=' + latlng.lng + '&point.lat=' + latlng.lat + '&size=1')
-      .then(function (r) { return r.json(); })
+      .then(function (r) { dpTrackOrsQuota(r); return r.json(); })
       .then(function (data) {
         var label = (data.features && data.features[0] && data.features[0].properties.label) || (latlng.lat.toFixed(5) + ', ' + latlng.lng.toFixed(5));
         if (wp) wp.text = label;
@@ -5199,7 +5228,7 @@
     function tryNext(i) {
       if (i >= attempts.length) return Promise.resolve({ features: [] });
       return fetchWithTimeout(navGeocodeUrl(endpoint, text, attempts[i]), null, 6000)
-        .then(function (r) { return r.json(); })
+        .then(function (r) { dpTrackOrsQuota(r); return r.json(); })
         .then(function (data) {
           if (data.features && data.features.length) return data;
           return tryNext(i + 1);
@@ -5669,6 +5698,7 @@
       headers: { 'Content-Type': 'application/json', 'Authorization': ORS_API_KEY },
       body: JSON.stringify(body)
     }).then(function (r) {
+      dpTrackOrsQuota(r);
       if (!r.ok) return r.json().then(function (e) { throw new Error(e.error && e.error.message ? e.error.message : 'Errore nel calcolo del percorso'); });
       return r.json();
     }).then(function (geojson) {
@@ -8046,6 +8076,17 @@
     settingsTargetSheet = sheetOverride || null;
     var versionEl = document.getElementById('settings-version-display');
     if (versionEl) versionEl.textContent = APP_VERSION;
+    // Deliberately bare — no label, no explanation, just
+    // "remaining/limit" — requested directly, meant to be recognized
+    // by ION specifically, not something every driver needs to
+    // understand.
+    var quotaEl = document.getElementById('settings-ors-quota-display');
+    if (quotaEl) {
+      try {
+        var q = JSON.parse(localStorage.getItem(LS_ORS_QUOTA) || 'null');
+        quotaEl.textContent = (q && q.remaining != null) ? (q.remaining + '/' + (q.limit || '?')) : '';
+      } catch (e) { quotaEl.textContent = ''; }
+    }
     var src = settingsTargetSheet ? {
       nome: settingsTargetSheet.nome, targa: settingsTargetSheet.targa, perContoDi: settingsTargetSheet.perContoDi,
       da: state.profile.da, provDa: state.profile.provDa
