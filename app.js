@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v354") {
+          if (data && data.v && data.v !== "pt-foglio-v355") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v354"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v355"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -8190,7 +8190,7 @@
     }
 
     var versionEl = document.getElementById('settings-version-display');
-    // Requested directly: "pt-foglio-v354" read as an ugly, internal-
+    // Requested directly: "pt-foglio-v355" read as an ugly, internal-
     // looking string — the number itself matters (still needed to
     // confirm a fresh build reached the phone), the "pt-foglio-"
     // prefix doesn't. Shown as "ADB Smart · v335" instead — same
@@ -9479,7 +9479,13 @@
     // specifically called out the route-ordering feature (Reordina/
     // Auto) as important enough to name explicitly, not just imply
     // through "organizzare le consegne".
-    var shareText = 'ADB Smart — l\'app che uso per il foglio viaggi, l\'itinerario delle consegne (ordina i clienti in automatico) e i clienti. Provala anche tu:';
+    // Requested directly: apply real marketing technique, not just a
+    // feature list — lead with the benefit (less hassle, saved time),
+    // add social proof through frequency ("ogni giorno"), and close
+    // with a casual, low-friction call to action fitting a WhatsApp
+    // message between colleagues, not a corporate-sounding ad (which
+    // would feel out of place and less persuasive here).
+    var shareText = 'ADB Smart mi ha semplificato il lavoro: foglio viaggi automatico, itinerario ottimizzato e tutti i clienti sempre a portata di mano. La uso ogni giorno — dai un\'occhiata anche tu:';
     if (navigator.share) {
       navigator.share({ title: 'ADB Smart', text: shareText, url: shareUrl }).catch(function () { /* person cancelled the native share sheet — not an error */ });
     } else if (navigator.clipboard && navigator.clipboard.writeText) {
