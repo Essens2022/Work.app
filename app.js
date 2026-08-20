@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v338") {
+          if (data && data.v && data.v !== "pt-foglio-v339") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v338"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v339"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -2574,30 +2574,55 @@
       try { data = JSON.parse(e.target.result); } catch (err) { toast('File non valido'); return; }
       if (!data || !Array.isArray(data.clients)) { toast('File non riconosciuto — deve essere un export di clienti ADB Smart'); return; }
 
-      var existingKeys = {};
+      // Requested directly: importing should recognize a client that
+      // ALREADY exists and update it with whatever's in the imported
+      // file (address, coordinates) — not skip it untouched, and
+      // definitely not create a duplicate. Matched by NOME alone (not
+      // nome+indirizzo as before) — an address correction is exactly
+      // the kind of update this needs to actually apply, and matching
+      // on the OLD address too would make a corrected address always
+      // look like a "different" client instead of an update to the
+      // same one. Anyone already in the archive but NOT present in
+      // the imported file is left completely untouched — this is a
+      // merge/update, never a replace/sync.
+      var byName = {};
       state.deliveryClients.forEach(function (c) {
-        existingKeys[(c.nome || '').trim().toLowerCase() + '|' + (c.indirizzo || '').trim().toLowerCase()] = true;
+        byName[(c.nome || '').trim().toLowerCase()] = c;
       });
 
-      var added = 0;
+      var added = 0, updated = 0;
       data.clients.forEach(function (c) {
         if (!c || !c.nome) return;
-        var key = (c.nome || '').trim().toLowerCase() + '|' + (c.indirizzo || '').trim().toLowerCase();
-        if (existingKeys[key]) return; // already have this exact name+address — skip, don't duplicate
-        existingKeys[key] = true;
-        state.deliveryClients.push({
+        var key = (c.nome || '').trim().toLowerCase();
+        var existing = byName[key];
+        if (existing) {
+          var changed = existing.indirizzo !== (c.indirizzo || '') || existing.lat !== (c.lat != null ? c.lat : null) || existing.lon !== (c.lon != null ? c.lon : null);
+          if (changed) {
+            existing.indirizzo = c.indirizzo || '';
+            existing.lat = c.lat != null ? c.lat : null;
+            existing.lon = c.lon != null ? c.lon : null;
+            updated++;
+          }
+          return;
+        }
+        var fresh = {
           id: 'imp' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
           nome: c.nome,
           indirizzo: c.indirizzo || '',
           lat: c.lat != null ? c.lat : null,
           lon: c.lon != null ? c.lon : null
-        });
+        };
+        state.deliveryClients.push(fresh);
+        byName[key] = fresh; // guards against two entries with the same nome inside the SAME imported file colliding with each other
         added++;
       });
 
       saveDeliveryClients(state.deliveryClients);
       dpRenderArchiveList();
-      toast(added > 0 ? added + ' client' + (added === 1 ? 'e aggiunto' : 'i aggiunti') + ' ✓' : 'Nessun nuovo cliente (già tutti presenti)');
+      var parts = [];
+      if (added > 0) parts.push(added + ' aggiunt' + (added === 1 ? 'o' : 'i'));
+      if (updated > 0) parts.push(updated + ' aggiornat' + (updated === 1 ? 'o' : 'i'));
+      toast(parts.length ? parts.join(', ') + ' ✓' : 'Nessuna modifica (già tutto aggiornato)');
     };
     reader.readAsText(file);
   }
@@ -8111,7 +8136,7 @@
     }
 
     var versionEl = document.getElementById('settings-version-display');
-    // Requested directly: "pt-foglio-v338" read as an ugly, internal-
+    // Requested directly: "pt-foglio-v339" read as an ugly, internal-
     // looking string — the number itself matters (still needed to
     // confirm a fresh build reached the phone), the "pt-foglio-"
     // prefix doesn't. Shown as "ADB Smart · v335" instead — same
