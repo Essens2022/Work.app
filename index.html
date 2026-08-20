@@ -605,17 +605,41 @@
   #dp-camera-video,#dp-camera-preview-img{
     position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;
   }
+  #dp-camera-video{transform-origin:center;transition:transform .15s ease;}
   #dp-camera-preview-img{display:none;object-fit:contain;}
   #dp-camera-close-btn{
     position:absolute;top:calc(16px + var(--safe-top,0px));right:16px;z-index:2;
     width:38px;height:38px;border-radius:50%;border:none;background:rgba(0,0,0,.5);color:#fff;
     font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;
   }
+  #dp-camera-flash-btn{
+    position:absolute;top:calc(16px + var(--safe-top,0px));left:16px;z-index:2;
+    width:38px;height:38px;border-radius:50%;border:none;background:rgba(0,0,0,.5);color:#fff;
+    font-size:17px;display:flex;align-items:center;justify-content:center;cursor:pointer;
+  }
+  #dp-camera-flash-btn.dp-flash-on{background:#FDE046;color:#000;}
+  #dp-camera-zoom-controls{
+    position:absolute;top:calc(64px + var(--safe-top,0px));left:16px;z-index:2;
+    display:flex;flex-direction:column;align-items:center;gap:4px;
+    background:rgba(0,0,0,.5);border-radius:100px;padding:6px;
+  }
+  #dp-camera-zoom-controls button{
+    width:30px;height:30px;border-radius:50%;border:none;background:rgba(255,255,255,.2);color:#fff;
+    font-size:16px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;
+  }
+  #dp-camera-zoom-label{color:#fff;font-size:11px;font-weight:700;}
   .dp-camera-info-card{
     position:absolute;left:0;right:0;bottom:0;height:42%;z-index:1;
     background:linear-gradient(180deg,rgba(20,180,120,0) 0%,rgba(20,150,100,.96) 15%,rgba(15,120,80,.99) 55%);
     display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;
-    color:#fff;text-align:center;padding:20px;padding-bottom:max(20px,var(--safe-bottom));box-sizing:border-box;
+    color:#fff;text-align:center;padding:20px;box-sizing:border-box;
+    /* Only affects the LIVE preview overlay (this class is never used
+       for the actual burned-in canvas text — that's separate JS code,
+       untouched) — extra room at the bottom so the address line ends
+       above the capture button below it, instead of sitting behind
+       it. The captured photo itself keeps its own layout exactly as
+       before, address anchored right at the true bottom edge. */
+    padding-bottom:max(112px,calc(112px + var(--safe-bottom)));
   }
   .dp-camera-info-badge{font-size:15px;font-weight:800;background:rgba(255,255,255,.22);padding:6px 16px;border-radius:100px;margin-bottom:4px;}
   #dp-camera-info-time{font-size:14px;font-weight:600;opacity:1;}
@@ -1340,6 +1364,18 @@
     <img id="dp-camera-preview-img" alt="">
 
     <button type="button" id="dp-camera-close-btn" aria-label="Chiudi">✕</button>
+    <!-- Requested directly: zoom control and flash/torch for night
+         deliveries — both hidden by default and only shown once
+         actually confirmed supported by this specific device/browser
+         (checked against the real camera track's own capabilities),
+         since neither is universally available and a dead button is
+         worse than no button at all. -->
+    <button type="button" id="dp-camera-flash-btn" aria-label="Torcia" style="display:none;">⚡</button>
+    <div id="dp-camera-zoom-controls" style="display:none;">
+      <button type="button" id="dp-camera-zoom-out-btn" aria-label="Riduci zoom">−</button>
+      <span id="dp-camera-zoom-label">1×</span>
+      <button type="button" id="dp-camera-zoom-in-btn" aria-label="Aumenta zoom">+</button>
+    </div>
 
     <div id="dp-camera-info-overlay" class="dp-camera-info-card">
       <div class="dp-camera-info-badge">✓ Consegnato</div>

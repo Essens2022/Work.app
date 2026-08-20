@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v325") {
+          if (data && data.v && data.v !== "pt-foglio-v326") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v325"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v326"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2940,6 +2940,10 @@
   var dpCameraQueue = [];
   var dpCameraStream = null;
   var dpCameraCurrentClient = null;
+  var dpCameraTrack = null;
+  var dpCameraZoomLevel = 1;
+  var dpCameraZoomCaps = null; // {min,max,step} if the device's own hardware zoom is controllable; null falls back to a CSS-based digital zoom that works on any device
+  var dpCameraFlashOn = false;
 
   function dpStartCameraSequence(clients) {
     dpCameraQueue = clients.slice();
@@ -2993,6 +2997,7 @@
       .then(function (stream) {
         dpCameraStream = stream;
         video.srcObject = stream;
+        dpSetupCameraControls(stream);
       })
       .catch(function () {
         errEl.textContent = 'Impossibile accedere alla fotocamera — controlla i permessi.';
@@ -3000,11 +3005,64 @@
       });
   }
 
+  // Requested directly: zoom and flash for night deliveries. Both are
+  // feature-detected against the REAL camera track's own capabilities
+  // (getCapabilities()), never assumed — a device/browser that
+  // doesn't support one just never shows that control, rather than
+  // showing a dead button. Hardware zoom (sharper, when available) is
+  // preferred; a CSS-transform digital zoom is the universal fallback
+  // for devices that report no zoom capability at all. Flash/torch
+  // has no software equivalent — if the device doesn't expose it,
+  // there's genuinely nothing to fall back to, so the button simply
+  // doesn't appear.
+  function dpSetupCameraControls(stream) {
+    var track = stream.getVideoTracks()[0];
+    dpCameraTrack = track;
+    dpCameraZoomLevel = 1;
+    dpCameraFlashOn = false;
+    document.getElementById('dp-camera-video').style.transform = 'scale(1)';
+    document.getElementById('dp-camera-zoom-label').textContent = '1×';
+    document.getElementById('dp-camera-flash-btn').classList.remove('dp-flash-on');
+
+    var caps = (track.getCapabilities && track.getCapabilities()) || {};
+    dpCameraZoomCaps = (caps.zoom && caps.zoom.max > caps.zoom.min) ? caps.zoom : null;
+    document.getElementById('dp-camera-zoom-controls').style.display = 'flex'; // always offered — CSS zoom works everywhere even without hardware support
+    document.getElementById('dp-camera-flash-btn').style.display = caps.torch ? 'flex' : 'none';
+  }
+
+  function dpCameraApplyZoom(delta) {
+    if (!dpCameraTrack) return;
+    var step = (dpCameraZoomCaps && dpCameraZoomCaps.step) ? dpCameraZoomCaps.step : 0.5;
+    var max = dpCameraZoomCaps ? dpCameraZoomCaps.max : 4;
+    var min = dpCameraZoomCaps ? dpCameraZoomCaps.min : 1;
+    dpCameraZoomLevel = Math.max(min, Math.min(max, dpCameraZoomLevel + delta * step));
+    document.getElementById('dp-camera-zoom-label').textContent = (Math.round(dpCameraZoomLevel * 10) / 10) + '×';
+    if (dpCameraZoomCaps) {
+      dpCameraTrack.applyConstraints({ advanced: [{ zoom: dpCameraZoomLevel }] }).catch(function () {});
+    } else {
+      document.getElementById('dp-camera-video').style.transform = 'scale(' + dpCameraZoomLevel + ')';
+    }
+  }
+
+  function dpCameraToggleFlash() {
+    if (!dpCameraTrack) return;
+    var turnOn = !dpCameraFlashOn;
+    dpCameraTrack.applyConstraints({ advanced: [{ torch: turnOn }] })
+      .then(function () {
+        dpCameraFlashOn = turnOn;
+        document.getElementById('dp-camera-flash-btn').classList.toggle('dp-flash-on', dpCameraFlashOn);
+      })
+      .catch(function () { /* device claimed torch support but the actual toggle failed — silently stays off, no dead visual state */ });
+  }
+
   function dpStopCameraStream() {
     if (dpCameraStream) {
       dpCameraStream.getTracks().forEach(function (t) { t.stop(); });
       dpCameraStream = null;
     }
+    dpCameraTrack = null;
+    dpCameraZoomCaps = null;
+    dpCameraFlashOn = false;
   }
 
   function dpCloseCameraModal() {
@@ -3027,7 +3085,21 @@
     if (!w || !h) return; // camera not actually ready yet — nothing to capture
     canvas.width = w; canvas.height = h;
     var ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, w, h);
+    // Hardware zoom (dpCameraZoomCaps set) already changes what the
+    // SENSOR itself sends — the raw video frame is already zoomed,
+    // drawn as-is. Digital zoom (no hardware capability) is a purely
+    // visual CSS transform on the <video> element on screen — the
+    // underlying frame data is always the FULL, unzoomed view, so the
+    // capture has to crop to the same centered region the driver was
+    // actually looking at and scale it back up, or the photo would
+    // show much more than what was framed on screen.
+    if (!dpCameraZoomCaps && dpCameraZoomLevel > 1) {
+      var cropW = w / dpCameraZoomLevel, cropH = h / dpCameraZoomLevel;
+      var cropX = (w - cropW) / 2, cropY = (h - cropH) / 2;
+      ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, w, h);
+    } else {
+      ctx.drawImage(video, 0, 0, w, h);
+    }
 
     // Matches .dp-camera-info-card's own CSS exactly (height:42%,
     // gradient stops at 15%/55%) — requested directly: less of the
@@ -9172,6 +9244,9 @@
     document.getElementById('dp-camera-capture-btn').addEventListener('click', dpCaptureCameraPhoto);
     document.getElementById('dp-camera-retake-btn').addEventListener('click', dpRetakeCameraPhoto);
     document.getElementById('dp-camera-send-btn').addEventListener('click', dpSendCameraPhoto);
+    document.getElementById('dp-camera-zoom-in-btn').addEventListener('click', function () { dpCameraApplyZoom(1); });
+    document.getElementById('dp-camera-zoom-out-btn').addEventListener('click', function () { dpCameraApplyZoom(-1); });
+    document.getElementById('dp-camera-flash-btn').addEventListener('click', dpCameraToggleFlash);
 
     // Archivio clienti — static modal elements, wired once here.
     document.getElementById('dp-archive-close-x').addEventListener('click', function () {
