@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v351") {
+          if (data && data.v && data.v !== "pt-foglio-v352") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v351"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v352"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -8136,7 +8136,7 @@
     }
 
     var versionEl = document.getElementById('settings-version-display');
-    // Requested directly: "pt-foglio-v351" read as an ugly, internal-
+    // Requested directly: "pt-foglio-v352" read as an ugly, internal-
     // looking string — the number itself matters (still needed to
     // confirm a fresh build reached the phone), the "pt-foglio-"
     // prefix doesn't. Shown as "ADB Smart · v335" instead — same
@@ -8448,7 +8448,16 @@
   }
 
   document.getElementById('account-send-btn').addEventListener('click', function () {
-    var email = document.getElementById('in-account-email').value.trim();
+    // REAL BUG, found and confirmed directly: only .trim() here, never
+    // .toLowerCase() — typing the same email with even one different
+    // capital letter than however it's already stored made the
+    // identity-conflict check (and the confirmation-baseline lookup)
+    // silently fail to find the existing record at all, since the
+    // exact-match comparison server-side is case-sensitive. Reported
+    // directly ("nu ma intreaba daca sunt eu persoana inregistrata") —
+    // normalized here now, matching how email addresses are actually
+    // treated everywhere in practice (case-insensitive).
+    var email = document.getElementById('in-account-email').value.trim().toLowerCase();
     if (!email || email.indexOf('@') === -1) { toast('Inserisci un\'email valida'); return; }
     var btn = this;
     btn.disabled = true;
