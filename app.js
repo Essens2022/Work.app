@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v322") {
+          if (data && data.v && data.v !== "pt-foglio-v323") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v322"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v323"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -662,6 +662,7 @@
       // the standard sort/reorder symbol) alongside a filled
       // background, so it reads unmistakably as a pressable action.
       sort: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16"/><path d="M4 7l3-3 3 3"/><path d="M17 20V4"/><path d="M20 17l-3 3-3-3"/></svg>',
+      camera: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8a2 2 0 0 1 2-2h1.5l1-1.5h7l1 1.5H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><circle cx="12" cy="12.5" r="3.4"/></svg>',
       route: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M5 8v4a4 4 0 0 0 4 4h6" stroke-dasharray="3 3"/></svg>',
       fuel: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="9" height="18" rx="1"/><rect x="6.3" y="5.5" width="4.4" height="4" rx="0.5"/><path d="M13 9h2.5l3 2.5v6.5a1.5 1.5 0 0 1-3 0v-3.5a1 1 0 0 0-1-1h-1.5"/></svg>',
       share: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg>',
@@ -1344,6 +1345,12 @@
       '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + ((c.lat == null || c.lon == null) ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + (c.orsUnreachable ? ' <span style="color:var(--accent);">⚠ non ottimizzato</span>' : '') + '</div>' +
       (c.completedAt ? '<div style="color:var(--teal);font-size:13px;font-weight:700;margin-top:3px;">✓ Consegnato ~' + dpFormatTime(c.completedAt) + '</div>' : '') +
       '</div>' +
+      // Requested directly: once a client is marked consegnato, a
+      // camera icon appears on its row — in case the driver closed
+      // the auto-opened camera by mistake, or just wants another
+      // photo later, tapping this reopens it for exactly this one
+      // client (not the rest of the queue).
+      (isDone ? '<button type="button" class="dp-camera-retake-icon-btn" data-client-id="' + c.id + '" aria-label="Fai foto">' + svgIcon('camera') + '</button>' : '') +
       '<div class="dp-client-chevron">›</div>' +
       '</div>' +
       '</div>';
@@ -1708,6 +1715,13 @@
 
     el.innerHTML = html;
     dpSyncStickyHeaderHeight(); // real, rendered height of the just-inserted header — must run AFTER innerHTML, not before
+
+    el.querySelectorAll('.dp-camera-retake-icon-btn').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation(); // must never also trigger the row's own click (which opens Modifica cliente)
+        dpOpenCameraForOneClient(btn.getAttribute('data-client-id'));
+      });
+    });
 
     document.getElementById('dp-add-client-btn').addEventListener('click', dpOpenAddClientModal);
     var reordinaBtn = document.getElementById('dp-reordina-btn');
@@ -2911,8 +2925,198 @@
     document.getElementById('modal-dp-reordina').classList.add('open');
   }
 
+  // ---- Delivery photo camera ----
+  // Requested directly, in detail: right after marking one or more
+  // clients "consegnato" and confirming Reordina, the camera opens
+  // automatically, one client at a time, with a live preview of that
+  // delivery's info (name, address, time) held over the bottom half
+  // of the frame — burned directly into the photo the moment it's
+  // captured, so the info travels WITH the picture even after it
+  // leaves this app. Never saved to the phone's own gallery — the
+  // only way out is the OS share sheet (WhatsApp, etc.), same as
+  // tapping the small camera icon on an already-completed client's
+  // row at any later point, just for one client instead of a queue.
+
+  var dpCameraQueue = [];
+  var dpCameraStream = null;
+  var dpCameraCurrentClient = null;
+
+  function dpStartCameraSequence(clients) {
+    dpCameraQueue = clients.slice();
+    dpCameraAdvanceQueue();
+  }
+
+  function dpCameraAdvanceQueue() {
+    if (!dpCameraQueue.length) { dpCloseCameraModal(); return; }
+    var next = dpCameraQueue.shift();
+    dpOpenCameraForClient(next);
+  }
+
+  // Also the entry point for the standalone camera-icon button on an
+  // already-completed row — a queue of exactly one.
+  function dpOpenCameraForOneClient(clientId) {
+    var client = state.deliveryRun.clients.find(function (c) { return c.id === clientId; });
+    if (!client) return;
+    dpCameraQueue = [];
+    dpOpenCameraForClient(client);
+  }
+
+  function dpOpenCameraForClient(client) {
+    dpCameraCurrentClient = client;
+    document.getElementById('dp-camera-info-time').textContent = client.completedAt ? dpFormatTime(client.completedAt) : '';
+    document.getElementById('dp-camera-info-name').textContent = client.nome || '';
+    document.getElementById('dp-camera-info-addr').textContent = client.indirizzo || '';
+
+    var video = document.getElementById('dp-camera-video');
+    var errEl = document.getElementById('dp-camera-error');
+    errEl.style.display = 'none';
+    video.style.display = '';
+    document.getElementById('dp-camera-preview-img').style.display = 'none';
+    document.getElementById('dp-camera-capture-btn').style.display = '';
+    document.getElementById('dp-camera-preview-actions').style.display = 'none';
+    document.getElementById('dp-camera-info-overlay').style.display = '';
+
+    document.getElementById('modal-dp-camera').classList.add('open');
+
+    // Real device camera, back-facing by default (a driver photographing
+    // what they're delivering/leaving needs the REAR camera, not a
+    // selfie view) — HONEST UNCERTAINTY: getUserMedia requires a
+    // secure context (https) and explicit permission; if either is
+    // missing, or no camera exists at all, this rejects and the error
+    // path below handles it instead of leaving a frozen black screen.
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      errEl.textContent = 'Fotocamera non disponibile su questo browser.';
+      errEl.style.display = 'block';
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })
+      .then(function (stream) {
+        dpCameraStream = stream;
+        video.srcObject = stream;
+      })
+      .catch(function () {
+        errEl.textContent = 'Impossibile accedere alla fotocamera — controlla i permessi.';
+        errEl.style.display = 'block';
+      });
+  }
+
+  function dpStopCameraStream() {
+    if (dpCameraStream) {
+      dpCameraStream.getTracks().forEach(function (t) { t.stop(); });
+      dpCameraStream = null;
+    }
+  }
+
+  function dpCloseCameraModal() {
+    dpStopCameraStream();
+    dpCameraQueue = [];
+    dpCameraCurrentClient = null;
+    dpCloseModal('modal-dp-camera');
+  }
+
+  // Captures the CURRENT video frame at its real, native resolution
+  // (not the on-screen display size, which can differ) and draws the
+  // same info card straight onto that same canvas, proportioned to
+  // match — so what ends up in the final image matches the live
+  // preview the driver just saw, just permanently part of the pixels
+  // now rather than a separate CSS layer.
+  function dpCaptureCameraPhoto() {
+    var video = document.getElementById('dp-camera-video');
+    var canvas = document.getElementById('dp-camera-canvas');
+    var w = video.videoWidth, h = video.videoHeight;
+    if (!w || !h) return; // camera not actually ready yet — nothing to capture
+    canvas.width = w; canvas.height = h;
+    var ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, w, h);
+
+    var cardTop = h * 0.5;
+    var grad = ctx.createLinearGradient(0, cardTop, 0, h);
+    grad.addColorStop(0, 'rgba(20,180,120,0)');
+    grad.addColorStop(0.3, 'rgba(20,150,100,.88)');
+    grad.addColorStop(1, 'rgba(15,120,80,.94)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, cardTop, w, h - cardTop);
+
+    var client = dpCameraCurrentClient || {};
+    var centerX = w / 2;
+    var cy = cardTop + (h - cardTop) / 2;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#fff';
+
+    var badgeText = '✓ Consegnato';
+    ctx.font = '700 ' + Math.round(w * 0.045) + 'px sans-serif';
+    ctx.fillText(badgeText, centerX, cy - h * 0.11);
+
+    var timeText = client.completedAt ? dpFormatTime(client.completedAt) : '';
+    if (timeText) {
+      ctx.font = '600 ' + Math.round(w * 0.038) + 'px sans-serif';
+      ctx.globalAlpha = 0.9;
+      ctx.fillText(timeText, centerX, cy - h * 0.055);
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.font = '800 ' + Math.round(w * 0.062) + 'px sans-serif';
+    ctx.fillText(client.nome || '', centerX, cy + h * 0.01);
+
+    ctx.font = '500 ' + Math.round(w * 0.042) + 'px sans-serif';
+    ctx.globalAlpha = 0.9;
+    ctx.fillText(client.indirizzo || '', centerX, cy + h * 0.075);
+    ctx.globalAlpha = 1;
+
+    dpStopCameraStream(); // frame is captured — no need to keep the live feed running while previewing
+    var dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+    var img = document.getElementById('dp-camera-preview-img');
+    img.src = dataUrl;
+    img.style.display = '';
+    video.style.display = 'none';
+    document.getElementById('dp-camera-info-overlay').style.display = 'none'; // already baked into the image now — the separate CSS overlay would just double it up
+    document.getElementById('dp-camera-capture-btn').style.display = 'none';
+    document.getElementById('dp-camera-preview-actions').style.display = 'flex';
+  }
+
+  function dpRetakeCameraPhoto() {
+    if (dpCameraCurrentClient) dpOpenCameraForClient(dpCameraCurrentClient);
+  }
+
+  // Deliberately never touches the phone's own photo library — the
+  // whole point, per ION's explicit request, is that this photo only
+  // ever leaves through a real send action, not a silent save. Web
+  // Share API (with an actual file attached) is exactly the standard,
+  // OS-level way to hand an image to WhatsApp or anywhere else from a
+  // web app — UNVERIFIED whether every browser/OS combination ADB
+  // Smart runs on supports sharing FILES specifically (broad but not
+  // universal support); the fallback opens the image in a new tab so
+  // it's never a dead end even where it isn't supported.
+  function dpSendCameraPhoto() {
+    var canvas = document.getElementById('dp-camera-canvas');
+    canvas.toBlob(function (blob) {
+      if (!blob) return;
+      var client = dpCameraCurrentClient || {};
+      var fileName = 'consegna-' + (client.nome || 'cliente').replace(/[^a-z0-9]+/gi, '-') + '.jpg';
+      var file = new File([blob], fileName, { type: 'image/jpeg' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file], title: 'Consegna ' + (client.nome || '') })
+          .then(function () { dpCameraAdvanceQueue(); })
+          .catch(function () { /* share cancelled by the driver — stay on the preview, don't force-advance */ });
+      } else {
+        // Fallback for browsers without file-sharing support — opens
+        // the photo in a new tab, where a long-press/share icon still
+        // lets the driver hand it off manually.
+        var url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        dpCameraAdvanceQueue();
+      }
+    }, 'image/jpeg', 0.92);
+  }
+
   function dpConfirmReordina() {
     var checkboxes = document.querySelectorAll('#dp-reordina-list input[type=checkbox]');
+    // Tracked so the camera sequence (below) knows exactly which
+    // clients were JUST checked off in THIS confirmation — requested
+    // directly: the camera should open automatically, one after
+    // another, for however many were marked done together, not for
+    // ones that were already completed before this action.
+    var newlyCompleted = [];
     checkboxes.forEach(function (cb) {
       var client = state.deliveryRun.clients.find(function (c) { return c.id === cb.getAttribute('data-client-id'); });
       if (!client) return;
@@ -2928,6 +3132,7 @@
       // later doesn't keep bumping the time forward).
       if (client.status === 'completed' && !wasCompleted && !client.completedAt) client.completedAt = Date.now();
       if (client.status !== 'completed') client.completedAt = null; // unchecking a mistaken mark clears the stale timestamp too
+      if (client.status === 'completed' && !wasCompleted) newlyCompleted.push(client);
     });
     saveDeliveryRun(state.deliveryRun);
 
@@ -2936,6 +3141,7 @@
     if (!remaining.length) {
       dpCloseModal('modal-dp-reordina');
       renderDeliveryPlanner();
+      if (newlyCompleted.length) dpStartCameraSequence(newlyCompleted);
       return;
     }
 
@@ -3002,6 +3208,7 @@
       confirmBtn.textContent = 'Ricalcola percorso';
       dpCloseModal('modal-dp-reordina');
       renderDeliveryPlanner();
+      if (newlyCompleted.length) dpStartCameraSequence(newlyCompleted);
     }
 
     optimizePromise.then(function (optimized) {
@@ -8941,6 +9148,12 @@
       populateNavVehicleForm();
       document.getElementById('modal-nav-vehicle').classList.add('open');
     });
+
+    // Delivery photo camera — static modal elements, wired once here.
+    document.getElementById('dp-camera-close-btn').addEventListener('click', dpCloseCameraModal);
+    document.getElementById('dp-camera-capture-btn').addEventListener('click', dpCaptureCameraPhoto);
+    document.getElementById('dp-camera-retake-btn').addEventListener('click', dpRetakeCameraPhoto);
+    document.getElementById('dp-camera-send-btn').addEventListener('click', dpSendCameraPhoto);
 
     // Archivio clienti — static modal elements, wired once here.
     document.getElementById('dp-archive-close-x').addEventListener('click', function () {
