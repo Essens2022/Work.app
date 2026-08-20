@@ -9376,10 +9376,11 @@
   function shareApp() {
     var shareUrl = window.location.origin + '/'; // clean root link, regardless of exact path the app happened to launch from (e.g. installed PWAs open at "/index.html" per the manifest's start_url)
     // Requested directly: this only mentioned the trip-log document —
-    // outdated, given how much the app covers now (delivery route
-    // planning/optimization, client archive, delivery photos, not just
-    // the foglio viaggi).
-    var shareText = 'ADB Smart — l\'app che uso per il foglio viaggi, organizzare le consegne e i clienti. Provala anche tu:';
+    // outdated, given how much the app covers now. A follow-up request
+    // specifically called out the route-ordering feature (Reordina/
+    // Auto) as important enough to name explicitly, not just imply
+    // through "organizzare le consegne".
+    var shareText = 'ADB Smart — l\'app che uso per il foglio viaggi, l\'itinerario delle consegne (ordina i clienti in automatico) e i clienti. Provala anche tu:';
     if (navigator.share) {
       navigator.share({ title: 'ADB Smart', text: shareText, url: shareUrl }).catch(function () { /* person cancelled the native share sheet — not an error */ });
     } else if (navigator.clipboard && navigator.clipboard.writeText) {
