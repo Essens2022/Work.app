@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v330") {
+          if (data && data.v && data.v !== "pt-foglio-v331") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v330"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v331"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -3339,11 +3339,29 @@
     // moved to the end (they just show a checkmark regardless of
     // position, but keeping them out of the numbered sequence avoids
     // interleaving done items between upcoming ones).
-    function applyOrder(orderedRemaining) {
+    function applyOrder(orderedRemaining, wasActuallyOptimized) {
       state.deliveryRun.clients = orderedRemaining.concat(completed);
       saveDeliveryRun(state.deliveryRun);
       confirmBtn.disabled = false;
       confirmBtn.textContent = 'Ricalcola percorso';
+      // REAL BUG, reported directly and confirmed with a live test:
+      // pressing "Ricalcola percorso" while AUTO is also on used to
+      // burn TWO ORS optimization calls instead of one — confirmed at
+      // exactly 2x with 3 clients (2 remaining after marking one
+      // done). Cause: this manual path never updated
+      // dpLastAutoOptimizedSignature, so the very next
+      // renderDeliveryPlanner() call below (which AUTO's own check
+      // runs inside of) always saw a "stale" signature not matching
+      // the order just applied, and fired ITS OWN redundant re-
+      // optimization immediately after — on an order that was already
+      // correct. Only updated on a genuine SUCCESS (matching how
+      // dpRunAutoOptimization treats its own signature) — a failed/
+      // fallback attempt deliberately leaves it untouched, so AUTO
+      // still gets its own independent shot at optimizing if the
+      // manual attempt itself failed for some transient reason.
+      if (wasActuallyOptimized) {
+        dpLastAutoOptimizedSignature = orderedRemaining.map(function (c) { return c.id; }).join(',');
+      }
       dpCloseModal('modal-dp-reordina');
       renderDeliveryPlanner();
       if (newlyCompleted.length) dpStartCameraSequence(newlyCompleted);
@@ -3364,7 +3382,7 @@
       var droppedByOrs = geolocatable.filter(function (c) { return !optimizedIds[c.id]; });
       optimized.forEach(function (c) { c.orsUnreachable = false; }); // see the matching comment in dpRunAutoOptimization above — same real, visible-now issue
       droppedByOrs.forEach(function (c) { c.orsUnreachable = true; });
-      applyOrder(optimized.concat(unverified).concat(droppedByOrs));
+      applyOrder(optimized.concat(unverified).concat(droppedByOrs), true);
     }).catch(function (err) {
       // Honest fallback, not a silent failure — if the optimization
       // call itself fails (offline, ORS quota, GPS unavailable), the
