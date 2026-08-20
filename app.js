@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v332") {
+          if (data && data.v && data.v !== "pt-foglio-v333") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v332"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v333"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -1306,20 +1306,29 @@
 
   // Reads the REAL rate-limit headers ORS returns on every response
   // (x-ratelimit-remaining, x-ratelimit-limit) and stores the latest
-  // reading — called right after every actual optimization/geocoding
-  // fetch, success or failure alike (ORS includes these headers even
-  // on a 429/403 rate-limited response, arguably the most useful
-  // moment to catch them). Silently does nothing if the headers
-  // aren't present (fetch failed before a real response, or ORS
-  // changes its header names) — never throws, never surfaces
-  // anything to the driver.
-  function dpTrackOrsQuota(response) {
+  // reading — called right after every actual fetch to ORS, success
+  // or failure alike (ORS includes these headers even on a 429/403
+  // rate-limited response, arguably the most useful moment to catch
+  // them). Silently does nothing if the headers aren't present (fetch
+  // failed before a real response, or ORS changes its header names)
+  // — never throws, never surfaces anything to the driver.
+  //
+  // REAL FINDING, reported directly: the limit isn't one shared
+  // number across every ORS service, as the (third-party, not
+  // official) documentation suggested — geocoding alone showed
+  // 500/day, a real, live number straight from ORS itself, not
+  // whatever a 2500/day figure found elsewhere implied. Tracked
+  // separately now, per actual endpoint kind, since each one can (and
+  // does) carry its own distinct limit.
+  function dpTrackOrsQuota(response, kind) {
     try {
       if (!response || !response.headers) return;
       var remaining = response.headers.get('x-ratelimit-remaining');
       var limit = response.headers.get('x-ratelimit-limit');
       if (remaining == null) return;
-      localStorage.setItem(LS_ORS_QUOTA, JSON.stringify({ remaining: remaining, limit: limit, at: Date.now() }));
+      var all = JSON.parse(localStorage.getItem(LS_ORS_QUOTA) || '{}');
+      all[kind] = { remaining: remaining, limit: limit, at: Date.now() };
+      localStorage.setItem(LS_ORS_QUOTA, JSON.stringify(all));
     } catch (e) { /* best-effort only */ }
   }
 
@@ -3466,7 +3475,7 @@
       headers: { 'Content-Type': 'application/json', 'Authorization': ORS_API_KEY },
       body: JSON.stringify(body)
     }).then(function (r) {
-      dpTrackOrsQuota(r);
+      dpTrackOrsQuota(r, 'optimization');
       if (!r.ok) throw new Error('ORS ' + r.status);
       return r.json();
     }).then(function (data) {
@@ -4536,7 +4545,7 @@
     // point itself is already set and usable even if this fails or is
     // slow (offline, rate-limited, etc.).
     fetch('https://api.openrouteservice.org/geocode/reverse?api_key=' + encodeURIComponent(ORS_API_KEY) + '&point.lon=' + latlng.lng + '&point.lat=' + latlng.lat + '&size=1')
-      .then(function (r) { dpTrackOrsQuota(r); return r.json(); })
+      .then(function (r) { dpTrackOrsQuota(r, 'geocode'); return r.json(); })
       .then(function (data) {
         var label = (data.features && data.features[0] && data.features[0].properties.label) || (latlng.lat.toFixed(5) + ', ' + latlng.lng.toFixed(5));
         if (wp) wp.text = label;
@@ -5228,7 +5237,7 @@
     function tryNext(i) {
       if (i >= attempts.length) return Promise.resolve({ features: [] });
       return fetchWithTimeout(navGeocodeUrl(endpoint, text, attempts[i]), null, 6000)
-        .then(function (r) { dpTrackOrsQuota(r); return r.json(); })
+        .then(function (r) { dpTrackOrsQuota(r, 'geocode'); return r.json(); })
         .then(function (data) {
           if (data.features && data.features.length) return data;
           return tryNext(i + 1);
@@ -5698,7 +5707,7 @@
       headers: { 'Content-Type': 'application/json', 'Authorization': ORS_API_KEY },
       body: JSON.stringify(body)
     }).then(function (r) {
-      dpTrackOrsQuota(r);
+      dpTrackOrsQuota(r, 'directions');
       if (!r.ok) return r.json().then(function (e) { throw new Error(e.error && e.error.message ? e.error.message : 'Errore nel calcolo del percorso'); });
       return r.json();
     }).then(function (geojson) {
@@ -8083,8 +8092,19 @@
     var quotaEl = document.getElementById('settings-ors-quota-display');
     if (quotaEl) {
       try {
-        var q = JSON.parse(localStorage.getItem(LS_ORS_QUOTA) || 'null');
-        quotaEl.textContent = (q && q.remaining != null) ? (q.remaining + '/' + (q.limit || '?')) : '';
+        // Tracked separately per real ORS endpoint kind now — each
+        // one can (and, confirmed directly, does) carry its own
+        // distinct daily limit, not one shared number as third-party
+        // documentation had suggested. Shown together, compact, still
+        // with no label — g/o/d for geocode/optimization/directions,
+        // only whichever ones this phone has actually seen a real
+        // reading for.
+        var q = JSON.parse(localStorage.getItem(LS_ORS_QUOTA) || '{}');
+        var parts = [];
+        if (q.geocode) parts.push('g ' + q.geocode.remaining + '/' + (q.geocode.limit || '?'));
+        if (q.optimization) parts.push('o ' + q.optimization.remaining + '/' + (q.optimization.limit || '?'));
+        if (q.directions) parts.push('d ' + q.directions.remaining + '/' + (q.directions.limit || '?'));
+        quotaEl.textContent = parts.join('  ');
       } catch (e) { quotaEl.textContent = ''; }
     }
     var src = settingsTargetSheet ? {
