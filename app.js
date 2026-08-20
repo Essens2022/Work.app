@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v337") {
+          if (data && data.v && data.v !== "pt-foglio-v338") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v337"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v338"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -8111,7 +8111,7 @@
     }
 
     var versionEl = document.getElementById('settings-version-display');
-    // Requested directly: "pt-foglio-v337" read as an ugly, internal-
+    // Requested directly: "pt-foglio-v338" read as an ugly, internal-
     // looking string — the number itself matters (still needed to
     // confirm a fresh build reached the phone), the "pt-foglio-"
     // prefix doesn't. Shown as "ADB Smart · v335" instead — same
@@ -8768,6 +8768,22 @@
     if (bottomnav) document.documentElement.style.setProperty('--bottomnav-h', bottomnav.offsetHeight + 'px');
   }
 
+  // REAL BUG, reported directly, on Chrome for Android specifically
+  // (not Safari — ruling out an earlier vh/dvh-specific diagnosis):
+  // sheet modals stopped scrolling on a real device despite testing
+  // correctly in every simulated environment, and different modals
+  // opened at visibly inconsistent heights from each other.
+  // window.innerHeight is the browser's own direct, live measurement
+  // of the ACTUAL current viewport — not a CSS unit subject to any
+  // engine-specific interpretation differences. Measured here, once,
+  // written into --real-vh as a plain pixel value every .sheet-panel
+  // rule now derives its height from — same value, same formula,
+  // every modal, so they're always exactly the same size as each
+  // other and never depend on any CSS viewport-unit's own quirks.
+  function syncRealViewportHeight() {
+    document.documentElement.style.setProperty('--real-vh', window.innerHeight + 'px');
+  }
+
   // Same pattern as syncBarHeights above, for the Delivery Planner's
   // own fixed header block (title/stats/buttons) — its content
   // changes (stats update, the Casa/Deposito card appears or
@@ -9381,8 +9397,10 @@
     migrateReverifyClientPrecision(); // async, rate-limited, runs fully in the background — never blocks anything else in init()
     reportActivity();
     syncBarHeights();
+    syncRealViewportHeight();
     window.addEventListener('resize', syncBarHeights);
-    window.addEventListener('orientationchange', function () { setTimeout(syncBarHeights, 200); });
+    window.addEventListener('resize', syncRealViewportHeight);
+    window.addEventListener('orientationchange', function () { setTimeout(syncBarHeights, 200); setTimeout(syncRealViewportHeight, 200); });
     // Same reasoning as syncBarHeights just above — the Delivery
     // Planner's own fixed header needs the same re-measuring on
     // resize/orientation change. Safe to call even when that screen
