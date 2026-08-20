@@ -9485,7 +9485,14 @@
     // app's own language at all (the screen itself is called
     // "Percorso di oggi") — replaced with "percorso", consistent and
     // instantly clear to anyone who's actually used the app.
-    var shareText = 'ADB Smart. Foglio viaggi automatico. Percorso ottimizzato in automatico. Clienti sempre a portata di mano. La uso ogni giorno — provala:';
+    // Requested directly, complete list of real benefits given
+    // explicitly ("cuvinte care vand... beneficii pure concrete fara
+    // apa") — pure keyword-benefits, zero connecting words, zero
+    // explanation. Covers: foglio viaggi automatico, percorso
+    // ottimizzato, km/stipendio calcolati da soli, scontrini
+    // digitali, documenti auto-compilati a fine mese, archivio
+    // clienti+consegne, meno carta/burocrazia (capo contento).
+    var shareText = 'ADB Smart. Foglio viaggi automatico. Percorso ottimizzato. Km e stipendio calcolati da soli. Scontrini gasolio e documenti pronti a fine mese. Clienti e consegne sempre archiviati. Zero carta, capo contento. La uso ogni giorno — provala:';
     if (navigator.share) {
       navigator.share({ title: 'ADB Smart', text: shareText, url: shareUrl }).catch(function () { /* person cancelled the native share sheet — not an error */ });
     } else if (navigator.clipboard && navigator.clipboard.writeText) {
