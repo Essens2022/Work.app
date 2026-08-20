@@ -9492,7 +9492,12 @@
     // ottimizzato, km/stipendio calcolati da soli, scontrini
     // digitali, documenti auto-compilati a fine mese, archivio
     // clienti+consegne, meno carta/burocrazia (capo contento).
-    var shareText = 'ADB Smart. Foglio viaggi automatico. Percorso ottimizzato. Km e stipendio calcolati da soli. Scontrini gasolio e documenti pronti a fine mese. Clienti e consegne sempre archiviati. Zero carta, capo contento. La uso ogni giorno — provala:';
+    // Requested directly, follow-up: "automatico" is the real power
+    // word here — repeated deliberately, everywhere it genuinely
+    // applies, instead of swapped for synonyms ("da soli") that dilute
+    // it. Closing restored to the fuller, warmer "Provala anche tu"
+    // instead of a bare "provala:".
+    var shareText = 'ADB Smart. Foglio viaggi automatico. Percorso ottimizzato automatico. Km e stipendio calcolati automaticamente. Scontrini gasolio e documenti automatici a fine mese. Clienti e consegne sempre archiviati. Zero carta, capo contento. La uso ogni giorno. Provala anche tu:';
     if (navigator.share) {
       navigator.share({ title: 'ADB Smart', text: shareText, url: shareUrl }).catch(function () { /* person cancelled the native share sheet — not an error */ });
     } else if (navigator.clipboard && navigator.clipboard.writeText) {
