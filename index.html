@@ -1401,7 +1401,11 @@
       <span class="badge-pending">✓ email inviata</span>
       <div class="pending-warning-box">Apri l'email e tocca il link per confermare — questa finestra si chiuderà da sola appena confermi. Non puoi chiuderla prima.</div>
       <div style="display:flex;gap:8px;">
-        <button type="button" id="account-remind-pending-btn" class="btn btn-outline btn-sm">Invia di nuovo il link</button>
+        <!-- Requested directly: "il link" made people think there was
+             an actual link somewhere on THIS page to click — it means
+             sending the confirmation EMAIL again, not a link on this
+             screen. Matches "email inviata" right above it. -->
+        <button type="button" id="account-remind-pending-btn" class="btn btn-outline btn-sm">Invia di nuovo l'email</button>
         <!-- Requested directly: "poate a gresit emailul si l-a pus din
              greseala" — no way back existed before, only re-sending the
              SAME (possibly wrong) email over and over. -->
