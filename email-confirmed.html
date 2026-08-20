@@ -25,6 +25,16 @@
   p{font-size:15px;line-height:1.6;color:#B5B3AE;margin:0 0 6px;}
   .hint{font-size:13px;color:#8C8A85;margin-top:22px;}
   .brand{margin-top:34px;font-size:12px;font-weight:800;color:#E8542B;letter-spacing:.5px;}
+  /* Requested directly: this page assumed the person could just switch
+     back to the already-open installed app themselves — true on iOS
+     (the link opens in a separate Safari tab), but NOT on Android,
+     where the link replaces the app's own window in-place (no
+     separate tab to leave, no way back at all before this). A real,
+     working button now, not just passive text. */
+  .btn-back{
+    display:inline-block;margin-top:26px;padding:14px 28px;border-radius:100px;
+    background:#E8542B;color:#fff;font-weight:800;font-size:15px;text-decoration:none;
+  }
 </style>
 </head>
 <body>
@@ -37,8 +47,9 @@
     </div>
     <h1>Email <span>confermata</span>!</h1>
     <p>Il tuo account ADB Smart è ora attivo.</p>
-    <p>Torna all'app — troverai già tutto configurato, senza dover fare nient'altro.</p>
-    <div class="hint">Puoi chiudere questa pagina.</div>
+    <p>Tocca il pulsante qui sotto — troverai già tutto configurato, senza dover fare nient'altro.</p>
+    <a href="./" class="btn-back">Torna all'app</a>
+    <div class="hint">Se l'app era già aperta in un'altra scheda, puoi anche chiudere questa pagina.</div>
     <div class="brand">ADB SMART</div>
   </div>
 </body>
