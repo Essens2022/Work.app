@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v344") {
+          if (data && data.v && data.v !== "pt-foglio-v345") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v344"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v345"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -8136,7 +8136,7 @@
     }
 
     var versionEl = document.getElementById('settings-version-display');
-    // Requested directly: "pt-foglio-v344" read as an ugly, internal-
+    // Requested directly: "pt-foglio-v345" read as an ugly, internal-
     // looking string — the number itself matters (still needed to
     // confirm a fresh build reached the phone), the "pt-foglio-"
     // prefix doesn't. Shown as "ADB Smart · v335" instead — same
@@ -9639,12 +9639,25 @@
     // whichever modal is open — same convention as every native picker
     // and virtually every modal on the web. Wired once, globally, for
     // every ".modal-overlay" in the app, rather than per-modal, so new
-    // modals get this for free. The one deliberate exception is the
-    // mandatory email-confirmation modal, which by design can't be
-    // dismissed until the email is actually confirmed.
+    // modals get this for free. Two deliberate exceptions: the
+    // mandatory email-confirmation modal, and the mandatory first-run
+    // Benvenuto/Impostazioni modal (before a profile exists at all) —
+    // neither can be dismissed this way, by design.
+    //
+    // REAL BUG, reported directly, TWICE now (the first fix for this
+    // was built but never actually shipped — lost track of it while
+    // investigating a different issue in parallel): right after
+    // "Elimina tutti i dati", the X close button was correctly blocked
+    // on Benvenuto, but tapping the darkened area OUTSIDE the sheet
+    // fell straight into this same generic handler and closed it
+    // anyway — the one path this exception forgot to also cover. A
+    // driver could get straight into the app with no profile and no
+    // confirmed email at all, exactly contradicting the whole point of
+    // requiring either step in the first place.
     document.addEventListener('click', function (e) {
       if (!e.target.classList || !e.target.classList.contains('modal-overlay')) return;
       if (e.target.id === 'modal-email-required') return;
+      if (e.target.id === 'modal-settings' && !state.profile.nome) return;
       e.target.classList.remove('open');
     });
 
