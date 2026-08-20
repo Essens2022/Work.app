@@ -9479,13 +9479,13 @@
     // specifically called out the route-ordering feature (Reordina/
     // Auto) as important enough to name explicitly, not just imply
     // through "organizzare le consegne".
-    // Requested directly: apply real marketing technique, not just a
-    // feature list — lead with the benefit (less hassle, saved time),
-    // add social proof through frequency ("ogni giorno"), and close
-    // with a casual, low-friction call to action fitting a WhatsApp
-    // message between colleagues, not a corporate-sounding ad (which
-    // would feel out of place and less persuasive here).
-    var shareText = 'ADB Smart mi ha semplificato il lavoro: foglio viaggi automatico, itinerario ottimizzato e tutti i clienti sempre a portata di mano. La uso ogni giorno — dai un\'occhiata anche tu:';
+    // Requested directly, follow-up: too many connecting words ("prea
+    // multa apa") — punchy standalone keywords instead of full
+    // sentences. Also fixed "itinerario", which doesn't match the
+    // app's own language at all (the screen itself is called
+    // "Percorso di oggi") — replaced with "percorso", consistent and
+    // instantly clear to anyone who's actually used the app.
+    var shareText = 'ADB Smart. Foglio viaggi automatico. Percorso ottimizzato in automatico. Clienti sempre a portata di mano. La uso ogni giorno — provala:';
     if (navigator.share) {
       navigator.share({ title: 'ADB Smart', text: shareText, url: shareUrl }).catch(function () { /* person cancelled the native share sheet — not an error */ });
     } else if (navigator.clipboard && navigator.clipboard.writeText) {
