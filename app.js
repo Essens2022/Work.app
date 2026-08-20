@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v348") {
+          if (data && data.v && data.v !== "pt-foglio-v349") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v348"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v349"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -8136,7 +8136,7 @@
     }
 
     var versionEl = document.getElementById('settings-version-display');
-    // Requested directly: "pt-foglio-v348" read as an ugly, internal-
+    // Requested directly: "pt-foglio-v349" read as an ugly, internal-
     // looking string — the number itself matters (still needed to
     // confirm a fresh build reached the phone), the "pt-foglio-"
     // prefix doesn't. Shown as "ADB Smart · v335" instead — same
@@ -8629,21 +8629,33 @@
             // otherwise it would stay "confirmed" forever there,
             // blocking anyone (including this same person, later) from
             // ever registering it again.
+            //
+            // Same real race-condition risk as "Elimina tutti i dati"
+            // (found and fixed there first) — even without an explicit
+            // reload here, proceeding immediately without waiting means
+            // a driver who closes the app, backgrounds it, or
+            // navigates away right after tapping "Esci" could still cut
+            // the request off mid-flight, leaving the account stuck on
+            // the server exactly like before. Waited for properly now,
+            // with the same safety timeout so a slow/unreachable
+            // network never blocks the local logout itself.
             var emailToFree = currentAccountEmail();
-            if (emailToFree) {
-              fetch(SUPABASE_URL + '/functions/v1/delete-auth-account', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
-                body: JSON.stringify({ email: emailToFree })
-              }).catch(function () { /* best-effort — local logout still proceeds either way */ });
-            }
-            logoutAccount();
-            state.profile.pendingEmail = '';
-            state.profile.emailConfirmed = false;
-            saveProfile(state.profile);
-            document.getElementById('settings-account-row').classList.add('hidden');
-            toast('Disconnesso');
-            openEmailRequiredModal();
+            var deletionRequest = emailToFree
+              ? fetchWithTimeout(SUPABASE_URL + '/functions/v1/delete-auth-account', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+                  body: JSON.stringify({ email: emailToFree })
+                }, 8000).catch(function () { /* best-effort — local logout still proceeds either way */ })
+              : Promise.resolve();
+            deletionRequest.then(function () {
+              logoutAccount();
+              state.profile.pendingEmail = '';
+              state.profile.emailConfirmed = false;
+              saveProfile(state.profile);
+              document.getElementById('settings-account-row').classList.add('hidden');
+              toast('Disconnesso');
+              openEmailRequiredModal();
+            });
           }
         });
       }
@@ -9395,24 +9407,44 @@
           danger: true,
           confirmLabel: 'Elimina tutto',
           onConfirm: function () {
-            // Free up the email on the server too, exactly like "Esci"
-            // does — otherwise it would stay "confirmed" there forever,
-            // even though every trace of it just got wiped locally,
-            // blocking this same person from ever registering it again
-            // if they decide to start over. Unlike "Esci" though, this
-            // is a genuinely complete wipe — also asks the server to
-            // remove this device's rows from the admin view entirely,
-            // not just free the email.
+            // REAL BUG, found and confirmed directly, tracing exactly
+            // this scenario in the live database: the local wipe
+            // (Benvenuto shown again) succeeded every time, but the
+            // account kept surviving on the server. Root cause — a
+            // genuine race condition: the request to actually delete
+            // the account was fire-and-forget (no await at all), and
+            // window.location.reload() ran IMMEDIATELY afterward,
+            // destroying the whole page/JS context before the request
+            // had any real chance to even reach the server, let alone
+            // finish — browsers abort in-flight fetch() calls the
+            // moment a page unloads. Free up the email on the server
+            // too, exactly like "Esci" does — otherwise it would stay
+            // "confirmed" there forever, even though every trace of it
+            // just got wiped locally, blocking this same person from
+            // ever registering it again if they decide to start over.
+            // Unlike "Esci" though, this is a genuinely complete wipe
+            // — also asks the server to remove this device's rows from
+            // the admin view entirely, not just free the email.
+            //
+            // Fixed by actually WAITING for that request now (with a
+            // safety timeout, so a slow or unreachable network can
+            // never block the local wipe from happening at all — the
+            // driver's own data on their own phone is never held
+            // hostage by a flaky connection) — the reload only fires
+            // once the request has genuinely either finished or
+            // definitively given up.
             var emailToFree = currentAccountEmail();
-            if (emailToFree) {
-              fetch(SUPABASE_URL + '/functions/v1/delete-auth-account', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
-                body: JSON.stringify({ email: emailToFree, wipe_activity_data: true, device_id: getDeviceId() })
-              }).catch(function () { /* best-effort — local wipe still proceeds either way */ });
-            }
-            try { localStorage.clear(); } catch (e) { /* ignore */ }
-            window.location.reload();
+            var deletionRequest = emailToFree
+              ? fetchWithTimeout(SUPABASE_URL + '/functions/v1/delete-auth-account', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+                  body: JSON.stringify({ email: emailToFree, wipe_activity_data: true, device_id: getDeviceId() })
+                }, 8000).catch(function () { /* best-effort — local wipe still proceeds either way, even if this genuinely failed or timed out */ })
+              : Promise.resolve();
+            deletionRequest.then(function () {
+              try { localStorage.clear(); } catch (e) { /* ignore */ }
+              window.location.reload();
+            });
           }
         });
       }
