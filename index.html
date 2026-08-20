@@ -1415,6 +1415,11 @@
       <div class="grabber"></div>
       <div class="modal-title">Riordina percorso</div>
       <div class="modal-sub">Conferma i clienti gia completati, poi ricalcola.</div>
+      <!-- Requested directly: the highlighted "next" client row stays
+           PINNED here, fixed, even while the rest of the list below
+           scrolls — same row, same checkbox, same behavior as before,
+           just never scrolls out of view. -->
+      <div id="dp-reordina-pinned"></div>
     </div>
     <div id="dp-reordina-list" class="sticky-scroll"></div>
     <div class="sticky-fixed" style="padding-top:10px;">
