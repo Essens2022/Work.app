@@ -1102,6 +1102,39 @@
   .toast .dot{width:6px;height:6px;border-radius:50%;background:var(--teal);}
 
   .settings-driver-note{font-size:12.5px;color:#6B6A66;font-weight:500;margin-top:-6px;margin-bottom:16px;line-height:1.5;}
+  /* Impostazioni redesign — requested directly: fields "looked thrown
+     onto the page", needed clear grouping by what they actually
+     belong to (driver profile / pay / account), styled with the same
+     .card language already used elsewhere in the app, not a new,
+     unfamiliar pattern. */
+  .settings-section{margin-bottom:20px;}
+  .settings-section-head{
+    display:flex;align-items:center;gap:6px;margin-bottom:8px;padding-left:2px;
+    font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);
+  }
+  .settings-section-icon{display:flex;color:var(--accent);flex:0 0 auto;}
+  .settings-card{padding:16px;}
+  .settings-card .field:last-child,.settings-card .field-row:last-child{margin-bottom:0;}
+  .settings-account-card{display:flex;gap:12px;align-items:flex-start;}
+  .settings-avatar{
+    flex:0 0 auto;width:44px;height:44px;border-radius:50%;background:var(--accent-soft);color:var(--accent);
+    font-weight:800;font-size:17px;display:flex;align-items:center;justify-content:center;
+  }
+  .settings-account-info{flex:1 1 auto;min-width:0;}
+  .settings-account-email{font-weight:700;font-size:14px;word-break:break-all;margin-bottom:6px;}
+  .settings-plan-badge{
+    display:inline-block;font-size:11px;font-weight:700;color:var(--teal);background:var(--teal-soft);
+    padding:3px 10px;border-radius:100px;margin-bottom:10px;
+  }
+  .settings-account-buttons{display:flex;gap:8px;flex-wrap:wrap;}
+  /* Version + ORS quota — tucked behind a tiny, quiet toggle so they
+     never compete with the driver-facing content above; still one
+     tap away, not buried in "Altre opzioni". */
+  .settings-info-toggle-btn{
+    width:28px;height:28px;border-radius:50%;border:1px solid var(--line);background:transparent;color:var(--ink-faint);
+    font-size:13px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex:0 0 auto;
+  }
+  .settings-info-panel{text-align:center;margin-top:8px;font-size:10px;color:var(--ink-faint);line-height:1.6;}
   .badge-pending{font-size:11px;font-weight:700;padding:3px 8px;border-radius:100px;background:#1C3A24;color:#3CB878;display:inline-block;margin-bottom:14px;}
   .pending-email-text{font-size:16px;font-weight:700;color:var(--ink);margin-bottom:8px;word-break:break-all;}
   .pending-warning-box{
@@ -1218,53 +1251,81 @@
       <div class="modal-sub" id="settings-sub">Inserisci i dati autista per iniziare a compilare il foglio viaggi.</div>
     </div>
     <div class="sticky-scroll">
-      <div class="field"><label>Nome autista</label><input id="in-nome" type="text" placeholder="Es. Ion Bondari"></div>
-
-      <div class="field-row">
-        <div class="field"><label>Targa veicolo</label><input id="in-targa" type="text" placeholder="Es. GN 542 NM" style="text-transform:uppercase"></div>
-        <div class="field"><label>Per conto di</label><input id="in-conto" type="text" placeholder="Es. BARCELLA" style="text-transform:uppercase"></div>
-      </div>
-      <div class="field-row">
-        <div class="field"><label>Partenza predefinita</label><input id="in-da" type="text" placeholder="Es. Ponte San Nicolò"></div>
-        <div class="field narrow"><label>Prov.</label><input id="in-prov-da" type="text" maxlength="2" placeholder="PD" style="text-transform:uppercase"></div>
-      </div>
-      <div class="settings-driver-note">Questi dati vengono salvati solo su questo telefono e riutilizzati automaticamente per i prossimi fogli. Puoi modificarli in qualsiasi momento.</div>
-
-      <div class="field"><label>Compenso giornaliero (€)</label><input id="in-daily-rate" type="number" inputmode="decimal" placeholder="Es. 80" min="0" step="0.01"></div>
-      <div class="settings-driver-note">Usato solo per calcolare il tuo guadagno nella pagina Home — non appare mai nel PDF. Lascialo vuoto se non vuoi tracciare il guadagno.</div>
-
-      <div id="sheet-daily-rate-section" class="hidden">
-        <label class="checkbox-row"><input type="checkbox" id="in-sheet-daily-rate"><span>Questo cliente conta per il compenso giornaliero</span></label>
-        <div class="settings-driver-note" style="margin-top:-4px;">Disattivalo se questo cliente paga solo un importo fisso (bonus per giorno) invece dello stipendio giornaliero.</div>
-      </div>
-
-      <div id="settings-account-row" style="margin-top:18px;padding-top:16px;border-top:1px solid var(--line);">
-        <label>Account</label>
-        <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-          <span id="account-email-display" style="font-weight:600;"></span>
+      <div class="settings-section">
+        <div class="settings-section-head">
+          <span class="settings-section-icon" id="settings-icon-user"></span>
+          <span>Profilo autista</span>
         </div>
-        <div style="margin-top:8px;display:flex;gap:8px;">
-          <button type="button" id="account-remind-btn" class="btn btn-outline btn-sm">Inviami un promemoria</button>
-          <button type="button" id="account-logout-btn" class="btn btn-outline btn-sm">Esci</button>
+        <div class="card settings-card">
+          <div class="field"><label>Nome autista</label><input id="in-nome" type="text" placeholder="Es. Ion Bondari"></div>
+          <div class="field-row">
+            <div class="field"><label>Targa veicolo</label><input id="in-targa" type="text" placeholder="Es. GN 542 NM" style="text-transform:uppercase"></div>
+            <div class="field"><label>Per conto di</label><input id="in-conto" type="text" placeholder="Es. BARCELLA" style="text-transform:uppercase"></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label>Partenza predefinita</label><input id="in-da" type="text" placeholder="Es. Ponte San Nicolò"></div>
+            <div class="field narrow"><label>Prov.</label><input id="in-prov-da" type="text" maxlength="2" placeholder="PD" style="text-transform:uppercase"></div>
+          </div>
+          <div class="settings-driver-note">Questi dati vengono salvati solo su questo telefono e riutilizzati automaticamente per i prossimi fogli. Puoi modificarli in qualsiasi momento.</div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-head">
+          <span class="settings-section-icon" id="settings-icon-coin"></span>
+          <span>Compenso</span>
+        </div>
+        <div class="card settings-card">
+          <div class="field"><label>Compenso giornaliero (€)</label><input id="in-daily-rate" type="number" inputmode="decimal" placeholder="Es. 80" min="0" step="0.01"></div>
+          <div class="settings-driver-note">Usato solo per calcolare il tuo guadagno nella pagina Home — non appare mai nel PDF. Lascialo vuoto se non vuoi tracciare il guadagno.</div>
+          <div id="sheet-daily-rate-section" class="hidden">
+            <label class="checkbox-row"><input type="checkbox" id="in-sheet-daily-rate"><span>Questo cliente conta per il compenso giornaliero</span></label>
+            <div class="settings-driver-note" style="margin-top:-4px;">Disattivalo se questo cliente paga solo un importo fisso (bonus per giorno) invece dello stipendio giornaliero.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section" id="settings-account-row">
+        <div class="settings-section-head">
+          <span class="settings-section-icon" id="settings-icon-idbadge"></span>
+          <span>Account</span>
+        </div>
+        <div class="card settings-card settings-account-card">
+          <div class="settings-avatar" id="settings-avatar"></div>
+          <div class="settings-account-info">
+            <div id="account-email-display" class="settings-account-email"></div>
+            <!-- Requested directly: subscription/plan info belongs
+                 here eventually — everyone is on Free for now, but
+                 this is meant to grow into real plan info as pricing
+                 tiers get introduced. Placeholder badge only, no
+                 billing logic yet. -->
+            <div class="settings-plan-badge" id="settings-plan-badge">Piano Free</div>
+            <div class="settings-account-buttons">
+              <button type="button" id="account-remind-btn" class="btn btn-outline btn-sm">Inviami un promemoria</button>
+              <button type="button" id="account-logout-btn" class="btn btn-outline btn-sm">Esci</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
     <div class="sticky-fixed" style="padding-top:10px;border-top:1px solid var(--line);">
-      <div style="text-align:center;">
+      <div style="display:flex;justify-content:center;gap:8px;align-items:center;">
         <button type="button" id="settings-more-btn" class="btn btn-outline btn-sm">⋯ Altre opzioni</button>
+        <!-- Requested directly: version + ORS quota tucked out of the
+             way, in their own tiny, deliberately unlabelled corner —
+             not competing with the driver-facing content above, but
+             still one tap away. -->
+        <button type="button" id="settings-info-toggle" class="settings-info-toggle-btn" aria-label="Info">ⓘ</button>
+      </div>
+      <div id="settings-info-panel" class="settings-info-panel hidden">
+        <div id="settings-version-display"></div>
+        <div id="settings-ors-quota-display"></div>
       </div>
       <div class="modal-btnrow">
         <button class="btn btn-ghost" id="settings-cancel">Annulla</button>
         <button class="btn btn-accent" id="settings-save">Salva</button>
       </div>
-      <!-- Requested directly: no way to tell which build is actually
-           running, which repeatedly made it hard to confirm whether a
-           fix had really reached the phone or was still showing a
-           cached, older version. Small, unobtrusive, always visible
-           right here. -->
-      <div id="settings-version-display" style="text-align:center;margin-top:8px;font-size:11px;color:var(--ink-soft);"></div>
-      <div id="settings-ors-quota-display" style="text-align:center;margin-top:2px;font-size:10px;color:var(--ink-faint);"></div>
     </div>
   </div>
 </div>

@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v333") {
+          if (data && data.v && data.v !== "pt-foglio-v334") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v333"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v334"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -676,6 +676,13 @@
       fuel: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="9" height="18" rx="1"/><rect x="6.3" y="5.5" width="4.4" height="4" rx="0.5"/><path d="M13 9h2.5l3 2.5v6.5a1.5 1.5 0 0 1-3 0v-3.5a1 1 0 0 0-1-1h-1.5"/></svg>',
       share: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg>',
       calendar: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg>',
+      // Requested directly: Impostazioni redesign — small section-header
+      // icons, so "Profilo autista" / "Compenso" / "Account" each read
+      // as a distinct, deliberate group rather than one long
+      // undifferentiated list of fields.
+      user: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6"/></svg>',
+      coin: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.2c0-1.2 1.1-2 2.5-2s2.5.9 2.5 2c0 2.6-5 1.7-5 4.3 0 1.1 1.1 2 2.5 2s2.5-.8 2.5-2"/></svg>',
+      idbadge: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2.5"/><circle cx="12" cy="10" r="2.6"/><path d="M8 17c0-2 1.8-3.2 4-3.2s4 1.2 4 3.2"/></svg>',
       // Turn-by-turn navigation glyphs, from the "ADB Smart Navigator"
       // SVG pack ION commissioned — plain line icons on a transparent
       // background (currentColor, so they take on whatever color the
@@ -8083,6 +8090,26 @@
 
   function openSettingsModal(sheetOverride) {
     settingsTargetSheet = sheetOverride || null;
+    // Redesign — requested directly: fields regrouped into clear
+    // sections with small icon headers, the account area given real
+    // visual weight (avatar + plan badge, placeholder for now — "e
+    // toti free la moment, dar pe parcurs se vor schimba lucrurile").
+    // Icons are JS-driven (svgIcon), so populated here, once, every
+    // time this modal opens.
+    var iconUser = document.getElementById('settings-icon-user');
+    if (iconUser) iconUser.innerHTML = svgIcon('user');
+    var iconCoin = document.getElementById('settings-icon-coin');
+    if (iconCoin) iconCoin.innerHTML = svgIcon('coin');
+    var iconIdBadge = document.getElementById('settings-icon-idbadge');
+    if (iconIdBadge) iconIdBadge.innerHTML = svgIcon('idbadge');
+
+    var infoToggle = document.getElementById('settings-info-toggle');
+    var infoPanel = document.getElementById('settings-info-panel');
+    if (infoToggle && infoPanel) {
+      infoPanel.classList.add('hidden'); // always starts collapsed — a fresh open shouldn't carry over whatever state it was left in
+      infoToggle.onclick = function () { infoPanel.classList.toggle('hidden'); };
+    }
+
     var versionEl = document.getElementById('settings-version-display');
     if (versionEl) versionEl.textContent = APP_VERSION;
     // Deliberately bare — no label, no explanation, just
@@ -8140,7 +8167,10 @@
       accountRow.classList.add('hidden');
     } else {
       accountRow.classList.remove('hidden');
-      document.getElementById('account-email-display').textContent = currentAccountEmail();
+      var email = currentAccountEmail();
+      document.getElementById('account-email-display').textContent = email;
+      var avatarEl = document.getElementById('settings-avatar');
+      if (avatarEl) avatarEl.textContent = (email || '?').charAt(0).toUpperCase();
     }
 
     settingsModal.classList.add('open');
