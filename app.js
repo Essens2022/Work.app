@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v327") {
+          if (data && data.v && data.v !== "pt-foglio-v329") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v327"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v329"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2912,10 +2912,21 @@
   function dpOpenReordinaModal() {
     var listEl = document.getElementById('dp-reordina-list');
     var html = '';
+    // Requested directly: the very NEXT client to deliver (the first
+    // still-pending one — run.clients already keeps completed ones
+    // pushed to the end, so this is simply the first non-done entry
+    // in order) gets its own distinct orange highlight. Real problem
+    // it solves: scrolling past several already-checked rows and then
+    // tapping the WRONG one right after them, purely from visual
+    // momentum — an unmistakable highlighted box on the true next one
+    // removes that ambiguity entirely.
+    var nextFound = false;
     state.deliveryRun.clients.forEach(function (c) {
       var isDone = c.status === 'completed';
-      html += '<label class="dp-reordina-row"><input type="checkbox" data-client-id="' + c.id + '"' + (isDone ? ' checked' : '') + '>' +
-        '<span>' + escapeHtml(c.nome) + (isDone ? ' — FATTO' : '') + '</span></label>';
+      var isNext = !isDone && !nextFound;
+      if (isNext) nextFound = true;
+      html += '<label class="dp-reordina-row' + (isNext ? ' dp-reordina-next' : '') + '"><input type="checkbox" data-client-id="' + c.id + '"' + (isDone ? ' checked' : '') + '>' +
+        '<span>' + escapeHtml(c.nome) + (isDone ? ' — FATTO' : (isNext ? ' — PROSSIMO' : '')) + '</span></label>';
     });
     listEl.innerHTML = html || '<div style="color:var(--ink-soft);">Nessun cliente in elenco.</div>';
     document.getElementById('dp-reordina-close-x').onclick = function () { dpCloseModal('modal-dp-reordina'); };
