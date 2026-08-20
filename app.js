@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v329") {
+          if (data && data.v && data.v !== "pt-foglio-v330") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v329"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v330"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2931,23 +2931,35 @@
 
   function dpOpenReordinaModal() {
     var listEl = document.getElementById('dp-reordina-list');
+    var pinnedEl = document.getElementById('dp-reordina-pinned');
     var html = '';
+    var pinnedHtml = '';
     // Requested directly: the very NEXT client to deliver (the first
     // still-pending one — run.clients already keeps completed ones
     // pushed to the end, so this is simply the first non-done entry
-    // in order) gets its own distinct orange highlight. Real problem
-    // it solves: scrolling past several already-checked rows and then
-    // tapping the WRONG one right after them, purely from visual
-    // momentum — an unmistakable highlighted box on the true next one
-    // removes that ambiguity entirely.
+    // in order) gets its own distinct orange highlight AND stays
+    // pinned, fixed, at the top — even once the rest of the list
+    // below it scrolls out of view under "Ricalcola percorso". Real
+    // problem it solves: scrolling past several already-checked rows
+    // and then tapping the WRONG one right after them, purely from
+    // visual momentum — an unmistakable, always-visible box on the
+    // true next one removes that ambiguity entirely. Rendered ONCE,
+    // only in the pinned slot — deliberately skipped in the scrolling
+    // list below so there's never two checkboxes for the same client
+    // that could fall out of sync with each other. The underlying
+    // logic is untouched: checking any OTHER row still marks THAT
+    // client done exactly as before, regardless of which one is
+    // currently pinned.
     var nextFound = false;
     state.deliveryRun.clients.forEach(function (c) {
       var isDone = c.status === 'completed';
       var isNext = !isDone && !nextFound;
       if (isNext) nextFound = true;
-      html += '<label class="dp-reordina-row' + (isNext ? ' dp-reordina-next' : '') + '"><input type="checkbox" data-client-id="' + c.id + '"' + (isDone ? ' checked' : '') + '>' +
+      var rowHtml = '<label class="dp-reordina-row' + (isNext ? ' dp-reordina-next' : '') + '"><input type="checkbox" data-client-id="' + c.id + '"' + (isDone ? ' checked' : '') + '>' +
         '<span>' + escapeHtml(c.nome) + (isDone ? ' — FATTO' : (isNext ? ' — PROSSIMO' : '')) + '</span></label>';
+      if (isNext) pinnedHtml = rowHtml; else html += rowHtml;
     });
+    pinnedEl.innerHTML = pinnedHtml;
     listEl.innerHTML = html || '<div style="color:var(--ink-soft);">Nessun cliente in elenco.</div>';
     document.getElementById('dp-reordina-close-x').onclick = function () { dpCloseModal('modal-dp-reordina'); };
     document.getElementById('dp-reordina-confirm-btn').onclick = dpConfirmReordina;
@@ -3231,7 +3243,12 @@
   }
 
   function dpConfirmReordina() {
-    var checkboxes = document.querySelectorAll('#dp-reordina-list input[type=checkbox]');
+    // Scoped to the whole modal, not just #dp-reordina-list — the
+    // currently-pinned "next" client's checkbox now lives in a
+    // separate, fixed container (#dp-reordina-pinned) above the
+    // scrolling list, so reading only the list would silently miss
+    // it.
+    var checkboxes = document.querySelectorAll('#modal-dp-reordina input[type=checkbox]');
     // Tracked so the camera sequence (below) knows exactly which
     // clients were JUST checked off in THIS confirmation — requested
     // directly: the camera should open automatically, one after
