@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v327") {
+          if (data && data.v && data.v !== "pt-foglio-v328") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v327"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v328"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -2235,6 +2235,18 @@
   // markup/pattern already built for the "Aggiungi cliente" search
   // results, just pointed at the FULL list instead of a filtered one.
 
+  // Requested directly: adding the same client to today's run twice
+  // creates real confusion downstream (duplicate rows, doubled
+  // distances/times in Reordina's calculation) — checked here, in ONE
+  // shared place, and used by both spots a saved client can be added
+  // to today's run (the archive's own "+" button and "Aggiungi
+  // cliente"'s search results). A brand new client being saved for
+  // the very first time never needs this check — it always gets a
+  // freshly generated id, so it can't already be in today's run.
+  function dpClientAlreadyInTodayRun(savedClientId) {
+    return state.deliveryRun.clients.some(function (c) { return c.clientId === savedClientId; });
+  }
+
   // "+" button in Archivio clienti — adds a saved client straight to
   // today's run, staying on the archive screen the whole time (no
   // navigation, no modal closing) so the driver can keep scrolling
@@ -2246,6 +2258,10 @@
   function dpArchiveAddToTodayRun(savedClientId) {
     var saved = state.deliveryClients.find(function (c) { return c.id === savedClientId; });
     if (!saved) return;
+    if (dpClientAlreadyInTodayRun(savedClientId)) {
+      toast(saved.nome + ' è già nel percorso di oggi', 2200);
+      return;
+    }
     state.deliveryRun.clients.push({
       id: uid(), clientId: saved.id, nome: saved.nome, indirizzo: saved.indirizzo,
       lat: saved.lat, lon: saved.lon, status: 'pending'
@@ -2545,12 +2561,16 @@
   function dpAddSavedClientToRun(savedClientId) {
     var saved = state.deliveryClients.find(function (c) { return c.id === savedClientId; });
     if (!saved) return;
+    dpCloseModal('modal-dp-add-client');
+    if (dpClientAlreadyInTodayRun(savedClientId)) {
+      toast(saved.nome + ' è già nel percorso di oggi', 2200);
+      return;
+    }
     state.deliveryRun.clients.push({
       id: uid(), clientId: saved.id, nome: saved.nome, indirizzo: saved.indirizzo,
       lat: saved.lat, lon: saved.lon, status: 'pending'
     });
     saveDeliveryRun(state.deliveryRun);
-    dpCloseModal('modal-dp-add-client');
     renderDeliveryPlanner();
   }
 
