@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v352") {
+          if (data && data.v && data.v !== "pt-foglio-v353") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v352"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v353"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -2914,7 +2914,24 @@
     if (toggleEl) toggleEl.classList.add('calculating');
 
     var optimizePromise = geolocatable.length
-      ? (dpGeoDeniedThisSession ? Promise.reject(new Error('User denied Geolocation')) : currentPositionSafe())
+      // REAL BUG, reported directly: on Android specifically,
+      // Reordina/AUTO could take several real seconds to respond,
+      // while the exact same action was instant on iPhone. Root
+      // cause: currentPositionSafe() with no arguments here defaults
+      // to enableHighAccuracy:true and a 5-second maximumAge — a
+      // fresh, full-precision GPS hardware fix, on every single
+      // press. Android's real-world high-accuracy GPS acquisition is
+      // well documented to often take meaningfully longer than
+      // iOS's in practice (weaker signal, OEM power-saving
+      // throttling, a "cold" GPS chip). This starting point only
+      // needs to be roughly right for route optimization to still
+      // pick a sensible order — being off by even 100m essentially
+      // never changes which stop is genuinely nearest — so a much
+      // cheaper, faster fix (network/WiFi-based, a full minute of
+      // caching) is the right tradeoff here specifically, even
+      // though other real uses of GPS elsewhere in this app (e.g.
+      // live turn-by-turn) still correctly want full precision.
+      ? (dpGeoDeniedThisSession ? Promise.reject(new Error('User denied Geolocation')) : currentPositionSafe(12000, { enableHighAccuracy: false, maximumAge: 60000 }))
           .then(function (pos) { return dpCallOrsOptimization(pos, geolocatable); })
           .catch(function (err) {
             // REAL BUG, reported directly: "nu poate merge un sofer cu
@@ -3375,7 +3392,24 @@
     // resets on the next app open, in case anything changes, without
     // needing a settings toggle for it.
     var optimizePromise = geolocatable.length
-      ? (dpGeoDeniedThisSession ? Promise.reject(new Error('User denied Geolocation')) : currentPositionSafe())
+      // REAL BUG, reported directly: on Android specifically,
+      // Reordina/AUTO could take several real seconds to respond,
+      // while the exact same action was instant on iPhone. Root
+      // cause: currentPositionSafe() with no arguments here defaults
+      // to enableHighAccuracy:true and a 5-second maximumAge — a
+      // fresh, full-precision GPS hardware fix, on every single
+      // press. Android's real-world high-accuracy GPS acquisition is
+      // well documented to often take meaningfully longer than
+      // iOS's in practice (weaker signal, OEM power-saving
+      // throttling, a "cold" GPS chip). This starting point only
+      // needs to be roughly right for route optimization to still
+      // pick a sensible order — being off by even 100m essentially
+      // never changes which stop is genuinely nearest — so a much
+      // cheaper, faster fix (network/WiFi-based, a full minute of
+      // caching) is the right tradeoff here specifically, even
+      // though other real uses of GPS elsewhere in this app (e.g.
+      // live turn-by-turn) still correctly want full precision.
+      ? (dpGeoDeniedThisSession ? Promise.reject(new Error('User denied Geolocation')) : currentPositionSafe(12000, { enableHighAccuracy: false, maximumAge: 60000 }))
           .then(function (pos) { return dpCallOrsOptimization(pos, geolocatable); })
           .catch(function (err) {
             // REAL BUG, reported directly: the route's starting point
@@ -8112,6 +8146,12 @@
   var settingsModal = document.getElementById('modal-settings');
   var emailModal = document.getElementById('modal-email-required');
   var settingsTargetSheet = null;
+  // Tracks the "← Modifica nome/targa" back-link on the email step —
+  // set right before opening Settings from there, so Salva knows to
+  // return to the email screen afterward instead of falling through to
+  // the normal "wasFirstRun" logic, which would be false here (nome
+  // already exists from before) and so wouldn't reopen it on its own.
+  var cameFromEmailStepToEditName = false;
 
   function openSettingsModal(sheetOverride) {
     settingsTargetSheet = sheetOverride || null;
@@ -8136,7 +8176,7 @@
     }
 
     var versionEl = document.getElementById('settings-version-display');
-    // Requested directly: "pt-foglio-v352" read as an ugly, internal-
+    // Requested directly: "pt-foglio-v353" read as an ugly, internal-
     // looking string — the number itself matters (still needed to
     // confirm a fresh build reached the phone), the "pt-foglio-"
     // prefix doesn't. Shown as "ADB Smart · v335" instead — same
@@ -8447,6 +8487,12 @@
     return 'Invio non riuscito — controlla la connessione e riprova';
   }
 
+  document.getElementById('email-step-back-to-name-btn').addEventListener('click', function () {
+    cameFromEmailStepToEditName = true;
+    emailModal.classList.remove('open');
+    openSettingsModal(null);
+  });
+
   document.getElementById('account-send-btn').addEventListener('click', function () {
     // REAL BUG, found and confirmed directly: only .trim() here, never
     // .toLowerCase() — typing the same email with even one different
@@ -8675,6 +8721,15 @@
   document.getElementById('settings-cancel').addEventListener('click', function () {
     if (!state.profile.nome && !settingsTargetSheet) return; // force first-run completion
     settingsModal.classList.remove('open');
+    // Requested directly: cancelling out of the "← Modifica nome/targa"
+    // detour must still return to the mandatory email step — email
+    // confirmation itself is untouched by backing out of an edit, so
+    // it's still required either way.
+    if (cameFromEmailStepToEditName) {
+      cameFromEmailStepToEditName = false;
+      openEmailRequiredModal();
+      return;
+    }
     reloadIfUpdatePending();
   });
   document.getElementById('settings-close-x').addEventListener('click', function () {
@@ -8721,6 +8776,18 @@
     // Existing profiles that still need email get sent here too, but
     // that path is normally reached directly from init(), never by
     // passing through this whole form again.
+    //
+    // Requested directly: a "← Modifica nome/targa" link on the email
+    // step itself, in case someone changes their mind before
+    // confirming (the name isn't locked yet at that point, so nothing
+    // is lost). wasFirstRun would be false here (nome already existed
+    // from before going back), so it wouldn't reopen the email step on
+    // its own — this flag makes sure it still does.
+    if (cameFromEmailStepToEditName) {
+      cameFromEmailStepToEditName = false;
+      openEmailRequiredModal();
+      return;
+    }
     if (wasFirstRun && !emailIsSatisfied()) {
       openEmailRequiredModal();
       return;
