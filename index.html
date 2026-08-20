@@ -1251,6 +1251,31 @@
       <div class="modal-sub" id="settings-sub">Inserisci i dati autista per iniziare a compilare il foglio viaggi.</div>
     </div>
     <div class="sticky-scroll">
+      <!-- Requested directly: Account first, at the top -- identity
+           belongs before configuration details. -->
+      <div class="settings-section" id="settings-account-row">
+        <div class="settings-section-head">
+          <span class="settings-section-icon" id="settings-icon-idbadge"></span>
+          <span>Account</span>
+        </div>
+        <div class="card settings-card settings-account-card">
+          <div class="settings-avatar" id="settings-avatar"></div>
+          <div class="settings-account-info">
+            <div id="account-email-display" class="settings-account-email"></div>
+            <!-- Requested directly: subscription/plan info belongs
+                 here eventually — everyone is on Free for now, but
+                 this is meant to grow into real plan info as pricing
+                 tiers get introduced. Placeholder badge only, no
+                 billing logic yet. -->
+            <div class="settings-plan-badge" id="settings-plan-badge">Piano Free</div>
+            <div class="settings-account-buttons">
+              <button type="button" id="account-remind-btn" class="btn btn-outline btn-sm">Inviami un promemoria</button>
+              <button type="button" id="account-logout-btn" class="btn btn-outline btn-sm">Esci</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="settings-section">
         <div class="settings-section-head">
           <span class="settings-section-icon" id="settings-icon-user"></span>
@@ -1281,29 +1306,6 @@
           <div id="sheet-daily-rate-section" class="hidden">
             <label class="checkbox-row"><input type="checkbox" id="in-sheet-daily-rate"><span>Questo cliente conta per il compenso giornaliero</span></label>
             <div class="settings-driver-note" style="margin-top:-4px;">Disattivalo se questo cliente paga solo un importo fisso (bonus per giorno) invece dello stipendio giornaliero.</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="settings-section" id="settings-account-row">
-        <div class="settings-section-head">
-          <span class="settings-section-icon" id="settings-icon-idbadge"></span>
-          <span>Account</span>
-        </div>
-        <div class="card settings-card settings-account-card">
-          <div class="settings-avatar" id="settings-avatar"></div>
-          <div class="settings-account-info">
-            <div id="account-email-display" class="settings-account-email"></div>
-            <!-- Requested directly: subscription/plan info belongs
-                 here eventually — everyone is on Free for now, but
-                 this is meant to grow into real plan info as pricing
-                 tiers get introduced. Placeholder badge only, no
-                 billing logic yet. -->
-            <div class="settings-plan-badge" id="settings-plan-badge">Piano Free</div>
-            <div class="settings-account-buttons">
-              <button type="button" id="account-remind-btn" class="btn btn-outline btn-sm">Inviami un promemoria</button>
-              <button type="button" id="account-logout-btn" class="btn btn-outline btn-sm">Esci</button>
-            </div>
           </div>
         </div>
       </div>
