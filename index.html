@@ -680,19 +680,39 @@
   .crop-handle[data-corner="br"]{cursor:nwse-resize;}
   .crop-handle[data-corner="tr"]{cursor:nesw-resize;}
   .crop-handle[data-corner="bl"]{cursor:nesw-resize;}
+  /* REAL BUG, reported directly, confirmed reproducible: a real touch
+     swipe on Storico's list did NOTHING at all, on a real phone, even
+     with plenty of content confirmed present beyond what fit on
+     screen — while every test in this sandbox (Chromium) kept showing
+     correct scroll behavior. The difference: `vh` is a notoriously
+     unreliable unit on mobile Safari specifically — it's calculated
+     against the LARGEST possible viewport (address bar hidden), not
+     the actual CURRENTLY visible one (address bar showing) — so a
+     panel capped at "88vh" can genuinely render TALLER than the real,
+     visible screen. Content past that point isn't reachable by
+     scrolling at all: from CSS's perspective the panel hasn't even
+     reached its own height limit yet, so no internal overflow ever
+     kicks in — it just extends off-screen, invisibly. `dvh` (dynamic
+     viewport height) is the standard, purpose-built fix for exactly
+     this — tracks the REAL, currently-visible viewport, including
+     Safari's toolbar. Stacked as a second declaration, after the vh
+     fallback: browsers without dvh support simply ignore the second,
+     invalid line and keep the vh value; browsers that DO understand
+     dvh use it instead. Applied everywhere a modal panel's height is
+     constrained by a vh unit, not only in Storico's own panel. */
   .sheet-panel{
     background:var(--surface);width:100%;max-width:560px;border-radius:22px 22px 0 0;
-    padding:10px 20px calc(20px + var(--safe-bottom));max-height:88vh;overflow-y:auto;touch-action:pan-y;
+    padding:10px 20px calc(20px + var(--safe-bottom));max-height:88vh;max-height:88dvh;overflow-y:auto;touch-action:pan-y;
     transform:translateY(16px);transition:transform .2s ease;position:relative;
   }
   .modal-overlay.open .sheet-panel{transform:translateY(0);}
-  .modal-overlay.center .sheet-panel{border-radius:22px;max-height:80vh;}
+  .modal-overlay.center .sheet-panel{border-radius:22px;max-height:80vh;max-height:80dvh;}
   /* Settings can show a first-run mandatory sheet with the install banner
      sitting right above it — capping this one a bit shorter than the
      general 88vh guarantees that banner always stays visible above it,
      even on shorter phone screens, instead of the sheet growing tall
      enough to cover it entirely. */
-  #modal-settings .sheet-panel{max-height:calc(100vh - 170px);}
+  #modal-settings .sheet-panel{max-height:calc(100vh - 170px);max-height:calc(100dvh - 170px);}
   /* Requested directly: switching between days in Storico's detail
      view (Giorno prec./succ.) should never change the panel's own
      size based on how many clients that day happened to have — a
@@ -703,13 +723,13 @@
      is always this tall regardless of content, and the sticky-scroll
      list inside simply has more empty space or more to scroll as
      needed. */
-  #modal-dp-history-detail .sheet-panel{height:80vh;max-height:80vh;}
+  #modal-dp-history-detail .sheet-panel{height:80vh;max-height:80vh;height:80dvh;max-height:80dvh;}
   /* Requested directly, same principle as Storico's detail view above:
      the archive's page size must stay constant whether it's showing
      20 clients or 1 (or a search result with very few matches) — the
      list inside gets more empty space or more to scroll through, but
      the panel itself never shrinks or grows based on content. */
-  #modal-dp-archive .sheet-panel{height:80vh;max-height:80vh;}
+  #modal-dp-archive .sheet-panel{height:80vh;max-height:80vh;height:80dvh;max-height:80dvh;}
   /* Requested directly, now the standard pattern for ANY sheet modal
      in this app: header content (title, subtitle, primary buttons)
      stays fixed in place while only the middle content scrolls —
