@@ -1400,7 +1400,13 @@
       <div class="pending-email-text" id="account-pending-email-display"></div>
       <span class="badge-pending">✓ email inviata</span>
       <div class="pending-warning-box">Apri l'email e tocca il link per confermare — questa finestra si chiuderà da sola appena confermi. Non puoi chiuderla prima.</div>
-      <button type="button" id="account-remind-pending-btn" class="btn btn-outline btn-sm">Invia di nuovo il link</button>
+      <div style="display:flex;gap:8px;">
+        <button type="button" id="account-remind-pending-btn" class="btn btn-outline btn-sm">Invia di nuovo il link</button>
+        <!-- Requested directly: "poate a gresit emailul si l-a pus din
+             greseala" — no way back existed before, only re-sending the
+             SAME (possibly wrong) email over and over. -->
+        <button type="button" id="account-change-email-btn" class="btn btn-outline btn-sm">Cambia email</button>
+      </div>
     </div>
     <!-- Requested directly: an automatic, silent close (just a toast)
          after confirming was easy to miss, especially returning from a
