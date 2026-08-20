@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v335") {
+          if (data && data.v && data.v !== "pt-foglio-v336") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v335"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v336"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -8111,7 +8111,13 @@
     }
 
     var versionEl = document.getElementById('settings-version-display');
-    if (versionEl) versionEl.textContent = APP_VERSION;
+    // Requested directly: "pt-foglio-v336" read as an ugly, internal-
+    // looking string — the number itself matters (still needed to
+    // confirm a fresh build reached the phone), the "pt-foglio-"
+    // prefix doesn't. Shown as "ADB Smart · v335" instead — same
+    // underlying APP_VERSION value, just formatted for a person
+    // rather than for cache-busting.
+    if (versionEl) versionEl.textContent = 'ADB Smart · v' + APP_VERSION.replace(/^pt-foglio-v/, '');
     // Deliberately bare — no label, no explanation, just
     // "remaining/limit" — requested directly, meant to be recognized
     // by ION specifically, not something every driver needs to
