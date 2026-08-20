@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v342") {
+          if (data && data.v && data.v !== "pt-foglio-v343") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v342"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v343"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -8136,7 +8136,7 @@
     }
 
     var versionEl = document.getElementById('settings-version-display');
-    // Requested directly: "pt-foglio-v342" read as an ugly, internal-
+    // Requested directly: "pt-foglio-v343" read as an ugly, internal-
     // looking string — the number itself matters (still needed to
     // confirm a fresh build reached the phone), the "pt-foglio-"
     // prefix doesn't. Shown as "ADB Smart · v335" instead — same
@@ -8366,8 +8366,16 @@
     if (emailConfirmRealtimeChannel) { supabaseClient.removeChannel(emailConfirmRealtimeChannel); emailConfirmRealtimeChannel = null; }
   }
   function onEmailConfirmed() {
-    toast('Email confermata!');
-    emailModal.classList.remove('open');
+    // Requested directly: an automatic, silent close used to happen
+    // right here — easy to miss, especially returning to the app from
+    // a separate mail app ("m-am intors in app insa nu se intampla
+    // nimic"). Now shows a deliberate "Grazie!" screen with its own
+    // "Continua" button instead — the modal only actually closes once
+    // that's tapped, in dismissEmailConfirmedScreen() below.
+    document.getElementById('account-logged-out').classList.add('hidden');
+    document.getElementById('account-pending').classList.add('hidden');
+    document.getElementById('account-just-confirmed').classList.remove('hidden');
+    stopWatchingForConfirmation();
     // Requested directly: the very first person to ever genuinely
     // confirm a given email becomes its "owner" for naming purposes —
     // claimed here, right after a REAL confirmation (never on just
@@ -8403,9 +8411,18 @@
     // Keep watching, live, in case this same account gets deleted later
     // (e.g. from a browser tab) while this device stays open.
     watchForAccountDeletion(currentAccountEmail());
+  }
+
+  // Tapping "Continua" on the just-confirmed screen — the actual close,
+  // moved out of onEmailConfirmed() itself so the driver has a real,
+  // deliberate moment to notice confirmation succeeded before access
+  // opens up, instead of it happening silently underneath them.
+  function dismissEmailConfirmedScreen() {
+    emailModal.classList.remove('open');
     render();
     reloadIfUpdatePending();
   }
+  document.getElementById('account-confirmed-continue-btn').addEventListener('click', dismissEmailConfirmedScreen);
 
   // A single, accurate error message for every "send the link" button —
   // Supabase enforces roughly one request per email per minute, and
@@ -8521,6 +8538,7 @@
   function renderEmailRequiredModal() {
     var loggedOut = document.getElementById('account-logged-out');
     var pending = document.getElementById('account-pending');
+    document.getElementById('account-just-confirmed').classList.add('hidden'); // always starts hidden on a fresh render — only onEmailConfirmed() itself reveals it
     if (state.profile.pendingEmail && !emailIsSatisfied()) {
       loggedOut.classList.add('hidden');
       pending.classList.remove('hidden');
