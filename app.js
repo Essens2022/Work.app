@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v324") {
+          if (data && data.v && data.v !== "pt-foglio-v325") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v324"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v325"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   var LS_SHEETS = "pt_sheets_v1";
   var LS_CURRENT = "pt_current_sheet_v1";
@@ -3029,39 +3029,49 @@
     var ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, w, h);
 
-    var cardTop = h * 0.5;
+    // Matches .dp-camera-info-card's own CSS exactly (height:42%,
+    // gradient stops at 15%/55%) — requested directly: less of the
+    // frame taken up by green, and the color itself less transparent,
+    // clearer near the top edge close to "Consegnato" rather than a
+    // slow fade starting right from the card's own top edge.
+    var cardTop = h * 0.58;
     var grad = ctx.createLinearGradient(0, cardTop, 0, h);
     grad.addColorStop(0, 'rgba(20,180,120,0)');
-    grad.addColorStop(0.3, 'rgba(20,150,100,.88)');
-    grad.addColorStop(1, 'rgba(15,120,80,.94)');
+    grad.addColorStop(0.15, 'rgba(20,150,100,.96)');
+    grad.addColorStop(0.55, 'rgba(15,120,80,.99)');
     ctx.fillStyle = grad;
     ctx.fillRect(0, cardTop, w, h - cardTop);
 
+    // Content anchored toward the BOTTOM of the frame (matches
+    // justify-content:flex-end in the live CSS preview), not centered
+    // in the middle of the green area — badge stays the topmost line,
+    // address the bottom-most, working up from the photo's own bottom
+    // edge.
     var client = dpCameraCurrentClient || {};
     var centerX = w / 2;
-    var cy = cardTop + (h - cardTop) / 2;
+    var bottomPad = h * 0.05;
     ctx.textAlign = 'center';
     ctx.fillStyle = '#fff';
 
-    var badgeText = '✓ Consegnato';
+    var addrY = h - bottomPad;
+    var nameY = addrY - h * 0.075;
+    var timeY = nameY - h * 0.065;
+    var badgeY = timeY - h * 0.075;
+
     ctx.font = '700 ' + Math.round(w * 0.045) + 'px sans-serif';
-    ctx.fillText(badgeText, centerX, cy - h * 0.11);
+    ctx.fillText('✓ Consegnato', centerX, badgeY);
 
     var timeText = client.completedAt ? dpFormatTime(client.completedAt) : '';
     if (timeText) {
       ctx.font = '600 ' + Math.round(w * 0.038) + 'px sans-serif';
-      ctx.globalAlpha = 0.9;
-      ctx.fillText(timeText, centerX, cy - h * 0.055);
-      ctx.globalAlpha = 1;
+      ctx.fillText(timeText, centerX, timeY);
     }
 
     ctx.font = '800 ' + Math.round(w * 0.062) + 'px sans-serif';
-    ctx.fillText(client.nome || '', centerX, cy + h * 0.01);
+    ctx.fillText(client.nome || '', centerX, nameY);
 
-    ctx.font = '500 ' + Math.round(w * 0.042) + 'px sans-serif';
-    ctx.globalAlpha = 0.9;
-    ctx.fillText(client.indirizzo || '', centerX, cy + h * 0.075);
-    ctx.globalAlpha = 1;
+    ctx.font = '600 ' + Math.round(w * 0.042) + 'px sans-serif';
+    ctx.fillText(client.indirizzo || '', centerX, addrY);
 
     dpStopCameraStream(); // frame is captured — no need to keep the live feed running while previewing
     var dataUrl = canvas.toDataURL('image/jpeg', 0.92);
