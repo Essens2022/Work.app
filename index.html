@@ -631,6 +631,15 @@
     padding:0 24px;gap:12px;justify-content:center;
   }
   #dp-camera-preview-actions .btn{flex:1;max-width:160px;}
+  /* REAL BUG, reported directly: "Rifai" used the app's normal
+     .btn-outline (transparent background, dark ink-colored text) —
+     invisible against the black camera stage it actually sits on
+     here, since that style was designed for the light page
+     background used everywhere else. Scoped fix, only for this one
+     button in this one context — a solid dark-gray fill with white
+     text, clearly readable against black without needing to touch
+     .btn-outline itself anywhere else in the app. */
+  #dp-camera-retake-btn{background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.35);}
   .dp-camera-error{
     display:none;position:absolute;top:50%;left:20px;right:20px;transform:translateY(-50%);z-index:3;
     background:rgba(0,0,0,.75);color:#fff;padding:16px;border-radius:12px;text-align:center;font-size:14px;
