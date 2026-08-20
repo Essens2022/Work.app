@@ -283,6 +283,10 @@
   .dp-client-badge-done{background:var(--teal-soft);color:var(--teal);}
   .dp-client-info{flex:1;min-width:0;}
   .dp-client-chevron{flex:0 0 auto;color:var(--ink-faint);font-size:20px;}
+  .dp-camera-retake-icon-btn{
+    flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:none;background:var(--accent-soft);color:var(--accent);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+  }
   .dp-client-name{font-weight:700;font-size:15px;color:var(--ink);white-space:normal;overflow-wrap:break-word;line-height:1.3;}
   .dp-client-addr{font-size:13.5px;color:#4A4A4E;white-space:normal;overflow-wrap:break-word;margin-top:2px;line-height:1.35;}
   .dp-bottom-actions{margin-top:18px;padding-bottom:20px;}
@@ -591,6 +595,46 @@
   */
   #modal-dp-new-client{z-index:2001;}
   .modal-overlay.center{align-items:center;padding:20px;}
+  /* Delivery photo camera — full-screen, black stage, live video feed
+     with the delivery-info card overlaid on the bottom half (both as
+     a live CSS preview here AND burned into the actual captured image
+     via canvas, in app.js — the two are kept visually consistent on
+     purpose). */
+  #modal-dp-camera{padding:0;}
+  #dp-camera-stage{position:relative;width:100%;height:100%;background:#000;overflow:hidden;}
+  #dp-camera-video,#dp-camera-preview-img{
+    position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;
+  }
+  #dp-camera-preview-img{display:none;object-fit:contain;}
+  #dp-camera-close-btn{
+    position:absolute;top:calc(16px + var(--safe-top,0px));right:16px;z-index:2;
+    width:38px;height:38px;border-radius:50%;border:none;background:rgba(0,0,0,.5);color:#fff;
+    font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;
+  }
+  .dp-camera-info-card{
+    position:absolute;left:0;right:0;bottom:0;height:50%;z-index:1;
+    background:linear-gradient(180deg,rgba(20,180,120,0) 0%,rgba(20,150,100,.88) 30%,rgba(15,120,80,.94) 100%);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+    color:#fff;text-align:center;padding:20px;box-sizing:border-box;
+  }
+  .dp-camera-info-badge{font-size:15px;font-weight:800;background:rgba(255,255,255,.22);padding:6px 16px;border-radius:100px;margin-bottom:4px;}
+  #dp-camera-info-time{font-size:14px;font-weight:600;opacity:.9;}
+  #dp-camera-info-name{font-size:22px;font-weight:800;}
+  #dp-camera-info-addr{font-size:15px;font-weight:500;opacity:.9;max-width:90%;}
+  #dp-camera-capture-btn{
+    position:absolute;bottom:calc(28px + var(--safe-bottom));left:50%;transform:translateX(-50%);z-index:2;
+    width:72px;height:72px;border-radius:50%;border:4px solid #fff;background:rgba(255,255,255,.25);cursor:pointer;
+  }
+  #dp-camera-capture-btn:active{background:rgba(255,255,255,.5);}
+  #dp-camera-preview-actions{
+    display:none;position:absolute;bottom:calc(28px + var(--safe-bottom));left:0;right:0;z-index:2;
+    padding:0 24px;gap:12px;justify-content:center;
+  }
+  #dp-camera-preview-actions .btn{flex:1;max-width:160px;}
+  .dp-camera-error{
+    display:none;position:absolute;top:50%;left:20px;right:20px;transform:translateY(-50%);z-index:3;
+    background:rgba(0,0,0,.75);color:#fff;padding:16px;border-radius:12px;text-align:center;font-size:14px;
+  }
   .crop-handle{background:var(--accent);border:3px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.3);}
   .crop-handle[data-corner="tl"]{cursor:nwse-resize;}
   .crop-handle[data-corner="br"]{cursor:nwse-resize;}
@@ -1271,6 +1315,41 @@
 </div>
 
 <!-- Delivery Planner — Reordina: confirm completed clients, then recalculate. -->
+<!-- Delivery photo camera — requested directly: right after marking a
+     client "consegnato", the camera opens automatically, with a live
+     preview of the delivery info (name, address, time) shown over
+     the bottom half of the frame, burned directly into the photo
+     when captured — never saved to the phone's own gallery, only
+     ever handed off through the OS share sheet (WhatsApp etc.). One
+     at a time, for however many clients were just checked off
+     together — see dpStartCameraSequence. Also reachable any time
+     afterward from a small camera icon on that client's own row. -->
+<div class="modal-overlay center" id="modal-dp-camera" style="z-index:3000;">
+  <div id="dp-camera-stage">
+    <video id="dp-camera-video" autoplay playsinline muted></video>
+    <canvas id="dp-camera-canvas" style="display:none;"></canvas>
+    <img id="dp-camera-preview-img" alt="">
+
+    <button type="button" id="dp-camera-close-btn" aria-label="Chiudi">✕</button>
+
+    <div id="dp-camera-info-overlay" class="dp-camera-info-card">
+      <div class="dp-camera-info-badge">✓ Consegnato</div>
+      <div id="dp-camera-info-time"></div>
+      <div id="dp-camera-info-name"></div>
+      <div id="dp-camera-info-addr"></div>
+    </div>
+
+    <button type="button" id="dp-camera-capture-btn" aria-label="Scatta foto"></button>
+
+    <div id="dp-camera-preview-actions">
+      <button type="button" class="btn btn-outline" id="dp-camera-retake-btn">↺ Rifai</button>
+      <button type="button" class="btn btn-accent" id="dp-camera-send-btn">Invia →</button>
+    </div>
+
+    <div id="dp-camera-error" class="dp-camera-error"></div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-dp-reordina">
   <div class="sheet-panel sticky-panel">
     <button type="button" class="modal-close-x" id="dp-reordina-close-x" aria-label="Chiudi">×</button>
