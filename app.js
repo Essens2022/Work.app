@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v353") {
+          if (data && data.v && data.v !== "pt-foglio-v354") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v353"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v354"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -280,6 +280,20 @@
   /* ---------------------------------------------------------------- */
   function uid() { return 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
   function pad2(n) { return n < 10 ? "0" + n : "" + n; }
+  // Requested directly: targa should always read like "HB-123NE" —
+  // 2 letters, a dash, then 3 digits + 2 letters — inserted
+  // automatically as the driver types, and applied to already-saved
+  // plates too whenever they're shown in this field again (whatever
+  // format they were originally saved in, like "GN 542 NM" with
+  // spaces). Positional, not letter/digit-strict — simpler, more
+  // forgiving of exactly how someone types it, and the dash lands in
+  // the same place either way.
+  function formatTarga(raw) {
+    var clean = (raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
+    if (clean.length <= 2) return clean;
+    return clean.slice(0, 2) + '-' + clean.slice(2);
+  }
+
   function daysInMonth(month, year) { return new Date(year, month, 0).getDate(); }
   function normalize(str) {
     return (str || "").toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
@@ -8176,7 +8190,7 @@
     }
 
     var versionEl = document.getElementById('settings-version-display');
-    // Requested directly: "pt-foglio-v353" read as an ugly, internal-
+    // Requested directly: "pt-foglio-v354" read as an ugly, internal-
     // looking string — the number itself matters (still needed to
     // confirm a fresh build reached the phone), the "pt-foglio-"
     // prefix doesn't. Shown as "ADB Smart · v335" instead — same
@@ -8222,7 +8236,7 @@
     // drift apart from the one real person this account is tied to.
     document.getElementById('in-nome').disabled = !!(state.profile.nomeLocked && !settingsTargetSheet);
     document.getElementById('in-nome-locked-note').classList.toggle('hidden', !(state.profile.nomeLocked && !settingsTargetSheet));
-    document.getElementById('in-targa').value = src.targa || '';
+    document.getElementById('in-targa').value = formatTarga(src.targa || '');
     document.getElementById('in-conto').value = src.perContoDi || 'BARCELLA';
     document.getElementById('in-da').value = src.da || 'Ponte San Nicolò';
     document.getElementById('in-prov-da').value = src.provDa || 'PD';
@@ -8742,6 +8756,15 @@
   // cannot be dismissed until the email is actually confirmed (that's the
   // whole point of it existing separately). A stray click on the
   // backdrop should not close it either.
+  // Live formatting as the driver types — attached once here (not
+  // inside openSettingsModal, which runs every time the modal opens
+  // and would otherwise stack duplicate listeners).
+  document.getElementById('in-targa').addEventListener('input', function () {
+    var cursorWasAtEnd = this.selectionStart === this.value.length;
+    this.value = formatTarga(this.value);
+    if (cursorWasAtEnd) this.setSelectionRange(this.value.length, this.value.length);
+  });
+
   document.getElementById('settings-save').addEventListener('click', function () {
     var nome = document.getElementById('in-nome').value.trim();
     var targa = document.getElementById('in-targa').value.trim().toUpperCase();
