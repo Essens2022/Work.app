@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v340") {
+          if (data && data.v && data.v !== "pt-foglio-v341") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v340"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v341"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -8136,7 +8136,7 @@
     }
 
     var versionEl = document.getElementById('settings-version-display');
-    // Requested directly: "pt-foglio-v340" read as an ugly, internal-
+    // Requested directly: "pt-foglio-v341" read as an ugly, internal-
     // looking string — the number itself matters (still needed to
     // confirm a fresh build reached the phone), the "pt-foglio-"
     // prefix doesn't. Shown as "ADB Smart · v335" instead — same
@@ -8174,6 +8174,14 @@
       ? 'Modifica i dati per il foglio di ' + MESI[settingsTargetSheet.month - 1] + ' ' + settingsTargetSheet.year + '. I nuovi fogli useranno comunque questi valori come predefiniti.'
       : 'Inserisci i dati autista per iniziare a compilare il foglio viaggi.';
     document.getElementById('in-nome').value = src.nome || '';
+    // Requested directly: once this device's email has been confirmed
+    // as belonging to a specific, already-known name (either the
+    // first-ever confirmation, or an explicit "yes, that's me" on a
+    // shared email), the name field stays locked here too — not just
+    // right at the moment of confirmation — so it can never quietly
+    // drift apart from the one real person this account is tied to.
+    document.getElementById('in-nome').disabled = !!(state.profile.nomeLocked && !settingsTargetSheet);
+    document.getElementById('in-nome-locked-note').classList.toggle('hidden', !(state.profile.nomeLocked && !settingsTargetSheet));
     document.getElementById('in-targa').value = src.targa || '';
     document.getElementById('in-conto').value = src.perContoDi || 'BARCELLA';
     document.getElementById('in-da').value = src.da || 'Ponte San Nicolò';
@@ -8360,6 +8368,21 @@
   function onEmailConfirmed() {
     toast('Email confermata!');
     emailModal.classList.remove('open');
+    // Requested directly: the very first person to ever genuinely
+    // confirm a given email becomes its "owner" for naming purposes —
+    // claimed here, right after a REAL confirmation (never on just
+    // sending), using whatever nome this device has right now. A
+    // best-effort call — if it fails, the worst case is simply no
+    // canonical name gets set yet, tried again next time someone else
+    // confirms this same email, never a security downgrade.
+    var emailForClaim = currentAccountEmail();
+    if (emailForClaim && state.profile.nome) {
+      fetch(SUPABASE_URL + '/functions/v1/email-identity-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+        body: JSON.stringify({ action: 'claim', email: emailForClaim, nome: state.profile.nome })
+      }).catch(function () { /* best-effort only */ });
+    }
     // Push the now-confirmed email (plus everything else) right away —
     // otherwise the admin view would keep showing this device with no
     // email until whatever the NEXT unrelated save/sync happened to be.
@@ -8388,45 +8411,96 @@
     if (!email || email.indexOf('@') === -1) { toast('Inserisci un\'email valida'); return; }
     var btn = this;
     btn.disabled = true;
-    // No longer blocks on "already confirmed elsewhere" — that check
-    // was meant to stop two different people sharing one email, but it
-    // also caught the far more common, entirely legitimate case: the
-    // same driver confirming once in a browser tab, then again from the
-    // installed app (which has its own separate local storage on iOS,
-    // so it never "sees" the browser's earlier confirmation). Supabase
-    // itself never creates a second account for one email regardless of
-    // how many times it's confirmed, and the admin view already groups
-    // by name+targa, not by device — so this was pure friction with no
-    // real protective benefit.
-    //
-    // REAL SECURITY GAP, found and fixed directly ("acest email este
-    // deja in baza de date, si vine recunoscut fara sa astepte
-    // confirmarea"): a baseline last_sign_in_at is captured HERE, from
-    // the server, BEFORE the magic link is actually sent — the later
-    // polling (checkForConfirmationNow) only grants access once a
-    // genuinely NEW sign-in happens AFTER this exact baseline, never
-    // just because the email was confirmed by its real owner at some
-    // earlier, unrelated point. Without this, typing in any email that
-    // had EVER been confirmed before (by anyone, on any device) granted
-    // access almost immediately, with no actual click required.
-    fetch(SUPABASE_URL + '/functions/v1/check-email-confirmed', {
+
+    // Requested directly ("cineva isi face contul si il va putea da la
+    // mai multe persoane, care vor intra practic in conturile lor cu
+    // acel email"): before doing anything else with this email, check
+    // whether it already "belongs" (by its first-ever confirmed nome)
+    // to a DIFFERENT person than whoever is sitting at THIS device
+    // right now. A same person's own multi-device use (phone, PC,
+    // tablet) keeps the SAME nome everywhere, so this never fires for
+    // that legitimate case — only when the typed nome genuinely
+    // doesn't match.
+    var typedNomeForCheck = (document.getElementById('in-nome') ? document.getElementById('in-nome').value : state.profile.nome || '').trim();
+    fetch(SUPABASE_URL + '/functions/v1/email-identity-check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
-      body: JSON.stringify({ email: email })
+      body: JSON.stringify({ email: email, nome: typedNomeForCheck })
     }).then(function (r) { return r.json(); })
-      .catch(function () { return {}; }) // best-effort baseline — a failed read here just means the very first poll after sending might need one extra tick to confirm, never a security downgrade
-      .then(function (baselineData) {
-        state.profile.pendingEmailBaseline = (baselineData && baselineData.lastSignInAt) || null;
-        return requestMagicLink(email);
-      })
-      .then(function () {
-        state.profile.pendingEmail = email;
-        saveProfile(state.profile);
-        toast('✓ Email inviata — controlla la tua posta');
-        renderEmailRequiredModal();
-      })
-      .catch(function (err) { if (!err || !err.alreadyHandled) toast(magicLinkErrorMessage(err)); })
-      .then(function () { btn.disabled = false; });
+      .catch(function () { return {}; }) // best-effort — a failed check here just means proceeding as if it were a fresh email, same as before this feature existed; never a HARDER block than before
+      .then(function (identityData) {
+        if (identityData && identityData.needsConfirmPrompt) {
+          btn.disabled = false;
+          showConfirm({
+            title: 'Questo indirizzo è già registrato',
+            message: 'Risulta già usato da "' + identityData.canonicalName + '". Sei tu, su un altro dispositivo?',
+            confirmLabel: 'Sì, sono io',
+            cancelLabel: 'No, non sono io',
+            onConfirm: function () {
+              // Locks the local name to the already-confirmed one —
+              // requested directly: from here on the name field
+              // becomes fixed, so every PDF and document this device
+              // produces consistently shows the ONE real person this
+              // email belongs to, regardless of what was typed before
+              // this point.
+              state.profile.nome = identityData.canonicalName;
+              state.profile.nomeLocked = true;
+              saveProfile(state.profile);
+              var nomeInput = document.getElementById('in-nome');
+              if (nomeInput) { nomeInput.value = identityData.canonicalName; nomeInput.disabled = true; }
+              proceedWithSend();
+            },
+            onCancel: function () {
+              toast('Usa il tuo indirizzo email personale per registrarti');
+            }
+          });
+          return;
+        }
+        proceedWithSend();
+      });
+
+    function proceedWithSend() {
+      btn.disabled = true;
+      // No longer blocks on "already confirmed elsewhere" — that check
+      // was meant to stop two different people sharing one email, but it
+      // also caught the far more common, entirely legitimate case: the
+      // same driver confirming once in a browser tab, then again from the
+      // installed app (which has its own separate local storage on iOS,
+      // so it never "sees" the browser's earlier confirmation). Supabase
+      // itself never creates a second account for one email regardless of
+      // how many times it's confirmed, and the admin view already groups
+      // by name+targa, not by device — so this was pure friction with no
+      // real protective benefit.
+      //
+      // REAL SECURITY GAP, found and fixed directly ("acest email este
+      // deja in baza de date, si vine recunoscut fara sa astepte
+      // confirmarea"): a baseline last_sign_in_at is captured HERE, from
+      // the server, BEFORE the magic link is actually sent — the later
+      // polling (checkForConfirmationNow) only grants access once a
+      // genuinely NEW sign-in happens AFTER this exact baseline, never
+      // just because the email was confirmed by its real owner at some
+      // earlier, unrelated point. Without this, typing in any email that
+      // had EVER been confirmed before (by anyone, on any device) granted
+      // access almost immediately, with no actual click required.
+      fetch(SUPABASE_URL + '/functions/v1/check-email-confirmed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+        body: JSON.stringify({ email: email })
+      }).then(function (r) { return r.json(); })
+        .catch(function () { return {}; }) // best-effort baseline — a failed read here just means the very first poll after sending might need one extra tick to confirm, never a security downgrade
+        .then(function (baselineData) {
+          state.profile.pendingEmailBaseline = (baselineData && baselineData.lastSignInAt) || null;
+          return requestMagicLink(email);
+        })
+        .then(function () {
+          state.profile.pendingEmail = email;
+          saveProfile(state.profile);
+          toast('✓ Email inviata — controlla la tua posta');
+          renderEmailRequiredModal();
+        })
+        .catch(function (err) { if (!err || !err.alreadyHandled) toast(magicLinkErrorMessage(err)); })
+        .then(function () { btn.disabled = false; });
+    }
   });
 
   // Renders the two possible states of the dedicated email modal: still
