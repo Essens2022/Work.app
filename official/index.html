@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ADB Smart — Il tuo viaggio digitale</title>
 <meta name="description" content="ADB Smart: l'app per autisti e camionisti professionali, foglio viaggi digitale, gestione consegne, itinerario automatico, scarica ora, è gratis">
 <meta property="og:title" content="ADB Smart — Il tuo viaggio digitale">
@@ -359,6 +359,7 @@
       document.documentElement.style.setProperty('--real-vh', window.innerHeight + 'px');
     }
     syncRealViewportHeight();
+    setTimeout(syncRealViewportHeight, 300); // a second pass shortly after load — Safari's own chrome (address bar) settles a moment after refresh specifically, so the very first measurement can still be transient
     window.addEventListener('resize', syncRealViewportHeight);
     window.addEventListener('orientationchange', function () { setTimeout(syncRealViewportHeight, 200); });
   })();
