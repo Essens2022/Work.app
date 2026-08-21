@@ -81,7 +81,7 @@
   }
 
   /* ---------- Hero ---------- */
-  .hero{padding-top:calc(170px + env(safe-area-inset-top));padding-bottom:60px;min-height:92vh;display:flex;align-items:center;}
+  .hero{padding-top:calc(170px + env(safe-area-inset-top));padding-bottom:60px;min-height:calc(var(--real-vh, 100vh) * 0.92);display:flex;align-items:center;}
   .hero-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:60px;align-items:center;}
   .hero h1{
     font-size:clamp(38px,5.4vw,62px);font-weight:900;line-height:1.08;letter-spacing:-.02em;margin-bottom:22px;
@@ -346,6 +346,23 @@
 </footer>
 
 <script>
+  // REAL BUG, reported directly: on refresh specifically (mobile
+  // Safari), the page didn't fill the whole screen — the browser's
+  // address bar starts expanded right after a reload, so the CSS
+  // 92vh unit measures against that temporarily-taller viewport,
+  // then never re-measures once the address bar collapses. Same fix
+  // already proven in the main app: measure the real, live viewport
+  // height directly via JS and drive the hero's height from that,
+  // instead of a raw vh unit subject to this exact mobile quirk.
+  (function () {
+    function syncRealViewportHeight() {
+      document.documentElement.style.setProperty('--real-vh', window.innerHeight + 'px');
+    }
+    syncRealViewportHeight();
+    window.addEventListener('resize', syncRealViewportHeight);
+    window.addEventListener('orientationchange', function () { setTimeout(syncRealViewportHeight, 200); });
+  })();
+
   // Subtle scroll parallax — the streaks drift slightly slower than the
   // page itself, giving the background a sense of depth rather than
   // feeling flat and pinned to the content.
