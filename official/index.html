@@ -362,6 +362,20 @@
     setTimeout(syncRealViewportHeight, 300); // a second pass shortly after load — Safari's own chrome (address bar) settles a moment after refresh specifically, so the very first measurement can still be transient
     window.addEventListener('resize', syncRealViewportHeight);
     window.addEventListener('orientationchange', function () { setTimeout(syncRealViewportHeight, 200); });
+    // REPORTED DIRECTLY: on refresh, the page briefly looks correct
+    // (full screen), then visibly snaps back small a moment later —
+    // Safari's address bar collapses right after load, then
+    // re-expands as the page settles, and that specific transition
+    // doesn't reliably fire a plain 'resize' event. visualViewport is
+    // the API built specifically to track this exact browser-chrome
+    // transition on mobile Safari — far more reliable here than
+    // window resize alone.
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', syncRealViewportHeight);
+    }
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') syncRealViewportHeight();
+    });
   })();
 
   // Subtle scroll parallax — the streaks drift slightly slower than the
