@@ -9,7 +9,7 @@
 //  - Large, rarely-changing files (jsPDF, the comuni database, icons, logo)
 //    stay CACHE-FIRST, so they don't get re-downloaded on every load.
 
-const CACHE_VERSION = 'pt-foglio-v360';
+const CACHE_VERSION = 'pt-foglio-v361';
 const CORE_ASSETS = ['./', './index.html', './app.js', './manifest.json', './version.json'];
 const STATIC_ASSETS = [
   './icon-192.png',
@@ -48,6 +48,26 @@ self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = event.request.url;
   const isNavigation = event.request.mode === 'navigate';
+
+  // REAL BUG, reported directly ("cand maresc zoomez pagina da
+  // eroare... impossibile aprire questa pagina", on /official/):
+  // this service worker registers with NO explicit scope, which
+  // defaults to the ROOT of the whole site — meaning it was
+  // intercepting navigation to the separate marketing pages
+  // (/official/, /guida/*) too, even though neither was ever added to
+  // CORE_ASSETS or STATIC_ASSETS during install. Any transient
+  // network hiccup at all — plausible during a vigorous pinch-zoom
+  // gesture, but really anything — made the fetch below fail, and the
+  // .catch() fallback (caches.match) found nothing cached for these
+  // pages, so respondWith() resolved to undefined: exactly the "page
+  // failed to load" error reported. These pages are plain marketing
+  // pages, never meant to be part of this PWA's offline app shell in
+  // the first place — explicitly let the browser handle them
+  // completely normally here, bypassing this service worker (and its
+  // caching) entirely, rather than trying to also cache them (which
+  // would be a workaround for a page that shouldn't be managed here
+  // at all).
+  if (url.indexOf('/official/') !== -1 || url.indexOf('/guida/') !== -1) return;
 
   if (isNavigation || isCoreAsset(url)) {
     // Network-first: always try to get the latest app code when online.
