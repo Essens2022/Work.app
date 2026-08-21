@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <title>ADB Smart — Il tuo viaggio digitale</title>
 <meta name="description" content="ADB Smart: l'app per autisti e camionisti professionali, foglio viaggi digitale, gestione consegne, itinerario automatico, scarica ora, è gratis">
 <meta property="og:title" content="ADB Smart — Il tuo viaggio digitale">
@@ -26,7 +26,7 @@
     --line:#2A2A2A;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
-  html{scroll-behavior:smooth;}
+  html{scroll-behavior:smooth;background:var(--bg);}
   body{
     background:var(--bg);color:var(--white);
     font-family:'Inter',-apple-system,sans-serif;
@@ -68,7 +68,7 @@
   header{
     position:fixed;top:0;left:0;right:0;z-index:50;
     display:flex;align-items:center;justify-content:space-between;
-    padding:18px 24px;backdrop-filter:blur(12px);background:rgba(10,10,10,.55);
+    padding:calc(18px + env(safe-area-inset-top)) 24px 18px;backdrop-filter:blur(12px);background:rgba(10,10,10,.55);
     border-bottom:1px solid var(--line);
   }
   .header-logo{display:flex;align-items:center;gap:10px;font-weight:800;font-size:16px;letter-spacing:.02em;}
@@ -81,7 +81,7 @@
   }
 
   /* ---------- Hero ---------- */
-  .hero{padding-top:170px;padding-bottom:60px;min-height:92vh;display:flex;align-items:center;}
+  .hero{padding-top:calc(170px + env(safe-area-inset-top));padding-bottom:60px;min-height:92vh;display:flex;align-items:center;}
   .hero-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:60px;align-items:center;}
   .hero h1{
     font-size:clamp(38px,5.4vw,62px);font-weight:900;line-height:1.08;letter-spacing:-.02em;margin-bottom:22px;
@@ -199,7 +199,7 @@
   .final-cta p{color:var(--gray);font-size:16px;margin-bottom:36px;}
 
   /* ---------- Footer ---------- */
-  footer{background:var(--bg);border-top:1px solid var(--line);padding:44px 24px;position:relative;z-index:1;}
+  footer{background:var(--bg);border-top:1px solid var(--line);padding:44px 24px calc(44px + env(safe-area-inset-bottom));position:relative;z-index:1;}
   .footer-inner{max-width:1080px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;}
   .footer-brand{display:flex;align-items:center;gap:10px;}
   .footer-brand img{width:28px;height:28px;border-radius:7px;}
