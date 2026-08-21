@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v359") {
+          if (data && data.v && data.v !== "pt-foglio-v360") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v359"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v360"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -150,9 +150,17 @@
   }
 
   function loadProfile() {
+    // REAL BUG, reported directly: this used to default to ION's own
+    // real company ("BARCELLA") and real starting point ("Ponte San
+    // Nicolò", province "PD") — meaning EVERY new driver who ever
+    // installed this app got ION's personal business data silently
+    // saved into their own profile, not just shown as an example.
+    // Genuinely empty now — the placeholder text on each field shows
+    // a neutral example instead, never saved unless the driver
+    // actually types their own.
     return loadJSON(LS_PROFILE, {
-      nome: "", targa: "", perContoDi: "BARCELLA",
-      da: "Ponte San Nicolò", provDa: "PD", frequent: {},
+      nome: "", targa: "", perContoDi: "",
+      da: "", provDa: "", frequent: {},
       dailyRate: ""
     });
   }
@@ -292,6 +300,41 @@
     var clean = (raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7);
     if (clean.length <= 2) return clean;
     return clean.slice(0, 2) + '-' + clean.slice(2);
+  }
+
+  // Requested directly: auto-fill the province from whatever city is
+  // typed for Partenza predefinita, if the driver doesn't type one
+  // explicitly. Covers every provincial capital plus a good spread of
+  // other well-known cities/comuni — genuinely exhaustive coverage
+  // would need a full comuni database (8000+ entries), out of scope
+  // here; anything not recognized is simply left blank, exactly like
+  // before this existed, for the driver to fill in by hand.
+  var CITY_TO_PROVINCE = {
+    'AGRIGENTO':'AG','ALESSANDRIA':'AL','ANCONA':'AN','AOSTA':'AO','AREZZO':'AR','ASCOLI PICENO':'AP',
+    'ASTI':'AT','AVELLINO':'AV','BARI':'BA','BARLETTA':'BT','BELLUNO':'BL','BENEVENTO':'BN','BERGAMO':'BG',
+    'BIELLA':'BI','BOLOGNA':'BO','BOLZANO':'BZ','BRESCIA':'BS','BRINDISI':'BR','CAGLIARI':'CA',
+    'CALTANISSETTA':'CL','CAMPOBASSO':'CB','CASERTA':'CE','CATANIA':'CT','CATANZARO':'CZ','CHIETI':'CH',
+    'COMO':'CO','COSENZA':'CS','CREMONA':'CR','CROTONE':'KR','CUNEO':'CN','ENNA':'EN','FERMO':'FM',
+    'FERRARA':'FE','FIRENZE':'FI','FOGGIA':'FG','FORLI':'FC',"FORLÌ":'FC','FROSINONE':'FR','GENOVA':'GE',
+    'GORIZIA':'GO','GROSSETO':'GR','IMPERIA':'IM','ISERNIA':'IS','LA SPEZIA':'SP',"L'AQUILA":'AQ',
+    'LATINA':'LT','LECCE':'LE','LECCO':'LC','LIVORNO':'LI','LODI':'LO','LUCCA':'LU','MACERATA':'MC',
+    'MANTOVA':'MN','MASSA':'MS','MATERA':'MT','MESSINA':'ME','MILANO':'MI','MODENA':'MO','MONZA':'MB',
+    'NAPOLI':'NA','NOVARA':'NO','NUORO':'NU','ORISTANO':'OR','PADOVA':'PD','PALERMO':'PA','PARMA':'PR',
+    'PAVIA':'PV','PERUGIA':'PG','PESARO':'PU','PESCARA':'PE','PIACENZA':'PC','PISA':'PI','PISTOIA':'PT',
+    'PORDENONE':'PN','POTENZA':'PZ','PRATO':'PO','RAGUSA':'RG','RAVENNA':'RA','REGGIO CALABRIA':'RC',
+    'REGGIO EMILIA':'RE','RIETI':'RI','RIMINI':'RN','ROMA':'RM','ROVIGO':'RO','SALERNO':'SA','SASSARI':'SS',
+    'SAVONA':'SV','SIENA':'SI','SIRACUSA':'SR','SONDRIO':'SO','TARANTO':'TA','TERAMO':'TE','TERNI':'TR',
+    'TORINO':'TO','TRAPANI':'TP','TRENTO':'TN','TREVISO':'TV','TRIESTE':'TS','UDINE':'UD','VARESE':'VA',
+    'VENEZIA':'VE','VERBANIA':'VB','VERCELLI':'VC','VERONA':'VR','VIBO VALENTIA':'VV','VICENZA':'VI',
+    'VITERBO':'VT',
+    // A few well-known, frequently-typed comuni beyond the provincial capitals themselves
+    'PONTE SAN NICOLO':'PD','SELVAZZANO DENTRO':'PD','ABANO TERME':'PD','CITTADELLA':'PD',
+    'MESTRE':'VE','MARGHERA':'VE','CONEGLIANO':'TV','CASTELFRANCO VENETO':'TV','MONTEBELLUNA':'TV',
+    'BASSANO DEL GRAPPA':'VI','SCHIO':'VI','LEGNAGO':'VR','BUSSOLENGO':'VR'
+  };
+  function lookupProvinceForCity(cityRaw) {
+    var normalized = (cityRaw || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    return CITY_TO_PROVINCE[normalized] || null;
   }
 
   function daysInMonth(month, year) { return new Date(year, month, 0).getDate(); }
@@ -562,7 +605,7 @@
   }
 
   function createSheet(month, year, perContoDi, countsForDailyRate, pdfTemplate) {
-    var client = (perContoDi || state.profile.perContoDi || 'BARCELLA').trim().toUpperCase();
+    var client = (perContoDi || state.profile.perContoDi || '').trim().toUpperCase();
     var existing = sheetForMonth(month, year, client);
     if (existing) return existing;
     var s = {
@@ -8190,7 +8233,7 @@
     }
 
     var versionEl = document.getElementById('settings-version-display');
-    // Requested directly: "pt-foglio-v359" read as an ugly, internal-
+    // Requested directly: "pt-foglio-v360" read as an ugly, internal-
     // looking string — the number itself matters (still needed to
     // confirm a fresh build reached the phone), the "pt-foglio-"
     // prefix doesn't. Shown as "ADB Smart · v335" instead — same
@@ -8237,9 +8280,9 @@
     document.getElementById('in-nome').disabled = !!(state.profile.nomeLocked && !settingsTargetSheet);
     document.getElementById('in-nome-locked-note').classList.toggle('hidden', !(state.profile.nomeLocked && !settingsTargetSheet));
     document.getElementById('in-targa').value = formatTarga(src.targa || '');
-    document.getElementById('in-conto').value = src.perContoDi || 'BARCELLA';
-    document.getElementById('in-da').value = src.da || 'Ponte San Nicolò';
-    document.getElementById('in-prov-da').value = src.provDa || 'PD';
+    document.getElementById('in-conto').value = src.perContoDi || '';
+    document.getElementById('in-da').value = src.da || '';
+    document.getElementById('in-prov-da').value = src.provDa || '';
     document.getElementById('in-daily-rate').value = state.profile.dailyRate || '';
 
     var sheetRateSection = document.getElementById('sheet-daily-rate-section');
@@ -8765,12 +8808,30 @@
     if (cursorWasAtEnd) this.setSelectionRange(this.value.length, this.value.length);
   });
 
+  // Live province auto-fill — fires as the driver finishes typing the
+  // city (on blur, not every keystroke, since a partial city name
+  // mid-type would never match anyway). Only fills if Prov. is
+  // currently empty — never overwrites something the driver already
+  // typed themselves.
+  document.getElementById('in-da').addEventListener('blur', function () {
+    var provField = document.getElementById('in-prov-da');
+    if (provField.value.trim()) return;
+    var match = lookupProvinceForCity(this.value);
+    if (match) provField.value = match;
+  });
+
   document.getElementById('settings-save').addEventListener('click', function () {
     var nome = document.getElementById('in-nome').value.trim();
     var targa = document.getElementById('in-targa').value.trim().toUpperCase();
-    var conto = document.getElementById('in-conto').value.trim().toUpperCase() || 'BARCELLA';
-    var da = (document.getElementById('in-da').value.trim() || 'Ponte San Nicolò').toUpperCase();
-    var provDa = document.getElementById('in-prov-da').value.trim().toUpperCase() || 'PD';
+    var conto = document.getElementById('in-conto').value.trim().toUpperCase();
+    var da = document.getElementById('in-da').value.trim().toUpperCase();
+    var provDaTyped = document.getElementById('in-prov-da').value.trim().toUpperCase();
+    // Requested directly: auto-detect the province from whatever
+    // city was typed for Partenza predefinita, if the driver didn't
+    // type one explicitly — covers the major Italian cities/provincial
+    // capitals; anything not recognized is simply left for the driver
+    // to fill in by hand, same as before this existed.
+    var provDa = provDaTyped || lookupProvinceForCity(da) || '';
     var dailyRateRaw = document.getElementById('in-daily-rate').value.trim();
     var dailyRate = dailyRateRaw === '' ? '' : Math.max(0, parseFloat(dailyRateRaw) || 0);
 
@@ -8861,7 +8922,7 @@
     var m, y;
     if (base) { m = base.month + 1; y = base.year; if (m > 12) { m = 1; y += 1; } }
     else { var now = new Date(); m = now.getMonth() + 1; y = now.getFullYear(); }
-    var defaultClient = (base ? base.perContoDi : state.profile.perContoDi) || 'BARCELLA';
+    var defaultClient = (base ? base.perContoDi : state.profile.perContoDi) || '';
     renderNewSheetConfirm(m, y, defaultClient);
   }
   function renderNewSheetConfirm(m, y, client) {
@@ -8900,7 +8961,7 @@
     // re-bind confirm to use latest m/y/client via closure workaround
     var okBtn = document.getElementById('confirm-ok');
     okBtn.onclick = function () {
-      var chosenClient = (document.getElementById('ms-client').value || 'BARCELLA').trim().toUpperCase();
+      var chosenClient = (document.getElementById('ms-client').value || '').trim().toUpperCase();
       var chosenTemplate = document.getElementById('ms-template').value;
       var countsForRate = document.getElementById('ms-daily-rate').checked;
       confirmModal.classList.remove('open');

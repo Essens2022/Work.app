@@ -1365,11 +1365,18 @@
           <div class="settings-driver-note hidden" id="in-nome-locked-note" style="margin-top:-10px;">🔒 Nome confermato e bloccato — non modificabile.</div>
           <div class="field-row">
             <div class="field"><label>Targa veicolo</label><input id="in-targa" type="text" placeholder="Es. HB-123NE" style="text-transform:uppercase"></div>
-            <div class="field"><label>Per conto di</label><input id="in-conto" type="text" placeholder="Es. BARCELLA" style="text-transform:uppercase"></div>
+            <!-- Requested directly: this used to actually SAVE "BARCELLA"
+                 into every new driver's profile silently — ION's own
+                 company name, not a placeholder example at all. A
+                 genuinely neutral example now, never pre-filled. -->
+            <div class="field"><label>Per conto di</label><input id="in-conto" type="text" placeholder="Es. Trasporti Rossi Srl" style="text-transform:uppercase"></div>
           </div>
           <div class="field-row">
-            <div class="field"><label>Partenza predefinita</label><input id="in-da" type="text" placeholder="Es. Ponte San Nicolò"></div>
-            <div class="field narrow"><label>Prov.</label><input id="in-prov-da" type="text" maxlength="2" placeholder="PD" style="text-transform:uppercase"></div>
+            <!-- Same real bug: "Ponte San Nicolò" (ION's own actual
+                 departure point) and "PD" used to be saved for real,
+                 not just shown as an example. -->
+            <div class="field"><label>Partenza predefinita</label><input id="in-da" type="text" placeholder="Es. Padova"></div>
+            <div class="field narrow"><label>Prov.</label><input id="in-prov-da" type="text" maxlength="2" placeholder="Es. PD" style="text-transform:uppercase"></div>
           </div>
           <div class="settings-driver-note">Questi dati vengono salvati solo su questo telefono e riutilizzati automaticamente per i prossimi fogli. Puoi modificarli in qualsiasi momento.</div>
         </div>
