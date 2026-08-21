@@ -165,14 +165,27 @@
   .feature-card p{color:var(--gray);font-size:15px;}
 
   /* ---------- Gallery ---------- */
-  .gallery-section{background:var(--surface-2);}
-  .gallery-grid{display:flex;gap:28px;justify-content:center;flex-wrap:wrap;}
-  .gallery-phone{width:220px;}
-  .gallery-phone .phone-frame{width:220px;padding:11px;border-radius:36px;}
-  .gallery-phone .phone-frame::before{width:46px;height:4px;top:6px;}
-  .gallery-phone .phone-screen{margin-top:1px;}
-  .gallery-phone .phone-screen{border-radius:26px;}
-  .gallery-caption{text-align:center;color:var(--gray);font-size:13.5px;font-weight:600;margin-top:18px;}
+  .gallery-section{background:transparent;}
+  /* Three phones, each demonstrating one real feature in action, tilted
+     and offset differently — not a flat row of identical cards, a
+     genuine cluster with depth, same energy as the hero. */
+  .gallery-cluster{
+    position:relative;display:flex;justify-content:center;align-items:flex-start;
+    gap:0;flex-wrap:wrap;padding:20px 0 10px;
+  }
+  .gallery-item{width:230px;position:relative;text-align:center;}
+  .gallery-item .phone-frame{width:210px;padding:11px;border-radius:36px;margin:0 auto;transition:transform .35s ease;}
+  .gallery-item .phone-frame::before{width:46px;height:4px;top:6px;}
+  .gallery-item .phone-screen{margin-top:1px;border-radius:26px;}
+  .item-1{transform:rotate(-6deg) translateY(18px);z-index:2;}
+  .item-2{transform:rotate(0deg) translateY(-14px);z-index:3;margin:0 -14px;}
+  .item-3{transform:rotate(6deg) translateY(18px);z-index:2;}
+  .gallery-item:hover .phone-frame{transform:translateY(-8px);}
+  .gallery-caption{color:var(--gray);font-size:13px;font-weight:600;margin-top:20px;line-height:1.5;max-width:210px;margin-left:auto;margin-right:auto;}
+  @media (max-width:760px){
+    .item-1,.item-2,.item-3{transform:none;margin:0;}
+    .gallery-item{margin-bottom:20px;}
+  }
 
   /* ---------- Final CTA ---------- */
   .final-cta{text-align:center;position:relative;padding:130px 24px;}
@@ -286,14 +299,24 @@
   <div class="wrap">
     <div class="eyebrow" style="text-align:center;">Guarda dentro</div>
     <h2 class="section-title" style="margin-left:auto;margin-right:auto;text-align:center;">L'app che i tuoi giorni di lavoro meritano davvero.</h2>
-    <div class="gallery-grid">
-      <div>
-        <div class="gallery-phone">
-          <div class="phone-frame">
-            <img class="phone-screen" src="landing-screenshot-home.png" alt="Schermata Home">
-          </div>
+    <div class="gallery-cluster">
+      <div class="gallery-item item-1">
+        <div class="phone-frame">
+          <img class="phone-screen" src="landing-screenshot-consegne.png" alt="Ordine consegne calcolato automaticamente">
         </div>
-        <div class="gallery-caption">Home — tutto sotto controllo</div>
+        <div class="gallery-caption">L'itinerario si ordina da solo — una tappa dopo l'altra, con la logica giusta.</div>
+      </div>
+      <div class="gallery-item item-2">
+        <div class="phone-frame">
+          <img class="phone-screen" src="landing-screenshot-pdf.png" alt="Foglio viaggi compilato pronto">
+        </div>
+        <div class="gallery-caption">Il foglio si compila da solo, giorno dopo giorno — pronto quando ti serve.</div>
+      </div>
+      <div class="gallery-item item-3">
+        <div class="phone-frame">
+          <img class="phone-screen" src="landing-screenshot-scontrino.png" alt="Scontrino fotografato e archiviato">
+        </div>
+        <div class="gallery-caption">Fotografa lo scontrino: resta salvato, insieme ai dati di quel giorno.</div>
       </div>
     </div>
   </div>
