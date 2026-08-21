@@ -381,31 +381,23 @@
     });
   })();
 
-  // REPORTED DIRECTLY: after pinching to zoom in to read something more
-  // closely, the page doesn't return to filling the screen once the
-  // gesture ends — it stays visually smaller. Rather than leaving
-  // Safari's own zoom state to resolve itself (unreliable, as this
-  // report shows), reset the viewport scale back to 1 explicitly, a
-  // beat after the person lifts their fingers — long enough to still
-  // read whatever they zoomed in for, short enough that it reads as
-  // "snaps back", not as zoom being blocked outright.
-  (function () {
-    var viewportMeta = document.querySelector('meta[name="viewport"]');
-    var resetTimer = null;
-    function resetZoomSoon() {
-      if (resetTimer) clearTimeout(resetTimer);
-      resetTimer = setTimeout(function () {
-        viewportMeta.setAttribute('content', 'width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1');
-        requestAnimationFrame(function () {
-          viewportMeta.setAttribute('content', 'width=device-width, initial-scale=1, viewport-fit=cover');
-        });
-      }, 1200);
-    }
-    document.addEventListener('gestureend', resetZoomSoon); // WebKit-specific — fires right as a pinch gesture is released
-    document.addEventListener('touchend', function () {
-      if (window.visualViewport && window.visualViewport.scale > 1.02) resetZoomSoon();
-    });
-  })();
+  // REAL BUG, reported directly, TWICE, before finding the real cause:
+  // "cand maresc zoomez pagina da eroare... impossibile aprire questa
+  // pagina", specifically "cand iau degetele de pe ecran dupa ce am
+  // marit se dezbate" — this whole zoom-reset mechanism, built in an
+  // earlier session to fix a much smaller iOS-only annoyance (page
+  // staying visually zoomed in after a pinch), turned out to be the
+  // actual cause. It rewrote the <meta name="viewport"> tag's content
+  // TWICE in a row, live, right as a pinch gesture ends — on Android
+  // Chrome specifically, forcing a mid-gesture viewport-meta rewrite
+  // like this is far less predictable than on iOS Safari (which is
+  // genuinely all this was ever tested against — gestureend itself is
+  // WebKit-only, never fires on Android at all), and could destabilize
+  // the page hard enough to trigger a full navigation failure. The
+  // risk (breaking the page outright, on the platform this was never
+  // actually built for) far outweighs the benefit (a minor, iOS-only
+  // convenience) — removed entirely rather than trying to patch around
+  // it further.
 
   // Subtle scroll parallax — the streaks drift slightly slower than the
   // page itself, giving the background a sense of depth rather than
