@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ADB Smart — Il tuo viaggio digitale</title>
-<meta name="description" content="ADB Smart: l'app per autisti e camionisti professionali. Foglio viaggi digitale, gestione consegne, itinerario automatico. Scarica ora, è gratis.">
+<meta name="description" content="ADB Smart: l'app per autisti e camionisti professionali, foglio viaggi digitale, gestione consegne, itinerario automatico, scarica ora, è gratis">
 <meta property="og:title" content="ADB Smart — Il tuo viaggio digitale">
-<meta property="og:description" content="L'app per autisti e camionisti professionali. Foglio viaggi digitale, gestione consegne, itinerario automatico.">
+<meta property="og:description" content="L'app per autisti e camionisti professionali, foglio viaggi digitale, gestione consegne, itinerario automatico">
 <meta property="og:image" content="https://adbsmart.it/icon-512.png">
 <meta property="og:url" content="https://adbsmart.it/official">
 <link rel="icon" href="../favicon.ico" sizes="any">
@@ -165,14 +165,27 @@
   .feature-card p{color:var(--gray);font-size:15px;}
 
   /* ---------- Gallery ---------- */
-  .gallery-section{background:var(--surface-2);}
-  .gallery-grid{display:flex;gap:28px;justify-content:center;flex-wrap:wrap;}
-  .gallery-phone{width:220px;}
-  .gallery-phone .phone-frame{width:220px;padding:11px;border-radius:36px;}
-  .gallery-phone .phone-frame::before{width:46px;height:4px;top:6px;}
-  .gallery-phone .phone-screen{margin-top:1px;}
-  .gallery-phone .phone-screen{border-radius:26px;}
-  .gallery-caption{text-align:center;color:var(--gray);font-size:13.5px;font-weight:600;margin-top:18px;}
+  .gallery-section{background:transparent;}
+  /* Three phones, each demonstrating one real feature in action, tilted
+     and offset differently — not a flat row of identical cards, a
+     genuine cluster with depth, same energy as the hero. */
+  .gallery-cluster{
+    position:relative;display:flex;justify-content:center;align-items:flex-start;
+    gap:0;flex-wrap:wrap;padding:20px 0 10px;
+  }
+  .gallery-item{width:230px;position:relative;text-align:center;}
+  .gallery-item .phone-frame{width:210px;padding:11px;border-radius:36px;margin:0 auto;transition:transform .35s ease;}
+  .gallery-item .phone-frame::before{width:46px;height:4px;top:6px;}
+  .gallery-item .phone-screen{margin-top:1px;border-radius:26px;}
+  .item-1{transform:rotate(-6deg) translateY(18px);z-index:2;}
+  .item-2{transform:rotate(0deg) translateY(-14px);z-index:3;margin:0 -14px;}
+  .item-3{transform:rotate(6deg) translateY(18px);z-index:2;}
+  .gallery-item:hover .phone-frame{transform:translateY(-8px);}
+  .gallery-caption{color:var(--gray);font-size:13px;font-weight:600;margin-top:20px;line-height:1.5;max-width:210px;margin-left:auto;margin-right:auto;}
+  @media (max-width:760px){
+    .item-1,.item-2,.item-3{transform:none;margin:0;}
+    .gallery-item{margin-bottom:20px;}
+  }
 
   /* ---------- Final CTA ---------- */
   .final-cta{text-align:center;position:relative;padding:130px 24px;}
@@ -223,9 +236,9 @@
 <section class="hero">
   <div class="wrap hero-grid">
     <div>
-      <h1>Il tuo <span class="grad-text">viaggio.</span><br>Digitale.</h1>
+      <h1>Il tuo <span class="grad-text">viaggio</span><br>digitale</h1>
       <div class="hero-underline"></div>
-      <p>L'app pensata per autisti e camionisti professionali. Foglio viaggi digitale, gestione consegne e itinerario automatico — tutto in un unico posto, sempre con te.</p>
+      <p>L'app pensata per autisti e camionisti professionali, foglio viaggi digitale, gestione consegne e itinerario automatico — tutto in un unico posto, sempre con te</p>
       <div class="cta-row">
         <a href="../index.html" class="btn-primary">Scarica ora — è gratis</a>
         <a href="#funzioni" class="btn-ghost">Scopri di più</a>
@@ -248,35 +261,35 @@
 <section id="funzioni">
   <div class="wrap">
     <div class="eyebrow">Funzioni</div>
-    <h2 class="section-title">Tutto quello che serve, in un'unica app costruita per il lavoro vero.</h2>
+    <h2 class="section-title">Tutto quello che serve, in un'unica app costruita per il lavoro vero</h2>
     <div class="features-grid">
       <div class="feature-card">
         <div class="feature-icon">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 2h6a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M9 7h6M9 11h6M9 15h3"/></svg>
         </div>
         <h3>Foglio viaggi digitale</h3>
-        <p>Compila il foglio mensile in pochi secondi, ogni giorno — niente più carta, niente più calcoli a mano.</p>
+        <p>Compila il foglio mensile in pochi secondi, ogni giorno — niente più carta, niente più calcoli a mano</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
         </div>
         <h3>Tracciamento viaggi</h3>
-        <p>Ogni km, ogni destinazione, ogni cliente — registrato automaticamente, sempre a portata di mano.</p>
+        <p>Ogni km, ogni destinazione, ogni cliente — registrato automaticamente, sempre a portata di mano</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
         </div>
         <h3>Statistiche chiare</h3>
-        <p>Km totali, giorni lavorati, guadagno del mese — tutto visibile a colpo d'occhio, senza calcoli.</p>
+        <p>Km totali, giorni lavorati, guadagno del mese — tutto visibile a colpo d'occhio, senza calcoli</p>
       </div>
       <div class="feature-card">
         <div class="feature-icon">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h6M9 18h4"/></svg>
         </div>
         <h3>Esporta in PDF</h3>
-        <p>Un tocco e il tuo foglio è pronto, formattato e condivisibile — per te o per chi gestisce la flotta.</p>
+        <p>Un tocco e il tuo foglio è pronto, formattato e condivisibile — per te o per chi gestisce la flotta</p>
       </div>
     </div>
   </div>
@@ -285,15 +298,25 @@
 <section class="gallery-section">
   <div class="wrap">
     <div class="eyebrow" style="text-align:center;">Guarda dentro</div>
-    <h2 class="section-title" style="margin-left:auto;margin-right:auto;text-align:center;">L'app che i tuoi giorni di lavoro meritano davvero.</h2>
-    <div class="gallery-grid">
-      <div>
-        <div class="gallery-phone">
-          <div class="phone-frame">
-            <img class="phone-screen" src="landing-screenshot-home.png" alt="Schermata Home">
-          </div>
+    <h2 class="section-title" style="margin-left:auto;margin-right:auto;text-align:center;">L'app che i tuoi giorni di lavoro meritano davvero</h2>
+    <div class="gallery-cluster">
+      <div class="gallery-item item-1">
+        <div class="phone-frame">
+          <img class="phone-screen" src="landing-screenshot-consegne.png" alt="Ordine consegne calcolato automaticamente">
         </div>
-        <div class="gallery-caption">Home — tutto sotto controllo</div>
+        <div class="gallery-caption">L'itinerario si ordina da solo — una tappa dopo l'altra, con la logica giusta</div>
+      </div>
+      <div class="gallery-item item-2">
+        <div class="phone-frame">
+          <img class="phone-screen" src="landing-screenshot-pdf.png" alt="Foglio viaggi compilato pronto">
+        </div>
+        <div class="gallery-caption">Il foglio si compila da solo, giorno dopo giorno — pronto quando ti serve</div>
+      </div>
+      <div class="gallery-item item-3">
+        <div class="phone-frame">
+          <img class="phone-screen" src="landing-screenshot-scontrino.png" alt="Scontrino fotografato e archiviato">
+        </div>
+        <div class="gallery-caption">Fotografa lo scontrino: resta salvato, insieme ai dati di quel giorno</div>
       </div>
     </div>
   </div>
@@ -302,7 +325,7 @@
 <section class="final-cta">
   <div class="wrap">
     <h2>Pronto a semplificare<br>il tuo <span class="grad-text">lavoro?</span></h2>
-    <p>Gratis, senza carta di credito. Installala in trenta secondi.</p>
+    <p>Gratis, senza carta di credito — installala in trenta secondi</p>
     <a href="../index.html" class="btn-primary">Scarica ora — è gratis</a>
   </div>
 </section>
