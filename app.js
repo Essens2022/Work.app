@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v354") {
+          if (data && data.v && data.v !== "pt-foglio-v355") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v354"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v355"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -8190,7 +8190,7 @@
     }
 
     var versionEl = document.getElementById('settings-version-display');
-    // Requested directly: "pt-foglio-v354" read as an ugly, internal-
+    // Requested directly: "pt-foglio-v355" read as an ugly, internal-
     // looking string — the number itself matters (still needed to
     // confirm a fresh build reached the phone), the "pt-foglio-"
     // prefix doesn't. Shown as "ADB Smart · v335" instead — same
@@ -9479,7 +9479,30 @@
     // specifically called out the route-ordering feature (Reordina/
     // Auto) as important enough to name explicitly, not just imply
     // through "organizzare le consegne".
-    var shareText = 'ADB Smart — l\'app che uso per il foglio viaggi, l\'itinerario delle consegne (ordina i clienti in automatico) e i clienti. Provala anche tu:';
+    // Requested directly, follow-up: too many connecting words ("prea
+    // multa apa") — punchy standalone keywords instead of full
+    // sentences. Also fixed "itinerario", which doesn't match the
+    // app's own language at all (the screen itself is called
+    // "Percorso di oggi") — replaced with "percorso", consistent and
+    // instantly clear to anyone who's actually used the app.
+    // Requested directly, complete list of real benefits given
+    // explicitly ("cuvinte care vand... beneficii pure concrete fara
+    // apa") — pure keyword-benefits, zero connecting words, zero
+    // explanation. Covers: foglio viaggi automatico, percorso
+    // ottimizzato, km/stipendio calcolati da soli, scontrini
+    // digitali, documenti auto-compilati a fine mese, archivio
+    // clienti+consegne, meno carta/burocrazia (capo contento).
+    // Requested directly, final version, given exactly as-is: full
+    // paragraph structure, no explaining "come" it works (auto-
+    // compilazione/ottimizzazione mentioned once each, not repeated as
+    // separate claims) — closes on the same rhythmic pairing pattern
+    // as before ("l'autista organizzato, il titolare felice"), now
+    // with "titolare" instead of "capo" (more professional register).
+    var shareText = 'ADB Smart — tutto il lavoro dell\'autista, semplificato.\n\n' +
+      'Auto-compilazione del foglio viaggio digitale, ottimizzazione automatica del percorso, calcolo di km e stipendio, gestione di scontrini e documenti, archivio completo di clienti e consegne.\n\n' +
+      'A fine mese è già tutto ordinato e pronto.\n' +
+      'Meno carta. Meno tempo perso. Più controllo.\n\n' +
+      'ADB Smart — l\'autista organizzato, il titolare felice.';
     if (navigator.share) {
       navigator.share({ title: 'ADB Smart', text: shareText, url: shareUrl }).catch(function () { /* person cancelled the native share sheet — not an error */ });
     } else if (navigator.clipboard && navigator.clipboard.writeText) {
