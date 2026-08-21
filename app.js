@@ -9492,17 +9492,13 @@
     // ottimizzato, km/stipendio calcolati da soli, scontrini
     // digitali, documenti auto-compilati a fine mese, archivio
     // clienti+consegne, meno carta/burocrazia (capo contento).
-    // Requested directly, final version, given exactly as-is: full
-    // paragraph structure, no explaining "come" it works (auto-
-    // compilazione/ottimizzazione mentioned once each, not repeated as
-    // separate claims) — closes on the same rhythmic pairing pattern
-    // as before ("l'autista organizzato, il titolare felice"), now
-    // with "titolare" instead of "capo" (more professional register).
-    var shareText = 'ADB Smart — tutto il lavoro dell\'autista, semplificato.\n\n' +
-      'Auto-compilazione del foglio viaggio digitale, ottimizzazione automatica del percorso, calcolo di km e stipendio, gestione di scontrini e documenti, archivio completo di clienti e consegne.\n\n' +
-      'A fine mese è già tutto ordinato e pronto.\n' +
-      'Meno carta. Meno tempo perso. Più controllo.\n\n' +
-      'ADB Smart — l\'autista organizzato, il titolare felice.';
+    // Requested directly, shortened: the fuller version felt too
+    // long — cut the closing pairing line and the "A fine mese"
+    // sentence, keeping the core title, the single feature paragraph,
+    // and the punchy three-line close.
+    var shareText = 'ADB Smart — tutto il lavoro dell\'autista, semplificato\n' +
+      'Auto-compilazione del foglio viaggio digitale, ottimizzazione automatica del percorso, calcolo di km e stipendio, gestione di scontrini e documenti, archivio completo di clienti e consegne\n' +
+      'Meno carta. Meno tempo perso. Più controllo';
     if (navigator.share) {
       navigator.share({ title: 'ADB Smart', text: shareText, url: shareUrl }).catch(function () { /* person cancelled the native share sheet — not an error */ });
     } else if (navigator.clipboard && navigator.clipboard.writeText) {
