@@ -481,12 +481,32 @@
   // Subtle scroll parallax — the streaks drift slightly slower than the
   // page itself, giving the background a sense of depth rather than
   // feeling flat and pinned to the content.
+  //
+  // REAL BUG, reported directly, precisely: happens specifically when
+  // pinch-zooming and scrolling AT THE SAME TIME. The heavily blurred
+  // (filter: blur(40-60px)), large, already-animated background is
+  // genuinely GPU/compositor-intensive on its own — a native pinch-
+  // zoom gesture ALSO demands significant compositor work to rescale
+  // and reposition the whole page. Doing both simultaneously, while
+  // this handler ALSO keeps pushing new transform updates onto that
+  // same heavy layer, can plausibly overwhelm the renderer on a
+  // mid-range Android device — Chrome's own response to an
+  // overwhelmed/out-of-memory renderer process is to kill and reload
+  // it, which surfaces as exactly the "page failed to load" error
+  // reported, even though the real cause has nothing to do with the
+  // network at all. Paused entirely while an active pinch-zoom is in
+  // progress (visualViewport.scale away from 1) — one less thing
+  // fighting for the same compositor resources at the exact moment
+  // that matters.
   (function () {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     var field = document.getElementById('streaksField');
     var ticking = false;
+    function isZooming() {
+      return window.visualViewport && Math.abs(window.visualViewport.scale - 1) > 0.02;
+    }
     window.addEventListener('scroll', function () {
-      if (ticking) return;
+      if (ticking || isZooming()) return;
       ticking = true;
       requestAnimationFrame(function () {
         var y = window.scrollY * 0.15;
@@ -494,6 +514,20 @@
         ticking = false;
       });
     });
+
+    // Same reasoning, one step further — the streaks' own continuous
+    // CSS animations (blur + movement, running non-stop regardless of
+    // scrolling) add to the SAME compositor load. Paused outright
+    // during an active pinch-zoom, resumed the moment it ends — the
+    // visual difference during a fraction-of-a-second zoom gesture is
+    // imperceptible, but it's real, continuous GPU work removed
+    // exactly when the device needs the headroom most.
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', function () {
+        field.style.animationPlayState = isZooming() ? 'paused' : 'running';
+        document.querySelectorAll('.streak').forEach(function (s) { s.style.animationPlayState = isZooming() ? 'paused' : 'running'; });
+      });
+    }
   })();
 </script>
 
