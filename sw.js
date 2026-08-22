@@ -9,8 +9,29 @@
 //  - Large, rarely-changing files (jsPDF, the comuni database, icons, logo)
 //    stay CACHE-FIRST, so they don't get re-downloaded on every load.
 
-const CACHE_VERSION = 'pt-foglio-v361';
+const CACHE_VERSION = 'pt-foglio-v362';
 const CORE_ASSETS = ['./', './index.html', './app.js', './manifest.json', './version.json'];
+// REAL BUG, reported directly, TWICE — a first attempt excluded these
+// pages from the service worker entirely, reasoning that removing a
+// broken safety net was safer than a broken one. That held up fine on
+// WiFi, but the problem turned out to persist specifically on mobile
+// data ("date mobile, niciodata pe WiFi") — a real, unstable-network
+// symptom that exclusion made WORSE, not better: with no caching at
+// all, ANY flaky mobile-data hiccup during navigation now had zero
+// fallback, guaranteed to surface as a full page failure. Properly
+// cached here instead, network-first with a real cache fallback —
+// same proven strategy as CORE_ASSETS — so a revisit on a shaky
+// connection can actually recover from a cached copy instead of
+// failing outright.
+const MARKETING_PAGES = [
+  './official/', './official/index.html',
+  './guida/foglio-viaggi-digitale/', './guida/foglio-viaggi-digitale/index.html',
+  './guida/itinerario-consegne/', './guida/itinerario-consegne/index.html',
+  './guida/app-per-autisti/', './guida/app-per-autisti/index.html',
+  './guida/quanto-guadagna-autotrasportatore/', './guida/quanto-guadagna-autotrasportatore/index.html',
+  './guida/scontrini-carburante-autisti/', './guida/scontrini-carburante-autisti/index.html',
+  './guida/migliori-app-gratis-autisti/', './guida/migliori-app-gratis-autisti/index.html'
+];
 const STATIC_ASSETS = [
   './icon-192.png',
   './icon-512.png',
@@ -25,9 +46,22 @@ const STATIC_ASSETS = [
 ];
 
 self.addEventListener('install', (event) => {
+  // REAL FRAGILITY, found directly while testing this exact change:
+  // cache.addAll() is all-or-nothing — if even ONE single URL in the
+  // whole list 404s or fails for any reason (a typo, a page renamed
+  // without updating this list, a page not deployed yet), the ENTIRE
+  // install step fails silently, and NOTHING gets cached at all — not
+  // just the one bad entry, every core app file too. Each file is now
+  // tried individually instead, with its own failure caught and
+  // logged — one missing marketing page can never again take down
+  // caching for the whole app.
   event.waitUntil(
     caches.open(CACHE_VERSION)
-      .then((cache) => cache.addAll(CORE_ASSETS.concat(STATIC_ASSETS)))
+      .then((cache) => Promise.all(
+        CORE_ASSETS.concat(MARKETING_PAGES).concat(STATIC_ASSETS).map((url) =>
+          cache.add(url).catch((err) => console.warn('SW install: failed to cache', url, err))
+        )
+      ))
       .then(() => self.skipWaiting())
   );
 });
@@ -43,33 +77,16 @@ self.addEventListener('activate', (event) => {
 function isCoreAsset(url) {
   return CORE_ASSETS.some((path) => url.endsWith(path.replace('./', '/')) || url.endsWith(path));
 }
+function isMarketingPage(url) {
+  return MARKETING_PAGES.some((path) => url.endsWith(path.replace('./', '/')) || url.endsWith(path));
+}
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
   const url = event.request.url;
   const isNavigation = event.request.mode === 'navigate';
 
-  // REAL BUG, reported directly ("cand maresc zoomez pagina da
-  // eroare... impossibile aprire questa pagina", on /official/):
-  // this service worker registers with NO explicit scope, which
-  // defaults to the ROOT of the whole site — meaning it was
-  // intercepting navigation to the separate marketing pages
-  // (/official/, /guida/*) too, even though neither was ever added to
-  // CORE_ASSETS or STATIC_ASSETS during install. Any transient
-  // network hiccup at all — plausible during a vigorous pinch-zoom
-  // gesture, but really anything — made the fetch below fail, and the
-  // .catch() fallback (caches.match) found nothing cached for these
-  // pages, so respondWith() resolved to undefined: exactly the "page
-  // failed to load" error reported. These pages are plain marketing
-  // pages, never meant to be part of this PWA's offline app shell in
-  // the first place — explicitly let the browser handle them
-  // completely normally here, bypassing this service worker (and its
-  // caching) entirely, rather than trying to also cache them (which
-  // would be a workaround for a page that shouldn't be managed here
-  // at all).
-  if (url.indexOf('/official/') !== -1 || url.indexOf('/guida/') !== -1) return;
-
-  if (isNavigation || isCoreAsset(url)) {
+  if (isNavigation || isCoreAsset(url) || isMarketingPage(url)) {
     // Network-first: always try to get the latest app code when online.
     // { cache: 'no-store' } here is deliberate and important — without
     // it, this fetch() can still be satisfied by the BROWSER's own HTTP
