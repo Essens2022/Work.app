@@ -26,6 +26,21 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://adbsmart.it/guida/quanto-guadagna-autotrasportatore</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://adbsmart.it/guida/scontrini-carburante-autisti</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://adbsmart.it/guida/migliori-app-gratis-autisti</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://adbsmart.it/email-confirmed.html</loc>
     <changefreq>monthly</changefreq>
     <priority>0.3</priority>
