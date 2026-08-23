@@ -87,106 +87,38 @@
     min-height:calc(var(--real-vh, 100vh) * 0.92);display:flex;align-items:center;
     position:relative;
   }
-  /* Requested directly: real, professional vehicle photography (the
-     same photo used for the app's own icon) reads as "logistics"
-     immediately — but the earlier attempt placed it sharp and
-     right-anchored, directly behind/under the phone mockups, which
-     looked cluttered, like two competing focal points fighting for
-     the same space. Much simpler, safer approach now: the image
-     spans the FULL hero as a soft, dimmed backdrop — blurred and
-     low-opacity enough to read as texture/atmosphere behind
-     everything, never competing with the phone screenshots or the
-     text for attention. */
-  /* Requested directly, follow-up: "scoatem imaginea, adaugam ceva
-     dinamic, infinit, neon-uri, ce transmite inovatie automatizare" —
-     replaced the photo entirely with an animated, glowing route
-     path — a stylized delivery route with a pulsing dot travelling
-     along it, plus a few "stop" nodes — directly visualizing the
-     actual route-optimization feature, not just abstract decoration.
-     Deliberately GPU-cheap this time (small, contained glow radii,
-     stroke-dashoffset + transform animations only — no large,
-     continuously-blurred layers like the earlier "streaks"
-     background that caused real performance problems). */
-  .hero-route-bg{
-    position:absolute;inset:0;z-index:-2;overflow:hidden;
-    display:flex;align-items:center;justify-content:center;
+  /* Requested directly, follow-up: "aceasta linie ar fi bine sa fie
+     pe intregul site, de sus pana jos... sa mearga ca un zigzag
+     oval... cand ajunge la destinatie, sa se opreasca o secunda".
+     Complete redesign: no longer confined to the hero — a single SVG
+     now spans the FULL page height (measured and set by JS, since
+     content height varies), with a path that zigzags left-right-left
+     down the entire page. The vehicle travels it continuously,
+     genuinely pausing at each node for real time before continuing —
+     built with animateMotion's keyPoints/keyTimes rather than a
+     constant-speed loop. Deliberately GPU-cheap, same principles as
+     before: no large blurred layers, only stroke/opacity/transform. */
+  #fullpage-route{
+    position:absolute;top:0;left:0;width:100%;z-index:0;
+    pointer-events:none;
   }
-  .hero-route-bg svg{width:100%;height:100%;max-width:1400px;opacity:.55;}
-  /* Requested directly: the wide (800x500) path was designed for a
-     landscape canvas — on a narrow mobile screen, "slice" scaling
-     crops away most of its width, so the vehicle and most of the path
-     spent most of their time off-screen. Two separate SVGs now, each
-     with its own path shaped for that aspect ratio — toggled by
-     media query, so the visible one always fits its container
-     properly instead of being cropped. */
-  .route-svg-mobile{display:none;}
-  @media (max-width:760px){
-    .route-svg-desktop{display:none;}
-    .route-svg-mobile{display:block;}
-  }
+  #fullpage-route svg{display:block;opacity:.5;}
   .route-path{
     fill:none;stroke:url(#routeGrad);stroke-width:2.5;stroke-linecap:round;
     filter:drop-shadow(0 0 6px rgba(255,106,0,.8)) drop-shadow(0 0 14px rgba(255,106,0,.4));
-  }
-  .route-pulse{
-    fill:none;stroke:#fff;stroke-width:2.5;stroke-linecap:round;
-    stroke-dasharray:40 3000;
-    animation:route-flow 7s linear infinite;
-    filter:drop-shadow(0 0 8px #fff) drop-shadow(0 0 18px var(--accent));
-  }
-  @keyframes route-flow{
-    0%{stroke-dashoffset:3040;}
-    100%{stroke-dashoffset:0;}
   }
   .route-node{
     fill:#0A0A0A;stroke:var(--accent-2);stroke-width:2;
     filter:drop-shadow(0 0 5px var(--accent-2)) drop-shadow(0 0 12px var(--accent-2));
     animation:node-pulse 2.6s ease-in-out infinite;
   }
-  .route-node:nth-child(2){animation-delay:.4s;}
-  .route-node:nth-child(3){animation-delay:.9s;}
-  .route-node:nth-child(4){animation-delay:1.5s;}
   @keyframes node-pulse{
     0%,100%{opacity:.65;r:5;}
     50%{opacity:1;r:7;}
   }
-  /* Requested directly, follow-up: "ar fi bine sa se vada o masina/
-     un vehicul mergand" — a small glowing marker now actually
-     travels the same path, using SVG's native <animateMotion> (the
-     browser handles the path-following math itself — cheap, no extra
-     JS, no per-frame recalculation). A soft trailing tail behind it
-     sells the sense of movement without needing a second, separate
-     animated element. */
   .route-vehicle{
     fill:#fff;
     filter:drop-shadow(0 0 6px #fff) drop-shadow(0 0 16px var(--accent)) drop-shadow(0 0 28px var(--accent));
-  }
-  /* A second, fainter, offset route in the background — reads as a
-     wider delivery network rather than a single isolated line, adding
-     depth without competing for attention (lower opacity, thinner,
-     no glow). */
-  .route-path-bg{
-    fill:none;stroke:var(--accent-2);stroke-width:1.5;stroke-linecap:round;
-    opacity:.18;
-  }
-  /* A handful of tiny, slowly drifting ambient dots — standing in for
-     "data points" / distant delivery stops. Cheap: opacity+transform
-     only, no blur, no layout thrash. */
-  .ambient-dot{
-    fill:var(--accent);
-    animation:ambient-drift 9s ease-in-out infinite;
-  }
-  .ambient-dot:nth-child(2){animation-delay:1.2s;animation-duration:11s;}
-  .ambient-dot:nth-child(3){animation-delay:2.6s;animation-duration:8s;}
-  .ambient-dot:nth-child(4){animation-delay:.6s;animation-duration:10s;}
-  .ambient-dot:nth-child(5){animation-delay:3.4s;animation-duration:9.5s;}
-  @keyframes ambient-drift{
-    0%,100%{transform:translateY(0);opacity:.25;}
-    50%{transform:translateY(-14px);opacity:.6;}
-  }
-  .hero-route-bg::after{
-    content:'';position:absolute;inset:0;
-    background:radial-gradient(ellipse at center,transparent 30%,var(--bg) 82%);
   }
   .hero-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:60px;align-items:center;}
   .hero h1{
@@ -327,6 +259,8 @@
 </head>
 <body>
 
+<div id="fullpage-route" aria-hidden="true"></div>
+
 <div class="streaks-field" id="streaksField">
   <div class="streak streak-1"></div>
   <div class="streak streak-2"></div>
@@ -340,66 +274,6 @@
 </header>
 
 <section class="hero">
-  <div class="hero-route-bg" aria-hidden="true">
-    <svg class="route-svg-desktop" viewBox="0 0 800 500" preserveAspectRatio="xMidYMid slice">
-      <defs>
-        <linearGradient id="routeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#FF6A00"/>
-          <stop offset="100%" stop-color="#FF3D00"/>
-        </linearGradient>
-      </defs>
-      <!-- Second, fainter route in the background — suggests a wider
-           delivery network, not just one isolated line. -->
-      <path class="route-path-bg" d="M20,150 C120,190 260,140 340,190 S520,260 620,220 S760,340 780,420"/>
-      <!-- Slowly drifting ambient dots — distant "data points". -->
-      <circle class="ambient-dot" cx="130" cy="90" r="3"/>
-      <circle class="ambient-dot" cx="620" cy="60" r="2.5"/>
-      <circle class="ambient-dot" cx="360" cy="420" r="3"/>
-      <circle class="ambient-dot" cx="720" cy="300" r="2"/>
-      <circle class="ambient-dot" cx="180" cy="330" r="2.5"/>
-      <path class="route-path" d="M60,400 C160,380 180,280 280,260 S420,180 460,140 S620,80 740,100"/>
-      <path class="route-pulse" d="M60,400 C160,380 180,280 280,260 S420,180 460,140 S620,80 740,100"/>
-      <circle class="route-node" cx="60" cy="400" r="6"/>
-      <circle class="route-node" cx="280" cy="260" r="6"/>
-      <circle class="route-node" cx="460" cy="140" r="6"/>
-      <circle class="route-node" cx="740" cy="100" r="6"/>
-      <!-- The travelling vehicle marker — a simple glowing dot,
-           following the exact same path shape natively via SVG's own
-           <animateMotion>, synced to the same 7s loop as the pulse. -->
-      <circle class="route-vehicle" r="5">
-        <animateMotion dur="7s" repeatCount="indefinite"
-          path="M60,400 C160,380 180,280 280,260 S420,180 460,140 S620,80 740,100"/>
-      </circle>
-    </svg>
-    <!-- Mobile-specific version: same idea (path + pulse + nodes +
-         travelling vehicle + background path + ambient dots), but
-         with a viewBox and path shaped for a narrow, tall container
-         instead of a wide one — nothing gets cropped out of view. -->
-    <svg class="route-svg-mobile" viewBox="0 0 400 900" preserveAspectRatio="xMidYMid slice">
-      <defs>
-        <linearGradient id="routeGradMobile" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stop-color="#FF6A00"/>
-          <stop offset="100%" stop-color="#FF3D00"/>
-        </linearGradient>
-      </defs>
-      <path class="route-path-bg" d="M340,60 C300,160 360,260 300,340 S220,480 260,560 S180,720 220,820"/>
-      <circle class="ambient-dot" cx="90" cy="120" r="3"/>
-      <circle class="ambient-dot" cx="330" cy="230" r="2.5"/>
-      <circle class="ambient-dot" cx="70" cy="480" r="3"/>
-      <circle class="ambient-dot" cx="320" cy="650" r="2"/>
-      <circle class="ambient-dot" cx="110" cy="780" r="2.5"/>
-      <path class="route-path" style="stroke:url(#routeGradMobile);" d="M80,60 C40,180 140,260 100,380 S200,540 140,640 S60,800 100,860"/>
-      <path class="route-pulse" d="M80,60 C40,180 140,260 100,380 S200,540 140,640 S60,800 100,860"/>
-      <circle class="route-node" cx="80" cy="60" r="6"/>
-      <circle class="route-node" cx="100" cy="380" r="6"/>
-      <circle class="route-node" cx="140" cy="640" r="6"/>
-      <circle class="route-node" cx="100" cy="860" r="6"/>
-      <circle class="route-vehicle" r="5">
-        <animateMotion dur="7s" repeatCount="indefinite"
-          path="M80,60 C40,180 140,260 100,380 S200,540 140,640 S60,800 100,860"/>
-      </circle>
-    </svg>
-  </div>
   <div class="wrap hero-grid">
     <div>
       <h1>Il tuo <span class="grad-text">viaggio</span><br>digitale</h1>
@@ -691,20 +565,127 @@
       window.visualViewport.addEventListener('resize', function () {
         field.style.animationPlayState = isZooming() ? 'paused' : 'running';
         document.querySelectorAll('.streak').forEach(function (s) { s.style.animationPlayState = isZooming() ? 'paused' : 'running'; });
-        // Same reasoning applied to the new route-path animation —
-        // the pulse travelling along the path and the pulsing nodes
-        // are both continuous CSS animations too, paused for the same
-        // reason during an active pinch-zoom.
-        document.querySelectorAll('.route-pulse, .route-node, .ambient-dot').forEach(function (s) { s.style.animationPlayState = isZooming() ? 'paused' : 'running'; });
+        // Same reasoning applied to the full-page route animation —
+        // the pulsing nodes are a continuous CSS animation too, paused
+        // for the same reason during an active pinch-zoom.
+        document.querySelectorAll('.route-node').forEach(function (s) { s.style.animationPlayState = isZooming() ? 'paused' : 'running'; });
         // <animateMotion> is a native SVG animation, not CSS — controlled
-        // through the SVG root's own pause/unpause API instead. Both the
-        // desktop and mobile SVGs exist in the DOM at once (only one is
-        // ever visible via CSS) — controlling both is harmless either way.
-        document.querySelectorAll('.hero-route-bg svg').forEach(function (svg) {
-          isZooming() ? svg.pauseAnimations() : svg.unpauseAnimations();
-        });
+        // through the SVG root's own pause/unpause API instead.
+        var routeSvg = document.querySelector('#fullpage-route svg');
+        if (routeSvg) { isZooming() ? routeSvg.pauseAnimations() : routeSvg.unpauseAnimations(); }
       });
     }
+  })();
+
+  // Requested directly: "aceasta linie ar fi bine sa fie pe intregul
+  // site, de sus pana jos... sa mearga ca un zigzag oval... cand
+  // ajunge la destinatie, sa se opreasca o secunda" — builds the
+  // route dynamically, since the actual page height depends on
+  // content (varies by viewport width, font rendering, etc.) and
+  // can't be hardcoded reliably.
+  (function () {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var container = document.getElementById('fullpage-route');
+    var isMobile = window.innerWidth <= 760;
+    var vbWidth = isMobile ? 400 : 1000;
+    var leftX = isMobile ? 70 : 120;
+    var rightX = isMobile ? 330 : vbWidth - 120;
+    var segmentH = isMobile ? 480 : 420;
+
+    function buildRoute() {
+      var pageHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
+      container.style.height = pageHeight + 'px';
+      var numTurns = Math.max(3, Math.ceil((pageHeight - 80) / segmentH) + 1);
+
+      var points = [];
+      for (var i = 0; i < numTurns; i++) {
+        var x = (i % 2 === 0) ? leftX : rightX;
+        var y = 40 + i * segmentH;
+        points.push([x, y]);
+      }
+
+      var d = 'M' + points[0][0] + ',' + points[0][1];
+      for (var j = 1; j < points.length; j++) {
+        var x0 = points[j - 1][0], y0 = points[j - 1][1];
+        var x1 = points[j][0], y1 = points[j][1];
+        var midY = (y0 + y1) / 2;
+        d += ' C' + x0 + ',' + midY + ' ' + x1 + ',' + midY + ' ' + x1 + ',' + y1;
+      }
+
+      // Real pauses at each node — built via keyPoints/keyTimes rather
+      // than a constant-speed loop. Each node holds the vehicle in
+      // place (repeated keyPoint value) for a real fraction of the
+      // total duration, proportional to a fixed pause length in
+      // seconds; travel between nodes fills the remaining time.
+      var pauseSeconds = 1;
+      var travelSecondsPerSegment = 2.2;
+      var totalSeconds = numTurns * pauseSeconds + (numTurns - 1) * travelSecondsPerSegment;
+      var keyPoints = [];
+      var keyTimes = [];
+      var tAcc = 0;
+      for (var k = 0; k < numTurns; k++) {
+        var p = k / (numTurns - 1);
+        var tArrive = tAcc / totalSeconds;
+        tAcc += pauseSeconds;
+        var tLeave = tAcc / totalSeconds;
+        keyPoints.push(p, p);
+        keyTimes.push(tArrive.toFixed(4), tLeave.toFixed(4));
+        if (k < numTurns - 1) tAcc += travelSecondsPerSegment;
+      }
+      // Guard against floating point landing just short of 1 at the end
+      keyTimes[keyTimes.length - 1] = '1';
+
+      var nodesSvg = points.map(function (pt) {
+        return '<circle class="route-node" cx="' + pt[0] + '" cy="' + pt[1] + '" r="6"/>';
+      }).join('');
+
+      var svg = '<svg viewBox="0 0 ' + vbWidth + ' ' + pageHeight + '" width="100%" height="' + pageHeight + '" preserveAspectRatio="none">' +
+        '<defs><linearGradient id="routeGrad" x1="0%" y1="0%" x2="0%" y2="100%">' +
+        '<stop offset="0%" stop-color="#FF6A00"/><stop offset="100%" stop-color="#FF3D00"/>' +
+        '</linearGradient></defs>' +
+        '<path class="route-path" d="' + d + '"/>' +
+        nodesSvg +
+        '<circle class="route-vehicle" r="5">' +
+        '<animateMotion dur="' + totalSeconds.toFixed(2) + 's" repeatCount="indefinite" ' +
+        'keyPoints="' + keyPoints.join(';') + '" keyTimes="' + keyTimes.join(';') + '" calcMode="linear" ' +
+        'path="' + d + '"/>' +
+        '</circle></svg>';
+      // REAL BUG, found directly, extensively debugged: replacing
+      // container.innerHTML directly, while a PREVIOUS SVG with a
+      // live, running <animateMotion> is already inside it, leaves
+      // the new one permanently frozen — confirmed repeatedly, this
+      // exact freeze happens on ANY rebuild (resize/orientation
+      // change included), not just the specific double-build case
+      // that first surfaced it. Explicitly tearing down the old
+      // content first (empty the container, force the browser to
+      // actually process that removal via a frame boundary) before
+      // inserting the new SVG avoids whatever internal SMIL timeline
+      // conflict causes the freeze.
+      container.innerHTML = '';
+      requestAnimationFrame(function () {
+        container.innerHTML = svg;
+      });
+    }
+
+    buildRoute();
+    // Rebuild after a short delay too — page height can shift slightly
+    // once fonts/images fully settle after the very first measurement.
+    // Safe now that buildRoute() itself tears down before rebuilding
+    // (see comment inside it) — confirmed this specific freeze no
+    // longer happens with that fix in place.
+    setTimeout(buildRoute, 500);
+    var resizeTimer;
+    window.addEventListener('resize', function () {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function () {
+        isMobile = window.innerWidth <= 760;
+        vbWidth = isMobile ? 400 : 1000;
+        leftX = isMobile ? 70 : 120;
+        rightX = isMobile ? 330 : vbWidth - 120;
+        segmentH = isMobile ? 480 : 420;
+        buildRoute();
+      }, 400);
+    });
   })();
 </script>
 
