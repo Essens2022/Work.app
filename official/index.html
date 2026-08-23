@@ -588,26 +588,21 @@
   // content (varies by viewport width, font rendering, etc.) and
   // can't be hardcoded reliably.
   (function () {
-    // TEMPORARY DIAGNOSTIC — requested indirectly: multiple fixes in a
-    // row haven't resolved this on a real iPhone, despite every test
-    // here succeeding. Rather than guess again, this shows exactly
-    // what's happening directly on the page itself — no dev tools
-    // needed. Safe to remove entirely once the real cause is found.
-    var dbg = document.createElement('div');
-    dbg.id = 'route-debug-panel';
-    dbg.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#000;color:#0f0;font:11px monospace;padding:6px 10px;z-index:99999;max-height:35vh;overflow-y:auto;white-space:pre-wrap;border-top:2px solid #0f0;';
-    dbg.textContent = 'route-debug: script started';
-    document.body.appendChild(dbg);
-    function dbgLog(msg) {
-      dbg.textContent += '\n' + msg;
-    }
-    window.addEventListener('error', function (e) {
-      dbgLog('WINDOW ERROR: ' + e.message + ' @ ' + e.filename + ':' + e.lineno);
-    });
-
-    dbgLog('reducedMotion check: starting');
-    var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    dbgLog('reducedMotion = ' + reducedMotion);
+    // REAL BUG, root cause finally confirmed directly, via the
+    // temporary debug panel: this device genuinely reports
+    // prefers-reduced-motion as true (iOS Accessibility → Motion →
+    // Reduce Motion, or similar) — NOT a guess this time, seen
+    // directly in the diagnostic output. This check was ADDED
+    // earlier specifically to fix a DIFFERENT reported issue ("route
+    // disappeared entirely"), based on an INCORRECT diagnosis at the
+    // time — it actually introduced this exact regression instead:
+    // confirmed directly — "inainte de a face modificari linia era
+    // dinamica, totul mergea... mai apoi a incetat" (it worked before
+    // any of these changes, then stopped) — matching precisely when
+    // this reduced-motion check was first added. Removed entirely —
+    // this decorative marketing-page animation now always plays,
+    // regardless of the device's motion preference, since that's
+    // explicitly what's wanted here.
     var container = document.getElementById('fullpage-route');
     var isMobile = window.innerWidth <= 760;
     var vbWidth = isMobile ? 400 : 1000;
@@ -616,7 +611,6 @@
     var segmentH = isMobile ? 480 : 420;
 
     function buildRoute() {
-      dbgLog('buildRoute() called');
       var pageHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
       container.style.height = pageHeight + 'px';
       var numTurns = Math.max(3, Math.ceil((pageHeight - 80) / segmentH) + 1);
@@ -662,7 +656,7 @@
       var vehicleCount = 0;
       var traversalSeconds = 0;
       var vehiclesSvg = '';
-      if (!reducedMotion) {
+      {
         var totalLength = 0;
         for (var m = 1; m < points.length; m++) {
           var dx = points[m][0] - points[m - 1][0];
@@ -724,8 +718,7 @@
       container.innerHTML = '';
       requestAnimationFrame(function () {
         container.innerHTML = svg;
-        dbgLog('SVG inserted, vehicleCount=' + vehicleCount + ' traversalSeconds=' + traversalSeconds.toFixed(1));
-        if (!reducedMotion) startVehicleAnimation(vehicleCount, traversalSeconds);
+        startVehicleAnimation(vehicleCount, traversalSeconds);
       });
     }
 
@@ -736,29 +729,21 @@
     // without either module needing to know the other's internals.
     window.__setRouteAnimPaused = function (paused) { animPaused = paused; };
     function startVehicleAnimation(vehicleCount, traversalSeconds) {
-      dbgLog('startVehicleAnimation() called, vehicleCount=' + vehicleCount);
       if (rafId) cancelAnimationFrame(rafId);
       var pathEl = container.querySelector('#routePathEl');
-      if (!pathEl) { dbgLog('ERROR: pathEl not found!'); return; }
+      if (!pathEl) return;
       var totalLen;
       try {
         totalLen = pathEl.getTotalLength();
-        dbgLog('getTotalLength() OK = ' + totalLen.toFixed(1));
       } catch (e) {
-        dbgLog('ERROR calling getTotalLength(): ' + e.message);
         return;
       }
       var vehicles = container.querySelectorAll('.route-vehicle');
-      dbgLog('vehicles found in DOM = ' + vehicles.length);
       var spawnIntervalSeconds = 3;
       var startTime = null;
       var lastFrameTime = null;
-      var frameCount = 0;
 
       function frame(now) {
-        frameCount++;
-        if (frameCount === 1) dbgLog('first rAF frame fired');
-        if (frameCount === 30) dbgLog('30th rAF frame fired (still running)');
         if (startTime === null) { startTime = now; lastFrameTime = now; }
         if (animPaused) {
           // Shift the reference start time forward by exactly however
@@ -788,11 +773,7 @@
       rafId = requestAnimationFrame(frame);
     }
 
-    try {
-      buildRoute();
-    } catch (e) {
-      dbgLog('CAUGHT ERROR in buildRoute(): ' + e.message + ' | stack: ' + (e.stack || 'n/a').slice(0, 200));
-    }
+    buildRoute();
     // Rebuild after a short delay too — page height can shift slightly
     // once fonts/images fully settle after the very first measurement.
     // Safe now that buildRoute() itself tears down before rebuilding
