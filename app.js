@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v365") {
+          if (data && data.v && data.v !== "pt-foglio-v367") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v365"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v367"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -8224,6 +8224,7 @@
     if (iconCoin) iconCoin.innerHTML = svgIcon('coin');
     var iconIdBadge = document.getElementById('settings-icon-idbadge');
     if (iconIdBadge) iconIdBadge.innerHTML = svgIcon('idbadge');
+    renderDriverIdRow();
 
     var infoToggle = document.getElementById('settings-info-toggle');
     var infoPanel = document.getElementById('settings-info-panel');
@@ -8233,7 +8234,7 @@
     }
 
     var versionEl = document.getElementById('settings-version-display');
-    // Requested directly: "pt-foglio-v365" read as an ugly, internal-
+    // Requested directly: "pt-foglio-v367" read as an ugly, internal-
     // looking string — the number itself matters (still needed to
     // confirm a fresh build reached the phone), the "pt-foglio-"
     // prefix doesn't. Shown as "ADB Smart · v335" instead — same
@@ -8418,6 +8419,7 @@
     // this device notices within about a second, not just next time it
     // happens to reopen.
     watchForAccountDeletion(email);
+    assignDriverIdIfNeeded(); // covers accounts confirmed before this feature existed — assigned on next app open, not just at the moment of confirmation
   }
 
   var accountDeletionChannel = null;
@@ -8521,6 +8523,67 @@
     // Keep watching, live, in case this same account gets deleted later
     // (e.g. from a browser tab) while this device stays open.
     watchForAccountDeletion(currentAccountEmail());
+    assignDriverIdIfNeeded();
+  }
+
+  // Shows the driver's permanent ID in Impostazioni, once assigned —
+  // stays hidden entirely until then, rather than showing an empty or
+  // "pending" row. Tapping it copies the ID, since the whole point of
+  // having one is to hand it to someone else (support, or eventually
+  // an office/dispatcher) without having to type it out by hand.
+  function renderDriverIdRow() {
+    var row = document.getElementById('settings-driver-id-row');
+    if (!row) return;
+    if (!state.profile.driverId) { row.style.display = 'none'; return; }
+    row.style.display = 'flex';
+    document.getElementById('settings-driver-id-value').textContent = state.profile.driverId;
+    if (row.dataset.wired) return; // listener attached once, ever — the row's own content updates independently on future opens
+    row.dataset.wired = '1';
+    row.addEventListener('click', function () {
+      var id = state.profile.driverId;
+      if (!id) return;
+      var copyPromise = (navigator.clipboard && navigator.clipboard.writeText)
+        ? navigator.clipboard.writeText(id)
+        : Promise.reject();
+      copyPromise.then(function () { toast('ID copiato: ' + id); })
+        .catch(function () {
+          // Clipboard API unavailable (older iOS webview, non-secure
+          // context) — fall back to the classic selection+execCommand
+          // trick rather than leaving the tap silently do nothing.
+          var tmp = document.createElement('textarea');
+          tmp.value = id; tmp.style.position = 'fixed'; tmp.style.opacity = '0';
+          document.body.appendChild(tmp); tmp.focus(); tmp.select();
+          try { document.execCommand('copy'); toast('ID copiato: ' + id); } catch (e) { /* nothing more to try */ }
+          document.body.removeChild(tmp);
+        });
+    });
+  }
+
+  // A permanent, unique identity number for this account — like a
+  // codice fiscale for the app itself. Two initials from the driver's
+  // name, plus a number that only ever goes up, globally, across every
+  // driver who has ever confirmed an account — assigned once, the
+  // first time a genuine confirmation happens, and never reassigned
+  // or reused afterward. Safe to call more than once: the database
+  // function itself returns the SAME id on every later call for the
+  // same email, it never generates a second one.
+  function assignDriverIdIfNeeded() {
+    var email = currentAccountEmail();
+    if (!email || !state.profile.nome) return;
+    if (state.profile.driverId) return; // already have one, cached locally — no need to ask again
+    fetch(SUPABASE_URL + '/rest/v1/rpc/assign_driver_id', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+      body: JSON.stringify({ p_email: email, p_full_name: state.profile.nome })
+    }).then(function (res) { return res.json(); })
+      .then(function (driverId) {
+        if (driverId && typeof driverId === 'string') {
+          state.profile.driverId = driverId;
+          saveProfile(state.profile);
+          renderDriverIdRow();
+        }
+      })
+      .catch(function () { /* offline or blocked — tried again next time this same confirmation path runs */ });
   }
 
   // Tapping "Continua" on the just-confirmed screen — the actual close,
