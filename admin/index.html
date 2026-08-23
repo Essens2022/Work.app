@@ -73,6 +73,10 @@
   }
   .person-email{font-size:12px;color:var(--ink-faint);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .person-lastseen{font-size:11.5px;color:var(--ink-faint);white-space:nowrap;flex:none;}
+  .opens-today-badge{
+    flex:none;width:22px;height:22px;border-radius:5px;background:var(--surface-2);
+    display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:var(--accent);
+  }
   .chevron{color:var(--ink-faint);flex:none;transition:transform .15s ease;font-size:13px;}
   .person-card.open .chevron{transform:rotate(90deg);}
   .person-detail{display:none;padding:0 16px 16px;border-top:1px solid var(--line);}
@@ -239,7 +243,7 @@
           key: key, nome: d.nome || '(senza nome)', targa: d.targa || '—',
           _latestForNameTarga: null, _latestWithRealActivity: null, _fallbackNome: null, _hasOfficialName: false,
           emails: {}, deviceIds: [], devices: [], hidden: true, lastActive: null, lastHeartbeat: null,
-          sheetsByKey: {}, activeMonth: null, activeYear: null, dailyRate: null, driverId: null
+          sheetsByKey: {}, activeMonth: null, activeYear: null, dailyRate: null, driverId: null, opensToday: 0
         };
       }
       var g = groups[key];
@@ -269,6 +273,7 @@
       g.devices.push({ device_id: d.device_id, nome: d.nome || '(senza nome)', targa: d.targa || '—', last_active: d.last_active });
       if (d.account_email) g.emails[d.account_email] = true;
       if (d.driver_id && !g.driverId) g.driverId = d.driver_id;
+      g.opensToday += Number(d.opens_today) || 0;
       // Group is "hidden" only if EVERY device under it is hidden.
       if (!d.hidden) g.hidden = false;
       if (d.last_active && (!g.lastActive || d.last_active > g.lastActive)) g.lastActive = d.last_active;
@@ -343,6 +348,7 @@
     html += '<div class="person-name">' + g.nome + (g.driverId ? ' <span class="person-id-badge">' + g.driverId + '</span>' : '') + '</div>';
     if (g.emailList.length) html += '<div class="person-email">' + g.emailList.join(', ') + '</div>';
     html += '</div>';
+    if (g.opensToday > 0) html += '<div class="opens-today-badge" title="Aperture app oggi">' + g.opensToday + '</div>';
     html += '<div class="person-lastseen">' + (g.isLive ? 'Live ora' : formatRelative(g.lastSeen)) + '</div>';
     html += '<div class="chevron">▶</div>';
     html += '</div>';
