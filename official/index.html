@@ -658,7 +658,18 @@
           var dy = points[m][1] - points[m - 1][1];
           totalLength += Math.sqrt(dx * dx + dy * dy);
         }
-        var speedPxPerSecond = 140;
+        // Requested directly: at 140px/s, a full traversal of a real
+        // page (thousands of px tall) took nearly a MINUTE — far too
+        // slow to notice within a normal glance at the page, even
+        // though the underlying mechanism itself works correctly
+        // (confirmed by measuring the actual rendered curve length
+        // directly: ~7765 units for a 6604px-tall mobile page, close
+        // to but slightly under the straight-line estimate — the
+        // math wasn't wrong, the chosen speed just was). Increased
+        // substantially so movement is unmistakable within a couple
+        // of seconds, not something you need to stare at for a while
+        // to notice.
+        var speedPxPerSecond = 380;
         traversalSeconds = Math.max(6, totalLength / speedPxPerSecond);
         var spawnIntervalSeconds = 3;
         vehicleCount = Math.max(2, Math.ceil(traversalSeconds / spawnIntervalSeconds));
