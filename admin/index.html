@@ -46,6 +46,12 @@
   .btn-ghost{background:var(--surface-2);color:var(--ink);border:1px solid var(--line);}
   .btn-sm{padding:8px 12px;font-size:12.5px;border-radius:8px;font-weight:600;}
   .toolbar{display:flex;gap:10px;margin-bottom:16px;}
+  .search-input{
+    width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid var(--line);
+    font-size:14px;margin-bottom:16px;background:var(--surface);color:var(--ink);
+  }
+  .search-input::placeholder{color:var(--ink-faint);}
+  .search-input:focus{outline:none;border-color:var(--accent);}
   .toolbar button{flex:1;}
   .section-title{font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-faint);margin:22px 0 10px;}
   .section-title:first-child{margin-top:0;}
@@ -61,6 +67,10 @@
   }
   .person-main{flex:1;min-width:0;}
   .person-name{font-weight:800;font-size:15px;}
+  .person-id-badge{
+    display:inline-block;font-size:10.5px;font-weight:700;color:var(--ink-faint);
+    background:var(--surface-2);border-radius:6px;padding:2px 7px;margin-left:6px;vertical-align:middle;
+  }
   .person-email{font-size:12px;color:var(--ink-faint);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .person-lastseen{font-size:11.5px;color:var(--ink-faint);white-space:nowrap;flex:none;}
   .chevron{color:var(--ink-faint);flex:none;transition:transform .15s ease;font-size:13px;}
@@ -120,6 +130,7 @@
       <button id="refresh-btn" class="btn-ghost">↻ Aggiorna</button>
       <button id="toggle-hidden-btn" class="btn-ghost">Mostra nascosti</button>
     </div>
+    <input id="driver-search" type="text" placeholder="Cerca per ID, email, nome o cognome…" class="search-input" autocomplete="off">
     <div id="drivers-list"></div>
   </div>
 </div>
@@ -133,6 +144,7 @@
     : null;
   var currentPassword = '';
   var showHidden = false;
+  var searchQuery = '';
   var lastGroups = [];
   var openGroupKeys = {};
   var refreshTimer = null;
@@ -200,6 +212,12 @@
 
   var MESI = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
 
+  function escapeHtmlAdmin(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
   // Groups raw per-device rows into one entry per real person, matched by
   // normalized name+targa — the closest thing to a reliable identity for
   // drivers who haven't registered with email, and a safety net even for
@@ -221,7 +239,7 @@
           key: key, nome: d.nome || '(senza nome)', targa: d.targa || '—',
           _latestForNameTarga: null, _latestWithRealActivity: null, _fallbackNome: null, _hasOfficialName: false,
           emails: {}, deviceIds: [], devices: [], hidden: true, lastActive: null, lastHeartbeat: null,
-          sheetsByKey: {}, activeMonth: null, activeYear: null, dailyRate: null
+          sheetsByKey: {}, activeMonth: null, activeYear: null, dailyRate: null, driverId: null
         };
       }
       var g = groups[key];
@@ -250,6 +268,7 @@
       g.deviceIds.push(d.device_id);
       g.devices.push({ device_id: d.device_id, nome: d.nome || '(senza nome)', targa: d.targa || '—', last_active: d.last_active });
       if (d.account_email) g.emails[d.account_email] = true;
+      if (d.driver_id && !g.driverId) g.driverId = d.driver_id;
       // Group is "hidden" only if EVERY device under it is hidden.
       if (!d.hidden) g.hidden = false;
       if (d.last_active && (!g.lastActive || d.last_active > g.lastActive)) g.lastActive = d.last_active;
@@ -321,7 +340,7 @@
     html += '<div class="person-row" data-toggle-open="' + g.key + '">';
     html += '<div class="live-dot' + (g.isLive ? ' is-live' : '') + '"></div>';
     html += '<div class="person-main">';
-    html += '<div class="person-name">' + g.nome + '</div>';
+    html += '<div class="person-name">' + g.nome + (g.driverId ? ' <span class="person-id-badge">' + g.driverId + '</span>' : '') + '</div>';
     if (g.emailList.length) html += '<div class="person-email">' + g.emailList.join(', ') + '</div>';
     html += '</div>';
     html += '<div class="person-lastseen">' + (g.isLive ? 'Live ora' : formatRelative(g.lastSeen)) + '</div>';
@@ -398,8 +417,19 @@
       return;
     }
     var visible = lastGroups.filter(function (g) { return showHidden || !g.hidden; });
+    if (searchQuery) {
+      var q = searchQuery.trim().toLowerCase();
+      visible = visible.filter(function (g) {
+        var haystack = [
+          g.nome || '',
+          g.driverId || '',
+          Object.keys(g.emails).join(' ')
+        ].join(' ').toLowerCase();
+        return haystack.indexOf(q) !== -1;
+      });
+    }
     if (!visible.length) {
-      el.innerHTML = '<div class="card empty">Nessuno da mostrare — prova "Mostra nascosti".</div>';
+      el.innerHTML = '<div class="card empty">' + (searchQuery ? 'Nessun autista trovato per "' + escapeHtmlAdmin(searchQuery) + '".' : 'Nessuno da mostrare — prova "Mostra nascosti".') + '</div>';
       return;
     }
     visible.sort(function (a, b) {
@@ -510,6 +540,11 @@
   document.getElementById('toggle-hidden-btn').addEventListener('click', function () {
     showHidden = !showHidden;
     document.getElementById('toggle-hidden-btn').textContent = showHidden ? 'Nascondi i nascosti' : 'Mostra nascosti';
+    renderDrivers(lastGroupsRaw);
+  });
+
+  document.getElementById('driver-search').addEventListener('input', function (e) {
+    searchQuery = e.target.value;
     renderDrivers(lastGroupsRaw);
   });
 
