@@ -59,6 +59,22 @@
      entirely, not just paused, for the duration of an active zoom.
   */
   body.zoom-active .streak{filter:none!important;}
+  /* Requested directly, follow-up: the crash persisted even after
+     removing the streaks' blur — reported clearly this time: a black
+     square appears and part of the page stops rendering, ANYWHERE on
+     the page (top or bottom), the moment a pinch-zoom happens. That
+     "anywhere" detail points squarely at #fullpage-route — a single
+     SVG element that spans the ENTIRE page height (several thousand
+     pixels on a long page), containing many nodes/vehicles and their
+     filters. Mobile browsers have well-documented tile-rendering
+     limits for very large elements; a pinch-zoom forces the whole
+     thing to be re-rasterized at the new scale, and a tile that fails
+     to render shows up as exactly this kind of blank/black rectangle
+     — independent of scroll position, since the ONE oversized element
+     spans the whole page regardless of where the zoom happens.
+     Hidden entirely during an active zoom — restored the instant it
+     ends, same pattern already used for the streaks. */
+  body.zoom-active #fullpage-route{display:none!important;}
   .streak-1{top:8%;transform:rotate(-35deg);animation:streak-move-1 22s ease-in-out infinite;}
   .streak-2{top:38%;transform:rotate(-35deg);animation:streak-move-2 28s ease-in-out infinite;animation-delay:-6s;height:2px;filter:blur(50px);}
   .streak-3{top:65%;transform:rotate(-35deg);animation:streak-move-1 25s ease-in-out infinite;animation-delay:-12s;filter:blur(60px);opacity:0.25;}
