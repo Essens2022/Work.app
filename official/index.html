@@ -112,6 +112,18 @@
     display:flex;align-items:center;justify-content:center;
   }
   .hero-route-bg svg{width:100%;height:100%;max-width:1400px;opacity:.55;}
+  /* Requested directly: the wide (800x500) path was designed for a
+     landscape canvas — on a narrow mobile screen, "slice" scaling
+     crops away most of its width, so the vehicle and most of the path
+     spent most of their time off-screen. Two separate SVGs now, each
+     with its own path shaped for that aspect ratio — toggled by
+     media query, so the visible one always fits its container
+     properly instead of being cropped. */
+  .route-svg-mobile{display:none;}
+  @media (max-width:760px){
+    .route-svg-desktop{display:none;}
+    .route-svg-mobile{display:block;}
+  }
   .route-path{
     fill:none;stroke:url(#routeGrad);stroke-width:2.5;stroke-linecap:round;
     filter:drop-shadow(0 0 6px rgba(255,106,0,.8)) drop-shadow(0 0 14px rgba(255,106,0,.4));
@@ -329,7 +341,7 @@
 
 <section class="hero">
   <div class="hero-route-bg" aria-hidden="true">
-    <svg viewBox="0 0 800 500" preserveAspectRatio="xMidYMid slice">
+    <svg class="route-svg-desktop" viewBox="0 0 800 500" preserveAspectRatio="xMidYMid slice">
       <defs>
         <linearGradient id="routeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stop-color="#FF6A00"/>
@@ -357,6 +369,34 @@
       <circle class="route-vehicle" r="5">
         <animateMotion dur="7s" repeatCount="indefinite"
           path="M60,400 C160,380 180,280 280,260 S420,180 460,140 S620,80 740,100"/>
+      </circle>
+    </svg>
+    <!-- Mobile-specific version: same idea (path + pulse + nodes +
+         travelling vehicle + background path + ambient dots), but
+         with a viewBox and path shaped for a narrow, tall container
+         instead of a wide one — nothing gets cropped out of view. -->
+    <svg class="route-svg-mobile" viewBox="0 0 400 900" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <linearGradient id="routeGradMobile" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#FF6A00"/>
+          <stop offset="100%" stop-color="#FF3D00"/>
+        </linearGradient>
+      </defs>
+      <path class="route-path-bg" d="M340,60 C300,160 360,260 300,340 S220,480 260,560 S180,720 220,820"/>
+      <circle class="ambient-dot" cx="90" cy="120" r="3"/>
+      <circle class="ambient-dot" cx="330" cy="230" r="2.5"/>
+      <circle class="ambient-dot" cx="70" cy="480" r="3"/>
+      <circle class="ambient-dot" cx="320" cy="650" r="2"/>
+      <circle class="ambient-dot" cx="110" cy="780" r="2.5"/>
+      <path class="route-path" style="stroke:url(#routeGradMobile);" d="M80,60 C40,180 140,260 100,380 S200,540 140,640 S60,800 100,860"/>
+      <path class="route-pulse" d="M80,60 C40,180 140,260 100,380 S200,540 140,640 S60,800 100,860"/>
+      <circle class="route-node" cx="80" cy="60" r="6"/>
+      <circle class="route-node" cx="100" cy="380" r="6"/>
+      <circle class="route-node" cx="140" cy="640" r="6"/>
+      <circle class="route-node" cx="100" cy="860" r="6"/>
+      <circle class="route-vehicle" r="5">
+        <animateMotion dur="7s" repeatCount="indefinite"
+          path="M80,60 C40,180 140,260 100,380 S200,540 140,640 S60,800 100,860"/>
       </circle>
     </svg>
   </div>
@@ -657,9 +697,12 @@
         // reason during an active pinch-zoom.
         document.querySelectorAll('.route-pulse, .route-node, .ambient-dot').forEach(function (s) { s.style.animationPlayState = isZooming() ? 'paused' : 'running'; });
         // <animateMotion> is a native SVG animation, not CSS — controlled
-        // through the SVG root's own pause/unpause API instead.
-        var routeSvg = document.querySelector('.hero-route-bg svg');
-        if (routeSvg) { isZooming() ? routeSvg.pauseAnimations() : routeSvg.unpauseAnimations(); }
+        // through the SVG root's own pause/unpause API instead. Both the
+        // desktop and mobile SVGs exist in the DOM at once (only one is
+        // ever visible via CSS) — controlling both is harmless either way.
+        document.querySelectorAll('.hero-route-bg svg').forEach(function (svg) {
+          isZooming() ? svg.pauseAnimations() : svg.unpauseAnimations();
+        });
       });
     }
   })();
