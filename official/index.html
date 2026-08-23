@@ -613,6 +613,14 @@
         var y = 40 + i * segmentH;
         points.push([x, y]);
       }
+      // Requested directly: the last point could overshoot the real
+      // page height by a bit (numTurns rounds up to make sure the
+      // route always reaches far enough) — clamped dynamically here,
+      // to whatever pageHeight actually measures for THIS page, on
+      // THIS load, rather than a fixed number. Ensures the route ends
+      // exactly at the true bottom of the page every time, regardless
+      // of how tall the content turns out to be.
+      points[points.length - 1][1] = pageHeight - 40;
 
       var d = 'M' + points[0][0] + ',' + points[0][1];
       for (var j = 1; j < points.length; j++) {
@@ -634,7 +642,11 @@
         // total duration, proportional to a fixed pause length in
         // seconds; travel between nodes fills the remaining time.
         var pauseSeconds = 1;
-        var travelSecondsPerSegment = 2.2;
+        // Requested directly: pause 1s at each node, then arrive at
+        // the NEXT one 3 seconds after leaving the previous — so
+        // travel itself takes exactly 2s (1s pause + 2s travel = 3s
+        // total per node-to-node cycle).
+        var travelSecondsPerSegment = 2;
         var totalSeconds = numTurns * pauseSeconds + (numTurns - 1) * travelSecondsPerSegment;
         var keyPoints = [];
         var keyTimes = [];
