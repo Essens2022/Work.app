@@ -44,6 +44,21 @@
     background:linear-gradient(90deg,transparent,var(--accent),var(--accent-2),transparent);
     filter:blur(40px);opacity:0.35;border-radius:100px;
   }
+  /* Requested directly: /official/ crashing entirely on pinch-zoom
+     ("impossibile aprire questa pagina") — confirmed this predates the
+     route/vehicle animation entirely, so the cause sits somewhere
+     older. The streaks were already suspected for exactly this kind
+     of crash (see comment further down) and their CONTINUOUS
+     ANIMATION was already paused during active zoom — but the actual
+     blur filter itself (up to 60px, on position:fixed elements
+     covering the full viewport) was never removed, only its
+     animation. A static blur filter still has to be fully
+     recomposited by the browser at every new scale during a pinch
+     gesture, whether or not the element is animating — pausing the
+     animation alone doesn't reduce that cost at all. Removed
+     entirely, not just paused, for the duration of an active zoom.
+  */
+  body.zoom-active .streak{filter:none!important;}
   .streak-1{top:8%;transform:rotate(-35deg);animation:streak-move-1 22s ease-in-out infinite;}
   .streak-2{top:38%;transform:rotate(-35deg);animation:streak-move-2 28s ease-in-out infinite;animation-delay:-6s;height:2px;filter:blur(50px);}
   .streak-3{top:65%;transform:rotate(-35deg);animation:streak-move-1 25s ease-in-out infinite;animation-delay:-12s;filter:blur(60px);opacity:0.25;}
@@ -574,6 +589,7 @@
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', function () {
         field.style.animationPlayState = isZooming() ? 'paused' : 'running';
+        document.body.classList.toggle('zoom-active', isZooming());
         document.querySelectorAll('.streak').forEach(function (s) { s.style.animationPlayState = isZooming() ? 'paused' : 'running'; });
         // Same reasoning applied to the full-page route animation —
         // the pulsing nodes are a continuous CSS animation too, paused
