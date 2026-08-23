@@ -90,15 +90,18 @@
   }
   /* Requested directly, follow-up: "aceasta linie ar fi bine sa fie
      pe intregul site, de sus pana jos... sa mearga ca un zigzag
-     oval... cand ajunge la destinatie, sa se opreasca o secunda".
-     Complete redesign: no longer confined to the hero — a single SVG
-     now spans the FULL page height (measured and set by JS, since
-     content height varies), with a path that zigzags left-right-left
-     down the entire page. The vehicle travels it continuously,
-     genuinely pausing at each node for real time before continuing —
-     built with animateMotion's keyPoints/keyTimes rather than a
-     constant-speed loop. Deliberately GPU-cheap, same principles as
-     before: no large blurred layers, only stroke/opacity/transform. */
+     oval". Complete redesign: no longer confined to the hero — a
+     single SVG now spans the FULL page height (measured and set by
+     JS, since content height varies), with a path that zigzags
+     left-right-left down the entire page.
+     Requested directly, second follow-up: "nu neaparat sa fie cate
+     unul... in timp ce unul se deplaseaza poate aparea altul... la
+     fiecare 3 secunde... cel vechi isi continua cursa cu viteza lui
+     fluida" — several vehicles travel it at once now, each at a
+     constant speed, a new one starting every 3 seconds, completely
+     independent of the others (no more pause-at-node behavior).
+     Deliberately GPU-cheap, same principles as before: no large
+     blurred layers, only stroke/opacity/transform. */
   #fullpage-route{
     position:absolute;top:0;left:0;width:100%;z-index:0;
     pointer-events:none;
@@ -634,39 +637,36 @@
         return '<circle class="route-node" cx="' + pt[0] + '" cy="' + pt[1] + '" r="6"/>';
       }).join('');
 
-      var vehicleSvg = '';
+      var vehiclesSvg = '';
       if (!reducedMotion) {
-        // Real pauses at each node — built via keyPoints/keyTimes rather
-        // than a constant-speed loop. Each node holds the vehicle in
-        // place (repeated keyPoint value) for a real fraction of the
-        // total duration, proportional to a fixed pause length in
-        // seconds; travel between nodes fills the remaining time.
-        var pauseSeconds = 1;
-        // Requested directly: pause 1s at each node, then arrive at
-        // the NEXT one 3 seconds after leaving the previous — so
-        // travel itself takes exactly 2s (1s pause + 2s travel = 3s
-        // total per node-to-node cycle).
-        var travelSecondsPerSegment = 2;
-        var totalSeconds = numTurns * pauseSeconds + (numTurns - 1) * travelSecondsPerSegment;
-        var keyPoints = [];
-        var keyTimes = [];
-        var tAcc = 0;
-        for (var k = 0; k < numTurns; k++) {
-          var p = k / (numTurns - 1);
-          var tArrive = tAcc / totalSeconds;
-          tAcc += pauseSeconds;
-          var tLeave = tAcc / totalSeconds;
-          keyPoints.push(p, p);
-          keyTimes.push(tArrive.toFixed(4), tLeave.toFixed(4));
-          if (k < numTurns - 1) tAcc += travelSecondsPerSegment;
+        // Requested directly, follow-up: not one vehicle pausing at
+        // each stop — several travelling at once, a new one starting
+        // every 3 seconds, each moving smoothly at its own constant
+        // speed, completely independent of when the others started.
+        // Total traversal time is based on the path's actual
+        // (approximate) length at a fixed speed, so a taller page
+        // takes proportionally longer to cross — the visual SPEED
+        // stays constant everywhere, only the duration changes.
+        var totalLength = 0;
+        for (var m = 1; m < points.length; m++) {
+          var dx = points[m][0] - points[m - 1][0];
+          var dy = points[m][1] - points[m - 1][1];
+          totalLength += Math.sqrt(dx * dx + dy * dy);
         }
-        // Guard against floating point landing just short of 1 at the end
-        keyTimes[keyTimes.length - 1] = '1';
-        vehicleSvg = '<circle class="route-vehicle" r="5">' +
-          '<animateMotion dur="' + totalSeconds.toFixed(2) + 's" repeatCount="indefinite" ' +
-          'keyPoints="' + keyPoints.join(';') + '" keyTimes="' + keyTimes.join(';') + '" calcMode="linear" ' +
-          'path="' + d + '"/>' +
-          '</circle>';
+        var speedPxPerSecond = 140;
+        var traversalSeconds = Math.max(6, totalLength / speedPxPerSecond);
+        var spawnIntervalSeconds = 3;
+        // Enough simultaneous vehicles that, once the first has looped
+        // back around, the NEXT one is always already mid-journey —
+        // never a gap with nothing moving on the path.
+        var vehicleCount = Math.max(2, Math.ceil(traversalSeconds / spawnIntervalSeconds));
+        for (var v = 0; v < vehicleCount; v++) {
+          var beginDelay = (v * spawnIntervalSeconds).toFixed(2);
+          vehiclesSvg += '<circle class="route-vehicle" r="5">' +
+            '<animateMotion dur="' + traversalSeconds.toFixed(2) + 's" begin="' + beginDelay + 's" ' +
+            'repeatCount="indefinite" calcMode="linear" path="' + d + '"/>' +
+            '</circle>';
+        }
       }
 
       var svg = '<svg viewBox="0 0 ' + vbWidth + ' ' + pageHeight + '" width="100%" height="' + pageHeight + '" preserveAspectRatio="none">' +
@@ -674,7 +674,7 @@
         '<stop offset="0%" stop-color="#FF6A00"/><stop offset="100%" stop-color="#FF3D00"/>' +
         '</linearGradient></defs>' +
         '<path class="route-path" d="' + d + '"/>' +
-        nodesSvg + vehicleSvg + '</svg>';
+        nodesSvg + vehiclesSvg + '</svg>';
       // REAL BUG, found directly, extensively debugged: replacing
       // container.innerHTML directly, while a PREVIOUS SVG with a
       // live, running <animateMotion> is already inside it, leaves
