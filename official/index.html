@@ -97,18 +97,50 @@
      low-opacity enough to read as texture/atmosphere behind
      everything, never competing with the phone screenshots or the
      text for attention. */
-  .hero-truck-bg{
+  /* Requested directly, follow-up: "scoatem imaginea, adaugam ceva
+     dinamic, infinit, neon-uri, ce transmite inovatie automatizare" —
+     replaced the photo entirely with an animated, glowing route
+     path — a stylized delivery route with a pulsing dot travelling
+     along it, plus a few "stop" nodes — directly visualizing the
+     actual route-optimization feature, not just abstract decoration.
+     Deliberately GPU-cheap this time (small, contained glow radii,
+     stroke-dashoffset + transform animations only — no large,
+     continuously-blurred layers like the earlier "streaks"
+     background that caused real performance problems). */
+  .hero-route-bg{
     position:absolute;inset:0;z-index:-2;overflow:hidden;
+    display:flex;align-items:center;justify-content:center;
   }
-  .hero-truck-bg img{
-    position:absolute;inset:0;width:100%;height:100%;
-    object-fit:cover;object-position:center 30%;
-    filter:blur(6px) brightness(.55) saturate(1.1);
-    transform:scale(1.05);
+  .hero-route-bg svg{width:100%;height:100%;max-width:1400px;opacity:.55;}
+  .route-path{
+    fill:none;stroke:url(#routeGrad);stroke-width:2.5;stroke-linecap:round;
+    filter:drop-shadow(0 0 6px rgba(255,106,0,.8)) drop-shadow(0 0 14px rgba(255,106,0,.4));
   }
-  .hero-truck-bg::after{
+  .route-pulse{
+    fill:none;stroke:#fff;stroke-width:2.5;stroke-linecap:round;
+    stroke-dasharray:40 3000;
+    animation:route-flow 7s linear infinite;
+    filter:drop-shadow(0 0 8px #fff) drop-shadow(0 0 18px var(--accent));
+  }
+  @keyframes route-flow{
+    0%{stroke-dashoffset:3040;}
+    100%{stroke-dashoffset:0;}
+  }
+  .route-node{
+    fill:#0A0A0A;stroke:var(--accent-2);stroke-width:2;
+    filter:drop-shadow(0 0 5px var(--accent-2)) drop-shadow(0 0 12px var(--accent-2));
+    animation:node-pulse 2.6s ease-in-out infinite;
+  }
+  .route-node:nth-child(2){animation-delay:.4s;}
+  .route-node:nth-child(3){animation-delay:.9s;}
+  .route-node:nth-child(4){animation-delay:1.5s;}
+  @keyframes node-pulse{
+    0%,100%{opacity:.65;r:5;}
+    50%{opacity:1;r:7;}
+  }
+  .hero-route-bg::after{
     content:'';position:absolute;inset:0;
-    background:linear-gradient(180deg,var(--bg) 0%,rgba(10,10,10,.55) 30%,rgba(10,10,10,.55) 70%,var(--bg) 100%);
+    background:radial-gradient(ellipse at center,transparent 30%,var(--bg) 82%);
   }
   .hero-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:60px;align-items:center;}
   .hero h1{
@@ -262,7 +294,22 @@
 </header>
 
 <section class="hero">
-  <div class="hero-truck-bg"><img src="hero-trucks.jpg" alt="" loading="eager" fetchpriority="high"></div>
+  <div class="hero-route-bg" aria-hidden="true">
+    <svg viewBox="0 0 800 500" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <linearGradient id="routeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#FF6A00"/>
+          <stop offset="100%" stop-color="#FF3D00"/>
+        </linearGradient>
+      </defs>
+      <path class="route-path" d="M60,400 C160,380 180,280 280,260 S420,180 460,140 S620,80 740,100"/>
+      <path class="route-pulse" d="M60,400 C160,380 180,280 280,260 S420,180 460,140 S620,80 740,100"/>
+      <circle class="route-node" cx="60" cy="400" r="6"/>
+      <circle class="route-node" cx="280" cy="260" r="6"/>
+      <circle class="route-node" cx="460" cy="140" r="6"/>
+      <circle class="route-node" cx="740" cy="100" r="6"/>
+    </svg>
+  </div>
   <div class="wrap hero-grid">
     <div>
       <h1>Il tuo <span class="grad-text">viaggio</span><br>digitale</h1>
@@ -554,6 +601,11 @@
       window.visualViewport.addEventListener('resize', function () {
         field.style.animationPlayState = isZooming() ? 'paused' : 'running';
         document.querySelectorAll('.streak').forEach(function (s) { s.style.animationPlayState = isZooming() ? 'paused' : 'running'; });
+        // Same reasoning applied to the new route-path animation —
+        // the pulse travelling along the path and the pulsing nodes
+        // are both continuous CSS animations too, paused for the same
+        // reason during an active pinch-zoom.
+        document.querySelectorAll('.route-pulse, .route-node').forEach(function (s) { s.style.animationPlayState = isZooming() ? 'paused' : 'running'; });
       });
     }
   })();
