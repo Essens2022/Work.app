@@ -753,12 +753,28 @@
 
     var rafId = null;
     var animPaused = false;
+    var animGeneration = 0;
     // Exposed so the separate zoom-handling module (defined earlier in
     // this same script) can pause/resume this animation loop too,
     // without either module needing to know the other's internals.
     window.__setRouteAnimPaused = function (paused) { animPaused = paused; };
     function startVehicleAnimation(vehicleCount, traversalSeconds, segments) {
+      // Requested directly: "dispare in locuri diferite... cand la o
+      // statie, cand la alta" — different vehicles freezing at
+      // whatever position each happened to be in, at inconsistent
+      // times, points to the periodic rebuild (every ~500ms after
+      // load, and on resize) occasionally leaving TWO animation loops
+      // running at once — the OLD one still holding references to
+      // vehicle/halo elements that the NEW rebuild already removed
+      // from the DOM, throwing and silently killing that loop's
+      // requestAnimationFrame chain entirely, right where it happened
+      // to be. cancelAnimationFrame() alone should prevent this, but
+      // isn't airtight against every timing edge case — a generation
+      // token makes it unconditional: any in-flight frame() from a
+      // now-superseded call simply stops itself immediately, no
+      // matter what.
       if (rafId) cancelAnimationFrame(rafId);
+      var myGeneration = ++animGeneration;
       var pathEl = container.querySelector('#routePathEl');
       if (!pathEl) return;
       var totalLen;
@@ -821,6 +837,10 @@
       }
 
       function frame(now) {
+        // Generation check first — if a newer rebuild has already
+        // superseded this one, stop immediately, unconditionally,
+        // before touching any (possibly now-removed) DOM elements.
+        if (myGeneration !== animGeneration) return;
         if (startTime === null) { startTime = now; lastFrameTime = now; }
         if (animPaused) {
           // Shift the reference start time forward by exactly however
@@ -830,22 +850,29 @@
           // by the whole paused duration.
           startTime += (now - lastFrameTime);
         } else {
-          var elapsed = (now - startTime) / 1000;
-          for (var i = 0; i < vehicles.length; i++) {
-            var vehicleElapsed = elapsed - i * spawnIntervalSeconds;
-            if (vehicleElapsed < 0) {
-              vehicles[i].style.display = 'none';
-              halos[i].style.display = 'none';
-            } else {
-              vehicles[i].style.display = '';
-              halos[i].style.display = '';
-              var lengthAlong = lengthAtTime(vehicleElapsed);
-              var pt = pathEl.getPointAtLength(lengthAlong);
-              vehicles[i].setAttribute('cx', pt.x);
-              vehicles[i].setAttribute('cy', pt.y);
-              halos[i].setAttribute('cx', pt.x);
-              halos[i].setAttribute('cy', pt.y);
+          try {
+            var elapsed = (now - startTime) / 1000;
+            for (var i = 0; i < vehicles.length; i++) {
+              var vehicleElapsed = elapsed - i * spawnIntervalSeconds;
+              if (vehicleElapsed < 0) {
+                vehicles[i].style.display = 'none';
+                halos[i].style.display = 'none';
+              } else {
+                vehicles[i].style.display = '';
+                halos[i].style.display = '';
+                var lengthAlong = lengthAtTime(vehicleElapsed);
+                var pt = pathEl.getPointAtLength(lengthAlong);
+                vehicles[i].setAttribute('cx', pt.x);
+                vehicles[i].setAttribute('cy', pt.y);
+                halos[i].setAttribute('cx', pt.x);
+                halos[i].setAttribute('cy', pt.y);
+              }
             }
+          } catch (e) {
+            // A stale element reference from an old, superseded build
+            // (or any other transient issue) stops just THIS loop —
+            // never silently, and never taking the whole page down.
+            return;
           }
         }
         lastFrameTime = now;
@@ -854,13 +881,21 @@
       rafId = requestAnimationFrame(frame);
     }
 
-    buildRoute();
+    // Wraps every buildRoute() call site — a genuine error during a
+    // rebuild (network hiccup mid-measurement, a transient DOM state,
+    // anything) stops just that one rebuild attempt instead of
+    // silently taking the whole route down with it.
+    function safeBuildRoute() {
+      try { buildRoute(); } catch (e) { /* this rebuild attempt failed; leave whatever's already on screen as-is */ }
+    }
+
+    safeBuildRoute();
     // Rebuild after a short delay too — page height can shift slightly
     // once fonts/images fully settle after the very first measurement.
     // Safe now that buildRoute() itself tears down before rebuilding
     // (see comment inside it) — confirmed this specific freeze no
     // longer happens with that fix in place.
-    setTimeout(buildRoute, 500);
+    setTimeout(safeBuildRoute, 500);
     var resizeTimer;
     window.addEventListener('resize', function () {
       clearTimeout(resizeTimer);
@@ -870,7 +905,7 @@
         leftX = isMobile ? 70 : 120;
         rightX = isMobile ? 330 : vbWidth - 120;
         segmentH = isMobile ? 480 : 420;
-        buildRoute();
+        safeBuildRoute();
       }, 400);
     });
   })();
