@@ -87,25 +87,28 @@
     min-height:calc(var(--real-vh, 100vh) * 0.92);display:flex;align-items:center;
     position:relative;
   }
-  /* Requested directly: the page needed to visually read as
-     "logistics/trucking" immediately, not just an abstract dark
-     background — real, professional vehicle photography (the same
-     asset already used for the app's own splash screen and icon,
-     just cropped to remove its baked-in text) sits behind the hero
-     now, right-anchored so it stays clear of the headline text on the
-     left, with a dark gradient overlay so contrast/readability never
-     suffers regardless of screen size. */
+  /* Requested directly: real, professional vehicle photography (the
+     same photo used for the app's own icon) reads as "logistics"
+     immediately — but the earlier attempt placed it sharp and
+     right-anchored, directly behind/under the phone mockups, which
+     looked cluttered, like two competing focal points fighting for
+     the same space. Much simpler, safer approach now: the image
+     spans the FULL hero as a soft, dimmed backdrop — blurred and
+     low-opacity enough to read as texture/atmosphere behind
+     everything, never competing with the phone screenshots or the
+     text for attention. */
   .hero-truck-bg{
     position:absolute;inset:0;z-index:-2;overflow:hidden;
   }
   .hero-truck-bg img{
-    position:absolute;top:0;right:0;height:100%;width:auto;min-width:55%;
-    object-fit:cover;object-position:top right;opacity:.85;
+    position:absolute;inset:0;width:100%;height:100%;
+    object-fit:cover;object-position:center 30%;
+    filter:blur(6px) brightness(.55) saturate(1.1);
+    transform:scale(1.05);
   }
   .hero-truck-bg::after{
     content:'';position:absolute;inset:0;
-    background:linear-gradient(90deg,var(--bg) 0%,var(--bg) 20%,rgba(10,10,10,.75) 45%,rgba(10,10,10,.35) 70%,transparent 100%),
-               linear-gradient(0deg,var(--bg) 0%,transparent 25%);
+    background:linear-gradient(180deg,var(--bg) 0%,rgba(10,10,10,.55) 30%,rgba(10,10,10,.55) 70%,var(--bg) 100%);
   }
   .hero-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:60px;align-items:center;}
   .hero h1{
@@ -241,31 +244,6 @@
     .phone-stage{margin-top:20px;}
     .features-grid{grid-template-columns:1fr;}
     section{padding:80px 20px;}
-    /* Requested directly: on mobile (the primary way most people will
-       actually see this page), the right-anchored truck image mostly
-       disappeared behind the stacked, centered layout. Repositioned
-       as a full-width backdrop behind the whole hero instead, with a
-       stronger top-to-bottom fade so the headline stays perfectly
-       readable while the trucks remain clearly, unmistakably visible
-       — not just a barely-there hint in one corner. */
-    .hero-truck-bg img{
-      top:0;bottom:0;left:0;right:0;transform:none;
-      width:100%;height:100%;min-width:0;min-height:0;object-fit:cover;object-position:75% 30%;
-      /* Requested directly: the hero section is genuinely taller than
-         one mobile screen (title + text + buttons + phone mockup all
-         stacked) — anchoring the image to its BOTTOM edge meant it
-         only became visible after scrolling partway down, when the
-         whole point was for it to read as "logistics" immediately,
-         on first look. Stretched across the FULL hero height instead,
-         with a fade purely at the very top (protecting the header)
-         and bottom (blending into the next section), so the trucks
-         are genuinely visible right away, not hidden below the fold. */
-      -webkit-mask-image:linear-gradient(180deg,transparent 0,#000 12%,#000 85%,transparent 100%);
-      mask-image:linear-gradient(180deg,transparent 0,#000 12%,#000 85%,transparent 100%);
-    }
-    .hero-truck-bg::after{
-      background:linear-gradient(180deg,var(--bg) 0%,transparent 22%);
-    }
   }
 </style>
 </head>
