@@ -667,7 +667,21 @@
         }
       }
 
-      var svg = '<svg viewBox="0 0 ' + vbWidth + ' ' + pageHeight + '" width="100%" height="' + pageHeight + '" preserveAspectRatio="none">' +
+      // Requested directly, follow-up: iPhone/Chrome-on-iOS (which is
+      // really Safari's WebKit engine underneath — Apple requires
+      // this for every browser on iOS) still showed nothing moving.
+      // Found a documented, real WebKit bug: SVG height gets
+      // miscalculated specifically when width is set as a percentage
+      // (width="100%") while height is an explicit pixel value — this
+      // exact mismatched combination is what was used here. If the
+      // SVG's actual rendered box differs from what the code assumes,
+      // every coordinate this script calculates (including each
+      // vehicle's position) ends up wrong or invisible. Both
+      // dimensions are explicit pixel values now — no percentage
+      // sizing anywhere on the SVG element itself — sidestepping this
+      // WebKit quirk entirely rather than depending on it being fixed.
+      var containerWidth = window.innerWidth;
+      var svg = '<svg viewBox="0 0 ' + vbWidth + ' ' + pageHeight + '" width="' + containerWidth + '" height="' + pageHeight + '" preserveAspectRatio="none">' +
         '<defs><linearGradient id="routeGrad" x1="0%" y1="0%" x2="0%" y2="100%">' +
         '<stop offset="0%" stop-color="#FF6A00"/><stop offset="100%" stop-color="#FF3D00"/>' +
         '</linearGradient></defs>' +
