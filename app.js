@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v368") {
+          if (data && data.v && data.v !== "pt-foglio-v369") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v368"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v369"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -9369,7 +9369,7 @@
   }
 
   function reportActivity() {
-    if (!state.profile.nome) return; // nothing meaningful to report yet
+    if (!state.profile.nome) return Promise.resolve(); // nothing meaningful to report yet — still a promise, so callers chaining off this (e.g. reportDailyOpen, which needs this row to exist first) never break
     syncSheetSummaries();
     var active = latestSheet();
     var month = active ? active.month : null;
@@ -9392,7 +9392,10 @@
     // path of INSERT ... ON CONFLICT DO UPDATE, even with INSERT/UPDATE
     // otherwise fully granted — without it, this silently failed to
     // find/update existing rows).
-    fetch(SUPABASE_URL + '/rest/v1/driver_activity?on_conflict=device_id', {
+    // Returned (not just fired) so reportDailyOpen can chain safely
+    // after this specific row is confirmed to exist — its own update
+    // otherwise has nothing to find on a driver's very first-ever open.
+    return fetch(SUPABASE_URL + '/rest/v1/driver_activity?on_conflict=device_id', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -9402,6 +9405,22 @@
       },
       body: JSON.stringify(payload)
     }).catch(function () { /* offline or blocked — never blocks the app */ });
+  }
+
+  // Counts one genuine app open for today, for the admin view — called
+  // once here in init(), never on every subsequent save/sync, so it
+  // reflects how many separate TIMES the driver actually opened the
+  // app today, not how many times something happened to get saved.
+  // Fire-and-forget, same as reportActivity right above it — a missed
+  // count on a flaky connection is a minor cosmetic gap, never worth
+  // blocking or retrying against the app's real purpose.
+  function reportDailyOpen() {
+    if (!state.profile.nome) return;
+    fetch(SUPABASE_URL + '/rest/v1/rpc/increment_daily_open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY },
+      body: JSON.stringify({ p_device_id: getDeviceId() })
+    }).catch(function () { /* offline or blocked — never blocks the app, simply not counted this time */ });
   }
 
   // High-frequency "live" signal, separate from reportActivity (which
@@ -9867,7 +9886,7 @@
     migrateUppercaseLocalities();
     migrateFuelToArrays();
     migrateReverifyClientPrecision(); // async, rate-limited, runs fully in the background — never blocks anything else in init()
-    reportActivity();
+    reportActivity().then(reportDailyOpen); // chained deliberately — the row reportActivity just wrote/confirmed must exist before this tries to update it
     syncBarHeights();
     syncRealViewportHeight();
     window.addEventListener('resize', syncBarHeights);
