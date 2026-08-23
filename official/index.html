@@ -124,6 +124,9 @@
     fill:#fff;
     filter:drop-shadow(0 0 10px #fff) drop-shadow(0 0 22px var(--accent)) drop-shadow(0 0 40px var(--accent)) drop-shadow(0 0 60px rgba(255,106,0,.6));
   }
+  .route-vehicle-halo{
+    fill:var(--accent);opacity:.85;filter:url(#haloBlur);
+  }
   .hero-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:60px;align-items:center;}
   .hero h1{
     font-size:clamp(38px,5.4vw,62px);font-weight:900;line-height:1.08;letter-spacing:-.02em;margin-bottom:22px;
@@ -631,11 +634,22 @@
       points[points.length - 1][1] = pageHeight - 40;
 
       var d = 'M' + points[0][0] + ',' + points[0][1];
+      // Requested directly: "nu se opreste exact in cerc" — the pause
+      // position for each node used i/(numNodes-1) as an ESTIMATE of
+      // where that node sits along the total arc length, assuming
+      // roughly even spacing — close, but not exact, since consecutive
+      // curve segments don't all have identical arc length (especially
+      // the very last one, its endpoint adjusted separately to reach
+      // the true bottom of the page). Building each segment's 'd'
+      // string separately here too, so the EXACT arc length up to each
+      // node can be measured directly afterward, rather than assumed.
+      var segments = [d];
       for (var j = 1; j < points.length; j++) {
         var x0 = points[j - 1][0], y0 = points[j - 1][1];
         var x1 = points[j][0], y1 = points[j][1];
         var midY = (y0 + y1) / 2;
         d += ' C' + x0 + ',' + midY + ' ' + x1 + ',' + midY + ' ' + x1 + ',' + y1;
+        segments.push(d);
       }
 
       var nodesSvg = points.map(function (pt) {
@@ -685,7 +699,14 @@
         var estimatedCycleSeconds = traversalSeconds + numTurns * 1;
         vehicleCount = Math.max(2, Math.ceil(estimatedCycleSeconds / spawnIntervalSeconds));
         for (var v = 0; v < vehicleCount; v++) {
-          vehiclesSvg += '<circle class="route-vehicle" r="5" style="display:none;"/>';
+          // Requested directly: "punctul dinamic trebuie sa fie
+          // retroiluminant" — a genuine backlit halo now, using a
+          // real SVG blur filter on a larger circle rendered BEHIND
+          // the sharp, bright dot on top, rather than relying only on
+          // CSS drop-shadow layering (visually flatter, less like a
+          // true glow coming from behind).
+          vehiclesSvg += '<circle class="route-vehicle-halo" r="16" style="display:none;"/>' +
+            '<circle class="route-vehicle" r="5" style="display:none;"/>';
         }
       }
 
@@ -704,7 +725,9 @@
       // WebKit quirk entirely rather than depending on it being fixed.
       var containerWidth = window.innerWidth;
       var svg = '<svg viewBox="0 0 ' + vbWidth + ' ' + pageHeight + '" width="' + containerWidth + '" height="' + pageHeight + '" preserveAspectRatio="none">' +
-        '<defs><linearGradient id="routeGrad" x1="0%" y1="0%" x2="0%" y2="100%">' +
+        '<defs>' +
+        '<filter id="haloBlur" x="-200%" y="-200%" width="500%" height="500%"><feGaussianBlur stdDeviation="8"/></filter>' +
+        '<linearGradient id="routeGrad" x1="0%" y1="0%" x2="0%" y2="100%">' +
         '<stop offset="0%" stop-color="#FF6A00"/><stop offset="100%" stop-color="#FF3D00"/>' +
         '</linearGradient></defs>' +
         '<path class="route-path" id="routePathEl" d="' + d + '"/>' +
@@ -724,7 +747,7 @@
       container.innerHTML = '';
       requestAnimationFrame(function () {
         container.innerHTML = svg;
-        startVehicleAnimation(vehicleCount, traversalSeconds, points.length);
+        startVehicleAnimation(vehicleCount, traversalSeconds, segments);
       });
     }
 
@@ -734,7 +757,7 @@
     // this same script) can pause/resume this animation loop too,
     // without either module needing to know the other's internals.
     window.__setRouteAnimPaused = function (paused) { animPaused = paused; };
-    function startVehicleAnimation(vehicleCount, traversalSeconds, numNodes) {
+    function startVehicleAnimation(vehicleCount, traversalSeconds, segments) {
       if (rafId) cancelAnimationFrame(rafId);
       var pathEl = container.querySelector('#routePathEl');
       if (!pathEl) return;
@@ -744,7 +767,24 @@
       } catch (e) {
         return;
       }
+      var numNodes = segments.length;
+      // Requested directly: "nu se opreste exact in cerc" — measuring
+      // the REAL arc length up to each node directly (via a
+      // temporary, invisible path per segment), instead of assuming
+      // even i/(numNodes-1) spacing. Guarantees the pause position
+      // always lands exactly on the node's own rendered coordinate,
+      // regardless of how curve length actually varies segment to
+      // segment.
+      var svgNs = 'http://www.w3.org/2000/svg';
+      var measurer = document.createElementNS(svgNs, 'path');
+      var nodeLengths = segments.map(function (segD) {
+        measurer.setAttribute('d', segD);
+        return measurer.getTotalLength();
+      });
+      nodeLengths[nodeLengths.length - 1] = totalLen; // guard against float rounding on the very last one
+
       var vehicles = container.querySelectorAll('.route-vehicle');
+      var halos = container.querySelectorAll('.route-vehicle-halo');
       var spawnIntervalSeconds = 3;
       var startTime = null;
       var lastFrameTime = null;
@@ -758,23 +798,26 @@
       var travelPerSegment = traversalSeconds / (numNodes - 1);
       var cycleSeconds = traversalSeconds + numNodes * pauseSeconds;
 
-      function progressAtTime(t) {
+      // Returns an absolute LENGTH along the path now (not a 0–1
+      // fraction) — lines up directly with the exact, measured
+      // nodeLengths breakpoints above.
+      function lengthAtTime(t) {
         var tMod = ((t % cycleSeconds) + cycleSeconds) % cycleSeconds;
         var acc = 0;
         for (var i = 0; i < numNodes; i++) {
-          var here = i / (numNodes - 1);
+          var here = nodeLengths[i];
           if (tMod < acc + pauseSeconds) return here;
           acc += pauseSeconds;
           if (i < numNodes - 1) {
             if (tMod < acc + travelPerSegment) {
               var segT = (tMod - acc) / travelPerSegment;
-              var next = (i + 1) / (numNodes - 1);
+              var next = nodeLengths[i + 1];
               return here + (next - here) * segT;
             }
             acc += travelPerSegment;
           }
         }
-        return 1;
+        return totalLen;
       }
 
       function frame(now) {
@@ -792,12 +835,16 @@
             var vehicleElapsed = elapsed - i * spawnIntervalSeconds;
             if (vehicleElapsed < 0) {
               vehicles[i].style.display = 'none';
+              halos[i].style.display = 'none';
             } else {
               vehicles[i].style.display = '';
-              var progress = progressAtTime(vehicleElapsed);
-              var pt = pathEl.getPointAtLength(progress * totalLen);
+              halos[i].style.display = '';
+              var lengthAlong = lengthAtTime(vehicleElapsed);
+              var pt = pathEl.getPointAtLength(lengthAlong);
               vehicles[i].setAttribute('cx', pt.x);
               vehicles[i].setAttribute('cy', pt.y);
+              halos[i].setAttribute('cx', pt.x);
+              halos[i].setAttribute('cy', pt.y);
             }
           }
         }
