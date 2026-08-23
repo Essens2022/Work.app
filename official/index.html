@@ -60,6 +60,7 @@
   }
   @media (prefers-reduced-motion:reduce){
     .streak{animation:none !important;}
+    .route-node{animation:none !important;}
   }
 
   section{position:relative;z-index:1;padding:110px 24px;}
@@ -584,7 +585,16 @@
   // content (varies by viewport width, font rendering, etc.) and
   // can't be hardcoded reliably.
   (function () {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    // Requested directly: the route disappeared entirely on a real
+    // phone — most likely explanation, a device with a battery-saver
+    // or accessibility setting that sets prefers-reduced-motion,
+    // which this code used to treat as "skip building the route at
+    // all", losing the entire visual, not just its animation. Now
+    // builds the full route (path + nodes) unconditionally, only
+    // skipping the moving vehicle's animation specifically when
+    // motion is genuinely reduced — the thematic visual stays, the
+    // one truly continuous motion element respects the preference.
+    var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     var container = document.getElementById('fullpage-route');
     var isMobile = window.innerWidth <= 760;
     var vbWidth = isMobile ? 400 : 1000;
@@ -612,44 +622,47 @@
         d += ' C' + x0 + ',' + midY + ' ' + x1 + ',' + midY + ' ' + x1 + ',' + y1;
       }
 
-      // Real pauses at each node — built via keyPoints/keyTimes rather
-      // than a constant-speed loop. Each node holds the vehicle in
-      // place (repeated keyPoint value) for a real fraction of the
-      // total duration, proportional to a fixed pause length in
-      // seconds; travel between nodes fills the remaining time.
-      var pauseSeconds = 1;
-      var travelSecondsPerSegment = 2.2;
-      var totalSeconds = numTurns * pauseSeconds + (numTurns - 1) * travelSecondsPerSegment;
-      var keyPoints = [];
-      var keyTimes = [];
-      var tAcc = 0;
-      for (var k = 0; k < numTurns; k++) {
-        var p = k / (numTurns - 1);
-        var tArrive = tAcc / totalSeconds;
-        tAcc += pauseSeconds;
-        var tLeave = tAcc / totalSeconds;
-        keyPoints.push(p, p);
-        keyTimes.push(tArrive.toFixed(4), tLeave.toFixed(4));
-        if (k < numTurns - 1) tAcc += travelSecondsPerSegment;
-      }
-      // Guard against floating point landing just short of 1 at the end
-      keyTimes[keyTimes.length - 1] = '1';
-
       var nodesSvg = points.map(function (pt) {
         return '<circle class="route-node" cx="' + pt[0] + '" cy="' + pt[1] + '" r="6"/>';
       }).join('');
+
+      var vehicleSvg = '';
+      if (!reducedMotion) {
+        // Real pauses at each node — built via keyPoints/keyTimes rather
+        // than a constant-speed loop. Each node holds the vehicle in
+        // place (repeated keyPoint value) for a real fraction of the
+        // total duration, proportional to a fixed pause length in
+        // seconds; travel between nodes fills the remaining time.
+        var pauseSeconds = 1;
+        var travelSecondsPerSegment = 2.2;
+        var totalSeconds = numTurns * pauseSeconds + (numTurns - 1) * travelSecondsPerSegment;
+        var keyPoints = [];
+        var keyTimes = [];
+        var tAcc = 0;
+        for (var k = 0; k < numTurns; k++) {
+          var p = k / (numTurns - 1);
+          var tArrive = tAcc / totalSeconds;
+          tAcc += pauseSeconds;
+          var tLeave = tAcc / totalSeconds;
+          keyPoints.push(p, p);
+          keyTimes.push(tArrive.toFixed(4), tLeave.toFixed(4));
+          if (k < numTurns - 1) tAcc += travelSecondsPerSegment;
+        }
+        // Guard against floating point landing just short of 1 at the end
+        keyTimes[keyTimes.length - 1] = '1';
+        vehicleSvg = '<circle class="route-vehicle" r="5">' +
+          '<animateMotion dur="' + totalSeconds.toFixed(2) + 's" repeatCount="indefinite" ' +
+          'keyPoints="' + keyPoints.join(';') + '" keyTimes="' + keyTimes.join(';') + '" calcMode="linear" ' +
+          'path="' + d + '"/>' +
+          '</circle>';
+      }
 
       var svg = '<svg viewBox="0 0 ' + vbWidth + ' ' + pageHeight + '" width="100%" height="' + pageHeight + '" preserveAspectRatio="none">' +
         '<defs><linearGradient id="routeGrad" x1="0%" y1="0%" x2="0%" y2="100%">' +
         '<stop offset="0%" stop-color="#FF6A00"/><stop offset="100%" stop-color="#FF3D00"/>' +
         '</linearGradient></defs>' +
         '<path class="route-path" d="' + d + '"/>' +
-        nodesSvg +
-        '<circle class="route-vehicle" r="5">' +
-        '<animateMotion dur="' + totalSeconds.toFixed(2) + 's" repeatCount="indefinite" ' +
-        'keyPoints="' + keyPoints.join(';') + '" keyTimes="' + keyTimes.join(';') + '" calcMode="linear" ' +
-        'path="' + d + '"/>' +
-        '</circle></svg>';
+        nodesSvg + vehicleSvg + '</svg>';
       // REAL BUG, found directly, extensively debugged: replacing
       // container.innerHTML directly, while a PREVIOUS SVG with a
       // live, running <animateMotion> is already inside it, leaves
