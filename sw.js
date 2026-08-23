@@ -9,7 +9,7 @@
 //  - Large, rarely-changing files (jsPDF, the comuni database, icons, logo)
 //    stay CACHE-FIRST, so they don't get re-downloaded on every load.
 
-const CACHE_VERSION = 'pt-foglio-v370';
+const CACHE_VERSION = 'pt-foglio-v371';
 const CORE_ASSETS = ['./', './index.html', './app.js', './manifest.json', './version.json'];
 // REAL BUG, reported directly, TWICE — a first attempt excluded these
 // pages from the service worker entirely, reasoning that removing a
@@ -42,8 +42,7 @@ const STATIC_ASSETS = [
   './vendor/maplibre-gl.js',
   './vendor/maplibre-gl.css',
   './splash-hero.jpg',
-  './wheel-splash.png',
-  './official/hero-trucks.jpg'
+  './wheel-splash.png'
 ];
 
 self.addEventListener('install', (event) => {
