@@ -138,6 +138,40 @@
     0%,100%{opacity:.65;r:5;}
     50%{opacity:1;r:7;}
   }
+  /* Requested directly, follow-up: "ar fi bine sa se vada o masina/
+     un vehicul mergand" — a small glowing marker now actually
+     travels the same path, using SVG's native <animateMotion> (the
+     browser handles the path-following math itself — cheap, no extra
+     JS, no per-frame recalculation). A soft trailing tail behind it
+     sells the sense of movement without needing a second, separate
+     animated element. */
+  .route-vehicle{
+    fill:#fff;
+    filter:drop-shadow(0 0 6px #fff) drop-shadow(0 0 16px var(--accent)) drop-shadow(0 0 28px var(--accent));
+  }
+  /* A second, fainter, offset route in the background — reads as a
+     wider delivery network rather than a single isolated line, adding
+     depth without competing for attention (lower opacity, thinner,
+     no glow). */
+  .route-path-bg{
+    fill:none;stroke:var(--accent-2);stroke-width:1.5;stroke-linecap:round;
+    opacity:.18;
+  }
+  /* A handful of tiny, slowly drifting ambient dots — standing in for
+     "data points" / distant delivery stops. Cheap: opacity+transform
+     only, no blur, no layout thrash. */
+  .ambient-dot{
+    fill:var(--accent);
+    animation:ambient-drift 9s ease-in-out infinite;
+  }
+  .ambient-dot:nth-child(2){animation-delay:1.2s;animation-duration:11s;}
+  .ambient-dot:nth-child(3){animation-delay:2.6s;animation-duration:8s;}
+  .ambient-dot:nth-child(4){animation-delay:.6s;animation-duration:10s;}
+  .ambient-dot:nth-child(5){animation-delay:3.4s;animation-duration:9.5s;}
+  @keyframes ambient-drift{
+    0%,100%{transform:translateY(0);opacity:.25;}
+    50%{transform:translateY(-14px);opacity:.6;}
+  }
   .hero-route-bg::after{
     content:'';position:absolute;inset:0;
     background:radial-gradient(ellipse at center,transparent 30%,var(--bg) 82%);
@@ -302,12 +336,28 @@
           <stop offset="100%" stop-color="#FF3D00"/>
         </linearGradient>
       </defs>
+      <!-- Second, fainter route in the background — suggests a wider
+           delivery network, not just one isolated line. -->
+      <path class="route-path-bg" d="M20,150 C120,190 260,140 340,190 S520,260 620,220 S760,340 780,420"/>
+      <!-- Slowly drifting ambient dots — distant "data points". -->
+      <circle class="ambient-dot" cx="130" cy="90" r="3"/>
+      <circle class="ambient-dot" cx="620" cy="60" r="2.5"/>
+      <circle class="ambient-dot" cx="360" cy="420" r="3"/>
+      <circle class="ambient-dot" cx="720" cy="300" r="2"/>
+      <circle class="ambient-dot" cx="180" cy="330" r="2.5"/>
       <path class="route-path" d="M60,400 C160,380 180,280 280,260 S420,180 460,140 S620,80 740,100"/>
       <path class="route-pulse" d="M60,400 C160,380 180,280 280,260 S420,180 460,140 S620,80 740,100"/>
       <circle class="route-node" cx="60" cy="400" r="6"/>
       <circle class="route-node" cx="280" cy="260" r="6"/>
       <circle class="route-node" cx="460" cy="140" r="6"/>
       <circle class="route-node" cx="740" cy="100" r="6"/>
+      <!-- The travelling vehicle marker — a simple glowing dot,
+           following the exact same path shape natively via SVG's own
+           <animateMotion>, synced to the same 7s loop as the pulse. -->
+      <circle class="route-vehicle" r="5">
+        <animateMotion dur="7s" repeatCount="indefinite"
+          path="M60,400 C160,380 180,280 280,260 S420,180 460,140 S620,80 740,100"/>
+      </circle>
     </svg>
   </div>
   <div class="wrap hero-grid">
@@ -605,7 +655,11 @@
         // the pulse travelling along the path and the pulsing nodes
         // are both continuous CSS animations too, paused for the same
         // reason during an active pinch-zoom.
-        document.querySelectorAll('.route-pulse, .route-node').forEach(function (s) { s.style.animationPlayState = isZooming() ? 'paused' : 'running'; });
+        document.querySelectorAll('.route-pulse, .route-node, .ambient-dot').forEach(function (s) { s.style.animationPlayState = isZooming() ? 'paused' : 'running'; });
+        // <animateMotion> is a native SVG animation, not CSS — controlled
+        // through the SVG root's own pause/unpause API instead.
+        var routeSvg = document.querySelector('.hero-route-bg svg');
+        if (routeSvg) { isZooming() ? routeSvg.pauseAnimations() : routeSvg.unpauseAnimations(); }
       });
     }
   })();
