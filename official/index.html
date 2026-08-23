@@ -897,7 +897,24 @@
     // longer happens with that fix in place.
     setTimeout(safeBuildRoute, 500);
     var resizeTimer;
+    var lastKnownWidth = window.innerWidth;
     window.addEventListener('resize', function () {
+      // Requested directly: "cand scrolez in acel timp incep sa
+      // dispara" — iOS Safari's address bar collapses/expands during
+      // normal scrolling, firing plain 'resize' events even though
+      // nothing meaningful about the layout actually changed (only
+      // the visible viewport HEIGHT shifts as the toolbar hides —
+      // WIDTH stays the same). This listener used to treat every
+      // resize as a real layout change worth a full route rebuild —
+      // during active scrolling, that meant rebuilding (tearing down
+      // and reconstructing every vehicle) repeatedly, rapidly,
+      // exactly matching the reported disappearing. The route's own
+      // shape only actually depends on WIDTH (isMobile threshold,
+      // vbWidth, node x-positions) — height is remeasured fresh on
+      // every rebuild regardless, so a height-only change needs no
+      // rebuild at all.
+      if (window.innerWidth === lastKnownWidth) return;
+      lastKnownWidth = window.innerWidth;
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(function () {
         isMobile = window.innerWidth <= 760;
