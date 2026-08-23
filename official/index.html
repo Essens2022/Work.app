@@ -112,6 +112,18 @@
     display:flex;align-items:center;justify-content:center;
   }
   .hero-route-bg svg{width:100%;height:100%;max-width:1400px;opacity:.55;}
+  /* Requested directly: the wide (800x500) path was designed for a
+     landscape canvas — on a narrow mobile screen, "slice" scaling
+     crops away most of its width, so the vehicle and most of the path
+     spent most of their time off-screen. Two separate SVGs now, each
+     with its own path shaped for that aspect ratio — toggled by
+     media query, so the visible one always fits its container
+     properly instead of being cropped. */
+  .route-svg-mobile{display:none;}
+  @media (max-width:760px){
+    .route-svg-desktop{display:none;}
+    .route-svg-mobile{display:block;}
+  }
   .route-path{
     fill:none;stroke:url(#routeGrad);stroke-width:2.5;stroke-linecap:round;
     filter:drop-shadow(0 0 6px rgba(255,106,0,.8)) drop-shadow(0 0 14px rgba(255,106,0,.4));
@@ -137,6 +149,40 @@
   @keyframes node-pulse{
     0%,100%{opacity:.65;r:5;}
     50%{opacity:1;r:7;}
+  }
+  /* Requested directly, follow-up: "ar fi bine sa se vada o masina/
+     un vehicul mergand" — a small glowing marker now actually
+     travels the same path, using SVG's native <animateMotion> (the
+     browser handles the path-following math itself — cheap, no extra
+     JS, no per-frame recalculation). A soft trailing tail behind it
+     sells the sense of movement without needing a second, separate
+     animated element. */
+  .route-vehicle{
+    fill:#fff;
+    filter:drop-shadow(0 0 6px #fff) drop-shadow(0 0 16px var(--accent)) drop-shadow(0 0 28px var(--accent));
+  }
+  /* A second, fainter, offset route in the background — reads as a
+     wider delivery network rather than a single isolated line, adding
+     depth without competing for attention (lower opacity, thinner,
+     no glow). */
+  .route-path-bg{
+    fill:none;stroke:var(--accent-2);stroke-width:1.5;stroke-linecap:round;
+    opacity:.18;
+  }
+  /* A handful of tiny, slowly drifting ambient dots — standing in for
+     "data points" / distant delivery stops. Cheap: opacity+transform
+     only, no blur, no layout thrash. */
+  .ambient-dot{
+    fill:var(--accent);
+    animation:ambient-drift 9s ease-in-out infinite;
+  }
+  .ambient-dot:nth-child(2){animation-delay:1.2s;animation-duration:11s;}
+  .ambient-dot:nth-child(3){animation-delay:2.6s;animation-duration:8s;}
+  .ambient-dot:nth-child(4){animation-delay:.6s;animation-duration:10s;}
+  .ambient-dot:nth-child(5){animation-delay:3.4s;animation-duration:9.5s;}
+  @keyframes ambient-drift{
+    0%,100%{transform:translateY(0);opacity:.25;}
+    50%{transform:translateY(-14px);opacity:.6;}
   }
   .hero-route-bg::after{
     content:'';position:absolute;inset:0;
@@ -295,19 +341,63 @@
 
 <section class="hero">
   <div class="hero-route-bg" aria-hidden="true">
-    <svg viewBox="0 0 800 500" preserveAspectRatio="xMidYMid slice">
+    <svg class="route-svg-desktop" viewBox="0 0 800 500" preserveAspectRatio="xMidYMid slice">
       <defs>
         <linearGradient id="routeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stop-color="#FF6A00"/>
           <stop offset="100%" stop-color="#FF3D00"/>
         </linearGradient>
       </defs>
+      <!-- Second, fainter route in the background — suggests a wider
+           delivery network, not just one isolated line. -->
+      <path class="route-path-bg" d="M20,150 C120,190 260,140 340,190 S520,260 620,220 S760,340 780,420"/>
+      <!-- Slowly drifting ambient dots — distant "data points". -->
+      <circle class="ambient-dot" cx="130" cy="90" r="3"/>
+      <circle class="ambient-dot" cx="620" cy="60" r="2.5"/>
+      <circle class="ambient-dot" cx="360" cy="420" r="3"/>
+      <circle class="ambient-dot" cx="720" cy="300" r="2"/>
+      <circle class="ambient-dot" cx="180" cy="330" r="2.5"/>
       <path class="route-path" d="M60,400 C160,380 180,280 280,260 S420,180 460,140 S620,80 740,100"/>
       <path class="route-pulse" d="M60,400 C160,380 180,280 280,260 S420,180 460,140 S620,80 740,100"/>
       <circle class="route-node" cx="60" cy="400" r="6"/>
       <circle class="route-node" cx="280" cy="260" r="6"/>
       <circle class="route-node" cx="460" cy="140" r="6"/>
       <circle class="route-node" cx="740" cy="100" r="6"/>
+      <!-- The travelling vehicle marker — a simple glowing dot,
+           following the exact same path shape natively via SVG's own
+           <animateMotion>, synced to the same 7s loop as the pulse. -->
+      <circle class="route-vehicle" r="5">
+        <animateMotion dur="7s" repeatCount="indefinite"
+          path="M60,400 C160,380 180,280 280,260 S420,180 460,140 S620,80 740,100"/>
+      </circle>
+    </svg>
+    <!-- Mobile-specific version: same idea (path + pulse + nodes +
+         travelling vehicle + background path + ambient dots), but
+         with a viewBox and path shaped for a narrow, tall container
+         instead of a wide one — nothing gets cropped out of view. -->
+    <svg class="route-svg-mobile" viewBox="0 0 400 900" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <linearGradient id="routeGradMobile" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#FF6A00"/>
+          <stop offset="100%" stop-color="#FF3D00"/>
+        </linearGradient>
+      </defs>
+      <path class="route-path-bg" d="M340,60 C300,160 360,260 300,340 S220,480 260,560 S180,720 220,820"/>
+      <circle class="ambient-dot" cx="90" cy="120" r="3"/>
+      <circle class="ambient-dot" cx="330" cy="230" r="2.5"/>
+      <circle class="ambient-dot" cx="70" cy="480" r="3"/>
+      <circle class="ambient-dot" cx="320" cy="650" r="2"/>
+      <circle class="ambient-dot" cx="110" cy="780" r="2.5"/>
+      <path class="route-path" style="stroke:url(#routeGradMobile);" d="M80,60 C40,180 140,260 100,380 S200,540 140,640 S60,800 100,860"/>
+      <path class="route-pulse" d="M80,60 C40,180 140,260 100,380 S200,540 140,640 S60,800 100,860"/>
+      <circle class="route-node" cx="80" cy="60" r="6"/>
+      <circle class="route-node" cx="100" cy="380" r="6"/>
+      <circle class="route-node" cx="140" cy="640" r="6"/>
+      <circle class="route-node" cx="100" cy="860" r="6"/>
+      <circle class="route-vehicle" r="5">
+        <animateMotion dur="7s" repeatCount="indefinite"
+          path="M80,60 C40,180 140,260 100,380 S200,540 140,640 S60,800 100,860"/>
+      </circle>
     </svg>
   </div>
   <div class="wrap hero-grid">
@@ -605,7 +695,14 @@
         // the pulse travelling along the path and the pulsing nodes
         // are both continuous CSS animations too, paused for the same
         // reason during an active pinch-zoom.
-        document.querySelectorAll('.route-pulse, .route-node').forEach(function (s) { s.style.animationPlayState = isZooming() ? 'paused' : 'running'; });
+        document.querySelectorAll('.route-pulse, .route-node, .ambient-dot').forEach(function (s) { s.style.animationPlayState = isZooming() ? 'paused' : 'running'; });
+        // <animateMotion> is a native SVG animation, not CSS — controlled
+        // through the SVG root's own pause/unpause API instead. Both the
+        // desktop and mobile SVGs exist in the DOM at once (only one is
+        // ever visible via CSS) — controlling both is harmless either way.
+        document.querySelectorAll('.hero-route-bg svg').forEach(function (svg) {
+          isZooming() ? svg.pauseAnimations() : svg.unpauseAnimations();
+        });
       });
     }
   })();
