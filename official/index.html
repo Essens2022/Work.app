@@ -573,10 +573,10 @@
         // the pulsing nodes are a continuous CSS animation too, paused
         // for the same reason during an active pinch-zoom.
         document.querySelectorAll('.route-node').forEach(function (s) { s.style.animationPlayState = isZooming() ? 'paused' : 'running'; });
-        // <animateMotion> is a native SVG animation, not CSS — controlled
-        // through the SVG root's own pause/unpause API instead.
-        var routeSvg = document.querySelector('#fullpage-route svg');
-        if (routeSvg) { isZooming() ? routeSvg.pauseAnimations() : routeSvg.unpauseAnimations(); }
+        // Vehicle movement is now plain JS (requestAnimationFrame),
+        // not SMIL — paused via a shared flag exposed by that other
+        // module, set up regardless of which one initializes first.
+        if (window.__setRouteAnimPaused) window.__setRouteAnimPaused(isZooming());
       });
     }
   })();
@@ -637,16 +637,21 @@
         return '<circle class="route-node" cx="' + pt[0] + '" cy="' + pt[1] + '" r="6"/>';
       }).join('');
 
+      // REAL BUG, reported directly: nothing dynamic showed up at all
+      // on a real phone (confirmed, directly, not a battery-saver or
+      // reduced-motion setting) even though this worked correctly in
+      // every sandboxed test. SMIL (<animateMotion>) is old, and real-
+      // world support has genuinely become inconsistent across
+      // browsers/versions in a way a desktop-Chromium test can't
+      // always catch. Rebuilt the moving-vehicle logic on plain,
+      // universally-supported DOM/SVG APIs instead — getTotalLength(),
+      // getPointAtLength(), and requestAnimationFrame — no SMIL
+      // involved anywhere, so there's nothing browser-specific left to
+      // silently fail.
+      var vehicleCount = 0;
+      var traversalSeconds = 0;
       var vehiclesSvg = '';
       if (!reducedMotion) {
-        // Requested directly, follow-up: not one vehicle pausing at
-        // each stop — several travelling at once, a new one starting
-        // every 3 seconds, each moving smoothly at its own constant
-        // speed, completely independent of when the others started.
-        // Total traversal time is based on the path's actual
-        // (approximate) length at a fixed speed, so a taller page
-        // takes proportionally longer to cross — the visual SPEED
-        // stays constant everywhere, only the duration changes.
         var totalLength = 0;
         for (var m = 1; m < points.length; m++) {
           var dx = points[m][0] - points[m - 1][0];
@@ -654,18 +659,11 @@
           totalLength += Math.sqrt(dx * dx + dy * dy);
         }
         var speedPxPerSecond = 140;
-        var traversalSeconds = Math.max(6, totalLength / speedPxPerSecond);
+        traversalSeconds = Math.max(6, totalLength / speedPxPerSecond);
         var spawnIntervalSeconds = 3;
-        // Enough simultaneous vehicles that, once the first has looped
-        // back around, the NEXT one is always already mid-journey —
-        // never a gap with nothing moving on the path.
-        var vehicleCount = Math.max(2, Math.ceil(traversalSeconds / spawnIntervalSeconds));
+        vehicleCount = Math.max(2, Math.ceil(traversalSeconds / spawnIntervalSeconds));
         for (var v = 0; v < vehicleCount; v++) {
-          var beginDelay = (v * spawnIntervalSeconds).toFixed(2);
-          vehiclesSvg += '<circle class="route-vehicle" r="5">' +
-            '<animateMotion dur="' + traversalSeconds.toFixed(2) + 's" begin="' + beginDelay + 's" ' +
-            'repeatCount="indefinite" calcMode="linear" path="' + d + '"/>' +
-            '</circle>';
+          vehiclesSvg += '<circle class="route-vehicle" r="5" style="display:none;"/>';
         }
       }
 
@@ -673,7 +671,7 @@
         '<defs><linearGradient id="routeGrad" x1="0%" y1="0%" x2="0%" y2="100%">' +
         '<stop offset="0%" stop-color="#FF6A00"/><stop offset="100%" stop-color="#FF3D00"/>' +
         '</linearGradient></defs>' +
-        '<path class="route-path" d="' + d + '"/>' +
+        '<path class="route-path" id="routePathEl" d="' + d + '"/>' +
         nodesSvg + vehiclesSvg + '</svg>';
       // REAL BUG, found directly, extensively debugged: replacing
       // container.innerHTML directly, while a PREVIOUS SVG with a
@@ -685,11 +683,59 @@
       // content first (empty the container, force the browser to
       // actually process that removal via a frame boundary) before
       // inserting the new SVG avoids whatever internal SMIL timeline
-      // conflict causes the freeze.
+      // conflict causes the freeze. Kept even after moving off SMIL —
+      // a clean teardown before rebuilding is simply good practice.
       container.innerHTML = '';
       requestAnimationFrame(function () {
         container.innerHTML = svg;
+        if (!reducedMotion) startVehicleAnimation(vehicleCount, traversalSeconds);
       });
+    }
+
+    var rafId = null;
+    var animPaused = false;
+    // Exposed so the separate zoom-handling module (defined earlier in
+    // this same script) can pause/resume this animation loop too,
+    // without either module needing to know the other's internals.
+    window.__setRouteAnimPaused = function (paused) { animPaused = paused; };
+    function startVehicleAnimation(vehicleCount, traversalSeconds) {
+      if (rafId) cancelAnimationFrame(rafId);
+      var pathEl = container.querySelector('#routePathEl');
+      if (!pathEl) return;
+      var totalLen = pathEl.getTotalLength();
+      var vehicles = container.querySelectorAll('.route-vehicle');
+      var spawnIntervalSeconds = 3;
+      var startTime = null;
+      var lastFrameTime = null;
+
+      function frame(now) {
+        if (startTime === null) { startTime = now; lastFrameTime = now; }
+        if (animPaused) {
+          // Shift the reference start time forward by exactly however
+          // long this frame took — keeps "elapsed" frozen at whatever
+          // it was the moment pausing began, so resuming continues
+          // smoothly from that exact point instead of jumping forward
+          // by the whole paused duration.
+          startTime += (now - lastFrameTime);
+        } else {
+          var elapsed = (now - startTime) / 1000;
+          for (var i = 0; i < vehicles.length; i++) {
+            var vehicleElapsed = elapsed - i * spawnIntervalSeconds;
+            if (vehicleElapsed < 0) {
+              vehicles[i].style.display = 'none';
+            } else {
+              vehicles[i].style.display = '';
+              var progress = (vehicleElapsed % traversalSeconds) / traversalSeconds;
+              var pt = pathEl.getPointAtLength(progress * totalLen);
+              vehicles[i].setAttribute('cx', pt.x);
+              vehicles[i].setAttribute('cy', pt.y);
+            }
+          }
+        }
+        lastFrameTime = now;
+        rafId = requestAnimationFrame(frame);
+      }
+      rafId = requestAnimationFrame(frame);
     }
 
     buildRoute();
