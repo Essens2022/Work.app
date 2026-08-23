@@ -234,6 +234,26 @@
     position:relative;display:flex;justify-content:center;align-items:flex-start;
     gap:0;flex-wrap:wrap;padding:20px 0 10px;
   }
+  /* ---------- FAQ ---------- */
+  /* Requested directly: FAQ items were touching the phone's side
+     edges (missing horizontal padding — regressed back to an earlier
+     bug at some point) and needed a more professional look overall.
+     Restyled as proper cards matching the site's existing visual
+     language (same surface/border/radius language as .feature-card),
+     rather than plain unstyled text blocks. */
+  .faq-list{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:14px;}
+  .faq-item{
+    background:var(--surface);border:1px solid var(--line);border-radius:16px;
+    padding:26px 28px;
+  }
+  .faq-item h3{font-size:17px;font-weight:800;margin-bottom:10px;letter-spacing:-.005em;}
+  .faq-item p{color:var(--ink-soft);line-height:1.7;margin:0;font-size:15px;}
+  @media (max-width:600px){
+    .faq-item{padding:20px 20px;}
+    .faq-item h3{font-size:16px;}
+    .faq-item p{font-size:14.5px;}
+  }
+
   .gallery-item{width:230px;position:relative;text-align:center;}
   .gallery-item .phone-frame{width:210px;padding:11px;border-radius:36px;margin:0 auto;transition:transform .35s ease;}
   .gallery-item .phone-frame::before{width:46px;height:4px;top:6px;}
@@ -393,34 +413,34 @@
      Marked up with schema.org FAQPage JSON-LD too, so Google has a
      real shot at showing these directly as rich results in search,
      not just as page text. -->
-<section id="domande" style="padding:80px 0;">
+<section id="domande" style="padding:80px 24px;">
   <div class="wrap">
     <div class="eyebrow" style="text-align:center;">Domande frequenti</div>
     <h2 class="section-title" style="margin-left:auto;margin-right:auto;text-align:center;margin-bottom:40px;">Quello che vuoi sapere, prima di iniziare</h2>
-    <div style="max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:28px;">
-      <div>
-        <h3 style="font-size:18px;font-weight:800;margin-bottom:8px;">Come funziona l'ottimizzazione automatica del percorso?</h3>
-        <p style="color:var(--ink-soft);line-height:1.7;margin:0;">L'app calcola da sola l'ordine più efficiente per visitare tutti i clienti del giorno, partendo dalla tua posizione reale in quel momento — non devi decidere tu quale tappa fare prima.</p>
+    <div class="faq-list">
+      <div class="faq-item">
+        <h3>Come funziona l'ottimizzazione automatica del percorso?</h3>
+        <p>L'app calcola da sola l'ordine più efficiente per visitare tutti i clienti del giorno, partendo dalla tua posizione reale in quel momento — non devi decidere tu quale tappa fare prima.</p>
       </div>
-      <div>
-        <h3 style="font-size:18px;font-weight:800;margin-bottom:8px;">Il foglio viaggi digitale sostituisce quello cartaceo?</h3>
-        <p style="color:var(--ink-soft);line-height:1.7;margin:0;">Sì. Tiene traccia di km, giorni lavorativi e destinazioni, giorno dopo giorno, ed è pronto per essere esportato in PDF quando ti serve — niente più fogli sparsi o calcoli a mano a fine mese.</p>
+      <div class="faq-item">
+        <h3>Il foglio viaggi digitale sostituisce quello cartaceo?</h3>
+        <p>Sì. Tiene traccia di km, giorni lavorativi e destinazioni, giorno dopo giorno, ed è pronto per essere esportato in PDF quando ti serve — niente più fogli sparsi o calcoli a mano a fine mese.</p>
       </div>
-      <div>
-        <h3 style="font-size:18px;font-weight:800;margin-bottom:8px;">Serve installare qualcosa o pagare?</h3>
-        <p style="color:var(--ink-soft);line-height:1.7;margin:0;">No. È gratis e funziona direttamente dal browser del telefono — nessun download da app store, nessuna carta di credito richiesta. Si può anche aggiungere alla schermata Home per aprirla come un'app vera.</p>
+      <div class="faq-item">
+        <h3>Serve installare qualcosa o pagare?</h3>
+        <p>No. È gratis e funziona direttamente dal browser del telefono — nessun download da app store, nessuna carta di credito richiesta. Si può anche aggiungere alla schermata Home per aprirla come un'app vera.</p>
       </div>
-      <div>
-        <h3 style="font-size:18px;font-weight:800;margin-bottom:8px;">L'app calcola automaticamente km e stipendio?</h3>
-        <p style="color:var(--ink-soft);line-height:1.7;margin:0;">Sì, in base ai giorni lavorativi registrati — niente calcoli manuali a fine mese.</p>
+      <div class="faq-item">
+        <h3>L'app calcola automaticamente km e stipendio?</h3>
+        <p>Sì, in base ai giorni lavorativi registrati — niente calcoli manuali a fine mese.</p>
       </div>
-      <div>
-        <h3 style="font-size:18px;font-weight:800;margin-bottom:8px;">Funziona anche senza connessione internet?</h3>
-        <p style="color:var(--ink-soft);line-height:1.7;margin:0;">I tuoi dati (clienti, foglio viaggi, scontrini) restano sempre salvati sul telefono, anche offline. Serve internet solo per calcolare un nuovo percorso ottimizzato.</p>
+      <div class="faq-item">
+        <h3>Funziona anche senza connessione internet?</h3>
+        <p>I tuoi dati (clienti, foglio viaggi, scontrini) restano sempre salvati sul telefono, anche offline. Serve internet solo per calcolare un nuovo percorso ottimizzato.</p>
       </div>
-      <div>
-        <h3 style="font-size:18px;font-weight:800;margin-bottom:8px;">Quanti clienti posso gestire in un giorno?</h3>
-        <p style="color:var(--ink-soft);line-height:1.7;margin:0;">Nessun limite artificiale sul numero di fermate — l'app gestisce l'itinerario completo della tua giornata, quanti che siano i clienti.</p>
+      <div class="faq-item">
+        <h3>Quanti clienti posso gestire in un giorno?</h3>
+        <p>Nessun limite artificiale sul numero di fermate — l'app gestisce l'itinerario completo della tua giornata, quanti che siano i clienti.</p>
       </div>
     </div>
   </div>
