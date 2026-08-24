@@ -669,6 +669,25 @@
     var segmentH = isMobile ? 480 : 420;
 
     function buildRoute() {
+      // REAL BUG, found directly, reported clearly: the page kept
+      // scrolling well past where real content actually ends — the
+      // footer, "Foglio viaggi digitale / App per autisti / Itinerario
+      // consegne / Apri l'app" links, should be the true bottom.
+      // Root cause: document.body.scrollHeight INCLUDES this very
+      // container's own height (position:absolute doesn't exclude an
+      // element from the page's scroll height once it has an explicit
+      // height set) — so on every rebuild, the measurement is
+      // contaminated by whatever height THIS container was already
+      // set to from the PREVIOUS build. If an early measurement (say,
+      // before webfonts fully settle) ever comes out even slightly
+      // taller than the true final content height, that inflated
+      // value gets "locked in" — later rebuilds can only match or grow
+      // it, never correct back down to the real, shorter height,
+      // since the container's own leftover height keeps propping the
+      // measurement up. Fixed by collapsing the container's height
+      // to 0 immediately before measuring, so the reading reflects
+      // only the real page content, never its own previous output.
+      container.style.height = '0px';
       var pageHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
       container.style.height = pageHeight + 'px';
       var numTurns = Math.max(3, Math.ceil((pageHeight - 80) / segmentH) + 1);
