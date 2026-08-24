@@ -56,14 +56,53 @@
 <!-- Organization structured data — the specific signal Google looks for
      to associate a logo with this site in search results and its
      Knowledge Panel, separate from the plain og:image used for social
-     sharing previews. -->
+     sharing previews.
+     Requested directly: investigating why the logo still hasn't
+     appeared, and why the site isn't clearly separated from an
+     entirely unrelated Android app that happens to share the exact
+     same generic name "ADB Smart" (an entertainment app, Brazilian
+     developer, on Google Play — confirmed unrelated, nothing to do
+     with trucks/drivers). The Organization schema previously carried
+     only the bare name "ADB Smart", identical to that other app's own
+     listing — giving Google's entity-resolution nothing to
+     distinguish the two by. Strengthened with a description (same
+     wording already used in the page's own meta description, so it's
+     consistent, not invented separately), the country actually served
+     (Italy), and an alternateName spelling out the specific product
+     this is — all genuine signals that this is a distinct entity, not
+     a display trick. -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "Organization",
   "name": "ADB Smart",
+  "alternateName": "ADB Smart - Foglio Viaggi Digitale per Autisti",
+  "description": "App per autisti e camionisti: itinerario ottimizzato in automatico, gestione consegne e clienti, foglio viaggi digitale.",
   "url": "https://adbsmart.it/",
-  "logo": "https://adbsmart.it/icon-512.png"
+  "logo": "https://adbsmart.it/icon-512.png",
+  "areaServed": {
+    "@type": "Country",
+    "name": "Italy"
+  }
+}
+</script>
+<!-- Second, more specific schema type — clarifies this is a
+     browser-based PWA tool, not a native app, distinct from the
+     unrelated Android app of the same generic name on Google Play. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "ADB Smart",
+  "url": "https://adbsmart.it/",
+  "applicationCategory": "BusinessApplication",
+  "operatingSystem": "Web",
+  "description": "App per autisti e camionisti: itinerario ottimizzato in automatico, gestione consegne e clienti, foglio viaggi digitale.",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "EUR"
+  }
 }
 </script>
 <style>
