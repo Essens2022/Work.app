@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v399") {
+          if (data && data.v && data.v !== "pt-foglio-v400") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v399"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v400"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -491,6 +491,34 @@
     t.classList.add('show');
     clearTimeout(navToast._t);
     navToast._t = setTimeout(function () { t.classList.remove('show'); }, 3000);
+  }
+
+  // Requested directly: shown once, each time AUTO (auto-riordina) is
+  // switched ON — explains briefly that each client needs coordinates,
+  // not just an address, for reliable results (addresses can
+  // sometimes fail to geocode; coordinates always work), and where to
+  // get them (Google Maps — find the client there, copy the
+  // coordinates). Built fresh each time rather than a static element
+  // already in the page, since it's only ever needed at this one
+  // moment. Dismissed either by the X or by tapping the backdrop
+  // outside the card — never blocks the rest of the screen.
+  function showAutoRiordinaInfoNotice() {
+    var backdrop = document.createElement('div');
+    backdrop.className = 'auto-info-backdrop';
+    backdrop.innerHTML =
+      '<div class="auto-info-card">' +
+      '<div class="close-x">✕</div>' +
+      '<div class="title-row"><span class="dot"></span><strong>Per un risultato migliore</strong></div>' +
+      '<p>Con AUTO attivo, ogni cliente funziona meglio con le <b>coordinate</b> invece del solo indirizzo — l\'indirizzo a volte non si trova bene, le coordinate funzionano sempre. Le trovi su Google Maps: cerca il cliente, poi copia le coordinate da lì.</p>' +
+      '</div>';
+    document.body.appendChild(backdrop);
+    requestAnimationFrame(function () { backdrop.classList.add('show'); });
+    function close() {
+      backdrop.classList.remove('show');
+      setTimeout(function () { backdrop.remove(); }, 200);
+    }
+    backdrop.addEventListener('click', function (e) { if (e.target === backdrop) close(); });
+    backdrop.querySelector('.close-x').addEventListener('click', close);
   }
 
   /* ---------------------------------------------------------------- */
@@ -1829,8 +1857,13 @@
     if (reordinaBtn) reordinaBtn.addEventListener('click', dpOpenReordinaModal);
     var autoToggle = document.getElementById('dp-auto-riordina-toggle');
     if (autoToggle) autoToggle.addEventListener('click', function () {
-      dpSetAutoRiordinaEnabled(!dpAutoRiordinaEnabled());
+      var turningOn = !dpAutoRiordinaEnabled();
+      dpSetAutoRiordinaEnabled(turningOn);
       renderDeliveryPlanner(); // re-render flips the visual state immediately, and (via the auto-run check at the top of this function) triggers an optimization right away if it was just switched on
+      // Requested directly: explain, briefly, each time this is
+      // switched ON specifically (not when switching it off) — why
+      // coordinates matter for this feature to work reliably.
+      if (turningOn) showAutoRiordinaInfoNotice();
     });
     var gmapsBtn = document.getElementById('dp-open-gmaps-btn');
     if (gmapsBtn) gmapsBtn.addEventListener('click', dpOpenInGoogleMaps);
@@ -9883,6 +9916,18 @@
   });
 
   function init() {
+    // Requested directly: AUTO (auto-riordina) was persisting across
+    // full app closes/reopens via localStorage — if left on from a
+    // previous session and forgotten, it keeps calling the paid
+    // route-optimization API on its own, silently spending tokens the
+    // driver may not even need that day. init() only runs once per
+    // genuine fresh launch of the app (a real page load — reopening
+    // from the home screen icon after the app was fully closed, not
+    // just switching screens within it), so resetting it right here,
+    // unconditionally, means AUTO always starts OFF on a new session
+    // and has to be deliberately turned on again when actually
+    // wanted — never left silently running from days ago.
+    dpSetAutoRiordinaEnabled(false);
     migrateUppercaseLocalities();
     migrateFuelToArrays();
     migrateReverifyClientPrecision(); // async, rate-limited, runs fully in the background — never blocks anything else in init()

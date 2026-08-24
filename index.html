@@ -1221,6 +1221,35 @@
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
   .toast .dot{width:6px;height:6px;border-radius:50%;background:var(--teal);}
 
+  /* Requested directly: a short, clear notice shown once when AUTO
+     (auto-riordina) is switched on, explaining that clients need
+     coordinates (not just an address) for reliable results, and
+     where to get them. Dismissible either via the X or by tapping
+     anywhere outside it — not a blocking modal, just a light
+     backdrop that closes it on tap. */
+  .auto-info-backdrop{
+    position:fixed;inset:0;z-index:3100;background:rgba(28,27,31,.15);
+    display:flex;align-items:flex-start;justify-content:center;padding-top:100px;
+    opacity:0;pointer-events:none;transition:opacity .2s ease;
+  }
+  .auto-info-backdrop.show{opacity:1;pointer-events:auto;}
+  .auto-info-card{
+    background:var(--surface);border-radius:var(--radius-lg);box-shadow:var(--shadow-md);
+    max-width:340px;width:calc(100% - 48px);padding:18px 20px;position:relative;
+    transform:translateY(-8px);transition:transform .2s ease;
+  }
+  .auto-info-backdrop.show .auto-info-card{transform:translateY(0);}
+  .auto-info-card .close-x{
+    position:absolute;top:10px;right:10px;width:26px;height:26px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;color:var(--ink-soft);
+    font-size:16px;line-height:1;cursor:pointer;
+  }
+  .auto-info-card .close-x:active{background:var(--surface-2);}
+  .auto-info-card .title-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;padding-right:20px;}
+  .auto-info-card .title-row .dot{width:8px;height:8px;border-radius:50%;background:var(--teal);flex-shrink:0;}
+  .auto-info-card .title-row strong{font-size:14.5px;color:var(--ink);}
+  .auto-info-card p{font-size:13.5px;color:var(--ink-soft);line-height:1.55;margin:0;}
+
   .settings-driver-note{font-size:12.5px;color:#6B6A66;font-weight:500;margin-top:-6px;margin-bottom:16px;line-height:1.5;}
   /* Impostazioni redesign — requested directly: fields "looked thrown
      onto the page", needed clear grouping by what they actually
