@@ -969,33 +969,6 @@
       try { buildRoute(); } catch (e) { /* this rebuild attempt failed; leave whatever's already on screen as-is */ }
     }
 
-    // TEMPORARY DIAGNOSTIC — requested indirectly: the "page keeps
-    // scrolling past the footer" bug persists on a real device even
-    // after the earlier self-measurement-loop fix, but is not
-    // reproducible here in the sandbox. Rather than guess a second
-    // time, a small, unobtrusive button (bottom-right corner, easy to
-    // ignore, easy to find) reveals the exact real numbers on
-    // whatever device is actually showing the problem. Safe to remove
-    // entirely once the real cause is confirmed.
-    var dbgBtn = document.createElement('button');
-    dbgBtn.textContent = '🐞';
-    dbgBtn.style.cssText = 'position:fixed;bottom:10px;right:10px;z-index:99999;width:36px;height:36px;border-radius:50%;background:#000;color:#0f0;border:1px solid #0f0;font-size:16px;opacity:.5;';
-    dbgBtn.addEventListener('click', function () {
-      var footer = document.querySelector('footer');
-      var footerRect = footer.getBoundingClientRect();
-      var footerBottomAbs = Math.round(footerRect.bottom + window.scrollY);
-      var route = document.getElementById('fullpage-route');
-      var msg = 'body.scrollHeight: ' + document.body.scrollHeight +
-        '\ndocumentElement.scrollHeight: ' + document.documentElement.scrollHeight +
-        '\nfooter bottom (real): ' + footerBottomAbs +
-        '\nroute container height: ' + route.style.height +
-        '\nwindow.innerWidth: ' + window.innerWidth +
-        '\nwindow.innerHeight: ' + window.innerHeight +
-        '\ndevicePixelRatio: ' + window.devicePixelRatio;
-      alert(msg);
-    });
-    document.body.appendChild(dbgBtn);
-
     safeBuildRoute();
     // Rebuild after a short delay too — page height can shift slightly
     // once fonts/images fully settle after the very first measurement.
