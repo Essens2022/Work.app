@@ -4,6 +4,15 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Email confermata — ADB Smart</title>
+<!-- Requested directly: investigating an indexing-issues notification
+     in Search Console — this page ("crawled but not currently
+     indexed") is a purely transactional confirmation screen shown
+     after clicking an email-confirmation link, with no content of its
+     own value for search results. Google had already, correctly,
+     chosen not to index it — this makes that intentional and explicit
+     instead, so it stops appearing as noise in future reports and
+     Google doesn't spend crawl budget re-evaluating it. -->
+<meta name="robots" content="noindex">
 <style>
   *{box-sizing:border-box;}
   body{
