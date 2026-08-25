@@ -1721,9 +1721,18 @@
     <div class="sticky-fixed">
       <div class="modal-title">Archivio clienti</div>
       <div class="modal-sub">Tutti i clienti salvati. Tocca per modificare, scorri a sinistra per eliminare.</div>
-      <div class="field autocomplete-wrap" style="margin-bottom:10px;">
-        <input type="text" id="dp-archive-search-input" placeholder="Cerca per nome o indirizzo..." autocomplete="off">
-        <button type="button" class="ac-clear-btn" id="dp-archive-search-clear" aria-label="Cancella">✕</button>
+      <!-- Requested directly: quick access to edit the saved Casa/
+           Deposito addresses, placed right alongside the search field
+           itself rather than on their own row — explicitly to avoid
+           adding any vertical height here, since the client list
+           below already has little room to work with. -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <button type="button" class="btn-icon-text" id="dp-archive-deposito-btn" aria-label="Deposito" style="flex-shrink:0;"></button>
+        <div class="field autocomplete-wrap" style="flex:1;margin-bottom:0;">
+          <input type="text" id="dp-archive-search-input" placeholder="Cerca per nome o indirizzo..." autocomplete="off">
+          <button type="button" class="ac-clear-btn" id="dp-archive-search-clear" aria-label="Cancella">✕</button>
+        </div>
+        <button type="button" class="btn-icon-text" id="dp-archive-casa-btn" aria-label="Casa" style="flex-shrink:0;"></button>
       </div>
       <button type="button" class="btn btn-accent btn-block" id="dp-archive-add-btn" style="margin:10px 0;">+ Aggiungi cliente</button>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">
