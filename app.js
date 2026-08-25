@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v401") {
+          if (data && data.v && data.v !== "pt-foglio-v402") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v401"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v402"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -8780,11 +8780,17 @@
     var email = state.profile.pendingEmail;
     if (!email) return;
     var btn = this;
+    var originalLabel = btn.textContent;
     btn.disabled = true;
     requestMagicLink(email)
-      .then(function () { toast('Email inviata di nuovo a: ' + email); })
-      .catch(function (err) { toast(magicLinkErrorMessage(err)); })
-      .then(function () { btn.disabled = false; });
+      .then(function () {
+        toast('✓ Email inviata di nuovo a: ' + email);
+        startResendCooldown(btn, originalLabel);
+      })
+      .catch(function (err) {
+        toast(magicLinkErrorMessage(err));
+        btn.disabled = false; // failed to send at all — no cooldown needed, let them retry right away
+      });
   });
 
   // Requested directly: no way back existed from the "waiting for
@@ -8810,11 +8816,17 @@
     var session = getAuthSession();
     if (!session || !session.email) return;
     var btn = this;
+    var originalLabel = btn.textContent;
     btn.disabled = true;
     requestMagicLink(session.email)
-      .then(function () { toast('Promemoria inviato a: ' + session.email); })
-      .catch(function (err) { toast(magicLinkErrorMessage(err)); })
-      .then(function () { btn.disabled = false; });
+      .then(function () {
+        toast('✓ Promemoria inviato a: ' + session.email);
+        startResendCooldown(btn, originalLabel);
+      })
+      .catch(function (err) {
+        toast(magicLinkErrorMessage(err));
+        btn.disabled = false;
+      });
   });
 
   document.getElementById('account-logout-btn').addEventListener('click', function () {
@@ -9300,6 +9312,33 @@
   // Sends the "magic link" email — no password anywhere in this flow.
   // Clicking the link in that email brings the person right back here,
   // already signed in.
+  // Requested directly, real scenario reported: pressing "resend" more
+  // than once in a short window invalidates the PREVIOUS email's link
+  // (Supabase issues a fresh one-time token on every request) — someone
+  // who clicks resend, doesn't see it arrive instantly, and clicks
+  // again "just in case" silently kills their first email's link. The
+  // buttons already disabled themselves WHILE the request was in
+  // flight, but re-enabled immediately after — nowhere near long
+  // enough to stop this. This enforces a real, visible cooldown
+  // (60s, matching Supabase's own OTP rate-limit window) after a
+  // successful send, on whichever button triggered it, with a visible
+  // countdown so it's clear why — not just a silently-disabled button.
+  function startResendCooldown(btn, originalLabel) {
+    var seconds = 60;
+    btn.disabled = true;
+    var tick = function () {
+      if (seconds <= 0) {
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+        return;
+      }
+      btn.textContent = 'Attendi ' + seconds + 's...';
+      seconds -= 1;
+      setTimeout(tick, 1000);
+    };
+    tick();
+  }
+
   function requestMagicLink(email) {
     // Send just the first name as user metadata (not the full "Nome
     // Cognome") — this becomes available in the confirmation email
