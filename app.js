@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v405") {
+          if (data && data.v && data.v !== "pt-foglio-v406") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v405"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v406"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -4980,7 +4980,15 @@
       // into the SAME field should work too, not just a normal
       // address — coordinates are always exact, an address can
       // sometimes fail to geocode.
-      var COORD_RE = /^\s*(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/;
+      // Requested directly, with the real, exact copied text as proof
+      // ("(45.3848713, 11.9604032) iata un exemplu de coordinate pe
+      // care le copii direct din google"): Google Maps' own copy
+      // format wraps the pair in parentheses — the earlier version of
+      // this pattern required the string to START/END with the number
+      // itself, so real Google Maps coordinates never matched at all
+      // and fell through to the geocoding path instead of being
+      // applied directly. Parentheses are now optional on both sides.
+      var COORD_RE = /^\s*\(?\s*(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*\)?\s*$/;
 
       function resolveField(input, picked) {
         var typed = input.value.trim();
