@@ -425,13 +425,16 @@
     var visible = lastGroups.filter(function (g) { return showHidden || !g.hidden; });
     if (searchQuery) {
       var q = searchQuery.trim().toLowerCase();
+      var qNoDash = q.replace(/-/g, ''); // lets "ib01" find "IB-01" — nobody wants to type the dash for a quick lookup
       visible = visible.filter(function (g) {
         var haystack = [
           g.nome || '',
           g.driverId || '',
           Object.keys(g.emails).join(' ')
         ].join(' ').toLowerCase();
-        return haystack.indexOf(q) !== -1;
+        if (haystack.indexOf(q) !== -1) return true;
+        var idNoDash = (g.driverId || '').replace(/-/g, '').toLowerCase();
+        return !!idNoDash && idNoDash.indexOf(qNoDash) !== -1;
       });
     }
     if (!visible.length) {
