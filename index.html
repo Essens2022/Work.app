@@ -683,6 +683,16 @@
      source order in the HTML.
   */
   #modal-dp-new-client{z-index:2001;}
+  /* REAL BUG, found and confirmed directly ("cand apas pe casa/deposito,
+     apare dedesubt paginii Archivio clienti"): same root cause as
+     above — modal-nav-homework sits EARLIER in the HTML than
+     modal-dp-archive, so at the shared default z-index, opening it
+     from the new Casa/Deposito buttons inside an already-open archive
+     left the archive visually and functionally on top, exactly like
+     the new-client case. Same fix: a higher z-index guarantees this
+     modal always layers above whatever .modal-overlay it was opened
+     from, regardless of HTML source order. */
+  #modal-nav-homework{z-index:2001;}
   .modal-overlay.center{align-items:center;padding:20px;}
   /* Delivery photo camera — full-screen, black stage, live video feed
      with the delivery-info card overlaid on the bottom half (both as
