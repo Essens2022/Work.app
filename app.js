@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v404") {
+          if (data && data.v && data.v !== "pt-foglio-v405") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v404"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v405"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -4959,16 +4959,63 @@
       document.getElementById('modal-nav-homework').classList.remove('open');
     };
     document.getElementById('nav-homework-save').onclick = function () {
-      // If the field still matches what was typed for a resolved pick,
-      // keep it; if the person cleared the field, that address is
-      // removed instead of keeping a stale saved point.
-      if (!homeInput.value.trim()) pickedHome = null;
-      if (!workInput.value.trim()) pickedWork = null;
-      saveNavHomeWork({ home: pickedHome, work: pickedWork });
-      renderNavShortcuts(); // no-ops harmlessly now (its own DOM row no longer exists) — kept in case anything else still calls it
-      if (currentScreen === 'navigatore') renderDeliveryPlanner(); // refreshes the Casa/Deposito buttons on THIS screen, which renderNavShortcuts no longer reaches
-      document.getElementById('modal-nav-homework').classList.remove('open');
-      toast('Indirizzi salvati');
+      // REAL BUG, found and confirmed directly ("cand adaug adresa sau
+      // coordinatele... nu raman salvate, raman doar cele alese din
+      // cele propuse"): pickedHome/pickedWork are ONLY ever set by
+      // actually selecting an autocomplete suggestion — typing a full
+      // address and clicking Save without picking anything left
+      // pickedHome/pickedWork completely untouched (still whatever
+      // they were before, often null), silently discarding whatever
+      // was typed. Fixed properly below: text that wasn't picked from
+      // a suggestion is now resolved before saving — either parsed
+      // directly as coordinates, or geocoded — instead of being
+      // dropped.
+      var saveBtn = this;
+      saveBtn.disabled = true;
+      var originalLabel = saveBtn.textContent;
+      saveBtn.textContent = 'Salvataggio...';
+
+      // Requested directly, second part: typing raw coordinates
+      // (e.g. "45.1234, 9.5678", copied straight from Google Maps)
+      // into the SAME field should work too, not just a normal
+      // address — coordinates are always exact, an address can
+      // sometimes fail to geocode.
+      var COORD_RE = /^\s*(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*$/;
+
+      function resolveField(input, picked) {
+        var typed = input.value.trim();
+        if (!typed) return Promise.resolve(null);
+        if (picked && picked.text === typed) return Promise.resolve(picked); // unchanged since it was picked — use as-is, no need to re-resolve
+        var coordMatch = typed.match(COORD_RE);
+        if (coordMatch) {
+          var lat = parseFloat(coordMatch[1]), lon = parseFloat(coordMatch[2]);
+          return Promise.resolve({ text: typed, lat: lat, lon: lon });
+        }
+        // Free-typed address, never picked from the suggestion list —
+        // geocode it now rather than discarding it. Same geocoder
+        // (and same precise-address-layer preference) already used
+        // for regular delivery clients, for consistent results.
+        return geocodeAddress(typed).then(function (result) {
+          if (!result) return null; // genuinely not found — treated as cleared, rather than silently keeping a stale prior value
+          return { text: typed, lat: result.lat, lon: result.lon };
+        });
+      }
+
+      Promise.all([
+        resolveField(homeInput, pickedHome),
+        resolveField(workInput, pickedWork)
+      ]).then(function (results) {
+        var resolvedHome = results[0], resolvedWork = results[1];
+        saveNavHomeWork({ home: resolvedHome, work: resolvedWork });
+        renderNavShortcuts(); // no-ops harmlessly now (its own DOM row no longer exists) — kept in case anything else still calls it
+        if (currentScreen === 'navigatore') renderDeliveryPlanner(); // refreshes the Casa/Deposito buttons on THIS screen, which renderNavShortcuts no longer reaches
+        document.getElementById('modal-nav-homework').classList.remove('open');
+        var anyTypedButNotFound = (homeInput.value.trim() && !resolvedHome) || (workInput.value.trim() && !resolvedWork);
+        toast(anyTypedButNotFound ? '⚠ Indirizzo non trovato per uno dei due campi' : '✓ Indirizzi salvati');
+      }).finally(function () {
+        saveBtn.disabled = false;
+        saveBtn.textContent = originalLabel;
+      });
     };
   }
 
