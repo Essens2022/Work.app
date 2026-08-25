@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v400") {
+          if (data && data.v && data.v !== "pt-foglio-v401") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v400"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v401"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -509,7 +509,7 @@
       '<div class="auto-info-card">' +
       '<div class="close-x">✕</div>' +
       '<div class="title-row"><span class="dot"></span><strong>Per un risultato migliore</strong></div>' +
-      '<p>Con AUTO attivo, ogni cliente funziona meglio con le <b>coordinate</b> invece del solo indirizzo — l\'indirizzo a volte non si trova bene, le coordinate funzionano sempre. Le trovi su Google Maps: cerca il cliente, poi copia le coordinate da lì.</p>' +
+      '<p>Con AUTO attivo, il percorso viene organizzato automaticamente. Per un funzionamento più preciso, è consigliato aggiungere le coordinate a ogni cliente: sono più affidabili del solo indirizzo e puoi copiarle facilmente da Google Maps.</p>' +
       '</div>';
     document.body.appendChild(backdrop);
     requestAnimationFrame(function () { backdrop.classList.add('show'); });
