@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v402") {
+          if (data && data.v && data.v !== "pt-foglio-v403") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v402"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v403"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -751,6 +751,15 @@
       // colleague) — icon only, no text, same stroke style as every
       // other icon here.
       archive: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M4 8v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 13h4"/></svg>',
+      // Requested directly: quick access to edit the saved Casa/Deposito
+      // addresses from within Archivio clienti's own top bar — home
+      // gets a plain pointed roof + single narrow door, deposito gets
+      // a wider roof line and a two-panel roll-up-style door, so the
+      // two read as clearly different buildings even at 18px, not
+      // just a home icon twice. Same stroke style/weight as every
+      // other icon here — no emoji, per direct request.
+      home: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9a1 1 0 0 0 1 1h3v-6h4v6h3a1 1 0 0 0 1-1v-9"/></svg>',
+      warehouse: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20V9.5l9-5 9 5V20"/><path d="M3 20h18"/><rect x="8" y="13" width="8" height="7"/><path d="M11 13v7M13 13v7"/></svg>',
       // Requested directly: "Reordina" didn't read clearly as a
       // button — added this icon (two opposite-direction arrows,
       // the standard sort/reorder symbol) alongside a filled
@@ -2415,6 +2424,19 @@
       document.getElementById('dp-archive-search-clear'),
       function () { dpRenderArchiveList(); } // clearing the field also clears the filter, back to the full list
     );
+    // Requested directly: quick, always-available way to edit the
+    // saved Casa/Deposito addresses from here — icons filled in via JS
+    // (svgIcon) rather than duplicated as raw markup in index.html, so
+    // there's exactly one definition of what these icons look like.
+    // Opens the SAME existing modal used for the very first setup —
+    // it already correctly pre-fills whatever is currently saved, so
+    // this doubles as "set" and "edit" with no separate code path.
+    var depositoBtn = document.getElementById('dp-archive-deposito-btn');
+    depositoBtn.innerHTML = svgIcon('warehouse');
+    depositoBtn.onclick = openNavHomeWorkModal;
+    var casaBtn = document.getElementById('dp-archive-casa-btn');
+    casaBtn.innerHTML = svgIcon('home');
+    casaBtn.onclick = openNavHomeWorkModal;
     document.getElementById('modal-dp-archive').classList.add('open');
   }
 
