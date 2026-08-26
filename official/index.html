@@ -602,6 +602,25 @@
 </footer>
 
 <script>
+  // REAL BUG, reported directly: the page-load crash during zoom
+  // reproduced SPECIFICALLY after using the browser's Back/Forward
+  // buttons — never on a genuinely fresh load (typing the address
+  // directly). That specific pattern points squarely at the
+  // browser's back/forward cache (bfcache): instead of a real
+  // reload, Safari/Chrome can restore an entire previous page
+  // instance straight from memory — including every JS variable,
+  // timer, and listener exactly as they were left, which can very
+  // plausibly leave this page's own state (the delayed route build,
+  // the zoom-watcher's cached elements, the parallax ticking flag,
+  // and more) inconsistent with what's actually in the DOM at that
+  // moment. Forcing a genuine, clean reload whenever the page is
+  // restored this way sidesteps all of that at once — a full fresh
+  // start every time, rather than trying to make every piece of
+  // stateful JS on this page separately bfcache-safe.
+  window.addEventListener('pageshow', function (event) {
+    if (event.persisted) location.reload();
+  });
+
   // REAL BUG, reported directly: on refresh specifically (mobile
   // Safari), the page didn't fill the whole screen — the browser's
   // address bar starts expanded right after a reload, so the CSS
