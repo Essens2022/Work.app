@@ -9909,7 +9909,12 @@
   document.getElementById('install-cta-btn').addEventListener('click', openInstallHelp);
 
   function shareApp() {
-    var shareUrl = window.location.origin + '/'; // clean root link, regardless of exact path the app happened to launch from (e.g. installed PWAs open at "/index.html" per the manifest's start_url)
+    // Requested directly: point friends being invited at the
+    // marketing/presentation page (with the tutorial video, gallery,
+    // FAQ) rather than straight at the app's own root — someone who
+    // doesn't have it yet benefits from seeing what it does first,
+    // not landing straight on the onboarding screen.
+    var shareUrl = window.location.origin + '/official/';
     // Requested directly: this only mentioned the trip-log document —
     // outdated, given how much the app covers now. A follow-up request
     // specifically called out the route-ordering feature (Reordina/
