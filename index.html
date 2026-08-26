@@ -2068,9 +2068,12 @@
      one small menu keeps the main Settings screen focused on the
      everyday fields. -->
 <div class="modal-overlay center" id="modal-more-options">
-  <div class="sheet-panel" style="max-width:420px;">
+  <div class="sheet-panel sticky-panel" style="max-width:420px;">
     <button type="button" class="modal-close-x" id="more-options-close-x" aria-label="Chiudi">×</button>
-    <div class="modal-title">Altre opzioni</div>
+    <div class="sticky-fixed">
+      <div class="modal-title">Altre opzioni</div>
+    </div>
+    <div class="sticky-scroll">
     <div class="more-options-list">
       <div class="more-option-row" style="cursor:default;">
         <span class="more-option-icon">🔔</span>
@@ -2106,6 +2109,7 @@
         <span class="more-option-icon">🗑</span>
         <span class="more-option-text"><b>Elimina tutti i dati</b><small>Cancella fogli, scontrini e profilo — non annullabile</small></span>
       </button>
+    </div>
     </div>
   </div>
 </div>
