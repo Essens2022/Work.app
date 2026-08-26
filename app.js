@@ -10046,7 +10046,38 @@
       .then(function (data) {
         if (data && data.v && data.v !== APP_VERSION) {
           toast('Nuova versione trovata — aggiornamento in corso…');
-          setTimeout(function () { window.location.reload(); }, 600);
+          // REAL BUG, reported directly: pressing this kept saying a
+          // new version was found, updating, then immediately saying
+          // the same thing again on the next press — a real loop.
+          // Root cause: the service worker is registered at a
+          // version-tagged URL ('sw.js?v=' + APP_VERSION, see the
+          // comment further down explaining exactly why). A plain
+          // reload() here only reloads the CURRENT page — it doesn't
+          // itself make the service worker notice or fetch the new
+          // version. version.json (fetched fresh above, no-store)
+          // correctly saw the new version on the SERVER, but the
+          // actual app.js the browser reloaded still came from the
+          // OLD, already-installed service worker's own cache, so
+          // APP_VERSION never actually changed — checking again
+          // naturally found the exact same mismatch, forever.
+          // Fixed by explicitly asking the CURRENT registration to
+          // check for and install an update FIRST, and only reloading
+          // once that's genuinely done (or after a safety timeout, in
+          // case something prevents it from ever resolving) — instead
+          // of reloading blind and hoping the service worker happened
+          // to catch up on its own in the background.
+          navigator.serviceWorker.getRegistration().then(function (registration) {
+            if (!registration) { window.location.reload(); return; }
+            var reloaded = false;
+            function doReload() {
+              if (reloaded) return;
+              reloaded = true;
+              window.location.reload();
+            }
+            navigator.serviceWorker.addEventListener('controllerchange', doReload, { once: true });
+            registration.update().catch(function () { /* offline or otherwise unreachable — the safety timeout below still fires */ });
+            setTimeout(doReload, 4000); // safety net — reload anyway if no controllerchange fires in time, rather than leaving the person stuck on the toast forever
+          }).catch(function () { window.location.reload(); });
         } else {
           toast('Hai già la versione più recente ✓');
         }
