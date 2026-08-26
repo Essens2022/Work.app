@@ -10,6 +10,16 @@
      simple gear shape, on a dark background, legible even at 16px. -->
 <link rel="icon" href="favicon.ico" sizes="any">
 <link rel="icon" href="icon.png" type="image/png">
+<!-- Requested directly, again: installing this page to the home
+     screen (not just the browser tab) was showing the MAIN app's
+     truck icon instead of this one — because only the plain favicon
+     was set above, and "Add to Home Screen" / "Install" use a
+     DIFFERENT mechanism (apple-touch-icon on iOS, the Web App
+     Manifest on Android/Chrome), which this page never declared its
+     own version of, until now. -->
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0A0A0B">
 <style>
   *{box-sizing:border-box;}
   :root{
