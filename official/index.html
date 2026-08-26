@@ -747,7 +747,9 @@
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     var field = document.getElementById('streaksField');
     var ticking = false;
+    var forcedPause = false; // set the instant a second finger touches down — see below
     function isZooming() {
+      if (forcedPause) return true;
       return window.visualViewport && Math.abs(window.visualViewport.scale - 1) > 0.02;
     }
     window.addEventListener('scroll', function () {
@@ -767,21 +769,48 @@
     // visual difference during a fraction-of-a-second zoom gesture is
     // imperceptible, but it's real, continuous GPU work removed
     // exactly when the device needs the headroom most.
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', function () {
-        field.style.animationPlayState = isZooming() ? 'paused' : 'running';
-        document.body.classList.toggle('zoom-active', isZooming());
-        document.querySelectorAll('.streak').forEach(function (s) { s.style.animationPlayState = isZooming() ? 'paused' : 'running'; });
-        // Same reasoning applied to the full-page route animation —
-        // the pulsing nodes are a continuous CSS animation too, paused
-        // for the same reason during an active pinch-zoom.
-        document.querySelectorAll('.route-node').forEach(function (s) { s.style.animationPlayState = isZooming() ? 'paused' : 'running'; });
-        // Vehicle movement is now plain JS (requestAnimationFrame),
-        // not SMIL — paused via a shared flag exposed by that other
-        // module, set up regardless of which one initializes first.
-        if (window.__setRouteAnimPaused) window.__setRouteAnimPaused(isZooming());
-      });
+    function applyPauseState() {
+      var zooming = isZooming();
+      field.style.animationPlayState = zooming ? 'paused' : 'running';
+      document.body.classList.toggle('zoom-active', zooming);
+      document.querySelectorAll('.streak').forEach(function (s) { s.style.animationPlayState = zooming ? 'paused' : 'running'; });
+      // Same reasoning applied to the full-page route animation —
+      // the pulsing nodes are a continuous CSS animation too, paused
+      // for the same reason during an active pinch-zoom.
+      document.querySelectorAll('.route-node').forEach(function (s) { s.style.animationPlayState = zooming ? 'paused' : 'running'; });
+      // Vehicle movement is now plain JS (requestAnimationFrame),
+      // not SMIL — paused via a shared flag exposed by that other
+      // module, set up regardless of which one initializes first.
+      if (window.__setRouteAnimPaused) window.__setRouteAnimPaused(zooming);
     }
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', applyPauseState);
+    }
+
+    // REAL BUG, reported directly, on Chrome for iPhone specifically
+    // (still WebKit underneath, like Safari, but not identical timing):
+    // a PURE pinch — two fingers landing and zooming, with no scroll
+    // at all — could still crash the page there, even with the
+    // visualViewport-based pause above already in place. Most likely
+    // explanation: that pause only reacts AFTER the browser reports an
+    // actual scale change via a resize event, which can lag a beat
+    // behind the very first moment of contact — on a heavier page like
+    // this one, that beat is apparently enough. touchstart with two+
+    // fingers fires the INSTANT the second finger lands, before any
+    // zooming has actually happened yet — pausing right there removes
+    // that entire window, rather than trying to react faster to it.
+    document.addEventListener('touchstart', function (e) {
+      if (e.touches.length >= 2) {
+        forcedPause = true;
+        applyPauseState();
+      }
+    }, { passive: true });
+    document.addEventListener('touchend', function (e) {
+      if (e.touches.length < 2) {
+        forcedPause = false;
+        applyPauseState();
+      }
+    }, { passive: true });
   })();
 
   // Requested directly: "aceasta linie ar fi bine sa fie pe intregul
