@@ -760,26 +760,53 @@
       });
     });
 
-    // Same reasoning, one step further — the streaks' own continuous
-    // CSS animations (blur + movement, running non-stop regardless of
-    // scrolling) add to the SAME compositor load. Paused outright
-    // during an active pinch-zoom, resumed the moment it ends — the
-    // visual difference during a fraction-of-a-second zoom gesture is
-    // imperceptible, but it's real, continuous GPU work removed
-    // exactly when the device needs the headroom most.
+    // REAL BUG, found directly, on code review, NOT the route or the
+    // blur itself — a native pinch gesture fires visualViewport
+    // 'resize' many times per second while the fingers are moving,
+    // and every single one of those firings was running TWO fresh
+    // document.querySelectorAll() calls (one of them across every
+    // route-node on the page — potentially dozens, spread across the
+    // page's whole height) plus a style write on each result, even
+    // when the zoom state hadn't actually changed since the LAST
+    // firing a moment earlier. Repeating that same expensive,
+    // uncached DOM work dozens of times a second, stacked on top of
+    // whatever cost the native pinch itself already demands, is a
+    // very plausible way to tip a memory-constrained phone into
+    // exactly the renderer crash reported — independent of the
+    // route's own animation or the streaks' own blur cost, which
+    // were never really the problem. Fixed two ways: the two
+    // querySelectorAll results are captured ONCE, not re-queried on
+    // every event; and the whole body only runs at all when the
+    // zoomed/not-zoomed STATE actually flips, not on every one of the
+    // many redundant firings while it stays the same.
+    // Cached LAZILY, not immediately at setup — the route itself
+    // builds its nodes asynchronously, a beat after page load (see
+    // safeBuildRoute below), so querying for them this early would
+    // very likely capture an empty list, permanently, before any
+    // node exists yet. Queried once, for real, the first time a zoom
+    // actually happens (by which point construction has long
+    // finished) — never re-queried again after that.
+    var cachedStreaks = null;
+    var cachedRouteNodes = null;
+    var wasZooming = false;
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', function () {
-        field.style.animationPlayState = isZooming() ? 'paused' : 'running';
-        document.body.classList.toggle('zoom-active', isZooming());
-        document.querySelectorAll('.streak').forEach(function (s) { s.style.animationPlayState = isZooming() ? 'paused' : 'running'; });
+        var zooming = isZooming();
+        if (zooming === wasZooming) return; // the overwhelming majority of firings during a gesture — nothing actually changed, so nothing more to do
+        wasZooming = zooming;
+        if (!cachedStreaks) cachedStreaks = document.querySelectorAll('.streak');
+        if (!cachedRouteNodes) cachedRouteNodes = document.querySelectorAll('.route-node');
+        field.style.animationPlayState = zooming ? 'paused' : 'running';
+        document.body.classList.toggle('zoom-active', zooming);
+        cachedStreaks.forEach(function (s) { s.style.animationPlayState = zooming ? 'paused' : 'running'; });
         // Same reasoning applied to the full-page route animation —
         // the pulsing nodes are a continuous CSS animation too, paused
         // for the same reason during an active pinch-zoom.
-        document.querySelectorAll('.route-node').forEach(function (s) { s.style.animationPlayState = isZooming() ? 'paused' : 'running'; });
+        cachedRouteNodes.forEach(function (s) { s.style.animationPlayState = zooming ? 'paused' : 'running'; });
         // Vehicle movement is now plain JS (requestAnimationFrame),
         // not SMIL — paused via a shared flag exposed by that other
         // module, set up regardless of which one initializes first.
-        if (window.__setRouteAnimPaused) window.__setRouteAnimPaused(isZooming());
+        if (window.__setRouteAnimPaused) window.__setRouteAnimPaused(zooming);
       });
     }
   })();
