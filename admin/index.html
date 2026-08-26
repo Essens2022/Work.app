@@ -144,8 +144,9 @@
     color:var(--ink);padding:10px 12px;font-size:14px;font-family:inherit;
   }
   .novita-form-card textarea{resize:vertical;min-height:70px;}
-  .novita-checkbox-row{display:flex;align-items:center;gap:8px;margin-top:16px;}
-  .novita-checkbox-row label{margin:0;text-transform:none;font-size:13.5px;color:var(--ink);}
+  .novita-checkbox-row{display:flex;align-items:flex-start;gap:10px;margin-top:16px;}
+  .novita-checkbox-row input{flex-shrink:0;margin-top:2px;width:18px;height:18px;}
+  .novita-checkbox-row label{margin:0;text-transform:none;font-size:13.5px;color:var(--ink);flex:1;min-width:0;word-wrap:break-word;line-height:1.4;}
 </style>
 <script src="../vendor/supabase.js"></script>
 </head>
