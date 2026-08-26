@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v407") {
+          if (data && data.v && data.v !== "pt-foglio-v408") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v407"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v408"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -9366,6 +9366,85 @@
   var LS_NOVITA_LAST_SEEN = 'pt_novita_last_seen_v1';
   var NOVITA_TYPE_LABELS_APP = { video: 'Video', text: 'Novità', announcement: 'Annuncio' };
 
+  // Real phone push notifications — entirely separate opt-in, on top
+  // of the unconditional in-app red dot above. Off by default for
+  // everyone; a driver turns it on (or back off) explicitly, only
+  // from Impostazioni → Altre opzioni.
+  var VAPID_PUBLIC_KEY = 'BE8wkq3SQmoE8L8x0pFVwYaLym1EYB14_NABB1qEiVOi0VvOpUDYAODObA5Lirh9Kfy6C97ExU5btOYLG7uHvgk';
+
+  function urlBase64ToUint8Array(base64String) {
+    var padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    var rawData = atob(base64);
+    var outputArray = new Uint8Array(rawData.length);
+    for (var i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+    return outputArray;
+  }
+
+  function pushSupported() {
+    return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  }
+
+  function syncPushToggleUI() {
+    var toggle = document.getElementById('push-notif-toggle');
+    if (!toggle) return;
+    if (!pushSupported()) {
+      toggle.closest('.more-option-row').style.display = 'none'; // e.g. older iOS Safari without web push support at all — hide entirely rather than show a switch that can't work
+      return;
+    }
+    navigator.serviceWorker.ready.then(function (reg) {
+      reg.pushManager.getSubscription().then(function (sub) {
+        toggle.classList.toggle('on', !!sub && Notification.permission === 'granted');
+      });
+    });
+  }
+
+  function enablePushNotifications() {
+    var toggle = document.getElementById('push-notif-toggle');
+    Notification.requestPermission().then(function (perm) {
+      if (perm !== 'granted') {
+        toast('Permesso negato — puoi riattivarlo dalle impostazioni del telefono in qualsiasi momento.');
+        return;
+      }
+      navigator.serviceWorker.ready.then(function (reg) {
+        reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        }).then(function (sub) {
+          fetch(SUPABASE_URL + '/functions/v1/push-subscription', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'subscribe', device_id: getDeviceId(), subscription: sub.toJSON() })
+          }).then(function () {
+            if (toggle) toggle.classList.add('on');
+            toast('Notifiche attivate');
+          });
+        }).catch(function () {
+          toast('Non è stato possibile attivare le notifiche su questo dispositivo.');
+        });
+      });
+    });
+  }
+
+  function disablePushNotifications() {
+    var toggle = document.getElementById('push-notif-toggle');
+    navigator.serviceWorker.ready.then(function (reg) {
+      reg.pushManager.getSubscription().then(function (sub) {
+        var unsubPromise = sub ? sub.unsubscribe() : Promise.resolve();
+        unsubPromise.then(function () {
+          fetch(SUPABASE_URL + '/functions/v1/push-subscription', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'unsubscribe', device_id: getDeviceId() })
+          }).then(function () {
+            if (toggle) toggle.classList.remove('on');
+            toast('Notifiche disattivate');
+          });
+        });
+      });
+    });
+  }
+
   function checkNovitaUnread() {
     fetch(SUPABASE_URL + '/rest/v1/app_novita?select=created_at&published=eq.true&order=created_at.desc&limit=1', {
       headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY }
@@ -9937,7 +10016,11 @@
   var moreOptionsModal = document.getElementById('modal-more-options');
   document.getElementById('settings-more-btn').addEventListener('click', function () {
     updateInstallVisibility(); // refresh in case something changed since Settings opened
+    syncPushToggleUI();
     moreOptionsModal.classList.add('open');
+  });
+  document.getElementById('push-notif-toggle').addEventListener('click', function () {
+    if (this.classList.contains('on')) { disablePushNotifications(); } else { enablePushNotifications(); }
   });
   document.getElementById('more-options-close-x').addEventListener('click', function () {
     moreOptionsModal.classList.remove('open');
