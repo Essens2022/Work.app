@@ -558,6 +558,23 @@
 }
 </script>
 
+<!-- Video rich result — lets this tutorial potentially show its own
+     thumbnail directly in Google's search results, not just as plain
+     text. Kept in sync with the actual video shown above (which ION
+     controls from admin) via the script further down — this static
+     version is the immediate value, present even before that JS runs. -->
+<script type="application/ld+json" id="video-schema">
+{
+  "@context": "https://schema.org",
+  "@type": "VideoObject",
+  "name": "Tutorial ADB Smart — come funziona l'app per autisti",
+  "description": "Guida completa passo dopo passo: dalla registrazione al primo foglio viaggi, gestione consegne, itinerario automatico e altro.",
+  "thumbnailUrl": "https://img.youtube.com/vi/XcXEaQp4KbA/hqdefault.jpg",
+  "uploadDate": "2026-08-26",
+  "embedUrl": "https://www.youtube.com/embed/XcXEaQp4KbA"
+}
+</script>
+
 <section class="final-cta">
   <div class="wrap">
     <h2>Pronto a semplificare<br>il tuo <span class="grad-text">lavoro?</span></h2>
@@ -632,6 +649,18 @@
         if (!id) return; // no setting saved yet — keep the fallback ID already in the HTML
         document.getElementById('tutorial-iframe').src = 'https://www.youtube.com/embed/' + encodeURIComponent(id);
         document.getElementById('video-open-youtube').href = 'https://youtu.be/' + encodeURIComponent(id);
+        // Keep the VideoObject rich-result data in step with whatever
+        // ID is actually live — only rewrite it if it genuinely
+        // changed, no reason to touch the DOM otherwise.
+        var schemaEl = document.getElementById('video-schema');
+        if (schemaEl && schemaEl.textContent.indexOf(id) === -1) {
+          try {
+            var schema = JSON.parse(schemaEl.textContent);
+            schema.thumbnailUrl = 'https://img.youtube.com/vi/' + id + '/hqdefault.jpg';
+            schema.embedUrl = 'https://www.youtube.com/embed/' + id;
+            schemaEl.textContent = JSON.stringify(schema);
+          } catch (e) { /* malformed schema somehow — leave the static fallback in place rather than break it further */ }
+        }
       })
       .catch(function () { /* offline, or the request failed — fallback ID in the HTML keeps working */ });
   })();
