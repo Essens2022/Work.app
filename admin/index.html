@@ -175,6 +175,17 @@
     </div>
 
     <div id="tab-novita" class="admin-tab-panel">
+      <div class="novita-card" style="margin-bottom:20px;">
+        <div class="novita-card-top"><span class="novita-type-badge video">Sito ufficiale</span></div>
+        <div class="novita-title">Video tutorial su adbsmart.it/official</div>
+        <div class="novita-desc">Questo è il video mostrato pubblicamente sulla pagina di presentazione — cambialo qui quando ne registri uno nuovo, senza bisogno di modificare il codice.</div>
+        <label style="display:block;font-size:11.5px;font-weight:700;color:var(--ink-faint);text-transform:uppercase;margin:14px 0 6px;">Link o ID YouTube</label>
+        <input id="official-video-input" type="text" placeholder="https://youtu.be/... oppure solo l'ID" style="width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:10px 12px;font-size:14px;font-family:inherit;">
+        <div class="novita-actions" style="margin-top:12px;">
+          <button id="official-video-save" class="btn-ghost">Salva</button>
+          <span id="official-video-status" style="font-size:12px;color:var(--ink-faint);align-self:center;"></span>
+        </div>
+      </div>
       <button id="novita-add-btn" class="btn-block" style="margin-bottom:16px;background:var(--accent);">+ Aggiungi novità</button>
       <div id="novita-list"></div>
     </div>
@@ -620,6 +631,26 @@
     });
   }
 
+  function loadOfficialVideoSetting() {
+    novitaCall({ action: 'get_setting', key: 'official_tutorial_youtube_id' }).then(function (res) {
+      if (res.ok && res.data.value) document.getElementById('official-video-input').value = res.data.value;
+    });
+  }
+
+  document.getElementById('official-video-save').addEventListener('click', function () {
+    var raw = document.getElementById('official-video-input').value.trim();
+    var id = raw;
+    var m = raw.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{6,})/);
+    if (m) id = m[1];
+    var statusEl = document.getElementById('official-video-status');
+    statusEl.textContent = 'Salvataggio…';
+    novitaCall({ action: 'set_setting', key: 'official_tutorial_youtube_id', value: id }).then(function (res) {
+      statusEl.textContent = res.ok ? '✓ Salvato' : 'Errore';
+      document.getElementById('official-video-input').value = id;
+      setTimeout(function () { statusEl.textContent = ''; }, 2500);
+    });
+  });
+
   function openNovitaForm(editId) {
     var editing = editId ? lastNovita.find(function (n) { return n.id === editId; }) : null;
     var overlay = document.createElement('div');
@@ -838,6 +869,7 @@
         startAdminPresenceWatch();
         offerFaceIdIfSensible();
         loadNovita();
+        loadOfficialVideoSetting();
         if (refreshTimer) clearInterval(refreshTimer);
         refreshTimer = setInterval(function () {
           fetchDrivers().then(function (r) {
