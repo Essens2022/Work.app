@@ -9,7 +9,7 @@
 //  - Large, rarely-changing files (jsPDF, the comuni database, icons, logo)
 //    stay CACHE-FIRST, so they don't get re-downloaded on every load.
 
-const CACHE_VERSION = 'pt-foglio-v407';
+const CACHE_VERSION = 'pt-foglio-v408';
 const CORE_ASSETS = ['./', './index.html', './app.js', './manifest.json', './version.json'];
 // REAL BUG, reported directly, TWICE — a first attempt excluded these
 // pages from the service worker entirely, reasoning that removing a
@@ -145,3 +145,30 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
+// Real phone push notifications — requested directly, kept entirely
+// separate from the in-app "Novità" red-dot indicator (which stays
+// unconditional for everyone). A driver only ever gets here if they
+// explicitly turned this on from Impostazioni.
+self.addEventListener('push', (event) => {
+  var data = { title: 'ADB Smart', body: 'Novità disponibile' };
+  try { data = event.data.json(); } catch (e) { /* fall back to the generic text above */ }
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'ADB Smart', {
+      body: data.body || '',
+      icon: 'icon-192.png',
+      badge: 'icon-192.png',
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window' }).then(function (clientList) {
+      for (var i = 0; i < clientList.length; i++) {
+        if ('focus' in clientList[i]) return clientList[i].focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow('./index.html');
+    })
+  );
+});
