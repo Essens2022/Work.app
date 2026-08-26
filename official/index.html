@@ -65,6 +65,20 @@
      entirely, not just paused, for the duration of an active zoom.
   */
   body.zoom-active .streak{filter:none!important;}
+  /* REAL BUG, another candidate found on direct code review, after
+     reports narrowed to "happens most while zooming into an image":
+     the phone mockups (both in the hero and in the gallery, five of
+     them across the page) each carry a large, soft box-shadow
+     (0 40px 90px — a 90px blur radius) AND a CSS transform (rotation)
+     on the exact same element — precisely the images someone would
+     naturally pinch-zoom into, to read their screen content more
+     closely. A shadow this size is expensive to rasterize on its
+     own; recomputing it, on multiple rotated elements at once, DURING
+     a native pinch-zoom (which already demands compositor work to
+     rescale everything) is a plausible further contributor. Dropped
+     entirely for the duration of an active zoom, same pattern as the
+     streaks' blur above. */
+  body.zoom-active .phone-frame{box-shadow:none!important;}
   /* Requested directly, follow-up: the crash persisted even after
      removing the streaks' blur — reported clearly this time: a black
      square appears and part of the page stops rendering, ANYWHERE on
