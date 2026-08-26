@@ -617,18 +617,41 @@
     });
   })();
 
+  // Loads the current tutorial video ID from admin (site_settings) —
+  // the two hardcoded values in the HTML above are only the fallback,
+  // shown until this resolves (or if it fails entirely), so the
+  // section is never actually broken while this loads.
+  (function () {
+    fetch('https://chboalgzigdglygnnist.supabase.co/rest/v1/site_settings?select=value&key=eq.official_tutorial_youtube_id', {
+      headers: {
+        'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoYm9hbGd6aWdkZ2x5Z25uaXN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1NTc4MjMsImV4cCI6MjEwMjEzMzgyM30.vorEiww3SvVAadgnAqFH42M-MjbpXOojAlhNm-cIeMI'
+      }
+    }).then(function (r) { return r.json(); })
+      .then(function (rows) {
+        var id = rows && rows[0] && rows[0].value;
+        if (!id) return; // no setting saved yet — keep the fallback ID already in the HTML
+        document.getElementById('tutorial-iframe').src = 'https://www.youtube.com/embed/' + encodeURIComponent(id);
+        document.getElementById('video-open-youtube').href = 'https://youtu.be/' + encodeURIComponent(id);
+      })
+      .catch(function () { /* offline, or the request failed — fallback ID in the HTML keeps working */ });
+  })();
+
   // Tutorial video actions — copy link always works; native share only
   // shown on devices/browsers that actually support it (mostly mobile),
   // so desktop visitors aren't shown a button that would just fail.
+  // shareUrl read FRESH inside each handler (not captured once here) —
+  // the video ID can be swapped in dynamically, from admin, a moment
+  // after this script first runs; capturing it upfront would keep
+  // pointing at the old, hardcoded fallback ID forever.
   (function () {
-    var shareUrl = document.getElementById('video-open-youtube').href;
+    function currentShareUrl() { return document.getElementById('video-open-youtube').href; }
     var copyBtn = document.getElementById('video-copy-link');
     var shareBtn = document.getElementById('video-share');
 
     if (navigator.share) {
       shareBtn.style.display = 'inline-flex';
       shareBtn.addEventListener('click', function () {
-        navigator.share({ title: 'Tutorial ADB Smart', url: shareUrl }).catch(function () { /* user cancelled — nothing to do */ });
+        navigator.share({ title: 'Tutorial ADB Smart', url: currentShareUrl() }).catch(function () { /* user cancelled — nothing to do */ });
       });
     }
 
@@ -639,13 +662,13 @@
         setTimeout(function () { copyBtn.innerHTML = original; }, 1800);
       }
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(shareUrl).then(showCopied).catch(fallbackCopy);
+        navigator.clipboard.writeText(currentShareUrl()).then(showCopied).catch(fallbackCopy);
       } else {
         fallbackCopy();
       }
       function fallbackCopy() {
         var tmp = document.createElement('textarea');
-        tmp.value = shareUrl; tmp.style.position = 'fixed'; tmp.style.opacity = '0';
+        tmp.value = currentShareUrl(); tmp.style.position = 'fixed'; tmp.style.opacity = '0';
         document.body.appendChild(tmp); tmp.focus(); tmp.select();
         try { document.execCommand('copy'); showCopied(); } catch (e) { /* nothing more to try */ }
         document.body.removeChild(tmp);
