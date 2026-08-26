@@ -106,6 +106,36 @@
   .empty{text-align:center;color:var(--ink-faint);padding:36px 0;font-size:14px;}
   #login-screen, #data-screen{display:none;}
   #login-screen.show, #data-screen.show{display:block;}
+
+  .admin-tabs{display:flex;gap:8px;margin-bottom:18px;border-bottom:1px solid var(--line);}
+  .admin-tab{
+    background:none;border:none;color:var(--ink-faint);font-weight:700;font-size:14px;
+    padding:10px 4px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;
+  }
+  .admin-tab.active{color:var(--ink);border-bottom-color:var(--accent);}
+  .admin-tab-panel{display:none;}
+  .admin-tab-panel.active{display:block;}
+
+  .novita-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:10px;}
+  .novita-card-top{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+  .novita-type-badge{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;padding:2px 8px;border-radius:6px;background:var(--surface-2);color:var(--ink-faint);}
+  .novita-type-badge.video{color:#E8542B;}
+  .novita-draft-badge{font-size:10.5px;font-weight:700;color:var(--ink-faint);}
+  .novita-title{font-weight:800;font-size:14.5px;margin-bottom:4px;}
+  .novita-desc{font-size:12.5px;color:var(--ink-faint);margin-bottom:10px;}
+  .novita-actions{display:flex;gap:8px;}
+  .novita-actions button{font-size:12px;padding:5px 11px;}
+
+  .novita-form-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;z-index:100;}
+  .novita-form-card{background:var(--surface);border-radius:18px 18px 0 0;padding:22px 20px 28px;width:100%;max-width:480px;max-height:85vh;overflow-y:auto;}
+  .novita-form-card label{display:block;font-size:11.5px;font-weight:700;color:var(--ink-faint);text-transform:uppercase;margin:14px 0 6px;}
+  .novita-form-card select, .novita-form-card input, .novita-form-card textarea{
+    width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;
+    color:var(--ink);padding:10px 12px;font-size:14px;font-family:inherit;
+  }
+  .novita-form-card textarea{resize:vertical;min-height:70px;}
+  .novita-checkbox-row{display:flex;align-items:center;gap:8px;margin-top:16px;}
+  .novita-checkbox-row label{margin:0;text-transform:none;font-size:13.5px;color:var(--ink);}
 </style>
 <script src="../vendor/supabase.js"></script>
 </head>
@@ -126,6 +156,12 @@
   </div>
 
   <div id="data-screen">
+    <div class="admin-tabs">
+      <button class="admin-tab active" data-tab="autisti">Autisti</button>
+      <button class="admin-tab" data-tab="novita">Novità</button>
+    </div>
+
+    <div id="tab-autisti" class="admin-tab-panel active">
     <div class="stat-strip">
       <div class="stat-box"><div class="stat-num" id="stat-total">—</div><div class="stat-label">Autisti registrati</div></div>
       <div class="stat-box"><div class="stat-num" id="stat-live">—</div><div class="stat-label">Live ora</div></div>
@@ -136,6 +172,12 @@
     </div>
     <input id="driver-search" type="text" placeholder="Cerca per ID, email, nome o cognome…" class="search-input" autocomplete="off">
     <div id="drivers-list"></div>
+    </div>
+
+    <div id="tab-novita" class="admin-tab-panel">
+      <button id="novita-add-btn" class="btn-block" style="margin-bottom:16px;background:var(--accent);">+ Aggiungi novità</button>
+      <div id="novita-list"></div>
+    </div>
   </div>
 </div>
 
@@ -508,6 +550,157 @@
     }).then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); });
   }
 
+  // -------- Novità (video/text/announcement feed shown in the app) --------
+  var NOVITA_URL = 'https://chboalgzigdglygnnist.supabase.co/functions/v1/novita-admin';
+  var lastNovita = [];
+
+  function novitaCall(payload) {
+    var body = Object.assign({ password: currentPassword }, payload);
+    return fetch(NOVITA_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); });
+  }
+
+  function escapeHtmlNovita(s) {
+    return String(s || '').replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  var NOVITA_TYPE_LABELS = { video: 'Video', text: 'Testo', announcement: 'Annuncio' };
+
+  function renderNovitaList() {
+    var el = document.getElementById('novita-list');
+    if (!lastNovita.length) {
+      el.innerHTML = '<div class="empty">Nessuna novità ancora — tocca "+ Aggiungi novità" per iniziare.</div>';
+      return;
+    }
+    var html = '';
+    lastNovita.forEach(function (item) {
+      html += '<div class="novita-card">';
+      html += '  <div class="novita-card-top">';
+      html += '    <span class="novita-type-badge ' + (item.type === 'video' ? 'video' : '') + '">' + (NOVITA_TYPE_LABELS[item.type] || item.type) + '</span>';
+      if (!item.published) html += '    <span class="novita-draft-badge">Bozza — non visibile nell\'app</span>';
+      html += '  </div>';
+      html += '  <div class="novita-title">' + escapeHtmlNovita(item.title) + '</div>';
+      if (item.description) html += '  <div class="novita-desc">' + escapeHtmlNovita(item.description) + '</div>';
+      if (item.youtube_id) html += '  <div class="novita-desc">youtube.com/watch?v=' + escapeHtmlNovita(item.youtube_id) + '</div>';
+      html += '  <div class="novita-actions">';
+      html += '    <button class="btn-ghost" data-novita-edit="' + item.id + '">Modifica</button>';
+      html += '    <button class="btn-ghost" data-novita-toggle="' + item.id + '">' + (item.published ? 'Nascondi' : 'Pubblica') + '</button>';
+      html += '    <button class="btn-ghost" data-novita-delete="' + item.id + '">Elimina</button>';
+      html += '  </div>';
+      html += '</div>';
+    });
+    el.innerHTML = html;
+
+    el.querySelectorAll('[data-novita-edit]').forEach(function (btn) {
+      btn.addEventListener('click', function () { openNovitaForm(btn.getAttribute('data-novita-edit')); });
+    });
+    el.querySelectorAll('[data-novita-toggle]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var id = btn.getAttribute('data-novita-toggle');
+        var item = lastNovita.find(function (n) { return n.id === id; });
+        novitaCall({ action: 'update', id: id, published: !item.published }).then(loadNovita);
+      });
+    });
+    el.querySelectorAll('[data-novita-delete]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (!confirm('Eliminare questa novità? Non si può annullare.')) return;
+        novitaCall({ action: 'delete', id: btn.getAttribute('data-novita-delete') }).then(loadNovita);
+      });
+    });
+  }
+
+  function loadNovita() {
+    return novitaCall({ action: 'list' }).then(function (res) {
+      if (res.ok) { lastNovita = res.data.items; renderNovitaList(); }
+    });
+  }
+
+  function openNovitaForm(editId) {
+    var editing = editId ? lastNovita.find(function (n) { return n.id === editId; }) : null;
+    var overlay = document.createElement('div');
+    overlay.className = 'novita-form-overlay';
+    overlay.innerHTML =
+      '<div class="novita-form-card">' +
+      '  <h2 style="margin:0 0 4px;">' + (editing ? 'Modifica novità' : 'Nuova novità') + '</h2>' +
+      '  <label>Tipo</label>' +
+      '  <select id="nf-type">' +
+      '    <option value="video">Video (YouTube)</option>' +
+      '    <option value="text">Testo</option>' +
+      '    <option value="announcement">Annuncio</option>' +
+      '  </select>' +
+      '  <label>Titolo</label>' +
+      '  <input id="nf-title" type="text" placeholder="Es. Come funziona il nuovo percorso">' +
+      '  <label>Descrizione (opzionale)</label>' +
+      '  <textarea id="nf-desc" placeholder="Un breve testo, mostrato sotto il titolo"></textarea>' +
+      '  <label id="nf-yt-label">Link o ID YouTube</label>' +
+      '  <input id="nf-yt" type="text" placeholder="https://youtu.be/... oppure solo l\'ID">' +
+      '  <div class="novita-checkbox-row">' +
+      '    <input id="nf-published" type="checkbox" checked>' +
+      '    <label for="nf-published">Pubblica subito (visibile nell\'app)</label>' +
+      '  </div>' +
+      '  <div class="detail-actions" style="margin-top:20px;">' +
+      '    <button id="nf-cancel" class="btn-ghost" style="flex:1;">Annulla</button>' +
+      '    <button id="nf-save" class="btn-block" style="flex:1;margin:0;">Salva</button>' +
+      '  </div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    var typeSelect = overlay.querySelector('#nf-type');
+    var ytField = overlay.querySelector('#nf-yt');
+    var ytLabel = overlay.querySelector('#nf-yt-label');
+    function syncYtVisibility() {
+      var isVideo = typeSelect.value === 'video';
+      ytField.style.display = isVideo ? 'block' : 'none';
+      ytLabel.style.display = isVideo ? 'block' : 'none';
+    }
+    typeSelect.addEventListener('change', syncYtVisibility);
+
+    if (editing) {
+      typeSelect.value = editing.type;
+      overlay.querySelector('#nf-title').value = editing.title;
+      overlay.querySelector('#nf-desc').value = editing.description || '';
+      ytField.value = editing.youtube_id || '';
+      overlay.querySelector('#nf-published').checked = !!editing.published;
+    }
+    syncYtVisibility();
+
+    overlay.querySelector('#nf-cancel').addEventListener('click', function () { overlay.remove(); });
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) overlay.remove(); });
+
+    overlay.querySelector('#nf-save').addEventListener('click', function () {
+      var title = overlay.querySelector('#nf-title').value.trim();
+      if (!title) { alert('Il titolo è obbligatorio'); return; }
+      var type = typeSelect.value;
+      // Accepts a full YouTube URL (any common form) or a bare ID —
+      // extracts just the ID either way, so pasting the address bar
+      // link directly always works, without ION needing to know
+      // what an "ID" even looks like.
+      var ytRaw = ytField.value.trim();
+      var ytId = ytRaw;
+      var m = ytRaw.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{6,})/);
+      if (m) ytId = m[1];
+      var payload = {
+        action: editing ? 'update' : 'create',
+        type: type,
+        title: title,
+        description: overlay.querySelector('#nf-desc').value.trim(),
+        youtube_id: type === 'video' ? ytId : '',
+        published: overlay.querySelector('#nf-published').checked
+      };
+      if (editing) payload.id = editing.id;
+      novitaCall(payload).then(function (res) {
+        if (!res.ok) { alert('Errore: ' + (res.data.error || 'sconosciuto')); return; }
+        overlay.remove();
+        loadNovita();
+      });
+    });
+  }
+
   function toggleHiddenSingle(deviceId, hidden) {
     return fetch(FUNCTION_URL, {
       method: 'POST',
@@ -553,6 +746,16 @@
     searchQuery = e.target.value;
     renderDrivers(lastGroupsRaw);
   });
+
+  document.querySelectorAll('.admin-tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('.admin-tab').forEach(function (t) { t.classList.remove('active'); });
+      document.querySelectorAll('.admin-tab-panel').forEach(function (p) { p.classList.remove('active'); });
+      tab.classList.add('active');
+      document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+    });
+  });
+  document.getElementById('novita-add-btn').addEventListener('click', function () { openNovitaForm(null); });
 
   var lastGroupsRaw = [];
 
@@ -634,6 +837,7 @@
         showScreen('data-screen');
         startAdminPresenceWatch();
         offerFaceIdIfSensible();
+        loadNovita();
         if (refreshTimer) clearInterval(refreshTimer);
         refreshTimer = setInterval(function () {
           fetchDrivers().then(function (r) {
