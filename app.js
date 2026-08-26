@@ -46,7 +46,7 @@
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
-          if (data && data.v && data.v !== "pt-foglio-v406") {
+          if (data && data.v && data.v !== "pt-foglio-v407") {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               window.location.reload();
@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v406"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v407"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -8960,6 +8960,10 @@
   });
   document.getElementById('btn-settings').addEventListener('click', function () { openSettingsModal(null); });
   document.getElementById('btn-navigatore').addEventListener('click', function () { showScreen('navigatore'); });
+  document.getElementById('btn-novita').addEventListener('click', openNovitaModal);
+  document.getElementById('novita-close-x').addEventListener('click', function () {
+    document.getElementById('modal-novita').classList.remove('open');
+  });
   document.getElementById('settings-cancel').addEventListener('click', function () {
     if (!state.profile.nome && !settingsTargetSheet) return; // force first-run completion
     settingsModal.classList.remove('open');
@@ -9352,6 +9356,67 @@
   /* ---------------------------------------------------------------- */
   var SUPABASE_URL = 'https://chboalgzigdglygnnist.supabase.co';
   var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoYm9hbGd6aWdkZ2x5Z25uaXN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1NTc4MjMsImV4cCI6MjEwMjEzMzgyM30.vorEiww3SvVAadgnAqFH42M-MjbpXOojAlhNm-cIeMI';
+
+  // Novità — a "what's new" feed (video tutorials, text updates,
+  // announcements) that ION posts from the admin panel. The app only
+  // ever reads PUBLISHED items directly, via the anon key — RLS on
+  // the table itself already refuses anything not published, so this
+  // fetch can't accidentally leak a draft even if the code here had a
+  // bug, which is a nice extra layer of safety for free.
+  var LS_NOVITA_LAST_SEEN = 'pt_novita_last_seen_v1';
+  var NOVITA_TYPE_LABELS_APP = { video: 'Video', text: 'Novità', announcement: 'Annuncio' };
+
+  function checkNovitaUnread() {
+    fetch(SUPABASE_URL + '/rest/v1/app_novita?select=created_at&published=eq.true&order=created_at.desc&limit=1', {
+      headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY }
+    }).then(function (r) { return r.json(); })
+      .then(function (rows) {
+        if (!rows || !rows.length) return;
+        var lastSeen = localStorage.getItem(LS_NOVITA_LAST_SEEN);
+        var dot = document.getElementById('novita-unread-dot');
+        if (dot) dot.style.display = (rows[0].created_at !== lastSeen) ? 'block' : 'none';
+      })
+      .catch(function () { /* offline — dot simply doesn't update this time, not worth surfacing */ });
+  }
+
+  function renderNovitaItem(item) {
+    var html = '<div class="novita-item-card">';
+    html += '<div class="novita-item-type">' + (NOVITA_TYPE_LABELS_APP[item.type] || item.type) + '</div>';
+    html += '<div class="novita-item-title">' + escapeHtml(item.title) + '</div>';
+    if (item.description) html += '<div class="novita-item-desc">' + escapeHtml(item.description) + '</div>';
+    if (item.type === 'video' && item.youtube_id) {
+      html += '<div class="novita-item-video"><iframe src="https://www.youtube.com/embed/' + encodeURIComponent(item.youtube_id) + '" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen loading="lazy"></iframe></div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function openNovitaModal() {
+    var modal = document.getElementById('modal-novita');
+    var listEl = document.getElementById('novita-app-list');
+    modal.classList.add('open');
+    listEl.innerHTML = '<div class="novita-empty">Caricamento…</div>';
+
+    fetch(SUPABASE_URL + '/rest/v1/app_novita?select=*&published=eq.true&order=created_at.desc', {
+      headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY }
+    }).then(function (r) { return r.json(); })
+      .then(function (items) {
+        if (!items || !items.length) {
+          listEl.innerHTML = '<div class="novita-empty">Nessuna novità al momento — torna a trovarci presto.</div>';
+          return;
+        }
+        listEl.innerHTML = items.map(renderNovitaItem).join('');
+        // Mark as seen using the newest item's own timestamp — simple,
+        // and self-correcting: if ION later back-dates or edits an
+        // older item, that alone won't wrongly re-flag it as new.
+        localStorage.setItem(LS_NOVITA_LAST_SEEN, items[0].created_at);
+        var dot = document.getElementById('novita-unread-dot');
+        if (dot) dot.style.display = 'none';
+      })
+      .catch(function () {
+        listEl.innerHTML = '<div class="novita-empty">Impossibile caricare le novità — controlla la connessione.</div>';
+      });
+  }
 
   // A live connection to Supabase (via the vendored supabase-js library) —
   // this is what actually lets a browser tab and the installed app "see"
@@ -10048,6 +10113,7 @@
     migrateFuelToArrays();
     migrateReverifyClientPrecision(); // async, rate-limited, runs fully in the background — never blocks anything else in init()
     reportActivity().then(reportDailyOpen); // chained deliberately — the row reportActivity just wrote/confirmed must exist before this tries to update it
+    checkNovitaUnread();
     syncBarHeights();
     syncRealViewportHeight();
     window.addEventListener('resize', syncBarHeights);

@@ -819,6 +819,14 @@
   }
   .modal-overlay.open .sheet-panel{transform:translateY(0);}
   .modal-overlay.center .sheet-panel{border-radius:22px;height:auto;max-height:calc(var(--real-vh, 100vh) * 0.8);}
+
+  .novita-item-card{background:var(--surface-2);border-radius:16px;padding:16px;margin-bottom:14px;}
+  .novita-item-type{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--accent);margin-bottom:6px;}
+  .novita-item-title{font-weight:800;font-size:15px;margin-bottom:6px;line-height:1.35;}
+  .novita-item-desc{font-size:13.5px;color:var(--ink-faint);line-height:1.5;}
+  .novita-item-video{position:relative;width:100%;aspect-ratio:16/9;border-radius:12px;overflow:hidden;margin-top:12px;background:#000;}
+  .novita-item-video iframe{position:absolute;inset:0;width:100%;height:100%;border:0;}
+  .novita-empty{text-align:center;color:var(--ink-faint);padding:50px 0;font-size:14px;}
   /* Settings can show a first-run mandatory sheet with the install banner
      sitting right above it — capping this one a bit shorter than the
      general 88vh guarantees that banner always stays visible above it,
@@ -1341,6 +1349,10 @@
       <div class="brand-text">ADB Smart<small>Il tuo viaggio digitale</small></div>
     </div>
     <div class="topbar-actions">
+      <button class="icon-btn" id="btn-novita" aria-label="Novità" style="position:relative;">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span id="novita-unread-dot" style="display:none;position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:var(--accent);"></span>
+      </button>
       <button class="icon-btn" id="btn-navigatore" aria-label="Navigatore">
         <!-- Requested directly: this screen stopped being about pure
              navigation a long time ago — it's the full Delivery
@@ -1408,6 +1420,20 @@
 </div>
 
 <!-- Onboarding / Settings modal -->
+<div class="modal-overlay" id="modal-novita">
+  <div class="sheet-panel sticky-panel">
+    <button type="button" class="modal-close-x" id="novita-close-x" aria-label="Chiudi">×</button>
+    <div class="sticky-fixed">
+      <div class="grabber"></div>
+      <div class="modal-title">Novità</div>
+      <div class="modal-sub">Aggiornamenti, consigli e video su ADB Smart</div>
+    </div>
+    <div class="sticky-scroll">
+      <div id="novita-app-list"></div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-settings">
   <div class="sheet-panel sticky-panel">
     <button type="button" class="modal-close-x" id="settings-close-x" aria-label="Chiudi">×</button>
