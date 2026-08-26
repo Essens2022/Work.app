@@ -10046,38 +10046,39 @@
       .then(function (data) {
         if (data && data.v && data.v !== APP_VERSION) {
           toast('Nuova versione trovata — aggiornamento in corso…');
-          // REAL BUG, reported directly: pressing this kept saying a
-          // new version was found, updating, then immediately saying
-          // the same thing again on the next press — a real loop.
-          // Root cause: the service worker is registered at a
-          // version-tagged URL ('sw.js?v=' + APP_VERSION, see the
-          // comment further down explaining exactly why). A plain
-          // reload() here only reloads the CURRENT page — it doesn't
-          // itself make the service worker notice or fetch the new
-          // version. version.json (fetched fresh above, no-store)
-          // correctly saw the new version on the SERVER, but the
-          // actual app.js the browser reloaded still came from the
-          // OLD, already-installed service worker's own cache, so
-          // APP_VERSION never actually changed — checking again
-          // naturally found the exact same mismatch, forever.
-          // Fixed by explicitly asking the CURRENT registration to
-          // check for and install an update FIRST, and only reloading
-          // once that's genuinely done (or after a safety timeout, in
-          // case something prevents it from ever resolving) — instead
-          // of reloading blind and hoping the service worker happened
-          // to catch up on its own in the background.
-          navigator.serviceWorker.getRegistration().then(function (registration) {
-            if (!registration) { window.location.reload(); return; }
-            var reloaded = false;
-            function doReload() {
-              if (reloaded) return;
-              reloaded = true;
-              window.location.reload();
-            }
-            navigator.serviceWorker.addEventListener('controllerchange', doReload, { once: true });
-            registration.update().catch(function () { /* offline or otherwise unreachable — the safety timeout below still fires */ });
-            setTimeout(doReload, 4000); // safety net — reload anyway if no controllerchange fires in time, rather than leaving the person stuck on the toast forever
-          }).catch(function () { window.location.reload(); });
+          // REAL BUG, reported directly, TWICE — the first fix
+          // (waiting for a 'controllerchange' before reloading) still
+          // didn't help, and reasoning through WHY revealed the
+          // actual, deeper problem: the service worker is registered
+          // at a URL that has THIS PAGE's OWN (old) version baked
+          // into it — 'sw.js?v=' + APP_VERSION. registration.update()
+          // can only ever check THAT SAME URL for changes — it has no
+          // way to discover a service worker living at a DIFFERENT,
+          // newer versioned URL. A genuinely new service worker only
+          // gets registered once a page has ALREADY reloaded with
+          // fresh HTML containing the new version number — meaning
+          // 'controllerchange' could never fire from update() here in
+          // the first place. The wait added by the first fix was
+          // real, but waiting for something that structurally cannot
+          // happen just meant it silently fell through to its 4s
+          // safety-net reload every time — functionally identical to
+          // the original bug, just slower.
+          //
+          // Fixed properly this time: unregister the current service
+          // worker and clear every cache this origin owns BEFORE
+          // reloading. With nothing old left to intercept anything,
+          // the reload is guaranteed to be a genuinely clean, direct
+          // network load — no stale registration, no stale cache, no
+          // version-URL mismatch left to get stuck on.
+          Promise.all([
+            navigator.serviceWorker.getRegistrations().then(function (regs) {
+              return Promise.all(regs.map(function (r) { return r.unregister(); }));
+            }),
+            (window.caches ? caches.keys().then(function (keys) {
+              return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+            }) : Promise.resolve())
+          ]).catch(function () { /* best-effort — reload below regardless, even if a step here failed */ })
+            .then(function () { window.location.reload(); });
         } else {
           toast('Hai già la versione più recente ✓');
         }
