@@ -13,6 +13,18 @@
      instead, so it stops appearing as noise in future reports and
      Google doesn't spend crawl budget re-evaluating it. -->
 <meta name="robots" content="noindex">
+<!-- Facebook Pixel — requested directly, for the ad campaign landing
+     on /official/. Only reached after a real, successful email
+     confirmation, so CompleteRegistration is fired unconditionally
+     here — the single most valuable signal for Facebook's ad
+     optimization, since it marks someone who actually became a real
+     user, not just a page visitor or a click. -->
+<script>
+!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '2177981823134602');
+fbq('track', 'CompleteRegistration');
+</script>
+<noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=2177981823134602&ev=CompleteRegistration&noscript=1"/></noscript>
 <style>
   *{box-sizing:border-box;}
   body{
