@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v412"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v413"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -10236,6 +10236,31 @@
     checkNovitaUnread();
     syncBarHeights();
     syncRealViewportHeight();
+    // REAL BUG, reported directly: the home screen's top card sometimes
+    // rendered partly hidden behind the fixed top bar right at launch —
+    // an existing fix already re-measures on visibilitychange (resuming
+    // from background), but that never fires on a genuine cold start,
+    // which is exactly when ION saw it. Root cause either way is the
+    // same: syncBarHeights() above only measures the topbar at whatever
+    // instant it happens to be called, so if the topbar's real size
+    // settles a frame or two later for any reason, that one-time
+    // snapshot is already stale. A ResizeObserver watches the topbar's
+    // ACTUAL rendered size directly and re-syncs automatically the
+    // moment it changes, for any reason, at any time — removing the
+    // race entirely instead of chasing each specific moment it could
+    // occur at. Set up here (not at top-level script scope) since the
+    // topbar element is guaranteed to actually exist in the DOM by now.
+    // Kept in a real, named variable (not chained inline) deliberately
+    // — an Observer with no surviving reference anywhere is fair game
+    // for garbage collection in some engines, which would silently
+    // undo this exact fix.
+    if (window.ResizeObserver) {
+      var topbarElForObserver = document.querySelector('.topbar');
+      if (topbarElForObserver) {
+        window.__topbarResizeObserver = new ResizeObserver(syncBarHeights);
+        window.__topbarResizeObserver.observe(topbarElForObserver);
+      }
+    }
     window.addEventListener('resize', syncBarHeights);
     window.addEventListener('resize', syncRealViewportHeight);
     window.addEventListener('orientationchange', function () { setTimeout(syncBarHeights, 200); setTimeout(syncRealViewportHeight, 200); });
