@@ -27,6 +27,16 @@
      a loop. Instead: a clear explanation of what likely happened, and
      a nudge to check for the newest email specifically. -->
 <meta name="robots" content="noindex">
+<!-- Facebook Pixel — same setup as email-confirmed.html, the OTHER
+     possible confirmation-success page. Base code loaded always, but
+     the CompleteRegistration event itself only fires in the actual
+     success branch further down in this page's own script (this page
+     has a real failure state too — an expired/reused link — which
+     must NOT count as a registration). -->
+<script>
+!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '2177981823134602');
+</script>
 <style>
   *{box-sizing:border-box;}
   body{
@@ -127,6 +137,7 @@
       .then(function (result) {
         if (result.error) { showState('state-error'); return; }
         showState('state-success');
+        if (window.fbq) fbq('track', 'CompleteRegistration');
       })
       .catch(function () { showState('state-error'); });
   }

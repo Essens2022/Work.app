@@ -12,6 +12,18 @@
   gtag('js', new Date());
   gtag('config', 'G-T5BFMCBXW8');
 </script>
+<!-- Facebook Pixel — requested directly, for ad campaigns landing on
+     this page. Base code + PageView exactly as provided. A second,
+     separate event (below, near the CTA buttons) tracks actual clicks
+     on "Scarica ora"/"Apri l'app" — a much more useful signal for
+     Facebook's ad optimization than PageView alone, since it shows
+     real intent, not just that someone saw the page. -->
+<script>
+!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '2177981823134602');
+fbq('track', 'PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=2177981823134602&ev=PageView&noscript=1"/></noscript>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ADB Smart — Il tuo viaggio digitale</title>
 <meta name="description" content="ADB Smart: l'app per autisti e camionisti professionali, foglio viaggi digitale, gestione consegne, itinerario automatico, scarica ora, è gratis">
@@ -1215,6 +1227,20 @@
       }, 400);
     });
   })();
+</script>
+<script>
+  // Requested directly (Facebook Pixel setup, ad campaigns landing on
+  // this page): tracks actual clicks on the "Scarica ora"/"Apri l'app"
+  // buttons as a Lead — real intent, not just a page visit — so
+  // Facebook's ad delivery can optimize toward people who click
+  // through, not just people who load the page. Attached to every
+  // link pointing at the app (header, hero, final CTA, footer) with
+  // one shared listener, rather than repeating this on each one.
+  document.querySelectorAll('a[href="/index.html"]').forEach(function (el) {
+    el.addEventListener('click', function () {
+      if (window.fbq) fbq('track', 'Lead');
+    });
+  });
 </script>
 
 </body>
