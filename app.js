@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v414"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v415"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -8704,6 +8704,7 @@
     emailModal.classList.remove('open');
     render();
     reloadIfUpdatePending();
+    offerPushNotificationsIfSensible();
   }
   document.getElementById('account-confirmed-continue-btn').addEventListener('click', dismissEmailConfirmedScreen);
 
@@ -9397,6 +9398,22 @@
         toggle.classList.toggle('on', !!sub && Notification.permission === 'granted');
       });
     });
+  }
+
+  // Requested directly: rather than waiting for someone to find the
+  // toggle themselves in Impostazioni, ask once, automatically, right
+  // after they've genuinely finished onboarding (email confirmed,
+  // "Continua" tapped) — the natural "welcome, you're all set" moment.
+  // Browsers still show their own native permission prompt regardless
+  // (no site can silently turn this on — that's a platform rule, not
+  // something this app controls), so this only ever gets ONE real
+  // shot per device, tracked here, never repeated even if declined.
+  var LS_PUSH_OFFERED = 'pt_push_offered_v1';
+  function offerPushNotificationsIfSensible() {
+    if (!pushSupported()) return;
+    if (localStorage.getItem(LS_PUSH_OFFERED)) return;
+    localStorage.setItem(LS_PUSH_OFFERED, '1');
+    if (Notification.permission === 'default') enablePushNotifications();
   }
 
   function enablePushNotifications() {
