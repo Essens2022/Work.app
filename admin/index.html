@@ -186,7 +186,12 @@
     </div>
 
     <div id="tab-novita" class="admin-tab-panel">
-      <div class="novita-card" style="margin-bottom:20px;">
+      <button id="official-video-toggle-btn" class="novita-card" style="margin-bottom:20px;width:100%;text-align:left;border:1px solid var(--line);cursor:pointer;font-family:inherit;">
+        <div class="novita-card-top"><span class="novita-type-badge video">Sito ufficiale</span></div>
+        <div class="novita-title">Video tutorial su adbsmart.it/official</div>
+        <div class="novita-desc">Tocca per modificare il video mostrato pubblicamente sulla pagina di presentazione.</div>
+      </button>
+      <div id="official-video-panel" class="novita-card" style="margin-bottom:20px;display:none;">
         <div class="novita-card-top"><span class="novita-type-badge video">Sito ufficiale</span></div>
         <div class="novita-title">Video tutorial su adbsmart.it/official</div>
         <div class="novita-desc">Questo è il video mostrato pubblicamente sulla pagina di presentazione — cambialo qui quando ne registri uno nuovo, senza bisogno di modificare il codice.</div>
@@ -194,6 +199,7 @@
         <input id="official-video-input" type="text" placeholder="https://youtu.be/... oppure solo l'ID" style="width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:10px 12px;font-size:14px;font-family:inherit;">
         <div class="novita-actions" style="margin-top:12px;">
           <button id="official-video-save" class="btn-ghost">Salva</button>
+          <button id="official-video-close" class="btn-ghost">Chiudi</button>
           <span id="official-video-status" style="font-size:12px;color:var(--ink-faint);align-self:center;"></span>
         </div>
       </div>
@@ -647,6 +653,15 @@
       if (res.ok && res.data.value) document.getElementById('official-video-input').value = res.data.value;
     });
   }
+
+  document.getElementById('official-video-toggle-btn').addEventListener('click', function () {
+    document.getElementById('official-video-toggle-btn').style.display = 'none';
+    document.getElementById('official-video-panel').style.display = 'block';
+  });
+  document.getElementById('official-video-close').addEventListener('click', function () {
+    document.getElementById('official-video-panel').style.display = 'none';
+    document.getElementById('official-video-toggle-btn').style.display = 'block';
+  });
 
   document.getElementById('official-video-save').addEventListener('click', function () {
     var raw = document.getElementById('official-video-input').value.trim();
