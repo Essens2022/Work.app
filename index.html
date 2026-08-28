@@ -1506,6 +1506,14 @@
             <div class="field"><label>Partenza predefinita</label><input id="in-da" type="text" placeholder="Es. Padova"></div>
             <div class="field narrow"><label>Prov.</label><input id="in-prov-da" type="text" maxlength="2" placeholder="Es. PD" style="text-transform:uppercase"></div>
           </div>
+          <div class="field-row">
+            <!-- Requested directly: the ADB Rapporto Standard template
+                 has a "Veicolo / N. Interno" field (a fleet's own
+                 internal vehicle number, separate from the license
+                 plate) that had nowhere to be filled in anywhere in
+                 the app, always printing blank. -->
+            <div class="field"><label>Veicolo / N. interno</label><input id="in-veicolo-interno" type="text" placeholder="Es. 12"></div>
+          </div>
           <div class="settings-driver-note">Questi dati vengono salvati solo su questo telefono e riutilizzati automaticamente per i prossimi fogli. Puoi modificarli in qualsiasi momento.</div>
         </div>
       </div>
