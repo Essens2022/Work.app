@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v415"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v416"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -241,8 +241,8 @@
   // time; 'code' is the short label shown when picking one, kept to a
   // few letters so it stays easy to tell apart and remember at a glance.
   var PDF_TEMPLATES = {
-    'classic': { code: 'STD', name: 'Standard', desc: 'Un giro al giorno' },
-    'due-giri': { code: '2G', name: 'Due Giri/Giorno', desc: 'Due destinazioni e DDT separati nello stesso giorno' }
+    'classic': { code: 'STD', name: 'Foglio PT Viaggi', desc: 'Un giro al giorno' },
+    'due-giri': { code: '2G', name: 'Due Giri/Giorno PT', desc: 'Due destinazioni e DDT separati nello stesso giorno' }
   };
   var DEFAULT_PDF_TEMPLATE = 'classic';
   // Removes ONE specific receipt photo (by index) from a day — a day can
