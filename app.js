@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v420"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v421"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -7226,11 +7226,26 @@
   // it's almost always ready by now, so the whole thing runs synchronously.
   function openPdfFullScreen() {
     var libsReady = window.jspdf && window.jspdf.jsPDF;
+    // REAL BUG, reported directly: on a genuinely fresh page load,
+    // tapping "Anteprima PDF" right away did nothing useful the first
+    // time — jsPDF loads lazily (see loadPdfLibs above), and this used
+    // to just show a toast and give up entirely, leaving the person to
+    // manually keep re-tapping until the library happened to already
+    // be loaded by then (usually 3-4 seconds later). Now it actually
+    // waits for the SAME loading it just kicked off, then finishes the
+    // job automatically — the first tap always eventually opens the
+    // preview, once, without the person needing to notice or retry.
     if (!libsReady) {
-      toast('Preparazione in corso — riprova tra un istante');
-      loadPdfLibs().catch(function () { toast('Impossibile preparare il PDF — verifica la connessione'); });
+      toast('Preparazione in corso…');
+      loadPdfLibs().then(function () {
+        actuallyOpenPdfFullScreen();
+      }).catch(function () { toast('Impossibile preparare il PDF — verifica la connessione'); });
       return;
     }
+    actuallyOpenPdfFullScreen();
+  }
+
+  function actuallyOpenPdfFullScreen() {
     try {
       var mo = selectedPdfMonth();
       var doc = buildPdfForMonth(mo.month, mo.year);
