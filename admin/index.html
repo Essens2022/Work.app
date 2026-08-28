@@ -186,23 +186,24 @@
     </div>
 
     <div id="tab-novita" class="admin-tab-panel">
-      <button id="official-video-toggle-btn" class="novita-card" style="margin-bottom:20px;width:100%;text-align:left;border:1px solid var(--line);cursor:pointer;font-family:inherit;">
+      <div style="font-size:12px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.04em;margin-bottom:10px;">Video sul sito ufficiale</div>
+      <button id="official-video-toggle-btn" class="novita-card" style="margin-bottom:6px;width:100%;text-align:left;border:1px solid var(--line);cursor:pointer;font-family:inherit;">
         <div class="novita-card-top"><span class="novita-type-badge video">Sito ufficiale</span></div>
         <div class="novita-title">Video tutorial su adbsmart.it/official</div>
         <div class="novita-desc">Tocca per modificare il video mostrato pubblicamente sulla pagina di presentazione.</div>
       </button>
-      <div id="official-video-panel" class="novita-card" style="margin-bottom:20px;display:none;">
+      <div id="official-video-panel" class="novita-card" style="margin-bottom:6px;display:none;cursor:pointer;">
         <div class="novita-card-top"><span class="novita-type-badge video">Sito ufficiale</span></div>
         <div class="novita-title">Video tutorial su adbsmart.it/official</div>
         <div class="novita-desc">Questo è il video mostrato pubblicamente sulla pagina di presentazione — cambialo qui quando ne registri uno nuovo, senza bisogno di modificare il codice.</div>
         <label style="display:block;font-size:11.5px;font-weight:700;color:var(--ink-faint);text-transform:uppercase;margin:14px 0 6px;">Link o ID YouTube</label>
-        <input id="official-video-input" type="text" placeholder="https://youtu.be/... oppure solo l'ID" style="width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:10px 12px;font-size:14px;font-family:inherit;">
+        <input id="official-video-input" type="text" placeholder="https://youtu.be/... oppure solo l'ID" style="width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:10px 12px;font-size:14px;font-family:inherit;" onclick="event.stopPropagation();">
         <div class="novita-actions" style="margin-top:12px;">
-          <button id="official-video-save" class="btn-ghost">Salva</button>
-          <button id="official-video-close" class="btn-ghost">Chiudi</button>
+          <button id="official-video-save" class="btn-ghost" onclick="event.stopPropagation();">Salva</button>
           <span id="official-video-status" style="font-size:12px;color:var(--ink-faint);align-self:center;"></span>
         </div>
       </div>
+      <div style="font-size:12px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.04em;margin:22px 0 10px;">Novità nell'app</div>
       <button id="novita-add-btn" class="btn-block" style="margin-bottom:16px;background:var(--accent);">+ Aggiungi novità</button>
       <div id="novita-list"></div>
     </div>
@@ -658,7 +659,12 @@
     document.getElementById('official-video-toggle-btn').style.display = 'none';
     document.getElementById('official-video-panel').style.display = 'block';
   });
-  document.getElementById('official-video-close').addEventListener('click', function () {
+  // Same element now closes itself on tap, matching how the closed
+  // state opens — a real toggle, not "tap to open, hunt for a
+  // separate Chiudi button to close". The input field itself stops
+  // the click from bubbling up (see its own onclick above), so typing
+  // or tapping into the text box never accidentally closes the panel.
+  document.getElementById('official-video-panel').addEventListener('click', function () {
     document.getElementById('official-video-panel').style.display = 'none';
     document.getElementById('official-video-toggle-btn').style.display = 'block';
   });
