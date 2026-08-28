@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v418"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v419"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -241,11 +241,11 @@
   // time; 'code' is the short label shown when picking one, kept to a
   // few letters so it stays easy to tell apart and remember at a glance.
   var PDF_TEMPLATES = {
-    'adb-standard': { code: 'ADB', name: 'ADB Rapporto Viaggi Standard', desc: 'Modello generico ADB Smart, senza dati aziendali fissi' },
+    'adb-standard': { code: 'ADB', name: 'Rapporto Standard', desc: 'Modello generico ADB Smart, senza dati aziendali fissi' },
     'classic': { code: 'STD', name: 'Foglio PT Viaggi', desc: 'Un giro al giorno' },
     'due-giri': { code: '2G', name: 'Due Giri/Giorno PT', desc: 'Due destinazioni e DDT separati nello stesso giorno' }
   };
-  var DEFAULT_PDF_TEMPLATE = 'classic';
+  var DEFAULT_PDF_TEMPLATE = 'adb-standard';
   // Removes ONE specific receipt photo (by index) from a day — a day can
   // now hold several receipts (e.g. if the pump printed more than one, or
   // something went wrong and it needed retrying), so deleting means
