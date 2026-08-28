@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v416"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v417"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -242,7 +242,8 @@
   // few letters so it stays easy to tell apart and remember at a glance.
   var PDF_TEMPLATES = {
     'classic': { code: 'STD', name: 'Foglio PT Viaggi', desc: 'Un giro al giorno' },
-    'due-giri': { code: '2G', name: 'Due Giri/Giorno PT', desc: 'Due destinazioni e DDT separati nello stesso giorno' }
+    'due-giri': { code: '2G', name: 'Due Giri/Giorno PT', desc: 'Due destinazioni e DDT separati nello stesso giorno' },
+    'adb-standard': { code: 'ADB', name: 'Rapporto Viaggi Mensile', desc: 'Modello generico ADB Smart, senza dati aziendali fissi' }
   };
   var DEFAULT_PDF_TEMPLATE = 'classic';
   // Removes ONE specific receipt photo (by index) from a day — a day can
@@ -7334,10 +7335,159 @@
   // whatever the current page is — used both for a single-sheet PDF and,
   // when a month has multiple clients, for each additional page of a
   // combined multi-page PDF (see buildPdfForMonth below).
+  // New generic template requested directly — no company logo, no
+  // CF/P.IVA block, meant to work for any driver/company using the
+  // app, matching the layout ION provided as a mockup. The GIRO
+  // table itself uses the exact same column shape as "classic".
+  function buildAdbStandardPage(doc, sheet, pageW, pageH, margin, contentW) {
+    doc.setDrawColor(20, 20, 20);
+    doc.setLineWidth(0.4);
+    doc.rect(margin, margin, contentW, pageH - margin * 2);
+
+    // Header: ADB Smart branding block (left, dark fill) | big
+    // centered title | MESE/ANNO (right) — no company info at all.
+    var headerH = 15;
+    var brandW = contentW * 0.22;
+    doc.setFillColor(20, 20, 20);
+    doc.rect(margin, margin, brandW, headerH, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(232, 84, 43); // brand accent orange
+    doc.text('ADB', margin + 3, margin + 6.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text(' Smart', margin + 3 + doc.getTextWidth('ADB'), margin + 6.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.text('Il tuo viaggio digitale', margin + 3, margin + 10.5);
+
+    doc.line(margin + brandW, margin, margin + brandW, margin + headerH);
+    doc.setTextColor(20, 20, 20);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13.5);
+    doc.text('RAPPORTO VIAGGI MENSILE', margin + brandW + (contentW * 0.56) / 2, margin + 7, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(90, 90, 90);
+    doc.text('Registro giornaliero autista', margin + brandW + (contentW * 0.56) / 2, margin + 11.5, { align: 'center' });
+    doc.setTextColor(20, 20, 20);
+
+    var meseX = margin + brandW + contentW * 0.56;
+    doc.line(meseX, margin, meseX, margin + headerH);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.text('MESE / ANNO:', meseX + 2.5, margin + 6);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text(MESI[sheet.month - 1] + ' ' + sheet.year, meseX + 2.5, margin + 11);
+
+    doc.line(margin, margin + headerH, margin + contentW, margin + headerH);
+
+    // Fields, two rows of three, matching the mockup exactly
+    var fieldsH = 8.5;
+    var fy1 = margin + headerH;
+    var fy2 = fy1 + fieldsH;
+    var fcol = contentW / 3;
+    [1, 2].forEach(function (i) {
+      doc.line(margin + fcol * i, fy1, margin + fcol * i, fy2 + fieldsH);
+    });
+    doc.line(margin, fy2, margin + contentW, fy2);
+    doc.line(margin, fy2 + fieldsH, margin + contentW, fy2 + fieldsH);
+
+    function field(label, value, x, y) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.text(label, x + 2, y + 3.3);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.6);
+      doc.text(value || '—', x + 2, y + 7);
+    }
+    field('NOME AUTISTA:', sheet.nome, margin, fy1);
+    field('TARGA VEICOLO:', sheet.targa, margin + fcol, fy1);
+    field('PER CONTO DI / AZIENDA:', sheet.perContoDi, margin + fcol * 2, fy1);
+    field('PARTENZA ABITUALE:', sheet.da, margin, fy2);
+    field('PROV.:', sheet.provDa, margin + fcol, fy2);
+    field('VEICOLO / N. INTERNO:', '', margin + fcol * 2, fy2); // no equivalent field exists in the app yet — left blank, writeable by hand
+
+    // GIRO title bar
+    var giroH = 6;
+    var gy = fy2 + fieldsH;
+    doc.setFillColor(230, 230, 228);
+    doc.rect(margin, gy, contentW, giroH, 'F');
+    doc.rect(margin, gy, contentW, giroH);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('GIRO / VIAGGI EFFETTUATI', margin + contentW / 2, gy + 4.2, { align: 'center' });
+
+    // Table — identical column shape to "classic"
+    var tableY = gy + giroH;
+    var colWidths = {
+      data: contentW * 0.035, da: contentW * 0.145, provDa: contentW * 0.045,
+      a: contentW * 0.165, provA: contentW * 0.045, ddt: contentW * 0.125,
+      kmI: contentW * 0.125, kmF: contentW * 0.125, kmT: contentW * 0.14
+    };
+    var head = [
+      [
+        { content: 'Data', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+        { content: 'Località di destinazione:', colSpan: 4, styles: { halign: 'center' } },
+        { content: 'DDT', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+        { content: 'KM INIZIO', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+        { content: 'KM FINE', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+        { content: 'KM TOT.', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } }
+      ],
+      [
+        { content: 'Da:', styles: { halign: 'center' } },
+        { content: 'Prov.', styles: { halign: 'center' } },
+        { content: 'A:', styles: { halign: 'center' } },
+        { content: 'Prov.', styles: { halign: 'center' } }
+      ]
+    ];
+    var body = [];
+    var n = daysInMonth(sheet.month, sheet.year);
+    for (var d = 1; d <= 31; d++) {
+      var g = d <= n ? sheet.giorni[d] : null;
+      if (!g) { body.push([d <= n ? d : '', '', '', '', '', '', '', '', '']); continue; }
+      var kmTot = (g.kmInizio !== "" && g.kmFine !== "" && !isNaN(g.kmFine - g.kmInizio)) ? (Number(g.kmFine) - Number(g.kmInizio)) : '';
+      body.push([d, g.da || '', g.provDa || '', g.a || '', g.provA || '', g.ddt || '', g.kmInizio !== "" ? g.kmInizio : '', g.kmFine !== "" ? g.kmFine : '', kmTot !== '' ? kmTot : '']);
+    }
+    doc.autoTable({
+      startY: tableY,
+      margin: { left: margin, right: margin },
+      tableWidth: contentW,
+      theme: 'grid',
+      head: head,
+      body: body,
+      styles: { font: 'helvetica', fontSize: 7.4, cellPadding: { top: 0.7, bottom: 0.7, left: 1.1, right: 1.1 }, lineColor: [20, 20, 20], lineWidth: 0.25, textColor: [20, 20, 20], valign: 'middle' },
+      headStyles: { fillColor: [255, 255, 255], textColor: [20, 20, 20], fontStyle: 'bold', fontSize: 7.2, cellPadding: { top: 1, bottom: 1, left: 1.1, right: 1.1 }, lineColor: [20, 20, 20], lineWidth: 0.25 },
+      bodyStyles: { minCellHeight: 4.1 },
+      columnStyles: {
+        0: { cellWidth: colWidths.data, halign: 'center', fontStyle: 'bold' },
+        1: { cellWidth: colWidths.da, halign: 'center' },
+        2: { cellWidth: colWidths.provDa, halign: 'center' },
+        3: { cellWidth: colWidths.a, halign: 'center' },
+        4: { cellWidth: colWidths.provA, halign: 'center' },
+        5: { cellWidth: colWidths.ddt, halign: 'center' },
+        6: { cellWidth: colWidths.kmI, halign: 'center' },
+        7: { cellWidth: colWidths.kmF, halign: 'center' },
+        8: { cellWidth: colWidths.kmT, halign: 'center', fontStyle: 'bold' }
+      }
+    });
+  }
+
   function buildPdfPage(doc, sheet) {
     var pageW = 297, pageH = 210;
     var margin = 8;
     var contentW = pageW - margin * 2;
+
+    // Requested directly: a third template, generic, with NO fixed
+    // company branding baked in (no logo, no CF/P.IVA block) — meant
+    // for ANY driver/company using the app, not specifically Power
+    // Trasporti. Header and fields section are entirely different
+    // from the other two; the actual GIRO table itself reuses the
+    // exact same column layout as "classic" (Data/Da/Prov/A/Prov/
+    // DDT/KM), since ION's own mockup used that same shape.
+    if (sheet.pdfTemplate === 'adb-standard') {
+      return buildAdbStandardPage(doc, sheet, pageW, pageH, margin, contentW);
+    }
 
     // Outer border
     doc.setDrawColor(20, 20, 20);
