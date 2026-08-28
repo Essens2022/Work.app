@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v427"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v428"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -7245,8 +7245,28 @@
       var mo = selectedPdfMonth();
       var doc = buildPdfForMonth(mo.month, mo.year);
       if (!doc) { toast('Nessun foglio per questo mese'); return; }
-      var filename = 'Foglio_Viaggi_' + MESI[mo.month - 1] + '_' + mo.year;
-      openPdfViewerModal(doc.output('arraybuffer'), filename);
+      var filename = 'Foglio_Viaggi_' + MESI[mo.month - 1] + '_' + mo.year + '.pdf';
+      // REAL DISCOVERY, reported directly: cancelling the native share
+      // sheet from "Condividi PDF" fell back to jsPDF's own .save(),
+      // which — on mobile Safari specifically — doesn't actually save
+      // to Files for a PDF; it navigates to the blob as a real page,
+      // and Safari's OWN native, highly-optimized PDF renderer takes
+      // over completely (the exact same one used for a PDF received
+      // in Mail or Messages). That native experience turned out to be
+      // dramatically better than the custom PDF.js + canvas viewer
+      // this app had built (which is what all the earlier zoom-crash
+      // chasing above was about) — sharper, and pinch-zoom simply
+      // works, for free, without a single line of custom gesture code.
+      // Replicated that exact mechanism here directly, deliberately
+      // skipping the share-sheet detour entirely.
+      var blobUrl = URL.createObjectURL(doc.output('blob'));
+      var link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(function () { URL.revokeObjectURL(blobUrl); }, 30000); // generous delay — some browsers need the URL to stay valid a moment after the click before they've actually finished opening it
     } catch (err) {
       console.error(err);
       toast('Impossibile aprire l\'anteprima');
