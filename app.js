@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v432"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v433"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -642,6 +642,7 @@
       month: month, year: year,
       nome: state.profile.nome, targa: state.profile.targa, perContoDi: client,
       veicoloInterno: state.profile.veicoloInterno || '',
+      da: state.profile.da, provDa: state.profile.provDa,
       // Whether a worked day on THIS client's sheet counts toward the
       // driver's daily rate (see monthEarnings). Most clients do — but
       // some drivers have a side client that only pays a small fixed
@@ -8846,7 +8847,7 @@
     var src = settingsTargetSheet ? {
       nome: settingsTargetSheet.nome, targa: settingsTargetSheet.targa, perContoDi: settingsTargetSheet.perContoDi,
       veicoloInterno: settingsTargetSheet.veicoloInterno,
-      da: state.profile.da, provDa: state.profile.provDa
+      da: settingsTargetSheet.da, provDa: settingsTargetSheet.provDa
     } : state.profile;
     document.getElementById('settings-title').textContent = settingsTargetSheet ? 'Dati foglio' : (state.profile.nome ? 'Impostazioni' : 'Benvenuto');
     document.getElementById('settings-sub').textContent = settingsTargetSheet
@@ -9512,6 +9513,7 @@
     if (settingsTargetSheet) {
       settingsTargetSheet.nome = nome; settingsTargetSheet.targa = targa; settingsTargetSheet.perContoDi = conto;
       settingsTargetSheet.veicoloInterno = veicoloInterno;
+      settingsTargetSheet.da = da; settingsTargetSheet.provDa = provDa;
       settingsTargetSheet.countsForDailyRate = document.getElementById('in-sheet-daily-rate').checked;
       saveSheets(state.sheets);
     }
