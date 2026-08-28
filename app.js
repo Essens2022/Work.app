@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v421"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v422"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -956,6 +956,9 @@
     html += '<div><h2 style="font-size:18px;">' + MESI[sheet.month - 1] + ' ' + sheet.year + '</h2>';
     html += '<div class="who">' + escapeHtml(sheet.nome || 'Nome autista') + ' <b>·</b> <b>' + escapeHtml(sheet.targa || 'Targa') + '</b> <b>·</b> per ' + escapeHtml(sheet.perContoDi || '—') + '</div></div>';
     html += '<div class="pencil" id="foglio-edit"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></div>';
+    if (isNewestSheet(sheet)) {
+      html += '<div class="trash-icon" id="foglio-delete" aria-label="Elimina foglio"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></div>';
+    }
     html += '</div></div>';
 
     html += '<div class="giro-list">';
@@ -988,21 +991,13 @@
     }
     html += '</div>';
 
-    if (isNewestSheet(sheet) && state.sheets.length > 1) {
-      html += '<button class="undo-link" id="foglio-undo">Annulla questo nuovo foglio</button>';
-    } else if (isNewestSheet(sheet) && state.sheets.length === 1) {
-      html += '<button class="undo-link" id="foglio-undo-single">Elimina questo foglio</button>';
-    }
-
     el.innerHTML = html;
     el.querySelectorAll('.day-row[data-day]').forEach(function (row) {
       row.addEventListener('click', function () { openDayEditor(sheet, parseInt(row.getAttribute('data-day'), 10)); });
     });
     document.getElementById('foglio-edit').addEventListener('click', function () { openSettingsModal(sheet); });
-    var undoBtn = document.getElementById('foglio-undo');
-    if (undoBtn) undoBtn.addEventListener('click', function () { confirmUndoSheet(sheet); });
-    var undoSingle = document.getElementById('foglio-undo-single');
-    if (undoSingle) undoSingle.addEventListener('click', function () { confirmUndoSheet(sheet); });
+    var deleteBtn = document.getElementById('foglio-delete');
+    if (deleteBtn) deleteBtn.addEventListener('click', function () { confirmUndoSheet(sheet); });
 
     if (scrollToLastDayPending) {
       scrollToLastDayPending = false;
