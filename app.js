@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v424"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v425"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -7260,6 +7260,7 @@
   // blank/black screen). This looks and feels identical everywhere,
   // regardless of device age or browser.
   var pdfViewerOriginalViewport = null;
+  var pdfViewerZoomListener = null;
   function openPdfViewerModal(pdfArrayBuffer, title) {
     document.getElementById('pdfviewer-title').textContent = title || 'Anteprima';
     document.getElementById('pdfviewer-pages').innerHTML = '';
@@ -7273,6 +7274,30 @@
     var meta = document.getElementById('viewport-meta');
     pdfViewerOriginalViewport = meta.getAttribute('content');
     meta.setAttribute('content', 'width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5, user-scalable=yes');
+
+    // REAL BUG, reported directly, narrowed down precisely: even with
+    // a SINGLE page (ruling out the multi-page/receipts memory theory
+    // below), pinching to zoom could shift the page down slightly
+    // mid-gesture and immediately crash/restart the app. Root cause:
+    // the scrollable container this content lives in (.pdfviewer-scroll)
+    // allows panning AND native pinch-zoom on the very same element —
+    // a real two-finger pinch almost never stays perfectly still, so
+    // the browser can end up interpreting the same gesture as BOTH a
+    // page-level zoom AND a scroll on this inner container at once,
+    // fighting each other. Locked the container's own scrolling for
+    // the exact duration of an active pinch (detected the same proven
+    // way as elsewhere in the app — visualViewport.scale moving away
+    // from 1) so a pinch can only ever be a pure zoom, never also a
+    // scroll — restored the instant the gesture ends.
+    var pdfScrollEl = document.getElementById('pdfviewer-scroll');
+    function pdfViewerZoomGuard() {
+      var zooming = window.visualViewport && Math.abs(window.visualViewport.scale - 1) > 0.02;
+      pdfScrollEl.style.overflow = zooming ? 'hidden' : 'auto';
+    }
+    if (window.visualViewport) {
+      pdfViewerZoomListener = pdfViewerZoomGuard;
+      window.visualViewport.addEventListener('resize', pdfViewerZoomListener);
+    }
 
     // REAL BUG, reported directly: zooming into the preview could kick
     // the person out of the app entirely (a renderer crash, same
@@ -7394,6 +7419,11 @@
       document.getElementById('viewport-meta').setAttribute('content', pdfViewerOriginalViewport);
       pdfViewerOriginalViewport = null;
     }
+    if (pdfViewerZoomListener && window.visualViewport) {
+      window.visualViewport.removeEventListener('resize', pdfViewerZoomListener);
+      pdfViewerZoomListener = null;
+    }
+    document.getElementById('pdfviewer-scroll').style.overflow = '';
   }
   document.getElementById('pdfviewer-close').addEventListener('click', closePdfViewerModal);
   document.getElementById('pdfviewer-download').addEventListener('click', downloadCurrentPdf);
