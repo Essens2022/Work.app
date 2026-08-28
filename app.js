@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v426"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v427"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -7285,17 +7285,25 @@
       wrapEl.style.transform = 'translate(' + panX + 'px,' + panY + 'px) scale(' + scale + ')';
     }
 
-    function clampPan() {
-      // Keeps the content from being dragged entirely off-screen —
-      // generous bounds, not a hard snap, just enough that a person
-      // can always find their way back without hunting for it.
+    function clampPan(generous) {
+      // Keeps the content from being dragged/zoomed entirely off-screen.
+      // REAL BUG, reported directly: an earlier, tight version of this
+      // (a flat 80px slack) fought the anchor-point pinch math above,
+      // visibly pulling zoom away from wherever the fingers actually
+      // were, especially on shorter content. The margin is now
+      // proportional to the CURRENT scaled size instead of a fixed
+      // number — generous enough that a normal, gradual pinch is never
+      // constrained, while still catching a genuinely extreme jump
+      // that would otherwise push all the content off-screen entirely.
       var scrollRect = scrollEl.getBoundingClientRect();
       var scaledW = scrollRect.width * scale;
       var scaledH = (contentH || scrollRect.height) * scale;
+      var slackX = generous ? scaledW * 0.6 : 80;
+      var slackY = generous ? scaledH * 0.6 : 80;
       var minX = Math.min(0, scrollRect.width - scaledW);
       var minY = Math.min(0, scrollRect.height - scaledH);
-      panX = Math.max(minX - 80, Math.min(80, panX));
-      panY = Math.max(minY - 80, Math.min(80, panY));
+      panX = Math.max(minX - slackX, Math.min(slackX, panX));
+      panY = Math.max(minY - slackY, Math.min(slackY, panY));
     }
 
     function dist(p1, p2) { return Math.hypot(p1.x - p2.x, p1.y - p2.y); }
@@ -7307,7 +7315,21 @@
       var ids = Object.keys(pointers);
       if (ids.length === 2) {
         var p1 = pointers[ids[0]], p2 = pointers[ids[1]];
-        pinchStart = { dist: dist(p1, p2), mid: mid(p1, p2), scale: scale, panX: panX, panY: panY };
+        var m = mid(p1, p2);
+        // REAL BUG, reported directly: zooming always pulled the page
+        // toward the top-left corner instead of the actual pinch point
+        // — because transform-origin is fixed at (0,0), simply adding
+        // the midpoint's own on-screen movement to pan (the previous
+        // math) completely ignored that CHANGING SCALE ALONE already
+        // shifts everything away from that corner. Fixed the proper
+        // way: remember which CONTENT coordinate sits under the
+        // fingers right now, then on every move, solve for whatever
+        // pan keeps that SAME content point under the CURRENT
+        // (moving) midpoint at the CURRENT scale — the standard
+        // "zoom toward a point" formula, not just "follow the
+        // average finger position".
+        pinchStart = { dist: dist(p1, p2), mid: m, scale: scale, panX: panX, panY: panY,
+          anchorX: (m.x - panX) / scale, anchorY: (m.y - panY) / scale };
         dragStart = null;
       } else if (ids.length === 1) {
         dragStart = { x: e.clientX, y: e.clientY, panX: panX, panY: panY };
@@ -7324,9 +7346,14 @@
         var newMid = mid(p1, p2);
         var ratio = newDist / (pinchStart.dist || 1);
         scale = Math.max(1, Math.min(4, pinchStart.scale * ratio));
-        panX = pinchStart.panX + (newMid.x - pinchStart.mid.x);
-        panY = pinchStart.panY + (newMid.y - pinchStart.mid.y);
-        clampPan();
+        panX = newMid.x - pinchStart.anchorX * scale;
+        panY = newMid.y - pinchStart.anchorY * scale;
+        // A generous version of the SAME clamp now runs during the
+        // pinch too — wide enough to never interfere with the anchor
+        // math for any normal gesture, but still catching the
+        // extreme case where content could otherwise vanish entirely
+        // off-screen.
+        clampPan(true);
         applyTransform();
       } else if (ids.length === 1 && dragStart) {
         panX = dragStart.panX + (e.clientX - dragStart.x);
@@ -7403,6 +7430,15 @@
     // layout never jumps, and only becomes a real canvas once it
     // actually scrolls into view.
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
+    // REAL BUG, reported directly: opening the preview felt "juddery"
+    // — not smooth, a slight shake right as it appears. The modal's
+    // own fade-in is a CSS transition (180ms), running on the SAME
+    // main thread that PDF.js needs to synchronously rasterize the
+    // first page onto canvas — if that rendering work starts the
+    // INSTANT this function runs, it can compete with (and visibly
+    // stutter) the fade-in animation. A short delay lets the fade-in
+    // actually finish smoothly first, before the heavier work begins.
+    setTimeout(function () {
     pdfjsLib.getDocument({ data: pdfArrayBuffer }).promise.then(function (pdf) {
       var container = document.getElementById('pdfviewer-pages');
       // REAL BUG, reported directly: zooming into the PDF preview
@@ -7417,7 +7453,19 @@
       // someone reads fine detail anyway) — lowered to cut each
       // canvas's memory footprint roughly in half, while staying
       // sharp enough for the un-zoomed view.
-      var scale = (window.devicePixelRatio > 1.5) ? 1.5 : 1.15;
+      // REAL BUG, reported directly: after moving to app-controlled
+      // zoom/pan (touch-action:none, no more native browser zoom at
+      // all), the ORIGINAL reason this scale was lowered — native
+      // pinch forcing the whole page to recomposite every rendered
+      // canvas simultaneously — no longer applies. A CSS transform on
+      // an already-rendered canvas just stretches its EXISTING pixels,
+      // so zooming in now (up to 4x, see pdfZoomState) needs a
+      // genuinely sharp base render to still look good, not just
+      // "sharp enough before any zoom happens". Raised well above even
+      // the original value — lazy-loading (only the visible page(s)
+      // are ever real canvases at once) is what actually keeps memory
+      // in check now, not a low base resolution.
+      var scale = (window.devicePixelRatio > 1.5) ? 3 : 2.2;
 
       function renderPageIntoCanvas(page, canvas) {
         var viewport = page.getViewport({ scale: scale });
@@ -7496,6 +7544,7 @@
       console.error(err);
       document.getElementById('pdfviewer-loading').textContent = 'Impossibile generare l\'anteprima.';
     });
+    }, 200);
   }
   function closePdfViewerModal() {
     document.getElementById('modal-pdfviewer').classList.remove('open');
