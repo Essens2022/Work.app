@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v422"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v423"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -7274,25 +7274,93 @@
     pdfViewerOriginalViewport = meta.getAttribute('content');
     meta.setAttribute('content', 'width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5, user-scalable=yes');
 
+    // REAL BUG, reported directly: zooming into the preview could kick
+    // the person out of the app entirely (a renderer crash, same
+    // family as the one chased at length on /official/). Root cause
+    // here is different but the same SHAPE — every page was rendered
+    // to its own full-size <canvas> immediately on open, all at once,
+    // regardless of whether the person was even looking at it yet. A
+    // sheet with several logged fuel receipts (scontrini) can easily
+    // run to multiple extra "gallery" pages beyond the trip sheet
+    // itself — each one, at this viewer's scale (2.2x on retina-class
+    // screens), is a genuinely large canvas; several of them held in
+    // GPU memory simultaneously, then all needing to be recomposited
+    // together the instant a native pinch-zoom starts, is a plausible
+    // way to tip a phone into exactly this crash — independent of how
+    // powerful the device is, since it's proportional to page COUNT,
+    // which keeps growing as receipts accumulate across a month.
+    // Fixed by rendering lazily: only the first page (what's actually
+    // visible right after opening) renders immediately; every other
+    // page is a lightweight placeholder, sized correctly so the
+    // layout never jumps, and only becomes a real canvas once it
+    // actually scrolls into view.
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
     pdfjsLib.getDocument({ data: pdfArrayBuffer }).promise.then(function (pdf) {
       var container = document.getElementById('pdfviewer-pages');
-      var renderPage = function (pageNum) {
-        return pdf.getPage(pageNum).then(function (page) {
-          var scale = (window.devicePixelRatio > 1.5) ? 2.2 : 1.6; // sharp on retina-class screens without being wasteful on older/lower-res ones
-          var viewport = page.getViewport({ scale: scale });
-          var canvas = document.createElement('canvas');
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          container.appendChild(canvas);
-          return page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
-        });
-      };
-      var chain = Promise.resolve();
-      for (var i = 1; i <= pdf.numPages; i++) {
-        (function (n) { chain = chain.then(function () { return renderPage(n); }); })(i);
+      // REAL BUG, reported directly: zooming into the PDF preview
+      // (especially a month with several fuel-receipt photo pages, on
+      // top of the main GIRO table page(s)) could crash/kick the
+      // person out of the app entirely. Every page becomes its own
+      // full-resolution <canvas> element, all held in memory
+      // simultaneously — a native pinch-zoom then asks the browser's
+      // own compositor to handle all of them at a larger effective
+      // size at once. The render scale here was higher than a static
+      // preview actually needs (since real pinch-zoom is exactly how
+      // someone reads fine detail anyway) — lowered to cut each
+      // canvas's memory footprint roughly in half, while staying
+      // sharp enough for the un-zoomed view.
+      var scale = (window.devicePixelRatio > 1.5) ? 1.5 : 1.15;
+
+      function renderPageIntoCanvas(page, canvas) {
+        var viewport = page.getViewport({ scale: scale });
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        return page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise;
       }
-      return chain;
+
+      var lazyObserver = window.IntersectionObserver ? new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          var placeholder = entry.target;
+          lazyObserver.unobserve(placeholder);
+          pdf.getPage(placeholder._pageNum).then(function (page) {
+            var canvas = document.createElement('canvas');
+            canvas.style.width = placeholder.style.width;
+            canvas.style.height = placeholder.style.height;
+            renderPageIntoCanvas(page, canvas).then(function () {
+              placeholder.replaceWith(canvas);
+            });
+          });
+        });
+      }, { rootMargin: '600px 0px' }) : null; // generous margin — renders just BEFORE it's actually reached, so scrolling never visibly outpaces it
+
+      return pdf.getPage(1).then(function (firstPage) {
+        var firstCanvas = document.createElement('canvas');
+        container.appendChild(firstCanvas);
+        return renderPageIntoCanvas(firstPage, firstCanvas);
+      }).then(function () {
+        var restChain = Promise.resolve();
+        var _loop = function (n) {
+          restChain = restChain.then(function () { return pdf.getPage(n); }).then(function (page) {
+            var viewport = page.getViewport({ scale: scale });
+            if (!lazyObserver) {
+              // No IntersectionObserver support at all (very old browser) — fall back to the previous eager behavior rather than never showing the page.
+              var canvas = document.createElement('canvas');
+              container.appendChild(canvas);
+              return renderPageIntoCanvas(page, canvas);
+            }
+            var placeholder = document.createElement('div');
+            placeholder._pageNum = n;
+            placeholder.style.width = (viewport.width / scale) + 'px';
+            placeholder.style.height = (viewport.height / scale) + 'px';
+            placeholder.style.background = '#f4f2ee';
+            container.appendChild(placeholder);
+            lazyObserver.observe(placeholder);
+          });
+        };
+        for (var n = 2; n <= pdf.numPages; n++) _loop(n);
+        return restChain;
+      });
     }).then(function () {
       document.getElementById('pdfviewer-loading').style.display = 'none';
     }).catch(function (err) {
