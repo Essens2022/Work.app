@@ -163,6 +163,13 @@
   .admin-home-icon:active{opacity:.8;}
   .admin-home-icon svg{width:26px;height:26px;color:var(--accent);}
   .admin-home-icon span{font-size:12.5px;font-weight:700;text-align:center;line-height:1.3;}
+  /* Requested directly: iPhone-style long-press-and-drag reordering
+     for the home icons. .dragging is the icon actually under the
+     finger (lifted, following the touch); .drag-target briefly marks
+     whichever OTHER icon it's currently hovering over, just for a
+     flash of visual feedback right as the swap happens. */
+  .admin-home-icon.dragging{opacity:.5;transform:scale(1.06);z-index:5;box-shadow:0 8px 24px rgba(0,0,0,.4);}
+  .admin-home-icon.drag-target{background:var(--surface-2);}
   .admin-home-badge{
     position:absolute;top:10px;right:10px;min-width:18px;height:18px;border-radius:9px;
     background:var(--accent);color:#fff;font-size:10.5px;font-weight:800;
@@ -848,12 +855,6 @@
     renderDrivers(lastGroupsRaw);
   });
 
-  document.querySelectorAll('.admin-home-icon').forEach(function (icon) {
-    icon.addEventListener('click', function () {
-      document.getElementById('admin-home').style.display = 'none';
-      document.getElementById('modal-' + icon.dataset.open).classList.add('open');
-    });
-  });
   document.querySelectorAll('.admin-modal-close').forEach(function (btn) {
     btn.addEventListener('click', function () {
       document.getElementById('modal-' + btn.dataset.close).classList.remove('open');
@@ -861,6 +862,97 @@
     });
   });
   document.getElementById('novita-add-btn').addEventListener('click', function () { openNovitaForm(null); });
+
+  // Requested directly: iPhone-style reordering for the home icons -
+  // hold one down, drag it over another, they swap places; the new
+  // order is remembered for next time. A quick tap (no real hold, no
+  // real movement) still just opens that function, exactly as before.
+  var HOME_ICON_ORDER_KEY = 'admin_home_icon_order_v1';
+  var LONG_PRESS_MS = 450;
+  var DRAG_MOVE_THRESHOLD = 8; // px of finger movement before a hold counts as an actual drag, not a shaky tap
+
+  function saveIconOrder() {
+    var order = Array.prototype.map.call(
+      document.querySelectorAll('.admin-home-icon'),
+      function (el) { return el.dataset.open; }
+    );
+    localStorage.setItem(HOME_ICON_ORDER_KEY, JSON.stringify(order));
+  }
+
+  (function restoreIconOrder() {
+    var saved = localStorage.getItem(HOME_ICON_ORDER_KEY);
+    if (!saved) return;
+    var order;
+    try { order = JSON.parse(saved); } catch (e) { return; } // corrupted/old value — just keep the default order
+    var grid = document.getElementById('admin-home');
+    order.forEach(function (key) {
+      var el = grid.querySelector('.admin-home-icon[data-open="' + key + '"]');
+      if (el) grid.appendChild(el); // appendChild on an element ALREADY in the DOM moves it — building the saved order back up, one icon at a time
+    });
+  })();
+
+  document.querySelectorAll('.admin-home-icon').forEach(function (icon) {
+    var pressTimer = null;
+    var dragging = false;
+    var moved = false;
+    var startX, startY;
+
+    icon.addEventListener('pointerdown', function (e) {
+      startX = e.clientX; startY = e.clientY;
+      moved = false;
+      pressTimer = setTimeout(function () {
+        dragging = true;
+        icon.classList.add('dragging');
+        try { icon.setPointerCapture(e.pointerId); } catch (err) { /* not critical if unsupported */ }
+      }, LONG_PRESS_MS);
+    });
+
+    icon.addEventListener('pointermove', function (e) {
+      var dx = e.clientX - startX, dy = e.clientY - startY;
+      if (!dragging) {
+        if (Math.abs(dx) > DRAG_MOVE_THRESHOLD || Math.abs(dy) > DRAG_MOVE_THRESHOLD) {
+          moved = true;
+          clearTimeout(pressTimer); // real finger movement before the hold finished — this is a scroll/mis-tap, not a drag attempt
+        }
+        return;
+      }
+      e.preventDefault();
+      var elAtPoint = document.elementFromPoint(e.clientX, e.clientY);
+      var target = elAtPoint ? elAtPoint.closest('.admin-home-icon') : null;
+      document.querySelectorAll('.admin-home-icon').forEach(function (i) { i.classList.remove('drag-target'); });
+      if (target && target !== icon) target.classList.add('drag-target');
+    });
+
+    function finishDrag(e) {
+      clearTimeout(pressTimer);
+      if (dragging) {
+        var elAtPoint = document.elementFromPoint(e.clientX, e.clientY);
+        var target = elAtPoint ? elAtPoint.closest('.admin-home-icon') : null;
+        if (target && target !== icon) {
+          var grid = document.getElementById('admin-home');
+          var allIcons = Array.prototype.slice.call(grid.querySelectorAll('.admin-home-icon'));
+          var iconIdx = allIcons.indexOf(icon);
+          var targetIdx = allIcons.indexOf(target);
+          if (iconIdx < targetIdx) target.parentNode.insertBefore(icon, target.nextSibling);
+          else target.parentNode.insertBefore(icon, target);
+          saveIconOrder();
+        }
+        icon.classList.remove('dragging');
+        document.querySelectorAll('.admin-home-icon').forEach(function (i) { i.classList.remove('drag-target'); });
+        dragging = false;
+      } else if (!moved) {
+        // A genuine quick tap — same behavior as always, open that function.
+        document.getElementById('admin-home').style.display = 'none';
+        document.getElementById('modal-' + icon.dataset.open).classList.add('open');
+      }
+    }
+    icon.addEventListener('pointerup', finishDrag);
+    icon.addEventListener('pointercancel', function () {
+      clearTimeout(pressTimer);
+      icon.classList.remove('dragging');
+      dragging = false;
+    });
+  });
 
   var lastGroupsRaw = [];
 
