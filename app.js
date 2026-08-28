@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v428"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v429"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -7245,7 +7245,6 @@
       var mo = selectedPdfMonth();
       var doc = buildPdfForMonth(mo.month, mo.year);
       if (!doc) { toast('Nessun foglio per questo mese'); return; }
-      var filename = 'Foglio_Viaggi_' + MESI[mo.month - 1] + '_' + mo.year + '.pdf';
       // REAL DISCOVERY, reported directly: cancelling the native share
       // sheet from "Condividi PDF" fell back to jsPDF's own .save(),
       // which — on mobile Safari specifically — doesn't actually save
@@ -7257,16 +7256,21 @@
       // this app had built (which is what all the earlier zoom-crash
       // chasing above was about) — sharper, and pinch-zoom simply
       // works, for free, without a single line of custom gesture code.
-      // Replicated that exact mechanism here directly, deliberately
-      // skipping the share-sheet detour entirely.
+      // ONE IMPORTANT CORRECTION on the very same idea, found by
+      // asking directly "will this behave the same on Android?" and
+      // checking rather than assuming: it does NOT. Chrome (desktop
+      // and Android alike) treats a `download`-attributed link to a
+      // PDF blob as a literal file save, dropped into Downloads —
+      // exactly the cumbersome result this whole change was meant to
+      // avoid. The `download` attribute itself turns out to be the
+      // one thing forcing that on Chrome; a plain link/window.open
+      // with NO download attribute lets each browser's own "view PDF
+      // natively" behavior take over instead — which both Safari AND
+      // Chrome already have, just not when a save is explicitly
+      // requested. Opening this way instead, universally.
       var blobUrl = URL.createObjectURL(doc.output('blob'));
-      var link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setTimeout(function () { URL.revokeObjectURL(blobUrl); }, 30000); // generous delay — some browsers need the URL to stay valid a moment after the click before they've actually finished opening it
+      window.open(blobUrl, '_blank');
+      setTimeout(function () { URL.revokeObjectURL(blobUrl); }, 30000); // generous delay — the new tab/view needs the URL to stay valid until it's actually finished loading the document
     } catch (err) {
       console.error(err);
       toast('Impossibile aprire l\'anteprima');
