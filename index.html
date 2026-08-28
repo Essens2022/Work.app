@@ -541,6 +541,13 @@
   .sheet-header .who{font-size:13px;color:var(--ink-soft);margin-top:2px;}
   .sheet-header .who b{color:var(--ink);}
   .pencil{width:30px;height:30px;border-radius:9px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;flex:none;cursor:pointer;}
+  /* Requested directly: the delete-sheet action used to be a plain
+     text link at the very bottom of the day list — easy to miss, and
+     didn't read as a destructive action at a glance. Moved up into
+     the same header row as the edit pencil, as its own small red
+     icon — close enough to feel related, with real gap (not touching)
+     so a hurried tap can't confuse the two. */
+  .trash-icon{width:30px;height:30px;border-radius:9px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;flex:none;cursor:pointer;color:var(--danger);margin-left:10px;}
 
   .giro-list{position:relative;margin-top:10px;padding-left:26px;}
   .giro-list::before{
@@ -593,7 +600,6 @@
   .fuel-gallery-item img{width:100%;aspect-ratio:1;object-fit:cover;display:block;}
   .fuel-gallery-item .fuel-remove-x{top:4px;right:4px;}
 
-  .undo-link{display:block;text-align:center;margin:18px auto 4px;font-size:12.5px;color:var(--ink-faint);text-decoration:underline;background:none;border:none;cursor:pointer;font-family:inherit;}
 
   /* Archivio — grouped by month: one card per month, with a row per
      client-sheet inside it, so it's clear at a glance which sheets
