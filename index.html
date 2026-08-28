@@ -455,7 +455,16 @@
     font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;
   }
   .pdfviewer-title{color:#fff;font-size:14px;font-weight:600;flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .pdfviewer-scroll{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y pinch-zoom;padding:14px 10px;}
+  /* REAL BUG, chased through several attempts: native browser
+     pinch-zoom on this screen (via the viewport-meta trick) kept
+     causing renderer crashes — sometimes with the zoomed state stuck
+     even after a forced restart. Replaced entirely with app-controlled
+     zoom below (JS applies a CSS transform directly), so the browser's
+     OWN native zoom/scroll gesture recognition is never involved here
+     at all — touch-action is simply "none" now, since panning and
+     zooming are both handled by this app's own pointer-event code. */
+  .pdfviewer-scroll{flex:1;overflow:hidden;touch-action:none;padding:14px 10px;}
+  .pdfviewer-zoom-wrap{transform-origin:0 0;width:100%;}
   .pdfviewer-loading{color:#ddd;text-align:center;padding:60px 0;font-size:14px;}
   .pdfviewer-pages{display:flex;flex-direction:column;align-items:center;gap:14px;}
   .pdfviewer-pages canvas{max-width:100%;height:auto;box-shadow:0 4px 18px rgba(0,0,0,.4);border-radius:2px;display:block;}
@@ -1905,7 +1914,9 @@
     </div>
     <div class="pdfviewer-scroll" id="pdfviewer-scroll">
       <div class="pdfviewer-loading" id="pdfviewer-loading">Preparazione anteprima…</div>
-      <div class="pdfviewer-pages" id="pdfviewer-pages"></div>
+      <div class="pdfviewer-zoom-wrap" id="pdfviewer-zoom-wrap">
+        <div class="pdfviewer-pages" id="pdfviewer-pages"></div>
+      </div>
     </div>
   </div>
 </div>

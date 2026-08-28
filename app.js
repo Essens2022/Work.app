@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v425"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v426"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -7259,45 +7259,128 @@
   // Android browsers/WebViews, especially older ones — often just a
   // blank/black screen). This looks and feels identical everywhere,
   // regardless of device age or browser.
-  var pdfViewerOriginalViewport = null;
-  var pdfViewerZoomListener = null;
+  // App-controlled pinch-zoom and pan for the PDF preview — built to
+  // replace native browser pinch-zoom entirely, after several
+  // attempts at fixing native zoom's crashes on this screen (reported
+  // directly, repeatedly, including the app getting stuck zoomed in
+  // even after a forced restart). This version never touches the
+  // viewport meta tag and never relies on the browser's own gesture
+  // recognition at all — every finger movement is read directly via
+  // Pointer Events, and the result is applied as a plain CSS
+  // transform on a wrapper div. Both "scrolling between pages" and
+  // "panning while zoomed" go through this SAME mechanism (dragging),
+  // rather than mixing native scroll with app-driven zoom — one
+  // consistent code path, nothing for the browser to misinterpret.
+  var pdfZoomState = null;
+  function initPdfViewerZoomPan() {
+    var scrollEl = document.getElementById('pdfviewer-scroll');
+    var wrapEl = document.getElementById('pdfviewer-zoom-wrap');
+    var scale = 1, panX = 0, panY = 0;
+    var pointers = {}; // pointerId -> {x, y}
+    var pinchStart = null; // {dist, midX, midY, scale, panX, panY}
+    var dragStart = null; // {x, y, panX, panY}
+    var contentH = 0; // measured once pages finish rendering, used to keep panning within sane bounds
+
+    function applyTransform() {
+      wrapEl.style.transform = 'translate(' + panX + 'px,' + panY + 'px) scale(' + scale + ')';
+    }
+
+    function clampPan() {
+      // Keeps the content from being dragged entirely off-screen —
+      // generous bounds, not a hard snap, just enough that a person
+      // can always find their way back without hunting for it.
+      var scrollRect = scrollEl.getBoundingClientRect();
+      var scaledW = scrollRect.width * scale;
+      var scaledH = (contentH || scrollRect.height) * scale;
+      var minX = Math.min(0, scrollRect.width - scaledW);
+      var minY = Math.min(0, scrollRect.height - scaledH);
+      panX = Math.max(minX - 80, Math.min(80, panX));
+      panY = Math.max(minY - 80, Math.min(80, panY));
+    }
+
+    function dist(p1, p2) { return Math.hypot(p1.x - p2.x, p1.y - p2.y); }
+    function mid(p1, p2) { return { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 }; }
+
+    function onPointerDown(e) {
+      try { scrollEl.setPointerCapture(e.pointerId); } catch (err) { /* some environments (or synthetic events) don't support this — pointermove still fires via the regular listener regardless */ }
+      pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var ids = Object.keys(pointers);
+      if (ids.length === 2) {
+        var p1 = pointers[ids[0]], p2 = pointers[ids[1]];
+        pinchStart = { dist: dist(p1, p2), mid: mid(p1, p2), scale: scale, panX: panX, panY: panY };
+        dragStart = null;
+      } else if (ids.length === 1) {
+        dragStart = { x: e.clientX, y: e.clientY, panX: panX, panY: panY };
+      }
+    }
+
+    function onPointerMove(e) {
+      if (!pointers[e.pointerId]) return;
+      pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var ids = Object.keys(pointers);
+      if (ids.length === 2 && pinchStart) {
+        var p1 = pointers[ids[0]], p2 = pointers[ids[1]];
+        var newDist = dist(p1, p2);
+        var newMid = mid(p1, p2);
+        var ratio = newDist / (pinchStart.dist || 1);
+        scale = Math.max(1, Math.min(4, pinchStart.scale * ratio));
+        panX = pinchStart.panX + (newMid.x - pinchStart.mid.x);
+        panY = pinchStart.panY + (newMid.y - pinchStart.mid.y);
+        clampPan();
+        applyTransform();
+      } else if (ids.length === 1 && dragStart) {
+        panX = dragStart.panX + (e.clientX - dragStart.x);
+        panY = dragStart.panY + (e.clientY - dragStart.y);
+        clampPan();
+        applyTransform();
+      }
+    }
+
+    function onPointerUp(e) {
+      delete pointers[e.pointerId];
+      var ids = Object.keys(pointers);
+      if (ids.length === 1) {
+        // Dropped from two fingers to one mid-gesture — restart the
+        // drag reference from here, instead of jumping using stale
+        // two-finger math.
+        dragStart = { x: pointers[ids[0]].x, y: pointers[ids[0]].y, panX: panX, panY: panY };
+        pinchStart = null;
+      } else if (ids.length === 0) {
+        dragStart = null; pinchStart = null;
+        // Settling back to scale 1 also resets pan — avoids ever
+        // getting stuck slightly offset at the "unzoomed" level.
+        if (scale <= 1.02) { scale = 1; panX = 0; panY = 0; applyTransform(); }
+      }
+    }
+
+    scrollEl.addEventListener('pointerdown', onPointerDown);
+    scrollEl.addEventListener('pointermove', onPointerMove);
+    scrollEl.addEventListener('pointerup', onPointerUp);
+    scrollEl.addEventListener('pointercancel', onPointerUp);
+
+    pdfZoomState = {
+      reset: function () { scale = 1; panX = 0; panY = 0; applyTransform(); },
+      measure: function () { contentH = document.getElementById('pdfviewer-pages').getBoundingClientRect().height; },
+      teardown: function () {
+        scrollEl.removeEventListener('pointerdown', onPointerDown);
+        scrollEl.removeEventListener('pointermove', onPointerMove);
+        scrollEl.removeEventListener('pointerup', onPointerUp);
+        scrollEl.removeEventListener('pointercancel', onPointerUp);
+      }
+    };
+    applyTransform();
+  }
+
+  function teardownPdfViewerZoomPan() {
+    if (pdfZoomState) { pdfZoomState.teardown(); pdfZoomState = null; }
+  }
+
   function openPdfViewerModal(pdfArrayBuffer, title) {
     document.getElementById('pdfviewer-title').textContent = title || 'Anteprima';
     document.getElementById('pdfviewer-pages').innerHTML = '';
     document.getElementById('pdfviewer-loading').style.display = '';
     document.getElementById('modal-pdfviewer').classList.add('open');
-
-    // Pinch-zoom is locked at the page level everywhere else in the app
-    // (see the crop tool for the same pattern) — temporarily allow real
-    // native pinch-to-zoom here, exactly like a proper PDF viewer, then
-    // restore the normal lock on close.
-    var meta = document.getElementById('viewport-meta');
-    pdfViewerOriginalViewport = meta.getAttribute('content');
-    meta.setAttribute('content', 'width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=5, user-scalable=yes');
-
-    // REAL BUG, reported directly, narrowed down precisely: even with
-    // a SINGLE page (ruling out the multi-page/receipts memory theory
-    // below), pinching to zoom could shift the page down slightly
-    // mid-gesture and immediately crash/restart the app. Root cause:
-    // the scrollable container this content lives in (.pdfviewer-scroll)
-    // allows panning AND native pinch-zoom on the very same element —
-    // a real two-finger pinch almost never stays perfectly still, so
-    // the browser can end up interpreting the same gesture as BOTH a
-    // page-level zoom AND a scroll on this inner container at once,
-    // fighting each other. Locked the container's own scrolling for
-    // the exact duration of an active pinch (detected the same proven
-    // way as elsewhere in the app — visualViewport.scale moving away
-    // from 1) so a pinch can only ever be a pure zoom, never also a
-    // scroll — restored the instant the gesture ends.
-    var pdfScrollEl = document.getElementById('pdfviewer-scroll');
-    function pdfViewerZoomGuard() {
-      var zooming = window.visualViewport && Math.abs(window.visualViewport.scale - 1) > 0.02;
-      pdfScrollEl.style.overflow = zooming ? 'hidden' : 'auto';
-    }
-    if (window.visualViewport) {
-      pdfViewerZoomListener = pdfViewerZoomGuard;
-      window.visualViewport.addEventListener('resize', pdfViewerZoomListener);
-    }
+    initPdfViewerZoomPan();
 
     // REAL BUG, reported directly: zooming into the preview could kick
     // the person out of the app entirely (a renderer crash, same
@@ -7408,6 +7491,7 @@
       });
     }).then(function () {
       document.getElementById('pdfviewer-loading').style.display = 'none';
+      if (pdfZoomState) pdfZoomState.measure();
     }).catch(function (err) {
       console.error(err);
       document.getElementById('pdfviewer-loading').textContent = 'Impossibile generare l\'anteprima.';
@@ -7415,15 +7499,7 @@
   }
   function closePdfViewerModal() {
     document.getElementById('modal-pdfviewer').classList.remove('open');
-    if (pdfViewerOriginalViewport) {
-      document.getElementById('viewport-meta').setAttribute('content', pdfViewerOriginalViewport);
-      pdfViewerOriginalViewport = null;
-    }
-    if (pdfViewerZoomListener && window.visualViewport) {
-      window.visualViewport.removeEventListener('resize', pdfViewerZoomListener);
-      pdfViewerZoomListener = null;
-    }
-    document.getElementById('pdfviewer-scroll').style.overflow = '';
+    teardownPdfViewerZoomPan();
   }
   document.getElementById('pdfviewer-close').addEventListener('click', closePdfViewerModal);
   document.getElementById('pdfviewer-download').addEventListener('click', downloadCurrentPdf);
