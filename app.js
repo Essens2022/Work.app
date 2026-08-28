@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v428"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v429"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -7245,28 +7245,51 @@
       var mo = selectedPdfMonth();
       var doc = buildPdfForMonth(mo.month, mo.year);
       if (!doc) { toast('Nessun foglio per questo mese'); return; }
-      var filename = 'Foglio_Viaggi_' + MESI[mo.month - 1] + '_' + mo.year + '.pdf';
-      // REAL DISCOVERY, reported directly: cancelling the native share
-      // sheet from "Condividi PDF" fell back to jsPDF's own .save(),
-      // which — on mobile Safari specifically — doesn't actually save
-      // to Files for a PDF; it navigates to the blob as a real page,
-      // and Safari's OWN native, highly-optimized PDF renderer takes
-      // over completely (the exact same one used for a PDF received
-      // in Mail or Messages). That native experience turned out to be
-      // dramatically better than the custom PDF.js + canvas viewer
-      // this app had built (which is what all the earlier zoom-crash
-      // chasing above was about) — sharper, and pinch-zoom simply
-      // works, for free, without a single line of custom gesture code.
-      // Replicated that exact mechanism here directly, deliberately
-      // skipping the share-sheet detour entirely.
-      var blobUrl = URL.createObjectURL(doc.output('blob'));
-      var link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setTimeout(function () { URL.revokeObjectURL(blobUrl); }, 30000); // generous delay — some browsers need the URL to stay valid a moment after the click before they've actually finished opening it
+      // REAL DISCOVERY, reported directly, then verified rather than
+      // assumed to apply everywhere: cancelling the native share sheet
+      // from "Condividi PDF" fell back to jsPDF's own .save(), which
+      // — on mobile SAFARI SPECIFICALLY — doesn't actually save to
+      // Files for a PDF; it navigates to the blob as a real page, and
+      // Safari's OWN native, highly-optimized PDF renderer takes over
+      // completely (the same one used for a PDF received in Mail or
+      // Messages) — dramatically better than this app's own custom
+      // PDF.js + canvas viewer. ION directly asked whether this would
+      // also hold on Android, tested it himself rather than taking it
+      // on faith, and confirmed it does NOT — Chrome on Android
+      // prompts a download regardless of the `download` attribute's
+      // presence or absence, unlike Safari. Genuinely two different
+      // platform behaviors, not one bug — so genuinely two different
+      // code paths: iOS gets the superior native viewer via the exact
+      // mechanism that works there; everyone else keeps this app's
+      // own viewer, which by now (after several rounds of fixes
+      // above — anchored-point pinch math, higher render resolution,
+      // no more native-zoom crashes) is a solid, good experience in
+      // its own right.
+      var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      var isAndroid = /Android/.test(navigator.userAgent);
+      if (isIOS) {
+        var blobUrl = URL.createObjectURL(doc.output('blob'));
+        window.open(blobUrl, '_blank');
+        setTimeout(function () { URL.revokeObjectURL(blobUrl); }, 30000);
+      } else if (isAndroid) {
+        // EXPERIMENT, explicitly agreed with ION as reversible: a NEW
+        // tab (window.open) to a blob PDF prompts Chrome on Android to
+        // download it rather than showing it inline — confirmed by
+        // ION directly, on his own device, not assumed. Untested
+        // guess, made explicit as one: perhaps Chrome's own PDF viewer
+        // only takes over for a real, same-tab NAVIGATION to the PDF
+        // (closer to how tapping a PDF link normally behaves) rather
+        // than a blob opened in a separate window/tab. If this
+        // doesn't actually help on a real Android phone, reverting
+        // this one block back to openPdfViewerModal (this app's own
+        // viewer, already solid after the fixes above) is a same-day,
+        // no-risk change — nothing else here depends on it.
+        var androidBlobUrl = URL.createObjectURL(doc.output('blob'));
+        window.location.href = androidBlobUrl;
+      } else {
+        var filename = 'Foglio_Viaggi_' + MESI[mo.month - 1] + '_' + mo.year;
+        openPdfViewerModal(doc.output('arraybuffer'), filename);
+      }
     } catch (err) {
       console.error(err);
       toast('Impossibile aprire l\'anteprima');
