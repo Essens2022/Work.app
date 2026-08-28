@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v431"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v432"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -5673,7 +5673,19 @@
   // steps, shown the moment they're needed, so it's a couple of taps to
   // follow rather than a search through unfamiliar settings menus.
   function openNavLocationUnlockGuide() {
-    var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    // REAL BUG, found directly from ION's own device: modern iOS
+    // Safari can report a desktop-style, "Macintosh"-containing user
+    // agent (confirmed via a temporary on-screen diagnostic — his
+    // showed no "iPhone"/"iPad" substring at all), so this regex-based
+    // check silently failed, misidentifying a real iPhone as some
+    // other platform. `navigator.standalone` is far more reliable for
+    // this specific question — it's a real, defined property (true or
+    // false) on any iOS Safari context, and simply doesn't exist
+    // anywhere else (Android, desktop Chrome, desktop Safari on an
+    // actual Mac) — so its mere PRESENCE, regardless of value, is
+    // itself the iOS signal, unaffected by whatever the UA string
+    // claims.
+    var isIOS = typeof navigator.standalone !== 'undefined';
     // Installed as a home-screen app (standalone) is a completely
     // different situation from a regular browser tab — Android treats
     // an installed PWA as its OWN app, with its own separate entry
@@ -7161,7 +7173,6 @@
     html += '<div style="width:56px;height:56px;border-radius:16px;background:var(--surface-2);display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">' + svgIcon('route') + '</div>';
     html += '<div style="font-weight:800;font-size:15px;margin-bottom:6px;">Anteprima documento</div>';
     html += '<div style="font-size:13px;color:var(--ink-soft);margin-bottom:20px;line-height:1.5;">Si apre nel visualizzatore del telefono — puoi ingrandire e spostarti liberamente con le dita, come su qualsiasi altro PDF. Usa "indietro" per tornare all\'app.</div>';
-    html += '<div style="font-size:9px;color:#999;word-break:break-all;margin-bottom:6px;padding:6px;background:#f4f2ee;border-radius:6px;">DIAGNOSTICA TEMPORANEA: ' + navigator.userAgent + ' | standalone: ' + navigator.standalone + '</div>';
     html += '<button class="btn btn-accent btn-block" id="pdf-open-preview">Apri anteprima a schermo intero</button>';
     html += '</div>';
 
@@ -7278,7 +7289,18 @@
       // this app's OWN viewer instead — solid by now, after several
       // rounds of real fixes above (anchored-point pinch zoom,
       // correct scaling, no more native-zoom crashes).
-      var isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      //
+      // REAL BUG, found directly (a temporary on-screen diagnostic
+      // showed ION's actual user agent): this exact check used to
+      // look for "iPhone"/"iPad"/"iPod" in navigator.userAgent, but
+      // his iPhone's Safari reported a desktop-style, "Macintosh"
+      // user agent instead — silently failing this check and sending
+      // a real iPhone down the Android/other path, which is exactly
+      // the regression he reported. navigator.standalone doesn't
+      // exist anywhere except iOS Safari (any value, even false,
+      // means iOS) — checking for its mere presence instead of
+      // parsing the UA string entirely sidesteps this.
+      var isIOS = typeof navigator.standalone !== 'undefined';
       if (isIOS) {
         var blobUrl = URL.createObjectURL(doc.output('blob'));
         var link = document.createElement('a');
