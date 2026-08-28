@@ -81,6 +81,14 @@
     display:inline-block;font-size:10.5px;font-weight:700;color:var(--ink-faint);
     background:var(--surface-2);border-radius:6px;padding:2px 7px;margin-left:6px;vertical-align:middle;
   }
+  /* Requested directly: a quick visual signal, per driver, of whether
+     they actually installed the app (added to home screen) or are
+     just using it through the browser. */
+  .install-badge{
+    display:inline-block;font-size:10.5px;font-weight:700;border-radius:6px;padding:2px 7px;margin-left:6px;vertical-align:middle;
+  }
+  .install-badge.installed{color:var(--live);background:rgba(60,184,120,.14);}
+  .install-badge.browser{color:var(--ink-faint);background:var(--surface-2);}
   .person-email{font-size:12px;color:var(--ink-faint);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .person-lastseen{font-size:11.5px;color:var(--ink-faint);white-space:nowrap;flex:none;}
   .opens-today-badge{
@@ -373,7 +381,8 @@
           key: key, nome: d.nome || '(senza nome)', targa: d.targa || '—',
           _latestForNameTarga: null, _latestWithRealActivity: null, _fallbackNome: null, _hasOfficialName: false,
           emails: {}, deviceIds: [], devices: [], hidden: true, lastActive: null, lastHeartbeat: null,
-          sheetsByKey: {}, activeMonth: null, activeYear: null, dailyRate: null, driverId: null, opensToday: 0
+          sheetsByKey: {}, activeMonth: null, activeYear: null, dailyRate: null, driverId: null, opensToday: 0,
+          anyInstalled: false
         };
       }
       var g = groups[key];
@@ -404,6 +413,7 @@
       if (d.account_email) g.emails[d.account_email] = true;
       if (d.driver_id && !g.driverId) g.driverId = d.driver_id;
       g.opensToday += Number(d.opens_today) || 0;
+      if (d.is_installed) g.anyInstalled = true;
       // Group is "hidden" only if EVERY device under it is hidden.
       if (!d.hidden) g.hidden = false;
       if (d.last_active && (!g.lastActive || d.last_active > g.lastActive)) g.lastActive = d.last_active;
@@ -475,7 +485,7 @@
     html += '<div class="person-row" data-toggle-open="' + g.key + '">';
     html += '<div class="live-dot' + (g.isLive ? ' is-live' : '') + '"></div>';
     html += '<div class="person-main">';
-    html += '<div class="person-name">' + g.nome + (g.driverId ? ' <span class="person-id-badge">' + g.driverId + '</span>' : '') + '</div>';
+    html += '<div class="person-name">' + g.nome + (g.driverId ? ' <span class="person-id-badge">' + g.driverId + '</span>' : '') + ' <span class="install-badge ' + (g.anyInstalled ? 'installed">📱 App' : 'browser">🌐 Browser') + '</span></div>';
     if (g.emailList.length) html += '<div class="person-email">' + g.emailList.join(', ') + '</div>';
     html += '</div>';
     if (g.opensToday > 0) html += '<div class="opens-today-badge" title="Aperture app oggi">' + g.opensToday + '</div>';
