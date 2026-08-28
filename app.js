@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v423"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v424"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -7325,8 +7325,12 @@
           lazyObserver.unobserve(placeholder);
           pdf.getPage(placeholder._pageNum).then(function (page) {
             var canvas = document.createElement('canvas');
-            canvas.style.width = placeholder.style.width;
-            canvas.style.height = placeholder.style.height;
+            // No inline style copied over deliberately — the canvas
+            // already gets correctly, responsively sized by its own
+            // CSS rule (.pdfviewer-pages canvas{max-width:100%;
+            // height:auto}), the same rule page 1's canvas has always
+            // relied on. Copying the placeholder's own sizing here
+            // was exactly the source of the distortion bug above.
             renderPageIntoCanvas(page, canvas).then(function () {
               placeholder.replaceWith(canvas);
             });
@@ -7351,8 +7355,24 @@
             }
             var placeholder = document.createElement('div');
             placeholder._pageNum = n;
-            placeholder.style.width = (viewport.width / scale) + 'px';
-            placeholder.style.height = (viewport.height / scale) + 'px';
+            // REAL BUG, found on direct review, reported by ION as
+            // pages (especially the fuel-receipts page, since it's
+            // rarely page 1) looking stretched/distorted before they
+            // finish loading: this used to set the placeholder's pixel
+            // size to viewport.width/height divided by the SAME scale
+            // that built them — which just cancels back out to the
+            // page's raw, UNSCALED point dimensions (e.g. ~841×595 for
+            // A4 landscape), completely ignoring how wide the phone
+            // screen actually is. The real <canvas>, once rendered,
+            // is corrected by its own CSS rule (max-width:100%;
+            // height:auto) — but that rule never applied to this
+            // placeholder <div>, so it kept its true, oversized shape
+            // the whole time it was waiting to be replaced. Sized by
+            // aspect-ratio instead — the exact same proportion the
+            // canvas will end up with, correctly constrained to the
+            // container's real width from the very first frame.
+            placeholder.style.width = '100%';
+            placeholder.style.aspectRatio = (viewport.width / viewport.height).toFixed(4);
             placeholder.style.background = '#f4f2ee';
             container.appendChild(placeholder);
             lazyObserver.observe(placeholder);
