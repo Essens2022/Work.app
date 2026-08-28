@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v419"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v420"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -641,6 +641,7 @@
       id: uid(),
       month: month, year: year,
       nome: state.profile.nome, targa: state.profile.targa, perContoDi: client,
+      veicoloInterno: state.profile.veicoloInterno || '',
       // Whether a worked day on THIS client's sheet counts toward the
       // driver's daily rate (see monthEarnings). Most clients do — but
       // some drivers have a side client that only pays a small fixed
@@ -7406,7 +7407,7 @@
     field('PER CONTO DI / AZIENDA:', sheet.perContoDi, margin + fcol * 2, fy1);
     field('PARTENZA ABITUALE:', sheet.da, margin, fy2);
     field('PROV.:', sheet.provDa, margin + fcol, fy2);
-    field('VEICOLO / N. INTERNO:', '', margin + fcol * 2, fy2); // no equivalent field exists in the app yet — left blank, writeable by hand
+    field('VEICOLO / N. INTERNO:', sheet.veicoloInterno, margin + fcol * 2, fy2);
 
     // GIRO title bar
     var giroH = 6;
@@ -8525,6 +8526,7 @@
     }
     var src = settingsTargetSheet ? {
       nome: settingsTargetSheet.nome, targa: settingsTargetSheet.targa, perContoDi: settingsTargetSheet.perContoDi,
+      veicoloInterno: settingsTargetSheet.veicoloInterno,
       da: state.profile.da, provDa: state.profile.provDa
     } : state.profile;
     document.getElementById('settings-title').textContent = settingsTargetSheet ? 'Dati foglio' : (state.profile.nome ? 'Impostazioni' : 'Benvenuto');
@@ -8544,6 +8546,7 @@
     document.getElementById('in-conto').value = src.perContoDi || '';
     document.getElementById('in-da').value = src.da || '';
     document.getElementById('in-prov-da').value = src.provDa || '';
+    document.getElementById('in-veicolo-interno').value = src.veicoloInterno || '';
     document.getElementById('in-daily-rate').value = state.profile.dailyRate || '';
 
     var sheetRateSection = document.getElementById('sheet-daily-rate-section');
@@ -9172,6 +9175,7 @@
     // capitals; anything not recognized is simply left for the driver
     // to fill in by hand, same as before this existed.
     var provDa = provDaTyped || lookupProvinceForCity(da) || '';
+    var veicoloInterno = document.getElementById('in-veicolo-interno').value.trim();
     var dailyRateRaw = document.getElementById('in-daily-rate').value.trim();
     var dailyRate = dailyRateRaw === '' ? '' : Math.max(0, parseFloat(dailyRateRaw) || 0);
 
@@ -9181,12 +9185,14 @@
 
     state.profile.nome = nome; state.profile.targa = targa; state.profile.perContoDi = conto;
     state.profile.da = da; state.profile.provDa = provDa;
+    state.profile.veicoloInterno = veicoloInterno;
     state.profile.dailyRate = dailyRate;
     saveProfile(state.profile);
     startPresence(); // profile is minimally ready now — no need to wait for anything else
 
     if (settingsTargetSheet) {
       settingsTargetSheet.nome = nome; settingsTargetSheet.targa = targa; settingsTargetSheet.perContoDi = conto;
+      settingsTargetSheet.veicoloInterno = veicoloInterno;
       settingsTargetSheet.countsForDailyRate = document.getElementById('in-sheet-daily-rate').checked;
       saveSheets(state.sheets);
     }
