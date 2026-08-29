@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v433"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v434"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -10163,6 +10163,15 @@
     var year = active ? active.year : null;
     var earnings = (month && year) ? monthEarnings(month, year) : { workedDaysCount: 0 };
     var deviceId = getDeviceId();
+    // Requested directly: an indicator in admin, per driver, showing
+    // whether they actually installed the app (added to home screen)
+    // or are just using it through the browser. display-mode:standalone
+    // is the modern, cross-platform way to detect this (works on
+    // Android); navigator.standalone is the older, iOS-only signal —
+    // checking both together covers every device, since neither alone
+    // is universal (learned the hard way, with navigator.standalone's
+    // own detection bug just fixed above).
+    var isInstalled = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
     var payload = {
       device_id: deviceId,
       nome: state.profile.nome,
@@ -10172,6 +10181,7 @@
       active_month: month,
       active_year: year,
       account_email: currentAccountEmail(),
+      is_installed: isInstalled,
       updated_at: new Date().toISOString()
     };
     // A genuine, native upsert — reliable now that anon has SELECT
