@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v435"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v436"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -10154,6 +10154,18 @@
       email = payload.email || null;
     } catch (e) { /* leave email null — session still works, just can't display it yet */ }
     setAuthSession({ access_token: accessToken, refresh_token: refreshToken, email: email });
+    // REAL BUG, reported directly: registering by email locks the name
+    // after confirmation (a real anti-abuse protection — the same
+    // account/identity can't quietly become a different person later),
+    // but signing in with Google skipped this entirely, since that
+    // flow never runs onEmailConfirmed() at all — it lands back here
+    // instead, through this exact same-shaped redirect. Applying the
+    // identical lock here too, so both paths behave consistently, not
+    // just the email one.
+    if (!state.profile.nomeLocked) {
+      state.profile.nomeLocked = true;
+      saveProfile(state.profile);
+    }
     history.replaceState(null, '', window.location.pathname + window.location.search);
     toast(email ? ('Accesso effettuato: ' + email) : 'Accesso effettuato');
   }
