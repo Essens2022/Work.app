@@ -118,8 +118,12 @@ fbq('track', 'PageView');
      ends, same pattern already used for the streaks. */
   body.zoom-active #fullpage-route{display:none!important;}
   .streak-1{top:8%;transform:rotate(-35deg);animation:streak-move-1 22s ease-in-out infinite;}
-  .streak-2{top:38%;transform:rotate(-35deg);animation:streak-move-2 28s ease-in-out infinite;animation-delay:-6s;height:2px;filter:blur(50px);}
-  .streak-3{top:65%;transform:rotate(-35deg);animation:streak-move-1 25s ease-in-out infinite;animation-delay:-12s;filter:blur(60px);opacity:0.25;}
+  /* Blur radius reduced (50/60px -> 24/28px), same Android-performance
+     pass — CSS filter:blur() is expensive relative to its radius, and
+     these run via an infinite CSS animation the whole time the page
+     is open. Softer, but far cheaper to keep recompositing forever. */
+  .streak-2{top:38%;transform:rotate(-35deg);animation:streak-move-2 28s ease-in-out infinite;animation-delay:-6s;height:2px;filter:blur(24px);}
+  .streak-3{top:65%;transform:rotate(-35deg);animation:streak-move-1 25s ease-in-out infinite;animation-delay:-12s;filter:blur(28px);opacity:0.25;}
   .streak-4{top:85%;transform:rotate(-35deg);animation:streak-move-2 19s ease-in-out infinite;animation-delay:-3s;height:2px;}
   @keyframes streak-move-1{
     0%{transform:rotate(-35deg) translateX(-8%);opacity:.18;}
@@ -998,7 +1002,21 @@ fbq('track', 'PageView');
         // travel time alone, so more vehicles are needed to keep the
         // path continuously populated without gaps.
         var estimatedCycleSeconds = traversalSeconds + numTurns * 1;
-        vehicleCount = Math.max(2, Math.ceil(estimatedCycleSeconds / spawnIntervalSeconds));
+        // REAL PERFORMANCE ISSUE, reported directly: the page (and the
+        // app in general) ran noticeably worse on Android than on
+        // iPhone — confirmed, concretely, this exact effect creates
+        // 14 continuously-moving vehicles (each with its own blurred
+        // halo) on a real, typical page height, ALL recalculated via
+        // requestAnimationFrame on every single frame, forever. iOS
+        // Safari's tightly integrated GPU pipeline absorbs this kind
+        // of sustained SVG-filter compositing far more gracefully
+        // than the much wider spread of Android GPUs/Chrome versions
+        // ever will. Capped at a flat maximum regardless of how tall
+        // the page is — still keeps the route visibly, continuously
+        // populated with moving dots (the actual visual goal), just
+        // without unboundedly scaling the animated+blurred element
+        // count up with page length.
+        vehicleCount = Math.min(6, Math.max(2, Math.ceil(estimatedCycleSeconds / spawnIntervalSeconds)));
         for (var v = 0; v < vehicleCount; v++) {
           // Requested directly: "punctul dinamic trebuie sa fie
           // retroiluminant" — a genuine backlit halo now, using a
@@ -1027,7 +1045,11 @@ fbq('track', 'PageView');
       var containerWidth = window.innerWidth;
       var svg = '<svg viewBox="0 0 ' + vbWidth + ' ' + pageHeight + '" width="' + containerWidth + '" height="' + pageHeight + '" preserveAspectRatio="none">' +
         '<defs>' +
-        '<filter id="haloBlur" x="-200%" y="-200%" width="500%" height="500%"><feGaussianBlur stdDeviation="8"/></filter>' +
+        // Blur reduced (8 -> 5) as part of the same Android-performance
+        // pass above — still reads as a soft glow, but a materially
+        // lighter one for the GPU to keep recompositing on every
+        // frame, across all 6 (now capped) simultaneously-animated halos.
+        '<filter id="haloBlur" x="-200%" y="-200%" width="500%" height="500%"><feGaussianBlur stdDeviation="5"/></filter>' +
         '<linearGradient id="routeGrad" x1="0%" y1="0%" x2="0%" y2="100%">' +
         '<stop offset="0%" stop-color="#FF6A00"/><stop offset="100%" stop-color="#FF3D00"/>' +
         '</linearGradient></defs>' +
