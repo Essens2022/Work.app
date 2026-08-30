@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v434"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v435"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -9305,6 +9305,24 @@
         .then(function () { btn.disabled = false; });
     }
   });
+
+  // "Continua con Google" — requested directly, as an addition
+  // alongside the existing email link, not a replacement. Uses the
+  // exact same Supabase client and redirects back to the app's own
+  // root, same as a confirmed magic link does, so it lands somewhere
+  // the app already knows how to pick up a fresh session from.
+  var googleBtn = document.getElementById('account-google-btn');
+  if (googleBtn) {
+    googleBtn.addEventListener('click', function () {
+      if (!supabaseClient) { toast('Servizio non disponibile — verifica la connessione'); return; }
+      supabaseClient.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin + '/' }
+      }).then(function (result) {
+        if (result.error) toast('Impossibile avviare l\'accesso con Google');
+      });
+    });
+  }
 
   // Renders the two possible states of the dedicated email modal: still
   // needs an email typed in and sent, or already sent and waiting on
