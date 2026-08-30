@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v436"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v437"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -10171,6 +10171,25 @@
   }
   handleAuthCallback();
 
+  // REAL BUG, found directly: the "opened as installed app" signal
+  // (display-mode:standalone / navigator.standalone) reported directly
+  // in admin turned out to be WRONG for at least one real, confirmed
+  // case — researched rather than guessed at, and found a genuinely
+  // well-known, years-old, still-unfixed bug specifically in Samsung
+  // Internet (extremely common on Samsung phones): it reports "browser"
+  // even while genuinely running standalone, from the home screen icon.
+  // Neither existing check can ever catch this, since the browser
+  // itself is answering wrong. A THIRD, independent signal instead:
+  // the manifest's start_url now carries a marker (?src=pwa) that can
+  // only ever be present when actually launched via the home screen
+  // icon (typing the URL, a bookmark, or a shared link never includes
+  // it) — captured once, right at launch, into localStorage, so it
+  // stays available for every later reportActivity() call in this
+  // session, regardless of any in-app navigation since.
+  if (window.location.search.indexOf('src=pwa') !== -1) {
+    try { localStorage.setItem('pt_launched_as_pwa_v1', '1'); } catch (e) { /* storage unavailable — falls back to the other two signals */ }
+  }
+
   function logoutAccount() {
     setAuthSession(null);
   }
@@ -10200,8 +10219,17 @@
     // Android); navigator.standalone is the older, iOS-only signal —
     // checking both together covers every device, since neither alone
     // is universal (learned the hard way, with navigator.standalone's
-    // own detection bug just fixed above).
-    var isInstalled = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+    // own detection bug just fixed above). A THIRD signal added after
+    // a real, confirmed case neither of the above caught: Samsung
+    // Internet has a long-standing, well-documented bug reporting
+    // "browser" even while genuinely running standalone — the
+    // start_url's own ?src=pwa marker (captured once, near launch,
+    // into localStorage — see above) sidesteps that entirely, since
+    // it can only ever be present when actually opened via the home
+    // screen icon, regardless of what the browser itself claims.
+    var launchedAsPwaMarker = false;
+    try { launchedAsPwaMarker = localStorage.getItem('pt_launched_as_pwa_v1') === '1'; } catch (e) { /* storage unavailable — falls back to the other two signals */ }
+    var isInstalled = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true || launchedAsPwaMarker;
     var payload = {
       device_id: deviceId,
       nome: state.profile.nome,
@@ -10211,9 +10239,25 @@
       active_month: month,
       active_year: year,
       account_email: currentAccountEmail(),
-      is_installed: isInstalled,
       updated_at: new Date().toISOString()
     };
+    // REAL BUG, reported directly: the SAME device sometimes opens
+    // through the browser (no install detected that particular time —
+    // maybe a genuinely different launch, maybe one of the several
+    // real detection quirks already found and researched, like Samsung
+    // Internet's own long-standing bug misreporting standalone mode)
+    // and this column simply got overwritten with FALSE every single
+    // time that happened, discarding a real, previously-confirmed
+    // "yes, this person has it installed" — visible in admin as the
+    // badge flipping back and forth on every open, exactly as reported.
+    // Fixed at the source: only ever SEND this field when it's
+    // genuinely detected true THIS time — otherwise it's left out of
+    // the payload entirely, so the update simply never touches this
+    // column, and whatever was already stored (true, from some earlier,
+    // correctly-detected installed session) stays exactly as it was.
+    // Once true, always true — never written back to false by a later,
+    // ordinary browser visit.
+    if (isInstalled) payload.is_installed = true;
     // A genuine, native upsert — reliable now that anon has SELECT
     // permission on this table (PostgreSQL requires it for the UPDATE
     // path of INSERT ... ON CONFLICT DO UPDATE, even with INSERT/UPDATE
