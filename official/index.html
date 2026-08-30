@@ -492,10 +492,23 @@ fbq('track', 'PageView');
   <div class="wrap" style="max-width:820px;">
     <div class="eyebrow" style="text-align:center;">Guardalo in azione</div>
     <h2 class="section-title" style="margin-left:auto;margin-right:auto;text-align:center;">Il tutorial completo, passo dopo passo</h2>
+    <!-- REAL BUG, found and fixed directly: this static fallback ID
+         had gone stale — ION had changed the live video from admin
+         weeks ago, but this hardcoded ID (and, worse, the VideoObject
+         schema JSON-LD further down, which Google reads for video
+         rich results) still pointed to the OLD one. The page's own
+         JS DOES correct both at runtime, in a real browser — but
+         Google's crawler reads the raw, static HTML for structured
+         data, and may never wait for that JS to run, so it can end up
+         indexing this exact stale ID regardless of what's actually
+         live. IMPORTANT: whenever the video changes from admin, this
+         static ID (here AND in the JSON-LD schema below) needs
+         updating too, by hand, in code — it is NOT automatically
+         kept in sync just because the admin setting changed. -->
     <div class="video-embed-wrap">
       <iframe
         id="tutorial-iframe"
-        src="https://www.youtube.com/embed/XcXEaQp4KbA"
+        src="https://www.youtube.com/embed/Wnv4eZ9of4A"
         title="Tutorial ADB Smart"
         frameborder="0"
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
@@ -504,7 +517,7 @@ fbq('track', 'PageView');
       ></iframe>
     </div>
     <div class="video-actions">
-      <a id="video-open-youtube" href="https://youtu.be/XcXEaQp4KbA" target="_blank" rel="noopener" class="video-action-btn">
+      <a id="video-open-youtube" href="https://youtu.be/Wnv4eZ9of4A" target="_blank" rel="noopener" class="video-action-btn">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M21.6 7.2c-.25-1.4-1.4-2.5-2.8-2.7C16.7 4.1 12 4.1 12 4.1s-4.7 0-6.8.4c-1.4.2-2.55 1.3-2.8 2.7C2 9.3 2 12 2 12s0 2.7.4 4.8c.25 1.4 1.4 2.4 2.8 2.6 2.1.4 6.8.4 6.8.4s4.7 0 6.8-.4c1.4-.2 2.55-1.2 2.8-2.6.4-2.1.4-4.8.4-4.8s0-2.7-.4-4.8zM9.9 15.4V8.6l6 3.4-6 3.4z"/></svg>
         Apri su YouTube
       </a>
@@ -609,9 +622,9 @@ fbq('track', 'PageView');
   "@type": "VideoObject",
   "name": "Tutorial ADB Smart — come funziona l'app per autisti",
   "description": "Guida completa passo dopo passo: dalla registrazione al primo foglio viaggi, gestione consegne, itinerario automatico e altro.",
-  "thumbnailUrl": "https://img.youtube.com/vi/XcXEaQp4KbA/hqdefault.jpg",
+  "thumbnailUrl": "https://img.youtube.com/vi/Wnv4eZ9of4A/hqdefault.jpg",
   "uploadDate": "2026-08-26T00:00:00+00:00",
-  "embedUrl": "https://www.youtube.com/embed/XcXEaQp4KbA"
+  "embedUrl": "https://www.youtube.com/embed/Wnv4eZ9of4A"
 }
 </script>
 
