@@ -176,6 +176,12 @@
     background:var(--surface);border:1px solid var(--line);border-radius:16px;
     padding:20px 8px 14px;display:flex;flex-direction:column;align-items:center;gap:10px;
     cursor:pointer;font-family:inherit;color:var(--ink);position:relative;
+    /* Requested directly: holding a finger down was triggering the
+       browser's own text-selection/callout behavior on the label
+       underneath — exactly what a long-press-to-reorder gesture
+       shouldn't feel like. This is a real button, not selectable text. */
+    user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;
+    transition:transform .22s cubic-bezier(.2,.8,.2,1);
   }
   .admin-home-icon:active{opacity:.8;}
   .admin-home-icon svg{width:26px;height:26px;color:var(--accent);}
@@ -184,8 +190,15 @@
      for the home icons. .dragging is the icon actually under the
      finger (lifted, following the touch); .drag-target briefly marks
      whichever OTHER icon it's currently hovering over, just for a
-     flash of visual feedback right as the swap happens. */
-  .admin-home-icon.dragging{opacity:.5;transform:scale(1.06);z-index:5;box-shadow:0 8px 24px rgba(0,0,0,.4);}
+     flash of visual feedback right as the swap happens. Lift made
+     more pronounced (bigger scale/shadow, plus a slight rotation) —
+     requested directly, the earlier version didn't read clearly
+     enough as "this is now being picked up and moved". The actual
+     smooth slide of a DISPLACED icon into its new slot is handled by
+     the transition above, combined with the FLIP technique in JS
+     below — this class only covers the icon actively under the
+     finger. */
+  .admin-home-icon.dragging{opacity:.65;transform:scale(1.12) rotate(-2deg);z-index:5;box-shadow:0 14px 34px rgba(0,0,0,.5);transition:none;}
   .admin-home-icon.drag-target{background:var(--surface-2);}
   .admin-home-badge{
     position:absolute;top:10px;right:10px;min-width:18px;height:18px;border-radius:9px;
@@ -1135,6 +1148,16 @@
       pressTimer = setTimeout(function () {
         dragging = true;
         icon.classList.add('dragging');
+        // REAL BUG, found directly while testing the new "follows the
+        // finger" behavior above: once the icon visually translates
+        // to sit AT the finger's position, it also starts intercepting
+        // pointer events there — elementFromPoint() at drop time then
+        // finds the dragged icon itself (since it's now sitting right
+        // there visually), not whatever icon is actually underneath,
+        // silently breaking every drop. Ignoring pointer events on it
+        // for the exact duration of the drag makes elementFromPoint
+        // correctly "see through" it to the real target below.
+        icon.style.pointerEvents = 'none';
         try { icon.setPointerCapture(e.pointerId); } catch (err) { /* not critical if unsupported */ }
       }, LONG_PRESS_MS);
     });
@@ -1149,6 +1172,15 @@
         return;
       }
       e.preventDefault();
+      // Requested directly: the icon wasn't visually following the
+      // finger at all during the hold — it just sat in place looking
+      // slightly puffed up, which made it genuinely unclear that
+      // anything was being picked up and moved. Now it actually
+      // translates with the finger, on top of the lift/rotate the
+      // .dragging class already applies via CSS — set together here,
+      // as one inline transform, since this needs to update on every
+      // single move, far too often for a CSS class swap to handle.
+      icon.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(1.12) rotate(-2deg)';
       var elAtPoint = document.elementFromPoint(e.clientX, e.clientY);
       var target = elAtPoint ? elAtPoint.closest('.admin-home-icon') : null;
       document.querySelectorAll('.admin-home-icon').forEach(function (i) { i.classList.remove('drag-target'); });
@@ -1163,12 +1195,42 @@
         if (target && target !== icon) {
           var grid = document.getElementById('admin-home');
           var allIcons = Array.prototype.slice.call(grid.querySelectorAll('.admin-home-icon'));
+          // FLIP technique, requested directly ("ca la iPhone, fluid,
+          // sa se inteleaga ca schimba locul") — record every OTHER
+          // icon's real on-screen position BEFORE the reorder, do the
+          // actual DOM move (which, in a CSS grid, can silently shift
+          // several icons at once, not just the two involved), then
+          // for anything that ended up somewhere new, instantly place
+          // it back at its old spot with a transform and let the CSS
+          // transition (already on .admin-home-icon) animate it home
+          // — the same "First-Last-Invert-Play" approach used for
+          // smooth list reordering generally.
+          var beforeRects = {};
+          allIcons.forEach(function (el) { if (el !== icon) beforeRects[el.dataset.open] = el.getBoundingClientRect(); });
+
           var iconIdx = allIcons.indexOf(icon);
           var targetIdx = allIcons.indexOf(target);
           if (iconIdx < targetIdx) target.parentNode.insertBefore(icon, target.nextSibling);
           else target.parentNode.insertBefore(icon, target);
           saveIconOrder();
+
+          allIcons.forEach(function (el) {
+            if (el === icon) return;
+            var before = beforeRects[el.dataset.open];
+            var after = el.getBoundingClientRect();
+            var deltaX = before.left - after.left, deltaY = before.top - after.top;
+            if (deltaX || deltaY) {
+              el.style.transition = 'none';
+              el.style.transform = 'translate(' + deltaX + 'px,' + deltaY + 'px)';
+              requestAnimationFrame(function () {
+                el.style.transition = '';
+                el.style.transform = '';
+              });
+            }
+          });
         }
+        icon.style.transform = ''; // clear the inline drag-follow transform — .dragging's own CSS transform (already being removed below) takes over for the brief transition back to rest
+        icon.style.pointerEvents = ''; // restore normal hit-testing, disabled above for the exact duration of the drag
         icon.classList.remove('dragging');
         document.querySelectorAll('.admin-home-icon').forEach(function (i) { i.classList.remove('drag-target'); });
         dragging = false;
@@ -1182,6 +1244,8 @@
     icon.addEventListener('pointercancel', function () {
       clearTimeout(pressTimer);
       icon.classList.remove('dragging');
+      icon.style.transform = '';
+      icon.style.pointerEvents = '';
       dragging = false;
     });
   });
