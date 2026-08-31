@@ -392,7 +392,13 @@
         <div class="messaggi-fixed-top">
           <div class="admin-modal-header" style="margin-bottom:0;">
             <button class="messaggi-back-only" id="messaggi-back-btn">←</button>
-            <div class="admin-modal-title" id="messaggi-thread-name">—</div>
+            <div>
+              <div class="admin-modal-title" id="messaggi-thread-name">—</div>
+              <!-- Requested directly: admin-only, mirrors the exact same
+                   live/last-seen info already shown in Autisti — drivers
+                   never see this (or ANY equivalent for admin), on purpose. -->
+              <div class="person-lastseen" id="messaggi-thread-presence" style="margin-top:1px;"></div>
+            </div>
           </div>
         </div>
         <div id="messaggi-thread-scroll" class="messaggi-scroll-area" style="padding-top:14px;">
@@ -863,9 +869,43 @@
 
   var messaggiThreadCache = {};
 
+  // Requested directly: the same live/last-seen presence already
+  // shown throughout Autisti, reused here so admin can see it right
+  // in the chat header too — drivers never see any equivalent for
+  // admin, by design, matching the existing one-way visibility model.
+  //
+  // REAL BUG, found directly while testing: lastGroupsRaw holds the
+  // RAW rows straight from admin-data, exactly as the API returned
+  // them — the deviceIds/isLive/lastSeen fields only get computed
+  // INSIDE renderDrivers()'s own internal grouping, which never
+  // writes those computed fields back onto lastGroupsRaw itself.
+  // Computing the same isLive/lastSeen logic directly from the raw
+  // row here instead — matching the exact formula used in Autisti's
+  // own rendering — rather than assuming those fields already exist
+  // on data they were never actually added to.
+  function findDriverPresence(deviceId) {
+    var raw = null;
+    for (var i = 0; i < lastGroupsRaw.length; i++) {
+      if (lastGroupsRaw[i].device_id === deviceId) { raw = lastGroupsRaw[i]; break; }
+    }
+    if (!raw) return null;
+    var email = raw.account_email;
+    var isLive = !!(email && liveEmails[email.toLowerCase()]);
+    var lastSeen = raw.last_heartbeat && (!raw.last_active || raw.last_heartbeat > raw.last_active) ? raw.last_heartbeat : raw.last_active;
+    return { isLive: isLive, lastSeen: lastSeen };
+  }
+
+  function renderMessaggiThreadPresence(deviceId) {
+    var el = document.getElementById('messaggi-thread-presence');
+    var presence = findDriverPresence(deviceId);
+    if (!presence) { el.textContent = ''; return; }
+    el.textContent = presence.isLive ? 'Live ora' : formatRelative(presence.lastSeen);
+  }
+
   function openMessaggiThread(deviceId, driverName) {
     messaggiCurrentDeviceId = deviceId;
     document.getElementById('messaggi-thread-name').textContent = driverName || '(senza nome)';
+    renderMessaggiThreadPresence(deviceId);
     document.getElementById('messaggi-list-view').style.display = 'none';
     document.getElementById('messaggi-thread-view').style.display = 'flex';
     // REAL BUG, reported directly: switching conversations (or leaving
