@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v449"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v450"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -9453,40 +9453,10 @@
   document.getElementById('btn-settings').addEventListener('click', function () { openSettingsModal(null); });
   document.getElementById('btn-navigatore').addEventListener('click', function () { showScreen('navigatore'); });
   document.getElementById('btn-novita').addEventListener('click', openNovitaModal);
-  // REAL BUG, reported directly: on mobile, opening the keyboard (to
-  // type a chat message) pushed the "fixed" header (with the ×
-  // close button and "Assistenza" title) up along with it — the same
-  // well-known iOS Safari quirk where position:fixed anchors to the
-  // LAYOUT viewport, which does not shrink when the keyboard appears,
-  // unlike the actually-visible VISUAL viewport.
-  //
-  // REAL BUG, found in the FIRST attempt at fixing this: also syncing
-  // `top` to visualViewport.offsetTop (and listening on its 'scroll'
-  // event) reacted to an entirely different, unrelated iOS behavior —
-  // the address bar collapsing/expanding as the page scrolls also
-  // shifts offsetTop, with nothing else on screen to visually cover
-  // the gap that shift then opened up, exposing the real page
-  // underneath. `top` genuinely never needs adjusting here — inset:0
-  // already pins it correctly to the true top of the screen; only
-  // `height` needs to shrink to make room for the keyboard, and only
-  // 'resize' (which fires specifically when the keyboard opens/
-  // closes) needs watching, not 'scroll'.
-  function keepModalPinnedToVisualViewport(modalEl) {
-    if (!window.visualViewport) return;
-    function update() {
-      if (!modalEl.classList.contains('open')) return;
-      modalEl.style.height = window.visualViewport.height + 'px';
-    }
-    window.visualViewport.addEventListener('resize', update);
-    modalEl.__syncViewport = update;
-  }
-  keepModalPinnedToVisualViewport(document.getElementById('modal-chat'));
 
   document.getElementById('btn-chat').addEventListener('click', openChatModal);
   document.getElementById('chat-close').addEventListener('click', function () {
-    var modalEl = document.getElementById('modal-chat');
-    modalEl.classList.remove('open');
-    modalEl.style.height = '';
+    document.getElementById('modal-chat').classList.remove('open');
   });
   document.getElementById('chat-send').addEventListener('click', sendChatMessage);
   var chatInputEl = document.getElementById('chat-input');
@@ -10103,7 +10073,6 @@
 
   function openChatModal() {
     document.getElementById('modal-chat').classList.add('open');
-    if (document.getElementById('modal-chat').__syncViewport) document.getElementById('modal-chat').__syncViewport();
     chatCall({ action: 'driver_list', device_id: getDeviceId() }).then(function (res) {
       if (res.ok) renderChatMessages(res.data.items);
       chatCall({ action: 'driver_mark_read', device_id: getDeviceId() }).then(function () {

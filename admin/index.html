@@ -242,6 +242,18 @@
   .admin-modal-fullscreen.open{
     position:fixed;inset:0;z-index:500;background:var(--bg);
     overflow:hidden;padding:0;
+    /* REAL BUG, reported directly: an earlier attempt at keeping this
+       header pinned during keyboard-open used JavaScript to manually
+       resize the modal via window.visualViewport — which, on a real
+       device, shrank it enough (in a way this sandbox's simulated
+       events never caught) to expose the home screen behind it,
+       right where the keyboard should have covered things instead.
+       Replaced entirely with 100dvh — a browser-native CSS unit built
+       specifically for this, correctly shrinking on its own with the
+       keyboard, with no manual recalculation (and no risk of it
+       being subtly wrong) needed at all. 100vh stays as a fallback
+       for browsers old enough not to support dvh yet. */
+    height:100vh;height:100dvh;
   }
   .admin-modal-fullscreen-inner{
     display:flex;flex-direction:column;height:100%;
@@ -1326,7 +1338,6 @@
     btn.addEventListener('click', function () {
       var closedModal = document.getElementById('modal-' + btn.dataset.close);
       closedModal.classList.remove('open');
-      closedModal.style.height = '';
       document.getElementById('admin-home').style.display = 'grid';
     });
   });
@@ -1502,8 +1513,6 @@
         // A genuine quick tap — same behavior as always, open that function.
         document.getElementById('admin-home').style.display = 'none';
         document.getElementById('modal-' + icon.dataset.open).classList.add('open');
-        var openedModal = document.getElementById('modal-' + icon.dataset.open);
-        if (openedModal.__syncViewport) openedModal.__syncViewport();
         // REAL BUG, reported directly: Messaggi's own data-loading used
         // to live in a SEPARATE 'click' listener on this same icon —
         // which, on a real phone, raced against this shared long-press/
@@ -1741,35 +1750,6 @@
     attemptFaceIdUnlock();
   }
   document.getElementById('faceid-unlock-btn').addEventListener('click', attemptFaceIdUnlock);
-
-  // REAL BUG, reported directly: on mobile, opening the keyboard (to
-  // type a message) pushed the "fixed" header up along with it —
-  // exactly the well-known iOS Safari quirk where position:fixed is
-  // anchored to the LAYOUT viewport, which does NOT shrink when the
-  // keyboard appears, while the actually-visible area (the VISUAL
-  // viewport) does.
-  //
-  // REAL BUG, found in the FIRST attempt at fixing this: also syncing
-  // `top` to visualViewport.offsetTop (and listening on its 'scroll'
-  // event) reacted to an entirely different, unrelated iOS behavior —
-  // the address bar collapsing/expanding as the page scrolls also
-  // shifts offsetTop, with nothing else on screen to visually cover
-  // the gap that shift then opened up, briefly exposing the real page
-  // underneath. `top` genuinely never needs adjusting here — inset:0
-  // already pins it correctly to the true top of the screen; only
-  // `height` needs to shrink to make room for the keyboard, and only
-  // 'resize' (which fires specifically when the keyboard opens/
-  // closes) needs watching, not 'scroll'.
-  function keepModalPinnedToVisualViewport(modalEl) {
-    if (!window.visualViewport) return;
-    function update() {
-      if (!modalEl.classList.contains('open')) return;
-      modalEl.style.height = window.visualViewport.height + 'px';
-    }
-    window.visualViewport.addEventListener('resize', update);
-    modalEl.__syncViewport = update;
-  }
-  keepModalPinnedToVisualViewport(document.getElementById('modal-messaggi'));
 
   document.getElementById('login-btn').addEventListener('click', login);
   document.getElementById('admin-push-btn').addEventListener('click', function () {
