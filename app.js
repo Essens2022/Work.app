@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v439"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v440"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -10038,17 +10038,34 @@
     emptyEl.style.display = 'none';
     var html = '';
     var lastDay = null;
+    var nowMs = Date.now();
     items.forEach(function (m) {
       var day = chatDayLabel(m.created_at);
       if (day !== lastDay) {
         html += '<div class="chat-day-divider">' + day + '</div>';
         lastDay = day;
       }
+      // Requested directly: a message can be corrected for one minute
+      // after sending, in case it went out with a typo — the actual
+      // 60s cutoff is enforced server-side regardless, this is just
+      // when the pencil icon itself is offered.
+      var canEdit = m.sender === 'driver' && (nowMs - new Date(m.created_at).getTime()) < 60000;
+      var editBtn = canEdit ? '<button class="chat-edit-btn" data-edit-id="' + m.id + '" data-edit-text="' + escapeHtml(m.message) + '">✎</button>' : '';
+      var editedTag = m.edited ? ' <span style="opacity:.6;">(modificato)</span>' : '';
       html += '<div class="chat-bubble ' + (m.sender === 'driver' ? 'driver' : 'admin') + '">' +
-        escapeHtml(m.message).replace(/\n/g, '<br>') +
-        '<span class="chat-bubble-time">' + chatBubbleTime(m.created_at) + '</span></div>';
+        escapeHtml(m.message).replace(/\n/g, '<br>') + editedTag +
+        '<span class="chat-bubble-time">' + chatBubbleTime(m.created_at) + editBtn + '</span></div>';
     });
     container.innerHTML = html;
+    container.querySelectorAll('.chat-edit-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        chatEditingMessageId = btn.getAttribute('data-edit-id');
+        var input = document.getElementById('chat-input');
+        input.value = btn.getAttribute('data-edit-text');
+        input.focus();
+        document.getElementById('chat-send').classList.add('editing');
+      });
+    });
     var scrollEl = document.getElementById('chat-scroll');
     scrollEl.scrollTop = scrollEl.scrollHeight;
   }
@@ -10064,23 +10081,30 @@
     });
   }
 
+  var chatEditingMessageId = null;
+
   function sendChatMessage() {
     var input = document.getElementById('chat-input');
     var text = input.value.trim();
     if (!text) return;
     input.value = '';
     input.style.height = 'auto';
-    chatCall({ action: 'driver_send', device_id: getDeviceId(), account_email: currentAccountEmail(), message: text })
-      .then(function (res) {
-        if (res.ok) {
-          chatCall({ action: 'driver_list', device_id: getDeviceId() }).then(function (r2) {
-            if (r2.ok) renderChatMessages(r2.data.items);
-          });
-        } else {
-          toast('Impossibile inviare — verifica la connessione');
-          input.value = text; // give the message back so nothing typed is lost
-        }
-      });
+    var editingId = chatEditingMessageId;
+    chatEditingMessageId = null;
+    document.getElementById('chat-send').classList.remove('editing');
+    var call = editingId
+      ? chatCall({ action: 'driver_edit', device_id: getDeviceId(), id: editingId, message: text })
+      : chatCall({ action: 'driver_send', device_id: getDeviceId(), account_email: currentAccountEmail(), message: text });
+    call.then(function (res) {
+      if (res.ok) {
+        chatCall({ action: 'driver_list', device_id: getDeviceId() }).then(function (r2) {
+          if (r2.ok) renderChatMessages(r2.data.items);
+        });
+      } else {
+        toast(editingId ? 'Tempo scaduto per la modifica' : 'Impossibile inviare — verifica la connessione');
+        if (!editingId) input.value = text; // give the message back so nothing typed is lost
+      }
+    });
   }
 
   function renderNovitaItem(item) {

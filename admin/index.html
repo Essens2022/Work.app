@@ -98,6 +98,8 @@
   .chat-bubble.admin{align-self:flex-end;background:var(--accent-soft);border-bottom-right-radius:3px;}
   .chat-bubble-time{display:block;font-size:10px;color:var(--ink-faint);margin-top:3px;text-align:right;}
   .chat-day-divider{align-self:center;background:var(--surface-2);color:var(--ink-faint);font-size:11px;font-weight:700;padding:3px 10px;border-radius:8px;margin:10px 0;}
+  .chat-edit-btn{border:none;background:none;color:var(--ink-faint);font-size:12px;cursor:pointer;padding:0 0 0 6px;vertical-align:middle;}
+  #messaggi-thread-send.editing{background:#3CB878;}
   .person-email{font-size:12px;color:var(--ink-faint);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .person-lastseen{font-size:11.5px;color:var(--ink-faint);white-space:nowrap;flex:none;}
   .opens-today-badge{
@@ -326,6 +328,7 @@
           <button class="admin-modal-close" data-close="messaggi">×</button>
           <div class="admin-modal-title">Messaggi</div>
         </div>
+        <input id="messaggi-search" type="text" placeholder="Cerca per ID, email, nome o cognome…" class="search-input" autocomplete="off" style="margin-bottom:14px;">
         <div id="messaggi-conversations-list"></div>
         <div style="font-size:12px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.04em;margin:22px 0 10px;">Scrivi a un autista</div>
         <div id="messaggi-driver-picker"></div>
@@ -765,22 +768,36 @@
   function renderThreadMessages(items) {
     var html = '';
     var lastDay = null;
+    var nowMs = Date.now();
     (items || []).forEach(function (m) {
       var day = chatDayLabel(m.created_at);
       if (day !== lastDay) { html += '<div class="chat-day-divider">' + day + '</div>'; lastDay = day; }
       // From admin's own point of view, an "admin" message is the
       // outgoing/sent one (right-aligned, green) — exactly mirrored
       // from how the app itself shows "driver" as the outgoing side.
-      html += '<div class="chat-bubble ' + (m.sender === 'admin' ? 'driver' : 'admin') + '">' +
-        escapeHtmlNovita(m.message).replace(/\n/g, '<br>') +
-        '<span class="chat-bubble-time">' + chatBubbleTime(m.created_at) + '</span></div>';
+      var canEdit = m.sender === 'admin' && (nowMs - new Date(m.created_at).getTime()) < 60000;
+      var editBtn = canEdit ? '<button class="chat-edit-btn" data-edit-id="' + m.id + '" data-edit-text="' + escapeHtmlNovita(m.message) + '">✎</button>' : '';
+      var editedTag = m.edited ? ' <span style="opacity:.6;">(modificato)</span>' : '';
+      html += '<div class="chat-bubble ' + (m.sender === 'admin' ? 'admin' : 'driver') + '">' +
+        escapeHtmlNovita(m.message).replace(/\n/g, '<br>') + editedTag +
+        '<span class="chat-bubble-time">' + chatBubbleTime(m.created_at) + editBtn + '</span></div>';
     });
     document.getElementById('messaggi-thread-messages').innerHTML = html;
+    document.querySelectorAll('.chat-edit-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        messaggiEditingMessageId = btn.getAttribute('data-edit-id');
+        var input = document.getElementById('messaggi-thread-input');
+        input.value = btn.getAttribute('data-edit-text');
+        input.focus();
+        document.getElementById('messaggi-thread-send').classList.add('editing');
+      });
+    });
     var scrollEl = document.getElementById('messaggi-thread-scroll');
     scrollEl.scrollTop = scrollEl.scrollHeight;
   }
 
   var messaggiCurrentDeviceId = null;
+  var messaggiEditingMessageId = null;
 
   function openMessaggiThread(deviceId, driverName) {
     messaggiCurrentDeviceId = deviceId;
@@ -806,13 +823,19 @@
     if (!text || !messaggiCurrentDeviceId) return;
     input.value = '';
     input.style.height = 'auto';
-    chatCall({ action: 'admin_send', device_id: messaggiCurrentDeviceId, message: text }).then(function (res) {
+    var editingId = messaggiEditingMessageId;
+    messaggiEditingMessageId = null;
+    document.getElementById('messaggi-thread-send').classList.remove('editing');
+    var call = editingId
+      ? chatCall({ action: 'admin_edit', id: editingId, message: text })
+      : chatCall({ action: 'admin_send', device_id: messaggiCurrentDeviceId, message: text });
+    call.then(function (res) {
       if (res.ok) {
         chatCall({ action: 'admin_get_conversation', device_id: messaggiCurrentDeviceId }).then(function (r2) {
           if (r2.ok) renderThreadMessages(r2.data.items);
         });
       } else {
-        input.value = text;
+        if (!editingId) input.value = text;
       }
     });
   }
@@ -827,28 +850,68 @@
     });
   }
 
+  var messaggiConversationsRaw = [];
+  var messaggiDriversRaw = [];
+
+  function messaggiMatchesSearch(searchText, fields) {
+    if (!searchText) return true;
+    var needle = searchText.toLowerCase();
+    return fields.some(function (f) { return f && String(f).toLowerCase().indexOf(needle) !== -1; });
+  }
+
+  function renderMessaggiConversationsList() {
+    var searchText = document.getElementById('messaggi-search').value.trim();
+    var listEl = document.getElementById('messaggi-conversations-list');
+    var conversations = messaggiConversationsRaw.filter(function (c) {
+      return messaggiMatchesSearch(searchText, [c.nome, c.account_email, c.driver_id, c.targa]);
+    });
+    if (!messaggiConversationsRaw.length) { listEl.innerHTML = '<div class="novita-empty">Nessun messaggio ancora.</div>'; return; }
+    if (!conversations.length) { listEl.innerHTML = '<div class="novita-empty">Nessun risultato.</div>'; return; }
+    listEl.innerHTML = conversations.map(function (c) {
+      var name = c.nome || '(senza nome)';
+      var unreadBadge = c.unread_count > 0 ? '<span class="install-badge installed" style="margin-left:6px;">' + c.unread_count + '</span>' : '';
+      var prefix = c.last_sender === 'admin' ? 'Tu: ' : '';
+      return '<button class="novita-card" style="width:100%;text-align:left;border:1px solid var(--line);cursor:pointer;font-family:inherit;margin-bottom:10px;" data-open-thread="' + escapeHtmlNovita(c.device_id) + '" data-thread-name="' + escapeHtmlNovita(name) + '">' +
+        '<div class="person-name">' + escapeHtmlNovita(name) + unreadBadge + '</div>' +
+        '<div class="novita-desc" style="margin-top:4px;">' + prefix + escapeHtmlNovita(c.last_message) + '</div>' +
+        '</button>';
+    }).join('');
+    listEl.querySelectorAll('[data-open-thread]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        openMessaggiThread(btn.getAttribute('data-open-thread'), btn.getAttribute('data-thread-name'));
+      });
+    });
+  }
+
   function loadMessaggiConversations() {
     var listEl = document.getElementById('messaggi-conversations-list');
     listEl.innerHTML = '<div class="novita-empty">Caricamento…</div>';
     chatCall({ action: 'admin_list_conversations' }).then(function (res) {
       if (!res.ok) { listEl.innerHTML = '<div class="novita-empty">Impossibile caricare i messaggi.</div>'; return; }
-      var conversations = (res.data.conversations || []).sort(function (a, b) { return new Date(b.last_at) - new Date(a.last_at); });
-      if (!conversations.length) { listEl.innerHTML = '<div class="novita-empty">Nessun messaggio ancora.</div>'; return; }
-      listEl.innerHTML = conversations.map(function (c) {
-        var name = c.nome || '(senza nome)';
-        var unreadBadge = c.unread_count > 0 ? '<span class="install-badge installed" style="margin-left:6px;">' + c.unread_count + '</span>' : '';
-        var prefix = c.last_sender === 'admin' ? 'Tu: ' : '';
-        return '<button class="novita-card" style="width:100%;text-align:left;border:1px solid var(--line);cursor:pointer;font-family:inherit;margin-bottom:10px;" data-open-thread="' + escapeHtmlNovita(c.device_id) + '" data-thread-name="' + escapeHtmlNovita(name) + '">' +
-          '<div class="person-name">' + escapeHtmlNovita(name) + unreadBadge + '</div>' +
-          '<div class="novita-desc" style="margin-top:4px;">' + prefix + escapeHtmlNovita(c.last_message) + '</div>' +
-          '</button>';
-      }).join('');
-      listEl.querySelectorAll('[data-open-thread]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          openMessaggiThread(btn.getAttribute('data-open-thread'), btn.getAttribute('data-thread-name'));
-        });
-      });
+      messaggiConversationsRaw = (res.data.conversations || []).sort(function (a, b) { return new Date(b.last_at) - new Date(a.last_at); });
+      renderMessaggiConversationsList();
       loadMessaggiUnreadBadge();
+    });
+  }
+
+  function renderMessaggiDriverPickerList() {
+    var searchText = document.getElementById('messaggi-search').value.trim();
+    var pickerEl = document.getElementById('messaggi-driver-picker');
+    var drivers = messaggiDriversRaw.filter(function (d) {
+      var name = d.official_first_name || d.nome;
+      return messaggiMatchesSearch(searchText, [name, d.account_email, d.driver_id, d.targa]);
+    });
+    if (!drivers.length) { pickerEl.innerHTML = messaggiDriversRaw.length ? '<div class="novita-empty">Nessun risultato.</div>' : ''; return; }
+    pickerEl.innerHTML = drivers.map(function (d) {
+      var name = d.official_first_name || d.nome || '(senza nome)';
+      return '<button class="novita-card" style="width:100%;text-align:left;border:1px solid var(--line);cursor:pointer;font-family:inherit;margin-bottom:8px;padding:10px 14px;" data-open-thread="' + escapeHtmlNovita(d.device_id) + '" data-thread-name="' + escapeHtmlNovita(name) + '">' +
+        '<span class="person-name" style="font-size:13px;">' + escapeHtmlNovita(name) + '</span>' +
+        '</button>';
+    }).join('');
+    pickerEl.querySelectorAll('[data-open-thread]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        openMessaggiThread(btn.getAttribute('data-open-thread'), btn.getAttribute('data-thread-name'));
+      });
     });
   }
 
@@ -858,19 +921,8 @@
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: currentPassword })
     }).then(function (r) { return r.json(); }).then(function (data) {
-      var drivers = data.drivers || [];
-      if (!drivers.length) { pickerEl.innerHTML = ''; return; }
-      pickerEl.innerHTML = drivers.map(function (d) {
-        var name = d.official_first_name || d.nome || '(senza nome)';
-        return '<button class="novita-card" style="width:100%;text-align:left;border:1px solid var(--line);cursor:pointer;font-family:inherit;margin-bottom:8px;padding:10px 14px;" data-open-thread="' + escapeHtmlNovita(d.device_id) + '" data-thread-name="' + escapeHtmlNovita(name) + '">' +
-          '<span class="person-name" style="font-size:13px;">' + escapeHtmlNovita(name) + '</span>' +
-          '</button>';
-      }).join('');
-      pickerEl.querySelectorAll('[data-open-thread]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-          openMessaggiThread(btn.getAttribute('data-open-thread'), btn.getAttribute('data-thread-name'));
-        });
-      });
+      messaggiDriversRaw = data.drivers || [];
+      renderMessaggiDriverPickerList();
     }).catch(function () { pickerEl.innerHTML = ''; });
   }
 
@@ -1094,10 +1146,15 @@
   document.querySelector('.admin-home-icon[data-open="messaggi"]').addEventListener('click', function () {
     document.getElementById('messaggi-thread-view').style.display = 'none';
     document.getElementById('messaggi-list-view').style.display = 'block';
+    document.getElementById('messaggi-search').value = '';
     loadMessaggiConversations();
     loadMessaggiDriverPicker();
   });
   document.getElementById('messaggi-back-btn').addEventListener('click', backToMessaggiList);
+  document.getElementById('messaggi-search').addEventListener('input', function () {
+    renderMessaggiConversationsList();
+    renderMessaggiDriverPickerList();
+  });
   document.getElementById('messaggi-thread-send').addEventListener('click', sendMessaggiThreadMessage);
   var messaggiInputEl = document.getElementById('messaggi-thread-input');
   messaggiInputEl.addEventListener('input', function () {
@@ -1315,6 +1372,47 @@
     });
   }
 
+  // Push notifications for admin — requested directly: ION needs to
+  // know right away when a driver sends a chat message, not just see
+  // an unread badge whenever he happens to open this page next. Same
+  // VAPID key and push-subscription edge function the driver app
+  // already uses in production, reusing 100% of that infrastructure —
+  // 'admin' is simply used as a fixed, special device_id here, since
+  // there's exactly one admin, not many devices to distinguish.
+  var ADMIN_VAPID_PUBLIC_KEY = 'BE8wkq3SQmoE8L8x0pFVwYaLym1EYB14_NABB1qEiVOi0VvOpUDYAODObA5Lirh9Kfy6C97ExU5btOYLG7uHvgk';
+  var LS_ADMIN_PUSH_OFFERED = 'fv_admin_push_offered_v1';
+
+  function adminUrlBase64ToUint8Array(base64String) {
+    var padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    var rawData = atob(base64);
+    var outputArray = new Uint8Array(rawData.length);
+    for (var i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+    return outputArray;
+  }
+
+  function offerAdminPushIfSensible() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
+    if (localStorage.getItem(LS_ADMIN_PUSH_OFFERED)) return;
+    localStorage.setItem(LS_ADMIN_PUSH_OFFERED, '1');
+    if (Notification.permission !== 'default') return;
+    navigator.serviceWorker.register('sw.js').then(function (reg) {
+      Notification.requestPermission().then(function (perm) {
+        if (perm !== 'granted') return;
+        reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: adminUrlBase64ToUint8Array(ADMIN_VAPID_PUBLIC_KEY)
+        }).then(function (sub) {
+          fetch('https://chboalgzigdglygnnist.supabase.co/functions/v1/push-subscription', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'subscribe', device_id: 'admin', subscription: sub.toJSON() })
+          });
+        }).catch(function () { /* not critical — the unread badge still works without push */ });
+      });
+    }).catch(function () { /* service worker registration failed — push simply won't be available this session */ });
+  }
+
   function login() {
     var pw = document.getElementById('password-input').value;
     var errEl = document.getElementById('login-error');
@@ -1333,6 +1431,7 @@
         loadNovita();
         loadOfficialVideoSetting();
         loadMessaggiUnreadBadge();
+        offerAdminPushIfSensible();
         if (refreshTimer) clearInterval(refreshTimer);
         refreshTimer = setInterval(function () {
           fetchDrivers().then(function (r) {
