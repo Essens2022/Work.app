@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v465"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v466"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -9947,17 +9947,19 @@
     // the same underlying WebKit engine there) can NEVER request or
     // receive push notifications, no matter what code runs — this is
     // an Apple platform restriction, not something any site can work
-    // around. Explains exactly the scenario reported: signing up
-    // through the website (not yet installed) on iOS, where this call
-    // was always going to be silently ignored. Android has no such
-    // restriction — push works there from a plain browser tab too, so
-    // this check is iOS-specific, not a blanket "must be installed"
-    // rule. The existing install banner already handles encouraging
-    // installation on its own — nothing new needed for that part.
+    // around. Android has no such restriction — push works there from
+    // a plain browser tab too, so this check is iOS-specific, not a
+    // blanket "must be installed" rule.
     if (isIOSDevice() && !isStandaloneApp) return;
-    enablePushNotifications(function (ok) {
-      if (ok) localStorage.setItem(LS_PUSH_OFFERED, '1');
-    });
+    // SECOND real bug, found from a follow-up real-device test: even
+    // once installed, iOS silently ignores requestPermission() unless
+    // it's called in DIRECT response to a tap on a button — calling
+    // it automatically here, from a render that merely HAPPENS as a
+    // result of opening the app, doesn't count as that direct
+    // gesture. Showing this modal instead, with its own "Attiva
+    // notifiche" button, gives that exact direct tap for the real
+    // call to ride on.
+    document.getElementById('modal-push-required').classList.add('open');
   }
 
   function enablePushNotifications(onDone) {
@@ -10805,6 +10807,16 @@
   document.getElementById('settings-more-btn').addEventListener('click', function () {
     updateInstallVisibility(); // refresh in case something changed since Settings opened
     moreOptionsModal.classList.add('open');
+  });
+  document.getElementById('push-required-enable-btn').addEventListener('click', function () {
+    document.getElementById('modal-push-required').classList.remove('open');
+    enablePushNotifications(function (ok) {
+      if (ok) localStorage.setItem(LS_PUSH_OFFERED, '1');
+    });
+  });
+  document.getElementById('push-required-later-btn').addEventListener('click', function () {
+    document.getElementById('modal-push-required').classList.remove('open');
+    localStorage.setItem(LS_PUSH_OFFERED, '1');
   });
   document.getElementById('more-options-close-x').addEventListener('click', function () {
     moreOptionsModal.classList.remove('open');

@@ -1809,6 +1809,26 @@
   </div>
 </div>
 
+<!-- Requested directly: a required, unclosable prompt shown the very
+     first time the INSTALLED app opens, asking to enable push
+     notifications — no close button, no way to dismiss without
+     choosing one of the two options. iOS specifically requires the
+     real requestPermission() call to happen in direct response to a
+     tap on a button, not automatically on page load — this modal's
+     own "Attiva notifiche" button IS that tap, satisfying both ION's
+     requirement (a real, unavoidable choice) and iOS's own technical
+     rule for when it's willing to honor the request at all. -->
+<div class="modal-overlay" id="modal-push-required">
+  <div class="sheet-panel">
+    <div class="grabber"></div>
+    <div style="font-size:44px;text-align:center;margin:6px 0 4px;">🔔</div>
+    <div class="modal-title" style="text-align:center;">Attiva le notifiche</div>
+    <div class="modal-sub" style="text-align:center;">Riceverai un avviso sul telefono per ogni messaggio o novità importante — scegli come continuare.</div>
+    <button type="button" class="btn btn-accent btn-block" id="push-required-enable-btn" style="margin-top:18px;">Attiva notifiche</button>
+    <button type="button" class="btn btn-ghost btn-block" id="push-required-later-btn" style="margin-top:10px;">Non ora</button>
+  </div>
+</div>
+
 <!-- Delivery Planner — add client (search saved, or add a new one). -->
 <div class="modal-overlay" id="modal-dp-add-client">
   <div class="sheet-panel">
