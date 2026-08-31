@@ -107,7 +107,10 @@
   .chat-bubble.admin{align-self:flex-end;background:var(--accent-soft);border-bottom-right-radius:3px;}
   .chat-bubble-time{display:block;font-size:10px;color:var(--ink-faint);margin-top:3px;text-align:right;}
   .chat-day-divider{align-self:center;background:var(--surface-2);color:var(--ink-faint);font-size:11px;font-weight:700;padding:3px 10px;border-radius:8px;margin:10px 0;}
-  .chat-edit-btn{border:none;background:none;color:var(--ink-faint);font-size:12px;cursor:pointer;padding:0 0 0 6px;vertical-align:middle;}
+  /* REAL FEEDBACK, reported directly: too subtle to read as an actual
+     button — a proper chip now (background, border, label alongside
+     the pencil), unmistakably tappable. */
+  .chat-edit-btn{border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font-size:11px;font-weight:700;cursor:pointer;padding:2px 7px;border-radius:8px;margin-left:6px;vertical-align:middle;}
   #messaggi-thread-send.editing{background:#3CB878;}
   .person-email{font-size:12px;color:var(--ink-faint);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .person-lastseen{font-size:11.5px;color:var(--ink-faint);white-space:nowrap;flex:none;}
@@ -343,7 +346,10 @@
           <button class="admin-modal-close" data-close="messaggi">×</button>
           <div class="admin-modal-title">Messaggi</div>
         </div>
-        <input id="messaggi-search" type="text" placeholder="Cerca per ID, email, nome o cognome…" class="search-input" autocomplete="off" style="margin-bottom:14px;">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">
+          <input id="messaggi-search" type="text" placeholder="Cerca per ID, email, nome o cognome…" class="search-input" autocomplete="off" style="margin-bottom:0;flex:1;">
+          <button id="messaggi-refresh-btn" class="btn-ghost" style="flex:none;">↻</button>
+        </div>
         <div id="messaggi-conversations-list"></div>
         <div style="font-size:12px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.04em;margin:22px 0 10px;">Scrivi a un autista</div>
         <div id="messaggi-driver-picker"></div>
@@ -790,12 +796,17 @@
       // From admin's own point of view, an "admin" message is the
       // outgoing/sent one (right-aligned, green) — exactly mirrored
       // from how the app itself shows "driver" as the outgoing side.
-      var canEdit = m.sender === 'admin' && (nowMs - new Date(m.created_at).getTime()) < 60000;
-      var editBtn = canEdit ? '<button class="chat-edit-btn" data-edit-id="' + m.id + '" data-edit-text="' + escapeHtmlNovita(m.message) + '">✎</button>' : '';
+      // Edit window extended (60s -> 180s), requested directly.
+      var canEdit = m.sender === 'admin' && (nowMs - new Date(m.created_at).getTime()) < 180000;
+      var editBtn = canEdit ? '<button class="chat-edit-btn" data-edit-id="' + m.id + '" data-edit-text="' + escapeHtmlNovita(m.message) + '">✎ Modifica</button>' : '';
       var editedTag = m.edited ? ' <span style="opacity:.6;">(modificato)</span>' : '';
+      // Requested directly, WhatsApp-style: for admin's OWN messages,
+      // show when the driver actually saw it — read_at is the real
+      // moment read_by_driver flipped true, set server-side.
+      var seenTag = (m.sender === 'admin' && m.read_at) ? '<div style="font-size:10.5px;color:var(--ink-faint);text-align:right;margin-top:1px;">Visto alle ' + chatBubbleTime(m.read_at) + '</div>' : '';
       html += '<div class="chat-bubble ' + (m.sender === 'admin' ? 'admin' : 'driver') + '">' +
         escapeHtmlNovita(m.message).replace(/\n/g, '<br>') + editedTag +
-        '<span class="chat-bubble-time">' + chatBubbleTime(m.created_at) + editBtn + '</span></div>';
+        '<span class="chat-bubble-time">' + chatBubbleTime(m.created_at) + editBtn + '</span></div>' + seenTag;
     });
     document.getElementById('messaggi-thread-messages').innerHTML = html;
     document.querySelectorAll('.chat-edit-btn').forEach(function (btn) {
@@ -1181,6 +1192,22 @@
   document.getElementById('messaggi-search').addEventListener('input', function () {
     renderMessaggiConversationsList();
     renderMessaggiDriverPickerList();
+  });
+  document.getElementById('messaggi-refresh-btn').addEventListener('click', function () {
+    var btn = this;
+    btn.disabled = true;
+    btn.textContent = '⟳';
+    loadMessaggiConversations();
+    loadMessaggiDriverPicker();
+    // If a thread is currently open, refresh it too — not just the
+    // list behind it, so "read at" status and any new messages show
+    // up immediately, without needing to back out and re-enter.
+    if (messaggiCurrentDeviceId) {
+      chatCall({ action: 'admin_get_conversation', device_id: messaggiCurrentDeviceId }).then(function (res) {
+        if (res.ok) renderThreadMessages(res.data.items);
+      });
+    }
+    setTimeout(function () { btn.disabled = false; btn.textContent = '↻'; }, 600);
   });
   document.getElementById('messaggi-thread-send').addEventListener('click', sendMessaggiThreadMessage);
   var messaggiInputEl = document.getElementById('messaggi-thread-input');
