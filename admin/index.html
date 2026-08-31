@@ -477,15 +477,24 @@
       var state = channel.presenceState();
       var next = {};
       var totalEntries = 0;
+      var entryDetails = [];
       Object.keys(state).forEach(function (key) {
         (state[key] || []).forEach(function (entry) {
           totalEntries++;
-          if (entry.account_email) next[entry.account_email.toLowerCase()] = true;
+          if (entry.account_email) {
+            next[entry.account_email.toLowerCase()] = true;
+            entryDetails.push(entry.account_email + (entry.online_at ? ' (din ' + entry.online_at + ')' : ''));
+          }
         });
       });
       liveEmails = next;
       presenceReady = true;
-      setLiveDiagnostic('Conectat — ' + totalEntries + ' prezenta/e primita/e');
+      // Requested directly, to actually SEE what's being tracked right
+      // now, instead of guessing: lists every account_email currently
+      // present in the raw presence state, with the exact moment each
+      // one joined — so a stuck/unexpected entry is directly visible,
+      // not something to theorize about blind.
+      setLiveDiagnostic('Conectat — ' + totalEntries + ' prezenta/e primita/e' + (entryDetails.length ? ': ' + entryDetails.join(', ') : ''));
       if (lastGroups.length) renderDrivers(lastGroupsRaw);
     });
     // REAL BUG, found directly, investigating ION's report of "Ion"
