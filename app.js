@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v463"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v464"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -10001,24 +10001,10 @@
     }).catch(function () { if (onDone) onDone(false); });
   }
 
-  function disablePushNotifications() {
-    var toggle = document.getElementById('push-notif-toggle');
-    navigator.serviceWorker.ready.then(function (reg) {
-      reg.pushManager.getSubscription().then(function (sub) {
-        var unsubPromise = sub ? sub.unsubscribe() : Promise.resolve();
-        unsubPromise.then(function () {
-          fetch(SUPABASE_URL + '/functions/v1/push-subscription', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'unsubscribe', device_id: getDeviceId() })
-          }).then(function () {
-            if (toggle) toggle.classList.remove('on');
-            toast('Notifiche disattivate');
-          });
-        });
-      });
-    });
-  }
+  // Requested directly: notifications, once accepted, should never be
+  // turned back off from inside the app — removed the disable path
+  // entirely (this function used to live here, wired to the toggle's
+  // "on" state) rather than leaving unreachable dead code behind.
 
   function checkNovitaUnread() {
     fetch(SUPABASE_URL + '/rest/v1/app_novita?select=created_at&published=eq.true&order=created_at.desc&limit=1', {
@@ -10829,7 +10815,18 @@
     moreOptionsModal.classList.add('open');
   });
   document.getElementById('push-notif-toggle').addEventListener('click', function () {
-    if (this.classList.contains('on')) { disablePushNotifications(); } else { enablePushNotifications(); }
+    // Requested directly: once accepted, notifications should just
+    // always stay on — no way to turn them back off from inside the
+    // app at all, the way most major apps don't expose this either.
+    // A driver who initially declined can still turn it ON here (this
+    // remains the one safety net for that case) — but once it's on,
+    // tapping it again does nothing at all, on purpose (a short toast
+    // explains why, so it doesn't just look broken/unresponsive).
+    if (this.classList.contains('on')) {
+      toast('Le notifiche sono sempre attive una volta accettate.');
+      return;
+    }
+    enablePushNotifications();
   });
   document.getElementById('more-options-close-x').addEventListener('click', function () {
     moreOptionsModal.classList.remove('open');
