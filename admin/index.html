@@ -225,6 +225,36 @@
      whole screen instead of sharing space in a tab. */
   .admin-modal{display:none;}
   .admin-modal.open{display:block;}
+  /* Requested directly: scrolling the whole page (header, push
+     button, search — everything) together with the actual list/chat
+     content "felt unprofessional" — the header/search should stay
+     put, only the list or the chat messages should move. Turns this
+     specific modal into a genuine full-screen overlay (covering the
+     page's own scrolling content behind it entirely, not just
+     appending below it) with its own internal fixed-header/
+     scrollable-body split — the same structure WhatsApp itself uses,
+     which is exactly what was asked for. */
+  .admin-modal-fullscreen.open{
+    position:fixed;inset:0;z-index:500;background:var(--bg);
+    overflow:hidden;padding:0;
+  }
+  .admin-modal-fullscreen-inner{
+    display:flex;flex-direction:column;height:100%;
+  }
+  .messaggi-fixed-top{
+    flex:none;padding:20px 14px 14px;background:var(--bg);
+    padding-top:calc(20px + env(safe-area-inset-top));
+  }
+  .messaggi-fixed-top .admin-modal-header{margin-bottom:14px;}
+  .messaggi-scroll-area{
+    /* min-height:0 overrides flexbox's own default (min-height:auto
+       on flex items), which otherwise makes a flex:1 child grow to
+       fit its FULL content instead of being constrained to whatever
+       space is actually left — confirmed directly: without this,
+       scrollHeight and clientHeight came out identical, meaning
+       nothing was actually scrolling internally at all. */
+    flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 14px 20px;
+  }
   .admin-modal-header{display:flex;align-items:center;gap:10px;margin-bottom:18px;}
   .admin-modal-close{
     background:var(--surface);border:1px solid var(--line);border-radius:10px;
@@ -340,29 +370,35 @@
          THREAD (opened by tapping a conversation), toggled via display,
          so this doesn't need its own separate admin-home icon slot for
          each state. -->
-    <div id="modal-messaggi" class="admin-modal">
-      <div id="messaggi-list-view">
-        <div class="admin-modal-header">
-          <button class="admin-modal-close" data-close="messaggi">×</button>
-          <div class="admin-modal-title">Messaggi</div>
+    <div id="modal-messaggi" class="admin-modal admin-modal-fullscreen">
+      <div id="messaggi-list-view" class="admin-modal-fullscreen-inner">
+        <div class="messaggi-fixed-top">
+          <div class="admin-modal-header">
+            <button class="admin-modal-close" data-close="messaggi">×</button>
+            <div class="admin-modal-title">Messaggi</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input id="messaggi-search" type="text" placeholder="Cerca per ID, email, nome o cognome…" class="search-input" autocomplete="off" style="margin-bottom:0;flex:1;">
+            <button id="messaggi-refresh-btn" class="btn-ghost" style="flex:none;">↻</button>
+          </div>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">
-          <input id="messaggi-search" type="text" placeholder="Cerca per ID, email, nome o cognome…" class="search-input" autocomplete="off" style="margin-bottom:0;flex:1;">
-          <button id="messaggi-refresh-btn" class="btn-ghost" style="flex:none;">↻</button>
+        <div class="messaggi-scroll-area">
+          <div id="messaggi-conversations-list"></div>
+          <div style="font-size:12px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.04em;margin:22px 0 10px;">Scrivi a un autista</div>
+          <div id="messaggi-driver-picker"></div>
         </div>
-        <div id="messaggi-conversations-list"></div>
-        <div style="font-size:12px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.04em;margin:22px 0 10px;">Scrivi a un autista</div>
-        <div id="messaggi-driver-picker"></div>
       </div>
-      <div id="messaggi-thread-view" style="display:none;height:100%;flex-direction:column;">
-        <div class="admin-modal-header" style="margin-bottom:0;">
-          <button class="messaggi-back-only" id="messaggi-back-btn">←</button>
-          <div class="admin-modal-title" id="messaggi-thread-name">—</div>
+      <div id="messaggi-thread-view" class="admin-modal-fullscreen-inner" style="display:none;">
+        <div class="messaggi-fixed-top">
+          <div class="admin-modal-header" style="margin-bottom:0;">
+            <button class="messaggi-back-only" id="messaggi-back-btn">←</button>
+            <div class="admin-modal-title" id="messaggi-thread-name">—</div>
+          </div>
         </div>
-        <div id="messaggi-thread-scroll" style="flex:1;overflow-y:auto;padding:14px 4px;">
+        <div id="messaggi-thread-scroll" class="messaggi-scroll-area" style="padding-top:14px;">
           <div id="messaggi-thread-messages" style="display:flex;flex-direction:column;gap:2px;"></div>
         </div>
-        <div style="display:flex;align-items:flex-end;gap:8px;padding:10px 2px 0;">
+        <div style="display:flex;align-items:flex-end;gap:8px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));flex:none;">
           <textarea id="messaggi-thread-input" placeholder="Scrivi un messaggio…" rows="1" style="flex:1;border:1px solid var(--line);border-radius:16px;padding:10px 14px;font-size:16px;font-family:inherit;resize:none;max-height:100px;background:var(--surface-2);color:var(--ink);"></textarea>
           <button type="button" id="messaggi-thread-send" style="width:38px;height:38px;border-radius:50%;border:none;background:var(--accent);color:#fff;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4Z"/></svg>
@@ -838,7 +874,7 @@
 
   function backToMessaggiList() {
     document.getElementById('messaggi-thread-view').style.display = 'none';
-    document.getElementById('messaggi-list-view').style.display = 'block';
+    document.getElementById('messaggi-list-view').style.display = 'flex';
     messaggiCurrentDeviceId = null;
     loadMessaggiConversations();
   }
@@ -1181,13 +1217,6 @@
   // generic handler above only handles showing/hiding the modal, not
   // loading any data into it — each of autisti/novita/video already
   // does this same kind of thing on its own, right where it's opened).
-  document.querySelector('.admin-home-icon[data-open="messaggi"]').addEventListener('click', function () {
-    document.getElementById('messaggi-thread-view').style.display = 'none';
-    document.getElementById('messaggi-list-view').style.display = 'block';
-    document.getElementById('messaggi-search').value = '';
-    loadMessaggiConversations();
-    loadMessaggiDriverPicker();
-  });
   document.getElementById('messaggi-back-btn').addEventListener('click', backToMessaggiList);
   document.getElementById('messaggi-search').addEventListener('input', function () {
     renderMessaggiConversationsList();
@@ -1349,6 +1378,22 @@
         // A genuine quick tap — same behavior as always, open that function.
         document.getElementById('admin-home').style.display = 'none';
         document.getElementById('modal-' + icon.dataset.open).classList.add('open');
+        // REAL BUG, reported directly: Messaggi's own data-loading used
+        // to live in a SEPARATE 'click' listener on this same icon —
+        // which, on a real phone, raced against this shared long-press/
+        // drag handling (built around pointerdown/pointerup, not click)
+        // closely enough that the load sometimes silently lost the
+        // race, leaving the list empty until the (unrelated) refresh
+        // button was tapped by hand. Moved the load to fire from
+        // exactly this ONE proven, reliable "it was a genuine tap"
+        // path instead of a second, independently-timed listener.
+        if (icon.dataset.open === 'messaggi') {
+          document.getElementById('messaggi-thread-view').style.display = 'none';
+          document.getElementById('messaggi-list-view').style.display = 'flex';
+          document.getElementById('messaggi-search').value = '';
+          loadMessaggiConversations();
+          loadMessaggiDriverPicker();
+        }
       }
     }
     icon.addEventListener('pointerup', finishDrag);
