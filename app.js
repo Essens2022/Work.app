@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v464"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v465"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -9907,19 +9907,12 @@
     return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
   }
 
-  function syncPushToggleUI() {
-    var toggle = document.getElementById('push-notif-toggle');
-    if (!toggle) return;
-    if (!pushSupported()) {
-      toggle.closest('.more-option-row').style.display = 'none'; // e.g. older iOS Safari without web push support at all — hide entirely rather than show a switch that can't work
-      return;
-    }
-    navigator.serviceWorker.ready.then(function (reg) {
-      reg.pushManager.getSubscription().then(function (sub) {
-        toggle.classList.toggle('on', !!sub && Notification.permission === 'granted');
-      });
-    });
-  }
+  // Requested directly: the visible push-notifications toggle (and
+  // this function that kept it in sync) was removed from Impostazioni
+  // entirely — seeing "once accepted, this stays on for good" risked
+  // giving someone the idea to uninstall/reinstall just to get around
+  // it. The underlying request itself is unaffected, still automatic
+  // on first launch of the installed app.
 
   // Requested directly: rather than waiting for someone to find the
   // toggle themselves in Impostazioni, ask once, automatically, right
@@ -10811,22 +10804,7 @@
   var moreOptionsModal = document.getElementById('modal-more-options');
   document.getElementById('settings-more-btn').addEventListener('click', function () {
     updateInstallVisibility(); // refresh in case something changed since Settings opened
-    syncPushToggleUI();
     moreOptionsModal.classList.add('open');
-  });
-  document.getElementById('push-notif-toggle').addEventListener('click', function () {
-    // Requested directly: once accepted, notifications should just
-    // always stay on — no way to turn them back off from inside the
-    // app at all, the way most major apps don't expose this either.
-    // A driver who initially declined can still turn it ON here (this
-    // remains the one safety net for that case) — but once it's on,
-    // tapping it again does nothing at all, on purpose (a short toast
-    // explains why, so it doesn't just look broken/unresponsive).
-    if (this.classList.contains('on')) {
-      toast('Le notifiche sono sempre attive una volta accettate.');
-      return;
-    }
-    enablePushNotifications();
   });
   document.getElementById('more-options-close-x').addEventListener('click', function () {
     moreOptionsModal.classList.remove('open');
