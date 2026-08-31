@@ -584,7 +584,7 @@
           _latestForNameTarga: null, _latestWithRealActivity: null, _fallbackNome: null, _hasOfficialName: false,
           emails: {}, deviceIds: [], devices: [], hidden: true, lastActive: null, lastHeartbeat: null,
           sheetsByKey: {}, activeMonth: null, activeYear: null, dailyRate: null, driverId: null, opensToday: 0,
-          anyInstalled: false
+          anyInstalled: false, anyPush: false
         };
       }
       var g = groups[key];
@@ -616,6 +616,10 @@
       if (d.driver_id && !g.driverId) g.driverId = d.driver_id;
       g.opensToday += Number(d.opens_today) || 0;
       if (d.is_installed) g.anyInstalled = true;
+      // Requested directly: ION wants visibility into who has push
+      // notifications actively enabled, to be able to reach drivers
+      // with app news even without them checking manually.
+      if (d.has_push) g.anyPush = true;
       // Group is "hidden" only if EVERY device under it is hidden.
       if (!d.hidden) g.hidden = false;
       if (d.last_active && (!g.lastActive || d.last_active > g.lastActive)) g.lastActive = d.last_active;
@@ -687,7 +691,7 @@
     html += '<div class="person-row" data-toggle-open="' + g.key + '">';
     html += '<div class="live-dot' + (g.isLive ? ' is-live' : '') + '"></div>';
     html += '<div class="person-main">';
-    html += '<div class="person-name"><span class="person-name-text">' + g.nome + '</span>' + (g.driverId ? '<span class="person-id-badge">' + g.driverId + '</span>' : '') + '<span class="install-badge ' + (g.anyInstalled ? 'installed">📱 App' : 'browser">🌐 Browser') + '</span></div>';
+    html += '<div class="person-name"><span class="person-name-text">' + g.nome + '</span>' + (g.driverId ? '<span class="person-id-badge">' + g.driverId + '</span>' : '') + '<span class="install-badge ' + (g.anyInstalled ? 'installed">📱 App' : 'browser">🌐 Browser') + '</span>' + '<span class="install-badge ' + (g.anyPush ? 'installed" title="Notifiche push attive">🔔' : 'browser" title="Notifiche push non attive">🔕') + '</span></div>';
     if (g.emailList.length) html += '<div class="person-email">' + g.emailList.join(', ') + '</div>';
     html += '</div>';
     if (g.opensToday > 0) html += '<div class="opens-today-badge" title="Aperture app oggi">' + g.opensToday + '</div>';
