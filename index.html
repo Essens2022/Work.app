@@ -15,30 +15,32 @@
 <meta name="viewport" id="viewport-meta" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
 <script>
   // Requested directly: iOS doesn't reliably honor the manifest's own
-  // portrait-only lock — this recreates it visually, in JS, since
-  // pure CSS can't tell landscape-left from landscape-right (each
-  // needs the OPPOSITE compensating rotation to come out right).
-  // Placed here, in <head>, so it applies before first paint —
-  // avoiding any visible flash of the wrong (unrotated) layout.
+  // portrait-only lock — this recreates it visually. The CSS media
+  // query (see below) does the actual rotation instantly, with no JS
+  // involved at all, eliminating the visible landscape flash a purely
+  // JS-driven approach had. This script only decides, afterward,
+  // whether the page needs FLIPPING to the other rotation direction —
+  // a fixed CSS media query can't tell landscape-left from landscape-
+  // right (each needs the opposite compensating rotation), but by the
+  // time this runs, the page is already portrait-shaped one way or
+  // the other, so at worst this corrects the direction, never shows a
+  // flat landscape frame.
   (function () {
-    function applyOrientationLock() {
+    function applyOrientationFlip() {
       var type = (screen.orientation && screen.orientation.type) || '';
       var html = document.documentElement;
-      html.classList.remove('force-portrait-cw', 'force-portrait-ccw');
-      if (type === 'landscape-primary') html.classList.add('force-portrait-ccw');
-      else if (type === 'landscape-secondary') html.classList.add('force-portrait-cw');
-      else if (!type) {
+      var needsFlip = type === 'landscape-secondary';
+      if (!type) {
         // Fallback for older browsers without screen.orientation —
         // window.orientation's sign convention is the opposite of
         // screen.orientation.angle's.
-        var angle = window.orientation || 0;
-        if (angle === -90) html.classList.add('force-portrait-ccw');
-        else if (angle === 90) html.classList.add('force-portrait-cw');
+        needsFlip = window.orientation === 90;
       }
+      html.classList.toggle('force-portrait-flip', needsFlip);
     }
-    applyOrientationLock();
-    window.addEventListener('orientationchange', applyOrientationLock);
-    if (screen.orientation) screen.orientation.addEventListener('change', applyOrientationLock);
+    applyOrientationFlip();
+    window.addEventListener('orientationchange', applyOrientationFlip);
+    if (screen.orientation) screen.orientation.addEventListener('change', applyOrientationFlip);
   })();
 </script>
 <meta name="theme-color" content="#1C1B1F">
@@ -199,21 +201,31 @@
      the CSS transforms spec), so body's existing inset:0 correctly
      fills this new, rotated box on its own — no separate override
      needed for it. */
-  html.force-portrait-cw{
-    width:100vh;height:100vw;
-    transform:rotate(90deg);
-    transform-origin:center center;
-    position:fixed;top:50%;left:50%;
-    margin-top:calc(-50vw);margin-left:calc(-50vh);
-    overflow:hidden;
-  }
-  html.force-portrait-ccw{
-    width:100vh;height:100vw;
-    transform:rotate(-90deg);
-    transform-origin:center center;
-    position:fixed;top:50%;left:50%;
-    margin-top:calc(-50vw);margin-left:calc(-50vh);
-    overflow:hidden;
+  /* REAL BUG, reported directly: relying on JS (orientationchange
+     event + screen.orientation.type) to decide WHEN to apply the
+     rotation meant there was always a brief window — after the
+     physical rotation, before that event fires and the JS runs —
+     where the browser had already reflowed to landscape, visibly
+     flashing sideways for a moment before snapping back. Fixed by
+     making the rotation itself a plain CSS media query instead —
+     applied synchronously, in the very same layout/paint pass the
+     browser does the instant it knows the viewport is landscape, with
+     zero JS timing gap, so there's nothing left to flash. This picks
+     one fixed rotation direction unconditionally; JS still runs
+     afterward, but now only to flip an ALREADY-portrait-shaped page
+     to the other direction if the sensor says the phone was turned
+     the other way — a small correction between two already-correct
+     shapes, not a landscape flash. */
+  @media screen and (orientation:landscape){
+    html{
+      width:100vh;height:100vw;
+      transform:rotate(-90deg);
+      transform-origin:center center;
+      position:fixed;top:50%;left:50%;
+      margin-top:calc(-50vw);margin-left:calc(-50vh);
+      overflow:hidden;
+    }
+    html.force-portrait-flip{transform:rotate(90deg);}
   }
   body{
     position:fixed;inset:0;overflow:hidden;overscroll-behavior:none;
