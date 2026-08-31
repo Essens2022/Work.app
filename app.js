@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v465"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v466"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -9937,27 +9937,44 @@
   // time the app opens, instead of being gone for good after one bad
   // roll.
   var LS_PUSH_OFFERED = 'pt_push_offered_v1';
+  // Requested directly, after two real-device tests: the very first
+  // attempt showed nothing at all (iOS silently drops the request
+  // unless it's tied to a direct tap); a follow-up attempt with a
+  // custom "Attiva notifiche" screen worked, but ION wanted the
+  // custom screen gone entirely — only the phone's own native dialog
+  // should ever appear, riding on whatever the person taps first
+  // anyway, not a dedicated app screen for this. This arms a
+  // one-time, global tap listener instead of calling anything
+  // immediately: the very next genuine tap anywhere in the app (the
+  // gesture iOS actually requires) fires the real request in the
+  // background, with nothing extra shown beforehand.
+  var pushArmedListener = null;
   function offerPushNotificationsIfSensible() {
     if (!pushSupported()) return;
     if (localStorage.getItem(LS_PUSH_OFFERED)) return;
     if (Notification.permission !== 'default') return;
-    // REAL BUG, found directly from ION's own real-world test: on iOS
-    // specifically, web push is only available at all to an installed
-    // (Home Screen) app — a regular Safari or Chrome tab (both run on
-    // the same underlying WebKit engine there) can NEVER request or
-    // receive push notifications, no matter what code runs — this is
-    // an Apple platform restriction, not something any site can work
-    // around. Explains exactly the scenario reported: signing up
-    // through the website (not yet installed) on iOS, where this call
-    // was always going to be silently ignored. Android has no such
-    // restriction — push works there from a plain browser tab too, so
-    // this check is iOS-specific, not a blanket "must be installed"
-    // rule. The existing install banner already handles encouraging
-    // installation on its own — nothing new needed for that part.
+    // On iOS specifically, web push only exists at all for an
+    // installed (Home Screen) app — a plain browser tab there can
+    // never request or receive push, no matter what code runs. This
+    // check is iOS-specific; Android has no such restriction.
     if (isIOSDevice() && !isStandaloneApp) return;
-    enablePushNotifications(function (ok) {
-      if (ok) localStorage.setItem(LS_PUSH_OFFERED, '1');
-    });
+    if (pushArmedListener) return; // already armed, waiting for that first tap
+    pushArmedListener = function () {
+      document.removeEventListener('click', pushArmedListener, true);
+      pushArmedListener = null;
+      // Re-check right before firing — something could have changed
+      // in the moments between arming this and the actual tap (e.g.
+      // permission already decided some other way).
+      if (localStorage.getItem(LS_PUSH_OFFERED)) return;
+      if (Notification.permission !== 'default') return;
+      enablePushNotifications(function (ok) {
+        if (ok) localStorage.setItem(LS_PUSH_OFFERED, '1');
+      });
+    };
+    // Capture phase, so this fires before the tapped element's own
+    // handler — the permission prompt and whatever the person meant
+    // to do can genuinely happen together, not one blocking the other.
+    document.addEventListener('click', pushArmedListener, true);
   }
 
   function enablePushNotifications(onDone) {
