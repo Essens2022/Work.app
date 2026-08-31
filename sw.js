@@ -9,7 +9,7 @@
 //  - Large, rarely-changing files (jsPDF, the comuni database, icons, logo)
 //    stay CACHE-FIRST, so they don't get re-downloaded on every load.
 
-const CACHE_VERSION = 'pt-foglio-v469';
+const CACHE_VERSION = 'pt-foglio-v470';
 const CORE_ASSETS = ['./', './index.html', './app.js', './manifest.json', './version.json'];
 // REAL BUG, reported directly, TWICE — a first attempt excluded these
 // pages from the service worker entirely, reasoning that removing a
