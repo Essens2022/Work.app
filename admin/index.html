@@ -78,6 +78,11 @@
   .person-card{background:var(--surface);border:1px solid var(--line);border-radius:16px;margin-bottom:10px;overflow:hidden;}
   .person-row{display:flex;align-items:center;gap:12px;padding:15px 16px;cursor:pointer;}
   .live-dot{width:10px;height:10px;border-radius:50%;flex:none;background:var(--offline);}
+  /* Requested directly, explicitly different from Autisti's own
+     red-when-offline convention above: transparent (just an outline)
+     when not live, filled green only when actually live right now. */
+  .messaggi-live-dot{border-radius:50%;flex:none;background:transparent;border:1.5px solid var(--line);}
+  .messaggi-live-dot.is-live{background:var(--live);border-color:var(--live);}
   .live-dot.is-live{background:var(--live);box-shadow:0 0 0 0 rgba(60,184,120,.5);animation:pulse 1.6s infinite;}
   @keyframes pulse{
     0%{box-shadow:0 0 0 0 rgba(60,184,120,.55);}
@@ -898,8 +903,10 @@
   function renderMessaggiThreadPresence(deviceId) {
     var el = document.getElementById('messaggi-thread-presence');
     var presence = findDriverPresence(deviceId);
-    if (!presence) { el.textContent = ''; return; }
-    el.textContent = presence.isLive ? 'Live ora' : formatRelative(presence.lastSeen);
+    if (!presence) { el.innerHTML = ''; return; }
+    var dotHtml = '<span class="messaggi-live-dot' + (presence.isLive ? ' is-live' : '') + '" style="display:inline-block;width:7px;height:7px;margin-right:5px;vertical-align:middle;"></span>';
+    var textHtml = presence.isLive ? 'Live ora' : formatRelative(presence.lastSeen);
+    el.innerHTML = dotHtml + textHtml;
   }
 
   function openMessaggiThread(deviceId, driverName) {
@@ -1004,10 +1011,17 @@
       var idBadge = c.driver_id ? '<span class="person-id-badge">' + escapeHtmlNovita(c.driver_id) + '</span>' : '';
       var unreadBadge = c.unread_count > 0 ? '<span class="install-badge installed" style="margin-left:6px;">' + c.unread_count + '</span>' : '';
       var prefix = c.last_sender === 'admin' ? 'Tu: ' : '';
-      return '<button class="novita-card" style="width:100%;text-align:left;border:1px solid var(--line);cursor:pointer;font-family:inherit;margin-bottom:10px;" data-open-thread="' + escapeHtmlNovita(c.device_id) + '" data-thread-name="' + escapeHtmlNovita(name) + '">' +
+      // Requested directly: the same live dot shown in the thread
+      // header, here too, right in the list — so who's currently
+      // online is visible at a glance, without opening each thread.
+      var presence = findDriverPresence(c.device_id);
+      var dotHtml = '<span class="messaggi-live-dot' + (presence && presence.isLive ? ' is-live' : '') + '" style="display:inline-block;width:8px;height:8px;margin-right:8px;margin-top:5px;flex:none;"></span>';
+      return '<button class="novita-card" style="width:100%;text-align:left;border:1px solid var(--line);cursor:pointer;font-family:inherit;margin-bottom:10px;display:flex;align-items:flex-start;gap:0;" data-open-thread="' + escapeHtmlNovita(c.device_id) + '" data-thread-name="' + escapeHtmlNovita(name) + '">' +
+        dotHtml +
+        '<div style="flex:1;min-width:0;">' +
         '<div class="person-name">' + escapeHtmlNovita(name) + idBadge + unreadBadge + '</div>' +
         '<div class="novita-desc" style="margin-top:4px;">' + prefix + escapeHtmlNovita(c.last_message) + '</div>' +
-        '</button>';
+        '</div></button>';
     }).join('');
     listEl.querySelectorAll('[data-open-thread]').forEach(function (btn) {
       btn.addEventListener('click', function () {
@@ -1051,10 +1065,26 @@
       return messaggiMatchesSearch(searchText, [name, d.account_email, d.driver_id, d.targa]);
     });
     if (!drivers.length) { pickerEl.innerHTML = '<div class="novita-empty">' + (messaggiDriversRaw.length ? 'Nessun risultato.' : 'Nessun autista con account confermato.') + '</div>'; return; }
+    // Requested directly: whoever is live right now should be easy to
+    // spot and reach FIRST — live drivers sorted to the top (each
+    // group then alphabetical), since this list exists specifically
+    // to pick someone to write to, unlike the conversations list
+    // above (which stays sorted by most recent message instead).
+    drivers = drivers.slice().sort(function (a, b) {
+      var aLive = !!(findDriverPresence(a.device_id) || {}).isLive;
+      var bLive = !!(findDriverPresence(b.device_id) || {}).isLive;
+      if (aLive !== bLive) return aLive ? -1 : 1;
+      var aName = (a.official_first_name || a.nome || '').toLowerCase();
+      var bName = (b.official_first_name || b.nome || '').toLowerCase();
+      return aName < bName ? -1 : aName > bName ? 1 : 0;
+    });
     pickerEl.innerHTML = drivers.map(function (d) {
       var name = d.official_first_name || d.nome || '(senza nome)';
       var idBadge = d.driver_id ? '<span class="person-id-badge">' + escapeHtmlNovita(d.driver_id) + '</span>' : '';
-      return '<button class="novita-card" style="width:100%;text-align:left;border:1px solid var(--line);cursor:pointer;font-family:inherit;margin-bottom:8px;padding:10px 14px;" data-open-thread="' + escapeHtmlNovita(d.device_id) + '" data-thread-name="' + escapeHtmlNovita(name) + '">' +
+      var presence = findDriverPresence(d.device_id);
+      var dotHtml = '<span class="messaggi-live-dot' + (presence && presence.isLive ? ' is-live' : '') + '" style="display:inline-block;width:8px;height:8px;margin-right:8px;flex:none;"></span>';
+      return '<button class="novita-card" style="width:100%;text-align:left;border:1px solid var(--line);cursor:pointer;font-family:inherit;margin-bottom:8px;padding:10px 14px;display:flex;align-items:center;" data-open-thread="' + escapeHtmlNovita(d.device_id) + '" data-thread-name="' + escapeHtmlNovita(name) + '">' +
+        dotHtml +
         '<span class="person-name" style="font-size:13px;">' + escapeHtmlNovita(name) + idBadge + '</span>' +
         '</button>';
     }).join('');
