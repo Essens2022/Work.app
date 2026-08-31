@@ -1660,7 +1660,7 @@
           <span>Profilo autista</span>
         </div>
         <div class="card settings-card">
-          <div class="field"><label>Nome autista</label><input id="in-nome" type="text" placeholder="Es. Ion Bondari"></div>
+          <div class="field"><label>Nome autista</label><input id="in-nome" type="text" placeholder="Es. Mario Rossi"></div>
           <div class="settings-driver-note hidden" id="in-nome-locked-note" style="margin-top:-10px;">🔒 Nome confermato e bloccato — non modificabile.</div>
           <div class="field-row">
             <div class="field"><label>Targa veicolo</label><input id="in-targa" type="text" placeholder="Es. HB-123NE" style="text-transform:uppercase"></div>
@@ -2296,11 +2296,13 @@
     </div>
     <div class="sticky-scroll">
     <div class="more-options-list">
-      <div class="more-option-row" style="cursor:default;">
-        <span class="more-option-icon">🔔</span>
-        <span class="more-option-text"><b>Notifiche push</b><small>Ricevi un avviso sul telefono per ogni novità</small></span>
-        <button type="button" id="push-notif-toggle" class="dp-auto-toggle" aria-label="Notifiche push" style="margin-left:auto;"></button>
-      </div>
+      <!-- Requested directly: the push-notifications row used to live
+           here, but seeing it explicitly says "once accepted, this
+           stays on for good" risked giving someone the idea to
+           uninstall and reinstall the app JUST to get around that —
+           removed from view entirely. The underlying behavior is
+           unchanged: still requested automatically, the very first
+           time the installed app opens. -->
       <button type="button" class="more-option-row" id="more-opt-refresh">
         <span class="more-option-icon">🔄</span>
         <span class="more-option-text"><b>Verifica aggiornamenti</b><small>Controlla se c'è una nuova versione dell'app</small></span>
