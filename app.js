@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v462"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v463"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -9948,6 +9948,20 @@
     if (!pushSupported()) return;
     if (localStorage.getItem(LS_PUSH_OFFERED)) return;
     if (Notification.permission !== 'default') return;
+    // REAL BUG, found directly from ION's own real-world test: on iOS
+    // specifically, web push is only available at all to an installed
+    // (Home Screen) app — a regular Safari or Chrome tab (both run on
+    // the same underlying WebKit engine there) can NEVER request or
+    // receive push notifications, no matter what code runs — this is
+    // an Apple platform restriction, not something any site can work
+    // around. Explains exactly the scenario reported: signing up
+    // through the website (not yet installed) on iOS, where this call
+    // was always going to be silently ignored. Android has no such
+    // restriction — push works there from a plain browser tab too, so
+    // this check is iOS-specific, not a blanket "must be installed"
+    // rule. The existing install banner already handles encouraging
+    // installation on its own — nothing new needed for that part.
+    if (isIOSDevice() && !isStandaloneApp) return;
     enablePushNotifications(function (ok) {
       if (ok) localStorage.setItem(LS_PUSH_OFFERED, '1');
     });
