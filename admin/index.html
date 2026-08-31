@@ -942,6 +942,8 @@
 
   var messaggiConversationsRaw = [];
   var messaggiDriversRaw = [];
+  var messaggiConversationsLoadedOnce = false;
+  var messaggiDriversLoadedOnce = false;
 
   function messaggiMatchesSearch(searchText, fields) {
     if (!searchText) return true;
@@ -976,10 +978,26 @@
 
   function loadMessaggiConversations() {
     var listEl = document.getElementById('messaggi-conversations-list');
-    listEl.innerHTML = '<div class="novita-empty">Caricamento…</div>';
+    // Requested directly: leaving a conversation and coming back to
+    // the list (or just reopening Messaggi again) showed the SAME
+    // "Caricamento…" flash every single time, even though the list
+    // was already sitting there, valid, from moments ago — a visible
+    // "tic" on every single action, not how a stable, professional
+    // messaging screen should feel. Same instant-cache approach as
+    // the conversation view: if this session already fetched the list
+    // once (tracked separately from its length, so a GENUINELY empty
+    // account doesn't get stuck re-showing "loading" forever either),
+    // show it immediately and refresh quietly behind it; only a truly
+    // first-ever load shows the loading text.
+    var hadDataAlready = messaggiConversationsLoadedOnce;
+    if (!hadDataAlready) listEl.innerHTML = '<div class="novita-empty">Caricamento…</div>';
     chatCall({ action: 'admin_list_conversations' }).then(function (res) {
-      if (!res.ok) { listEl.innerHTML = '<div class="novita-empty">Impossibile caricare i messaggi.</div>'; return; }
+      if (!res.ok) {
+        if (!hadDataAlready) listEl.innerHTML = '<div class="novita-empty">Impossibile caricare i messaggi.</div>';
+        return;
+      }
       messaggiConversationsRaw = (res.data.conversations || []).sort(function (a, b) { return new Date(b.last_at) - new Date(a.last_at); });
+      messaggiConversationsLoadedOnce = true;
       renderMessaggiConversationsList();
       loadMessaggiUnreadBadge();
     });
@@ -1009,24 +1027,24 @@
 
   function loadMessaggiDriverPicker() {
     var pickerEl = document.getElementById('messaggi-driver-picker');
-    // Requested directly: this had NO loading/error feedback at all —
-    // an empty area while fetching, and the exact same empty area on
-    // a genuine failure, made it impossible to tell "still loading",
-    // "no results", and "something actually broke" apart.
-    pickerEl.innerHTML = '<div class="novita-empty">Caricamento…</div>';
+    // Same instant-cache treatment as the conversations list above —
+    // only a genuine first-ever load shows "Caricamento…".
+    var hadDataAlready = messaggiDriversLoadedOnce;
+    if (!hadDataAlready) pickerEl.innerHTML = '<div class="novita-empty">Caricamento…</div>';
     fetch(FUNCTION_URL, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: currentPassword })
     }).then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
       .then(function (res) {
         if (!res.ok || res.data.error) {
-          pickerEl.innerHTML = '<div class="novita-empty">Impossibile caricare gli autisti' + (res.data && res.data.error ? ': ' + escapeHtmlNovita(res.data.error) : '') + '.</div>';
+          if (!hadDataAlready) pickerEl.innerHTML = '<div class="novita-empty">Impossibile caricare gli autisti' + (res.data && res.data.error ? ': ' + escapeHtmlNovita(res.data.error) : '') + '.</div>';
           return;
         }
         messaggiDriversRaw = res.data.drivers || [];
+        messaggiDriversLoadedOnce = true;
         renderMessaggiDriverPickerList();
       }).catch(function () {
-        pickerEl.innerHTML = '<div class="novita-empty">Impossibile caricare gli autisti — controlla la connessione.</div>';
+        if (!hadDataAlready) pickerEl.innerHTML = '<div class="novita-empty">Impossibile caricare gli autisti — controlla la connessione.</div>';
       });
   }
 
