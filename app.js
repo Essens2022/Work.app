@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v450"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v451"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -9457,6 +9457,7 @@
   document.getElementById('btn-chat').addEventListener('click', openChatModal);
   document.getElementById('chat-close').addEventListener('click', function () {
     document.getElementById('modal-chat').classList.remove('open');
+    unlockBodyScroll();
   });
   document.getElementById('chat-send').addEventListener('click', sendChatMessage);
   var chatInputEl = document.getElementById('chat-input');
@@ -10071,8 +10072,40 @@
     scrollEl.scrollTop = scrollEl.scrollHeight;
   }
 
+  // Requested directly, explicit spec given: WhatsApp's own top bar
+  // (name/info) and bottom bar (message input) both stay completely
+  // fixed, always, whether the keyboard is open or not — only the
+  // messages themselves scroll. Two previous attempts at this
+  // (resizing the modal manually via JS, then via 100dvh) both left
+  // the header still shifting on a real device. Root cause, this
+  // time: on iOS Safari, focusing an input auto-scrolls the PAGE
+  // itself to bring that input into view — and even a position:fixed
+  // element can visibly drag along with that page-level scroll in
+  // certain cases. The fix locks the BODY itself completely still
+  // (nothing left for iOS to scroll) for as long as this modal is
+  // open, so that auto-scroll-into-view behavior has nothing to act
+  // on in the first place.
+  function lockBodyScroll() {
+    var scrollY = window.scrollY || window.pageYOffset || 0;
+    document.body.style.position = 'fixed';
+    document.body.style.top = -scrollY + 'px';
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    document.body.dataset.lockedScrollY = scrollY;
+  }
+  function unlockBodyScroll() {
+    var scrollY = parseInt(document.body.dataset.lockedScrollY || '0', 10);
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.left = '';
+    document.body.style.right = '';
+    delete document.body.dataset.lockedScrollY;
+    window.scrollTo(0, scrollY);
+  }
+
   function openChatModal() {
     document.getElementById('modal-chat').classList.add('open');
+    lockBodyScroll();
     chatCall({ action: 'driver_list', device_id: getDeviceId() }).then(function (res) {
       if (res.ok) renderChatMessages(res.data.items);
       chatCall({ action: 'driver_mark_read', device_id: getDeviceId() }).then(function () {
@@ -10155,8 +10188,22 @@
   // to every connected client within roughly a second. Neither context
   // ever talks to the other directly — they don't need to, since they're
   // both just watching the same live server state.
+  // Requested directly, after confirming the exact scenario (a FORCED,
+  // full app close from the recent-apps list, not just backgrounding
+  // it): the explicit "gone" signal on hide/pagehide only fires if the
+  // OS gives JS time to run it — a genuine force-quit can terminate
+  // the process before that has a chance to happen, leaving detection
+  // to fall back on Supabase's own connection-timeout mechanism
+  // instead, tied to how often the client "checks in" (its heartbeat).
+  // The default is roughly 25-30 seconds — reduced here to make that
+  // fallback path itself faster too, so even the force-quit case
+  // clears within a shorter, bounded window instead of the longer
+  // default one. This can't ever be truly instant for a genuinely
+  // killed process (nothing can run JS after the OS has already ended
+  // it) — this only shortens the WORST-CASE wait once it does fall
+  // back to timeout-based detection.
   var supabaseClient = (typeof supabase !== 'undefined' && supabase.createClient)
-    ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { realtime: { heartbeatIntervalMs: 10000 } })
     : null;
   var LS_DEVICE_ID = 'pt_device_id_v1';
 
