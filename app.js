@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v461"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v462"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -814,6 +814,18 @@
   }
 
   function renderHome() {
+    // Requested directly: rather than hooking this to each individual
+    // sign-in path separately (email confirmation's "Continua" button,
+    // Google's own callback redirect — two different code paths that
+    // don't always stay in sync), trigger it right here instead, the
+    // moment the actual home screen — month, targa, driver name, the
+    // real destination after ANY successful sign-in — first renders.
+    // This fires on every renderHome() call, but the guard inside
+    // offerPushNotificationsIfSensible() itself (the LS_PUSH_OFFERED
+    // flag) makes every call after the very first one an immediate,
+    // cheap no-op — so this works identically and automatically no
+    // matter which door someone came in through.
+    offerPushNotificationsIfSensible();
     var el = document.getElementById('screen-home');
     var sheet = currentSheet();
     if (!sheet) {
@@ -9177,7 +9189,6 @@
     emailModal.classList.remove('open');
     render();
     reloadIfUpdatePending();
-    offerPushNotificationsIfSensible();
   }
   document.getElementById('account-confirmed-continue-btn').addEventListener('click', dismissEmailConfirmedScreen);
 
@@ -10369,15 +10380,6 @@
     }
     history.replaceState(null, '', window.location.pathname + window.location.search);
     toast(email ? ('Accesso effettuato: ' + email) : 'Accesso effettuato');
-    // Requested directly: the automatic push offer only fired on the
-    // email-confirmation path (dismissEmailConfirmedScreen) — Google
-    // sign-in, landing back here through this same-shaped redirect
-    // instead, never triggered it at all. A short delay gives the
-    // rest of the app (service worker registration in particular)
-    // room to finish settling first, same as the natural pause the
-    // email path already has (person reads the confirmation screen,
-    // taps "Continua") before this fires there.
-    setTimeout(offerPushNotificationsIfSensible, 1000);
   }
   handleAuthCallback();
 
