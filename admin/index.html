@@ -89,6 +89,15 @@
   }
   .install-badge.installed{color:var(--live);background:rgba(60,184,120,.14);}
   .install-badge.browser{color:var(--ink-faint);background:var(--surface-2);}
+
+  /* Chat bubbles for Messaggi — same visual language as the app's own
+     chat (index.html), duplicated here since admin is a separate file
+     with no shared CSS between the two. */
+  .chat-bubble{max-width:78%;padding:8px 12px;border-radius:12px;margin-bottom:4px;font-size:14px;line-height:1.4;word-wrap:break-word;position:relative;}
+  .chat-bubble.driver{align-self:flex-start;background:var(--surface-2);border-bottom-left-radius:3px;}
+  .chat-bubble.admin{align-self:flex-end;background:var(--accent-soft);border-bottom-right-radius:3px;}
+  .chat-bubble-time{display:block;font-size:10px;color:var(--ink-faint);margin-top:3px;text-align:right;}
+  .chat-day-divider{align-self:center;background:var(--surface-2);color:var(--ink-faint);font-size:11px;font-weight:700;padding:3px 10px;border-radius:8px;margin:10px 0;}
   .person-email{font-size:12px;color:var(--ink-faint);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .person-lastseen{font-size:11.5px;color:var(--ink-faint);white-space:nowrap;flex:none;}
   .opens-today-badge{
@@ -195,6 +204,18 @@
     width:36px;height:36px;flex:none;font-size:18px;color:var(--ink);cursor:pointer;
     display:flex;align-items:center;justify-content:center;font-family:inherit;
   }
+  /* REAL BUG, found and fixed directly: the Messaggi thread's own
+     "back" button reused the .admin-modal-close class purely for its
+     visual style, but that class is ALSO what the generic close-
+     button handler selects — so a single tap fired BOTH this button's
+     own handler AND the generic one, which then crashed looking for
+     a data-close target this button never had. Identical look, own
+     class, so only this button's own listener ever runs. */
+  .messaggi-back-only{
+    background:var(--surface);border:1px solid var(--line);border-radius:10px;
+    width:36px;height:36px;flex:none;font-size:18px;color:var(--ink);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;font-family:inherit;
+  }
   .admin-modal-title{font-size:18px;font-weight:800;}
 </style>
 <script src="../vendor/supabase.js"></script>
@@ -228,6 +249,11 @@
       <button class="admin-home-icon" data-open="video">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="15" height="14" rx="2"/><path d="M22 8.5v7l-5-3.5 5-3.5z"/></svg>
         <span>Video sito</span>
+      </button>
+      <button class="admin-home-icon" data-open="messaggi">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+        <span>Messaggi</span>
+        <span class="admin-home-badge" id="messaggi-unread-badge" style="display:none;"></span>
       </button>
     </div>
 
@@ -271,6 +297,39 @@
         <div class="novita-actions" style="margin-top:12px;">
           <button id="official-video-save" class="btn-ghost">Salva</button>
           <span id="official-video-status" style="font-size:12px;color:var(--ink-faint);align-self:center;"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Requested directly: a support chat with drivers, WhatsApp-style,
+         one continuous thread per driver. Two internal views inside
+         this one modal — a conversation LIST (default) and a single
+         THREAD (opened by tapping a conversation), toggled via display,
+         so this doesn't need its own separate admin-home icon slot for
+         each state. -->
+    <div id="modal-messaggi" class="admin-modal">
+      <div id="messaggi-list-view">
+        <div class="admin-modal-header">
+          <button class="admin-modal-close" data-close="messaggi">×</button>
+          <div class="admin-modal-title">Messaggi</div>
+        </div>
+        <div id="messaggi-conversations-list"></div>
+        <div style="font-size:12px;font-weight:800;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.04em;margin:22px 0 10px;">Scrivi a un autista</div>
+        <div id="messaggi-driver-picker"></div>
+      </div>
+      <div id="messaggi-thread-view" style="display:none;height:100%;flex-direction:column;">
+        <div class="admin-modal-header" style="margin-bottom:0;">
+          <button class="messaggi-back-only" id="messaggi-back-btn">←</button>
+          <div class="admin-modal-title" id="messaggi-thread-name">—</div>
+        </div>
+        <div id="messaggi-thread-scroll" style="flex:1;overflow-y:auto;padding:14px 4px;">
+          <div id="messaggi-thread-messages" style="display:flex;flex-direction:column;gap:2px;"></div>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:8px;padding:10px 2px 0;">
+          <textarea id="messaggi-thread-input" placeholder="Scrivi un messaggio…" rows="1" style="flex:1;border:1px solid var(--line);border-radius:16px;padding:10px 14px;font-size:14px;font-family:inherit;resize:none;max-height:100px;background:var(--surface-2);color:var(--ink);"></textarea>
+          <button type="button" id="messaggi-thread-send" style="width:38px;height:38px;border-radius:50%;border:none;background:var(--accent);color:#fff;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4Z"/></svg>
+          </button>
         </div>
       </div>
     </div>
@@ -650,6 +709,7 @@
 
   // -------- Novità (video/text/announcement feed shown in the app) --------
   var NOVITA_URL = 'https://chboalgzigdglygnnist.supabase.co/functions/v1/novita-admin';
+  var CHAT_URL = 'https://chboalgzigdglygnnist.supabase.co/functions/v1/chat-messages';
   var lastNovita = [];
 
   function novitaCall(payload) {
@@ -659,6 +719,146 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
     }).then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); });
+  }
+
+  // Support chat with drivers — requested directly, one continuous
+  // thread per driver, WhatsApp-style, mirroring the exact same
+  // rendering approach already built into the app itself (app.js),
+  // just duplicated here since admin is a separate file with no
+  // shared code between the two.
+  function chatCall(payload) {
+    var body = Object.assign({ password: currentPassword }, payload);
+    return fetch(CHAT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); });
+  }
+
+  function chatBubbleTime(iso) {
+    var d = new Date(iso);
+    return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  }
+
+  function chatDayLabel(iso) {
+    var d = new Date(iso);
+    var today = new Date();
+    if (d.toDateString() === today.toDateString()) return 'Oggi';
+    var yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+    if (d.toDateString() === yesterday.toDateString()) return 'Ieri';
+    return d.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' });
+  }
+
+  function renderThreadMessages(items) {
+    var html = '';
+    var lastDay = null;
+    (items || []).forEach(function (m) {
+      var day = chatDayLabel(m.created_at);
+      if (day !== lastDay) { html += '<div class="chat-day-divider">' + day + '</div>'; lastDay = day; }
+      // From admin's own point of view, an "admin" message is the
+      // outgoing/sent one (right-aligned, green) — exactly mirrored
+      // from how the app itself shows "driver" as the outgoing side.
+      html += '<div class="chat-bubble ' + (m.sender === 'admin' ? 'driver' : 'admin') + '">' +
+        escapeHtmlNovita(m.message).replace(/\n/g, '<br>') +
+        '<span class="chat-bubble-time">' + chatBubbleTime(m.created_at) + '</span></div>';
+    });
+    document.getElementById('messaggi-thread-messages').innerHTML = html;
+    var scrollEl = document.getElementById('messaggi-thread-scroll');
+    scrollEl.scrollTop = scrollEl.scrollHeight;
+  }
+
+  var messaggiCurrentDeviceId = null;
+
+  function openMessaggiThread(deviceId, driverName) {
+    messaggiCurrentDeviceId = deviceId;
+    document.getElementById('messaggi-thread-name').textContent = driverName || '(senza nome)';
+    document.getElementById('messaggi-list-view').style.display = 'none';
+    document.getElementById('messaggi-thread-view').style.display = 'flex';
+    chatCall({ action: 'admin_get_conversation', device_id: deviceId }).then(function (res) {
+      if (res.ok) renderThreadMessages(res.data.items);
+      chatCall({ action: 'admin_mark_read', device_id: deviceId }).then(loadMessaggiUnreadBadge);
+    });
+  }
+
+  function backToMessaggiList() {
+    document.getElementById('messaggi-thread-view').style.display = 'none';
+    document.getElementById('messaggi-list-view').style.display = 'block';
+    messaggiCurrentDeviceId = null;
+    loadMessaggiConversations();
+  }
+
+  function sendMessaggiThreadMessage() {
+    var input = document.getElementById('messaggi-thread-input');
+    var text = input.value.trim();
+    if (!text || !messaggiCurrentDeviceId) return;
+    input.value = '';
+    input.style.height = 'auto';
+    chatCall({ action: 'admin_send', device_id: messaggiCurrentDeviceId, message: text }).then(function (res) {
+      if (res.ok) {
+        chatCall({ action: 'admin_get_conversation', device_id: messaggiCurrentDeviceId }).then(function (r2) {
+          if (r2.ok) renderThreadMessages(r2.data.items);
+        });
+      } else {
+        input.value = text;
+      }
+    });
+  }
+
+  function loadMessaggiUnreadBadge() {
+    chatCall({ action: 'admin_list_conversations' }).then(function (res) {
+      var badge = document.getElementById('messaggi-unread-badge');
+      if (!res.ok || !badge) return;
+      var total = (res.data.conversations || []).reduce(function (sum, c) { return sum + (c.unread_count || 0); }, 0);
+      if (total > 0) { badge.textContent = total > 9 ? '9+' : String(total); badge.style.display = 'flex'; }
+      else badge.style.display = 'none';
+    });
+  }
+
+  function loadMessaggiConversations() {
+    var listEl = document.getElementById('messaggi-conversations-list');
+    listEl.innerHTML = '<div class="novita-empty">Caricamento…</div>';
+    chatCall({ action: 'admin_list_conversations' }).then(function (res) {
+      if (!res.ok) { listEl.innerHTML = '<div class="novita-empty">Impossibile caricare i messaggi.</div>'; return; }
+      var conversations = (res.data.conversations || []).sort(function (a, b) { return new Date(b.last_at) - new Date(a.last_at); });
+      if (!conversations.length) { listEl.innerHTML = '<div class="novita-empty">Nessun messaggio ancora.</div>'; return; }
+      listEl.innerHTML = conversations.map(function (c) {
+        var name = c.nome || '(senza nome)';
+        var unreadBadge = c.unread_count > 0 ? '<span class="install-badge installed" style="margin-left:6px;">' + c.unread_count + '</span>' : '';
+        var prefix = c.last_sender === 'admin' ? 'Tu: ' : '';
+        return '<button class="novita-card" style="width:100%;text-align:left;border:1px solid var(--line);cursor:pointer;font-family:inherit;margin-bottom:10px;" data-open-thread="' + escapeHtmlNovita(c.device_id) + '" data-thread-name="' + escapeHtmlNovita(name) + '">' +
+          '<div class="person-name">' + escapeHtmlNovita(name) + unreadBadge + '</div>' +
+          '<div class="novita-desc" style="margin-top:4px;">' + prefix + escapeHtmlNovita(c.last_message) + '</div>' +
+          '</button>';
+      }).join('');
+      listEl.querySelectorAll('[data-open-thread]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          openMessaggiThread(btn.getAttribute('data-open-thread'), btn.getAttribute('data-thread-name'));
+        });
+      });
+      loadMessaggiUnreadBadge();
+    });
+  }
+
+  function loadMessaggiDriverPicker() {
+    var pickerEl = document.getElementById('messaggi-driver-picker');
+    fetch(FUNCTION_URL, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: currentPassword })
+    }).then(function (r) { return r.json(); }).then(function (data) {
+      var drivers = data.drivers || [];
+      if (!drivers.length) { pickerEl.innerHTML = ''; return; }
+      pickerEl.innerHTML = drivers.map(function (d) {
+        var name = d.official_first_name || d.nome || '(senza nome)';
+        return '<button class="novita-card" style="width:100%;text-align:left;border:1px solid var(--line);cursor:pointer;font-family:inherit;margin-bottom:8px;padding:10px 14px;" data-open-thread="' + escapeHtmlNovita(d.device_id) + '" data-thread-name="' + escapeHtmlNovita(name) + '">' +
+          '<span class="person-name" style="font-size:13px;">' + escapeHtmlNovita(name) + '</span>' +
+          '</button>';
+      }).join('');
+      pickerEl.querySelectorAll('[data-open-thread]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          openMessaggiThread(btn.getAttribute('data-open-thread'), btn.getAttribute('data-thread-name'));
+        });
+      });
+    }).catch(function () { pickerEl.innerHTML = ''; });
   }
 
   function escapeHtmlNovita(s) {
@@ -873,6 +1073,28 @@
   });
   document.getElementById('novita-add-btn').addEventListener('click', function () { openNovitaForm(null); });
 
+  // Messaggi — loads the conversation list + "write to a driver"
+  // picker fresh every time the icon itself is tapped open (the
+  // generic handler above only handles showing/hiding the modal, not
+  // loading any data into it — each of autisti/novita/video already
+  // does this same kind of thing on its own, right where it's opened).
+  document.querySelector('.admin-home-icon[data-open="messaggi"]').addEventListener('click', function () {
+    document.getElementById('messaggi-thread-view').style.display = 'none';
+    document.getElementById('messaggi-list-view').style.display = 'block';
+    loadMessaggiConversations();
+    loadMessaggiDriverPicker();
+  });
+  document.getElementById('messaggi-back-btn').addEventListener('click', backToMessaggiList);
+  document.getElementById('messaggi-thread-send').addEventListener('click', sendMessaggiThreadMessage);
+  var messaggiInputEl = document.getElementById('messaggi-thread-input');
+  messaggiInputEl.addEventListener('input', function () {
+    messaggiInputEl.style.height = 'auto';
+    messaggiInputEl.style.height = Math.min(messaggiInputEl.scrollHeight, 100) + 'px';
+  });
+  messaggiInputEl.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessaggiThreadMessage(); }
+  });
+
   // Requested directly: iPhone-style reordering for the home icons -
   // hold one down, drag it over another, they swap places; the new
   // order is remembered for next time. A quick tap (no real hold, no
@@ -1046,6 +1268,7 @@
         offerFaceIdIfSensible();
         loadNovita();
         loadOfficialVideoSetting();
+        loadMessaggiUnreadBadge();
         if (refreshTimer) clearInterval(refreshTimer);
         refreshTimer = setInterval(function () {
           fetchDrivers().then(function (r) {
