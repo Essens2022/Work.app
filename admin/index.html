@@ -43,7 +43,10 @@
   .stat-label{font-size:10.5px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.06em;margin-top:5px;}
   .card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:12px;}
   input{
-    width:100%;padding:13px 14px;border-radius:10px;border:1px solid var(--line);font-size:15px;
+    width:100%;padding:13px 14px;border-radius:10px;border:1px solid var(--line);
+    /* Same iOS auto-zoom fix as .search-input below — 16px is the
+       threshold that keeps Safari from zooming in on focus. */
+    font-size:16px;
     margin-bottom:12px;font-family:inherit;background:var(--surface-2);color:var(--ink);
   }
   input::placeholder{color:var(--ink-faint);}
@@ -58,7 +61,13 @@
   .toolbar{display:flex;gap:10px;margin-bottom:16px;}
   .search-input{
     width:100%;padding:11px 14px;border-radius:10px;border:1.5px solid var(--line);
-    font-size:14px;margin-bottom:16px;background:var(--surface);color:var(--ink);
+    /* REAL BUG, reported directly: tapping this field caused iOS
+       Safari to auto-zoom in (a well-known iOS behavior — any input
+       with a font-size under 16px triggers it), which then had to be
+       manually zoomed back out. 16px is iOS's own threshold for
+       skipping this entirely — genuine pinch-zoom, done deliberately
+       by the person, is completely unaffected either way. */
+    font-size:16px;margin-bottom:16px;background:var(--surface);color:var(--ink);
   }
   .search-input::placeholder{color:var(--ink-faint);}
   .search-input:focus{outline:none;border-color:var(--accent);}
@@ -314,7 +323,7 @@
         <div class="novita-title">Video tutorial su adbsmart.it/official</div>
         <div class="novita-desc">Questo è il video mostrato pubblicamente sulla pagina di presentazione — cambialo qui quando ne registri uno nuovo, senza bisogno di modificare il codice.</div>
         <label style="display:block;font-size:11.5px;font-weight:700;color:var(--ink-faint);text-transform:uppercase;margin:14px 0 6px;">Link o ID YouTube</label>
-        <input id="official-video-input" type="text" placeholder="https://youtu.be/... oppure solo l'ID" style="width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:10px 12px;font-size:14px;font-family:inherit;">
+        <input id="official-video-input" type="text" placeholder="https://youtu.be/... oppure solo l'ID" style="width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:10px 12px;font-size:16px;font-family:inherit;">
         <div class="novita-actions" style="margin-top:12px;">
           <button id="official-video-save" class="btn-ghost">Salva</button>
           <span id="official-video-status" style="font-size:12px;color:var(--ink-faint);align-self:center;"></span>
@@ -348,7 +357,7 @@
           <div id="messaggi-thread-messages" style="display:flex;flex-direction:column;gap:2px;"></div>
         </div>
         <div style="display:flex;align-items:flex-end;gap:8px;padding:10px 2px 0;">
-          <textarea id="messaggi-thread-input" placeholder="Scrivi un messaggio…" rows="1" style="flex:1;border:1px solid var(--line);border-radius:16px;padding:10px 14px;font-size:14px;font-family:inherit;resize:none;max-height:100px;background:var(--surface-2);color:var(--ink);"></textarea>
+          <textarea id="messaggi-thread-input" placeholder="Scrivi un messaggio…" rows="1" style="flex:1;border:1px solid var(--line);border-radius:16px;padding:10px 14px;font-size:16px;font-family:inherit;resize:none;max-height:100px;background:var(--surface-2);color:var(--ink);"></textarea>
           <button type="button" id="messaggi-thread-send" style="width:38px;height:38px;border-radius:50%;border:none;background:var(--accent);color:#fff;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4Z"/></svg>
           </button>
@@ -1498,14 +1507,26 @@
       .catch(function () { errEl.textContent = 'Errore di connessione.'; errEl.style.display = 'block'; });
   }
 
-  if (localStorage.getItem(WEBAUTHN_CRED_KEY)) {
-    document.getElementById('faceid-unlock-btn').style.display = 'block';
-  }
-  document.getElementById('faceid-unlock-btn').addEventListener('click', function () {
+  function attemptFaceIdUnlock() {
     unlockWithFaceId().then(function (pw) {
       if (pw) { document.getElementById('password-input').value = pw; login(); }
-    }).catch(function () { /* cancelled or failed — person can still type the password normally */ });
-  });
+    }).catch(function () { /* cancelled or failed — person can still type the password normally, or tap the button to retry */ });
+  }
+
+  if (localStorage.getItem(WEBAUTHN_CRED_KEY)) {
+    document.getElementById('faceid-unlock-btn').style.display = 'block';
+    // Requested directly: having to tap "Sblocca con Face ID" first,
+    // THEN look at the phone, felt like an extra step on top of what
+    // should just be "look at the phone, you're in" — triggered
+    // automatically now, right at load, the instant a saved credential
+    // exists. The button itself stays visible too, as a fallback for
+    // retrying if this automatic attempt gets dismissed or fails for
+    // any reason (Face ID temporarily unavailable, etc.) — someone
+    // isn't stuck with only a fully-automatic attempt and no way to
+    // ask for it again.
+    attemptFaceIdUnlock();
+  }
+  document.getElementById('faceid-unlock-btn').addEventListener('click', attemptFaceIdUnlock);
 
   document.getElementById('login-btn').addEventListener('click', login);
   document.getElementById('admin-push-btn').addEventListener('click', function () {
