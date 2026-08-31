@@ -726,6 +726,19 @@
     display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .18s ease;
   }
   .modal-overlay.open{opacity:1;pointer-events:auto;}
+  /* REAL BUG, reported directly: an earlier attempt at keeping this
+     modal's header pinned during keyboard-open used JavaScript to
+     manually resize it via window.visualViewport — which, on a real
+     device, ended up shrinking the modal enough (in a way this
+     sandbox's simulated events never caught) that the home screen
+     behind it became visible right where the keyboard should have
+     been covering things instead. Replaced entirely with 100dvh — a
+     browser-native CSS unit built specifically for this exact
+     problem, correctly shrinking on its own as the keyboard opens,
+     with no manual recalculation (and no risk of it being subtly
+     wrong) needed at all. 100vh stays as a fallback for browsers old
+     enough not to support dvh yet. */
+  #modal-chat.open{height:100vh;height:100dvh;}
   /* REAL BUG, found and confirmed directly: opening "Nuovo cliente" ON
      TOP of an already-open Archivio clienti (rather than closing it
      first) put them at the SAME z-index — since modal-dp-new-client
