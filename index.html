@@ -13,6 +13,34 @@
   gtag('config', 'G-T5BFMCBXW8');
 </script>
 <meta name="viewport" id="viewport-meta" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<script>
+  // Requested directly: iOS doesn't reliably honor the manifest's own
+  // portrait-only lock — this recreates it visually, in JS, since
+  // pure CSS can't tell landscape-left from landscape-right (each
+  // needs the OPPOSITE compensating rotation to come out right).
+  // Placed here, in <head>, so it applies before first paint —
+  // avoiding any visible flash of the wrong (unrotated) layout.
+  (function () {
+    function applyOrientationLock() {
+      var type = (screen.orientation && screen.orientation.type) || '';
+      var html = document.documentElement;
+      html.classList.remove('force-portrait-cw', 'force-portrait-ccw');
+      if (type === 'landscape-primary') html.classList.add('force-portrait-ccw');
+      else if (type === 'landscape-secondary') html.classList.add('force-portrait-cw');
+      else if (!type) {
+        // Fallback for older browsers without screen.orientation —
+        // window.orientation's sign convention is the opposite of
+        // screen.orientation.angle's.
+        var angle = window.orientation || 0;
+        if (angle === -90) html.classList.add('force-portrait-ccw');
+        else if (angle === 90) html.classList.add('force-portrait-cw');
+      }
+    }
+    applyOrientationLock();
+    window.addEventListener('orientationchange', applyOrientationLock);
+    if (screen.orientation) screen.orientation.addEventListener('change', applyOrientationLock);
+  })();
+</script>
 <meta name="theme-color" content="#1C1B1F">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -153,13 +181,39 @@
      old, non-responsive sites. This app is already fully responsive
      and doesn't need or want that automatic adjustment. */
   html{height:100%;overflow:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%;}
-  #rotate-lock-overlay{
-    display:none;position:fixed;inset:0;z-index:99999;background:#0A0A0B;color:#fff;
-    flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;padding:20px;
+  /* Requested directly, after the first attempt (a "please rotate
+     back" message) wasn't what was wanted at all: the app should
+     never visually appear rotated in the first place — no message, no
+     black screen, just staying visually portrait no matter which way
+     the phone is actually held. iOS doesn't reliably honor the
+     manifest's own "orientation":"portrait-primary" lock (a known
+     limitation, unlike Android), so this recreates that lock visually
+     with CSS+JS: whenever the device is physically landscape, the
+     whole page is rotated back and given the landscape viewport's own
+     width/height swapped, so it renders and behaves exactly like
+     portrait again. A pure CSS media query can't tell WHICH way the
+     phone was turned (landscape-left needs the opposite rotation from
+     landscape-right) — JS checks the real angle and applies the
+     correct one for each case. Once html itself has a transform, it
+     becomes body's own containing block for its position:fixed (per
+     the CSS transforms spec), so body's existing inset:0 correctly
+     fills this new, rotated box on its own — no separate override
+     needed for it. */
+  html.force-portrait-cw{
+    width:100vh;height:100vw;
+    transform:rotate(90deg);
+    transform-origin:center center;
+    position:fixed;top:50%;left:50%;
+    margin-top:calc(-50vw);margin-left:calc(-50vh);
+    overflow:hidden;
   }
-  .rotate-lock-text{font-size:16px;font-weight:700;line-height:1.5;max-width:280px;}
-  @media (orientation:landscape){
-    #rotate-lock-overlay{display:flex;}
+  html.force-portrait-ccw{
+    width:100vh;height:100vw;
+    transform:rotate(-90deg);
+    transform-origin:center center;
+    position:fixed;top:50%;left:50%;
+    margin-top:calc(-50vw);margin-left:calc(-50vh);
+    overflow:hidden;
   }
   body{
     position:fixed;inset:0;overflow:hidden;overscroll-behavior:none;
@@ -1413,19 +1467,6 @@
 <link rel="stylesheet" href="vendor/maplibre-gl.css">
 </head>
 <body>
-<!-- Requested directly: iOS's own manifest "orientation":
-     "portrait-primary" lock (already set, correctly) is a known,
-     documented limitation on iOS specifically — Safari/installed PWAs
-     there don't reliably honor it the way Android does. This CSS-only
-     overlay is the standard, robust fallback: whenever the device is
-     actually held in landscape, it covers the whole app with a clear
-     "please rotate back" message — the app itself was never designed
-     for landscape (no layout for it exists), so this is honest about
-     that rather than showing a broken, half-working landscape layout. -->
-<div id="rotate-lock-overlay">
-  <svg viewBox="0 0 24 24" width="56" height="56" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="7" y="2" width="14" height="20" rx="2" transform="rotate(90 14 12)"/><path d="M2 8v2M2 14v2" stroke-linecap="round"/></svg>
-  <div class="rotate-lock-text">Ruota il telefono in verticale<br>per usare l'app</div>
-</div>
 <div id="app-splash" style="background:#0A0A0B;">
   <img id="app-splash-bg" src="splash-hero.jpg" alt="">
   <img id="splash-wheel" src="wheel-splash.png" alt="">
