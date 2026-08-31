@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v466"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v467"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -9952,12 +9952,43 @@
   function offerPushNotificationsIfSensible() {
     if (!pushSupported()) return;
     if (localStorage.getItem(LS_PUSH_OFFERED)) return;
-    if (Notification.permission !== 'default') return;
     // On iOS specifically, web push only exists at all for an
     // installed (Home Screen) app — a plain browser tab there can
     // never request or receive push, no matter what code runs. This
     // check is iOS-specific; Android has no such restriction.
     if (isIOSDevice() && !isStandaloneApp) return;
+    // REAL BUG, found directly from ION's own real-device test: an
+    // account that had previously granted the browser's OWN
+    // permission (Chrome's site settings remember that decision per
+    // ORIGIN — deleting the app's own local data, or even the
+    // account, does NOT reset it) landed back on Notification.
+    // permission === 'granted' immediately, with no fresh decision
+    // needed or possible — but a genuinely NEW subscription (tied to
+    // THIS install's own device_id) had never been created for the
+    // server side to actually reach. The old code only ever handled
+    // 'default', silently doing nothing for an already-granted origin
+    // that still needed subscribing. Now: 'granted' subscribes right
+    // away, with no tap needed at all (there's nothing left to ask —
+    // the browser already decided); 'default' still waits for a
+    // genuine first tap, since only that state can show a fresh
+    // native prompt at all.
+    if (Notification.permission === 'granted') {
+      navigator.serviceWorker.ready.then(function (reg) {
+        reg.pushManager.getSubscription().then(function (existingSub) {
+          if (existingSub) { localStorage.setItem(LS_PUSH_OFFERED, '1'); return; }
+          subscribeToPush(function (ok) {
+            if (ok) localStorage.setItem(LS_PUSH_OFFERED, '1');
+          });
+        });
+      });
+      return;
+    }
+    if (Notification.permission !== 'default') {
+      // 'denied' — a deliberate past choice, respected as final; no
+      // need to keep re-checking this on every future render.
+      if (Notification.permission === 'denied') localStorage.setItem(LS_PUSH_OFFERED, '1');
+      return;
+    }
     if (pushArmedListener) return; // already armed, waiting for that first tap
     pushArmedListener = function () {
       document.removeEventListener('click', pushArmedListener, true);
@@ -9977,8 +10008,38 @@
     document.addEventListener('click', pushArmedListener, true);
   }
 
-  function enablePushNotifications(onDone) {
+  // Requested directly: separated from enablePushNotifications below,
+  // since that function always called requestPermission() first — but
+  // when permission is ALREADY 'granted' from earlier browser history
+  // (ION's real-device test: Chrome remembers this decision per
+  // ORIGIN, surviving both an account deletion and a full reinstall),
+  // there's nothing left to ask — calling requestPermission() again
+  // in that case, outside of any direct tap, was itself failing
+  // silently. This does just the subscribe-and-save part alone.
+  function subscribeToPush(onDone) {
     var toggle = document.getElementById('push-notif-toggle');
+    navigator.serviceWorker.ready.then(function (reg) {
+      reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      }).then(function (sub) {
+        fetch(SUPABASE_URL + '/functions/v1/push-subscription', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'subscribe', device_id: getDeviceId(), subscription: sub.toJSON() })
+        }).then(function () {
+          if (toggle) toggle.classList.add('on');
+          toast('Notifiche attivate');
+          if (onDone) onDone(true);
+        }).catch(function () { if (onDone) onDone(false); });
+      }).catch(function () {
+        toast('Non è stato possibile attivare le notifiche su questo dispositivo.');
+        if (onDone) onDone(false);
+      });
+    }).catch(function () { if (onDone) onDone(false); });
+  }
+
+  function enablePushNotifications(onDone) {
     Notification.requestPermission().then(function (perm) {
       if (perm !== 'granted') {
         toast('Permesso negato — puoi riattivarlo dalle impostazioni del telefono in qualsiasi momento.');
@@ -9989,25 +10050,7 @@
         if (onDone) onDone(perm === 'denied');
         return;
       }
-      navigator.serviceWorker.ready.then(function (reg) {
-        reg.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-        }).then(function (sub) {
-          fetch(SUPABASE_URL + '/functions/v1/push-subscription', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'subscribe', device_id: getDeviceId(), subscription: sub.toJSON() })
-          }).then(function () {
-            if (toggle) toggle.classList.add('on');
-            toast('Notifiche attivate');
-            if (onDone) onDone(true);
-          }).catch(function () { if (onDone) onDone(false); });
-        }).catch(function () {
-          toast('Non è stato possibile attivare le notifiche su questo dispositivo.');
-          if (onDone) onDone(false);
-        });
-      }).catch(function () { if (onDone) onDone(false); });
+      subscribeToPush(onDone);
     }).catch(function () { if (onDone) onDone(false); });
   }
 
