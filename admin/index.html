@@ -1339,6 +1339,7 @@
       var closedModal = document.getElementById('modal-' + btn.dataset.close);
       closedModal.classList.remove('open');
       document.getElementById('admin-home').style.display = 'grid';
+      if (btn.dataset.close === 'messaggi') unlockBodyScroll();
     });
   });
   document.getElementById('novita-add-btn').addEventListener('click', function () { openNovitaForm(null); });
@@ -1528,6 +1529,7 @@
           document.getElementById('messaggi-search').value = '';
           loadMessaggiConversations();
           loadMessaggiDriverPicker();
+          lockBodyScroll();
         }
       }
     }
@@ -1750,6 +1752,37 @@
     attemptFaceIdUnlock();
   }
   document.getElementById('faceid-unlock-btn').addEventListener('click', attemptFaceIdUnlock);
+
+  // Requested directly, explicit spec given: WhatsApp's own top bar
+  // (back arrow/name) and bottom bar (message input) both stay
+  // completely fixed, always, whether the keyboard is open or not —
+  // only the messages themselves scroll. Two previous attempts at
+  // this (resizing the modal manually via JS, then via 100dvh) both
+  // left the header still shifting on a real device. Root cause, this
+  // time: on iOS Safari, focusing an input auto-scrolls the PAGE
+  // itself to bring that input into view — even a position:fixed
+  // element can visibly drag along with that page-level scroll in
+  // certain cases. The fix locks the BODY itself completely still
+  // (nothing left for iOS to scroll) for as long as this modal is
+  // open, so that auto-scroll-into-view behavior has nothing to act
+  // on in the first place.
+  function lockBodyScroll() {
+    var scrollY = window.scrollY || window.pageYOffset || 0;
+    document.body.style.position = 'fixed';
+    document.body.style.top = -scrollY + 'px';
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    document.body.dataset.lockedScrollY = scrollY;
+  }
+  function unlockBodyScroll() {
+    var scrollY = parseInt(document.body.dataset.lockedScrollY || '0', 10);
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.left = '';
+    document.body.style.right = '';
+    delete document.body.dataset.lockedScrollY;
+    window.scrollTo(0, scrollY);
+  }
 
   document.getElementById('login-btn').addEventListener('click', login);
   document.getElementById('admin-push-btn').addEventListener('click', function () {
