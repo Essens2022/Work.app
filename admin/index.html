@@ -907,7 +907,7 @@
       var name = d.official_first_name || d.nome;
       return messaggiMatchesSearch(searchText, [name, d.account_email, d.driver_id, d.targa]);
     });
-    if (!drivers.length) { pickerEl.innerHTML = messaggiDriversRaw.length ? '<div class="novita-empty">Nessun risultato.</div>' : ''; return; }
+    if (!drivers.length) { pickerEl.innerHTML = '<div class="novita-empty">' + (messaggiDriversRaw.length ? 'Nessun risultato.' : 'Nessun autista con account confermato.') + '</div>'; return; }
     pickerEl.innerHTML = drivers.map(function (d) {
       var name = d.official_first_name || d.nome || '(senza nome)';
       return '<button class="novita-card" style="width:100%;text-align:left;border:1px solid var(--line);cursor:pointer;font-family:inherit;margin-bottom:8px;padding:10px 14px;" data-open-thread="' + escapeHtmlNovita(d.device_id) + '" data-thread-name="' + escapeHtmlNovita(name) + '">' +
@@ -923,13 +923,25 @@
 
   function loadMessaggiDriverPicker() {
     var pickerEl = document.getElementById('messaggi-driver-picker');
+    // Requested directly: this had NO loading/error feedback at all —
+    // an empty area while fetching, and the exact same empty area on
+    // a genuine failure, made it impossible to tell "still loading",
+    // "no results", and "something actually broke" apart.
+    pickerEl.innerHTML = '<div class="novita-empty">Caricamento…</div>';
     fetch(FUNCTION_URL, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ password: currentPassword })
-    }).then(function (r) { return r.json(); }).then(function (data) {
-      messaggiDriversRaw = data.drivers || [];
-      renderMessaggiDriverPickerList();
-    }).catch(function () { pickerEl.innerHTML = ''; });
+    }).then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); })
+      .then(function (res) {
+        if (!res.ok || res.data.error) {
+          pickerEl.innerHTML = '<div class="novita-empty">Impossibile caricare gli autisti' + (res.data && res.data.error ? ': ' + escapeHtmlNovita(res.data.error) : '') + '.</div>';
+          return;
+        }
+        messaggiDriversRaw = res.data.drivers || [];
+        renderMessaggiDriverPickerList();
+      }).catch(function () {
+        pickerEl.innerHTML = '<div class="novita-empty">Impossibile caricare gli autisti — controlla la connessione.</div>';
+      });
   }
 
   function escapeHtmlNovita(s) {
