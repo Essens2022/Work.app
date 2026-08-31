@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v440"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v441"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -10049,8 +10049,8 @@
       // after sending, in case it went out with a typo — the actual
       // 60s cutoff is enforced server-side regardless, this is just
       // when the pencil icon itself is offered.
-      var canEdit = m.sender === 'driver' && (nowMs - new Date(m.created_at).getTime()) < 60000;
-      var editBtn = canEdit ? '<button class="chat-edit-btn" data-edit-id="' + m.id + '" data-edit-text="' + escapeHtml(m.message) + '">✎</button>' : '';
+      var canEdit = m.sender === 'driver' && (nowMs - new Date(m.created_at).getTime()) < 180000;
+      var editBtn = canEdit ? '<button class="chat-edit-btn" data-edit-id="' + m.id + '" data-edit-text="' + escapeHtml(m.message) + '">✎ Modifica</button>' : '';
       var editedTag = m.edited ? ' <span style="opacity:.6;">(modificato)</span>' : '';
       html += '<div class="chat-bubble ' + (m.sender === 'driver' ? 'driver' : 'admin') + '">' +
         escapeHtml(m.message).replace(/\n/g, '<br>') + editedTag +

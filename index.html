@@ -466,7 +466,10 @@
   .chat-bubble.driver{align-self:flex-end;background:#DCF8C6;border-bottom-right-radius:3px;}
   .chat-bubble.admin{align-self:flex-start;background:#fff;border-bottom-left-radius:3px;}
   .chat-bubble-time{display:block;font-size:10.5px;color:#8a8a8a;margin-top:3px;text-align:right;}
-  .chat-edit-btn{border:none;background:none;color:#8a8a8a;font-size:12px;cursor:pointer;padding:0 0 0 6px;vertical-align:middle;}
+  /* REAL FEEDBACK, reported directly: too subtle to read as an actual
+     button — a proper chip now (background, border, label alongside
+     the pencil), unmistakably tappable. */
+  .chat-edit-btn{border:1px solid rgba(0,0,0,.15);background:rgba(0,0,0,.06);color:#333;font-size:11px;font-weight:700;cursor:pointer;padding:2px 7px;border-radius:8px;margin-left:6px;vertical-align:middle;}
   #chat-send.editing{background:#3CB878;}
   .chat-day-divider{align-self:center;background:rgba(0,0,0,.08);color:#5a5a5a;font-size:11.5px;font-weight:700;padding:3px 10px;border-radius:8px;margin:10px 0;}
   .chat-input-row{
