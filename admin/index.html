@@ -252,6 +252,12 @@
   </div>
 
   <div id="data-screen">
+    <!-- Requested directly: notifications silently never worked (the
+         one-time auto-attempt failed with no way to know or retry) -
+         a permanent, visible button here means ION can always check
+         the real status and (re)activate on demand, not just hope a
+         background attempt succeeded once. -->
+    <button id="admin-push-btn" class="btn-ghost btn-block" style="margin-bottom:14px;">🔔 Attiva notifiche push</button>
     <div id="admin-home" class="admin-home-grid">
       <button class="admin-home-icon" data-open="autisti">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -1391,26 +1397,64 @@
     return outputArray;
   }
 
-  function offerAdminPushIfSensible() {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
-    if (localStorage.getItem(LS_ADMIN_PUSH_OFFERED)) return;
-    localStorage.setItem(LS_ADMIN_PUSH_OFFERED, '1');
-    if (Notification.permission !== 'default') return;
-    navigator.serviceWorker.register('sw.js').then(function (reg) {
-      Notification.requestPermission().then(function (perm) {
-        if (perm !== 'granted') return;
-        reg.pushManager.subscribe({
+  // REAL BUG, found directly: this used to mark itself as "already
+  // offered" (never trying again) the INSTANT it ran — regardless of
+  // whether a subscription actually ended up being created. Any
+  // silent failure along the way (permission prompt dismissed without
+  // an answer, a transient service-worker registration hiccup, the
+  // subscribe() call itself failing) meant it would NEVER retry again,
+  // automatically or otherwise — exactly what happened: confirmed
+  // directly, zero rows ever existed for the admin subscription.
+  // Rebuilt as a real function reporting success/failure, only
+  // marking "offered" once truly subscribed, AND exposed as a
+  // visible, permanent button (not just a background one-time
+  // attempt) so this is never stuck silently broken again.
+  function enableAdminPush() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+      return Promise.resolve({ ok: false, reason: 'unsupported' });
+    }
+    return navigator.serviceWorker.register('sw.js').then(function (reg) {
+      return Notification.requestPermission().then(function (perm) {
+        if (perm !== 'granted') return { ok: false, reason: 'denied' };
+        return reg.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: adminUrlBase64ToUint8Array(ADMIN_VAPID_PUBLIC_KEY)
         }).then(function (sub) {
-          fetch('https://chboalgzigdglygnnist.supabase.co/functions/v1/push-subscription', {
+          return fetch('https://chboalgzigdglygnnist.supabase.co/functions/v1/push-subscription', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'subscribe', device_id: 'admin', subscription: sub.toJSON() })
+          }).then(function () {
+            localStorage.setItem(LS_ADMIN_PUSH_OFFERED, '1');
+            return { ok: true };
           });
-        }).catch(function () { /* not critical — the unread badge still works without push */ });
+        }).catch(function () { return { ok: false, reason: 'subscribe_failed' }; });
       });
-    }).catch(function () { /* service worker registration failed — push simply won't be available this session */ });
+    }).catch(function () { return { ok: false, reason: 'sw_failed' }; });
+  }
+
+  function refreshAdminPushButton() {
+    var btn = document.getElementById('admin-push-btn');
+    if (!btn) return;
+    if (!('Notification' in window)) { btn.style.display = 'none'; return; }
+    navigator.serviceWorker && navigator.serviceWorker.getRegistration().then(function (reg) {
+      return reg ? reg.pushManager.getSubscription() : null;
+    }).then(function (sub) {
+      if (sub) {
+        btn.textContent = '✅ Notifiche push attive';
+        btn.disabled = true;
+      } else {
+        btn.textContent = '🔔 Attiva notifiche push';
+        btn.disabled = false;
+      }
+    }).catch(function () { /* leave button in its default "not yet checked" state */ });
+  }
+
+  function offerAdminPushIfSensible() {
+    refreshAdminPushButton();
+    if (localStorage.getItem(LS_ADMIN_PUSH_OFFERED)) return;
+    if (Notification.permission !== 'default') return;
+    enableAdminPush().then(refreshAdminPushButton);
   }
 
   function login() {
@@ -1452,6 +1496,23 @@
   });
 
   document.getElementById('login-btn').addEventListener('click', login);
+  document.getElementById('admin-push-btn').addEventListener('click', function () {
+    var btn = document.getElementById('admin-push-btn');
+    btn.disabled = true;
+    btn.textContent = 'Attivazione…';
+    enableAdminPush().then(function (result) {
+      refreshAdminPushButton();
+      if (!result.ok) {
+        var messages = {
+          unsupported: 'Le notifiche push non sono supportate su questo browser.',
+          denied: 'Permesso negato — riattivalo dalle impostazioni del browser per questo sito.',
+          sw_failed: 'Impossibile registrare il service worker — riprova.',
+          subscribe_failed: 'Impossibile completare l\'attivazione — riprova.'
+        };
+        alert(messages[result.reason] || 'Impossibile attivare le notifiche.');
+      }
+    });
+  });
   document.getElementById('password-input').addEventListener('keydown', function (e) {
     if (e.key === 'Enter') login();
   });
