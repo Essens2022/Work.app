@@ -146,7 +146,21 @@
      misbehave in Safari specifically, which is very likely what caused
      the site to show a blank white page after the previous change. This
      is the safer, standard pattern used by real production sites. */
-  html{height:100%;overflow:hidden;}
+  /* Requested directly: rotating the phone and back made ALL text
+     across the entire app suddenly render larger — this is
+     -webkit-text-size-adjust's own default "auto" behavior, a legacy
+     mobile-Safari feature that boosts text size on rotation, meant for
+     old, non-responsive sites. This app is already fully responsive
+     and doesn't need or want that automatic adjustment. */
+  html{height:100%;overflow:hidden;-webkit-text-size-adjust:100%;text-size-adjust:100%;}
+  #rotate-lock-overlay{
+    display:none;position:fixed;inset:0;z-index:99999;background:#0A0A0B;color:#fff;
+    flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;padding:20px;
+  }
+  .rotate-lock-text{font-size:16px;font-weight:700;line-height:1.5;max-width:280px;}
+  @media (orientation:landscape){
+    #rotate-lock-overlay{display:flex;}
+  }
   body{
     position:fixed;inset:0;overflow:hidden;overscroll-behavior:none;
     margin:0;
@@ -1399,6 +1413,19 @@
 <link rel="stylesheet" href="vendor/maplibre-gl.css">
 </head>
 <body>
+<!-- Requested directly: iOS's own manifest "orientation":
+     "portrait-primary" lock (already set, correctly) is a known,
+     documented limitation on iOS specifically — Safari/installed PWAs
+     there don't reliably honor it the way Android does. This CSS-only
+     overlay is the standard, robust fallback: whenever the device is
+     actually held in landscape, it covers the whole app with a clear
+     "please rotate back" message — the app itself was never designed
+     for landscape (no layout for it exists), so this is honest about
+     that rather than showing a broken, half-working landscape layout. -->
+<div id="rotate-lock-overlay">
+  <svg viewBox="0 0 24 24" width="56" height="56" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="7" y="2" width="14" height="20" rx="2" transform="rotate(90 14 12)"/><path d="M2 8v2M2 14v2" stroke-linecap="round"/></svg>
+  <div class="rotate-lock-text">Ruota il telefono in verticale<br>per usare l'app</div>
+</div>
 <div id="app-splash" style="background:#0A0A0B;">
   <img id="app-splash-bg" src="splash-hero.jpg" alt="">
   <img id="splash-wheel" src="wheel-splash.png" alt="">
