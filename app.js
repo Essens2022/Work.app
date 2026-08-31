@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v460"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v461"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -9913,24 +9913,45 @@
   // Requested directly: rather than waiting for someone to find the
   // toggle themselves in Impostazioni, ask once, automatically, right
   // after they've genuinely finished onboarding (email confirmed,
-  // "Continua" tapped) — the natural "welcome, you're all set" moment.
-  // Browsers still show their own native permission prompt regardless
-  // (no site can silently turn this on — that's a platform rule, not
-  // something this app controls), so this only ever gets ONE real
-  // shot per device, tracked here, never repeated even if declined.
+  // "Continua" tapped) — the natural "welcome, you're all set"
+  // moment. Browsers still show their own native permission prompt
+  // regardless (no site can silently turn this on — that's a
+  // platform rule, not something this app controls).
+  //
+  // REAL BUG, found directly while investigating the exact same class
+  // of issue already found and fixed once in admin: this used to mark
+  // itself "already offered" the INSTANT it ran, before knowing
+  // whether a subscription actually succeeded — a genuine failure
+  // along the way (permission prompt dismissed without answering, a
+  // transient service-worker hiccup, the subscribe() call itself
+  // failing) meant this single, real shot could be silently lost to a
+  // technical glitch, with no way to retry automatically afterward —
+  // only ever leaving the manual toggle in Impostazioni, which most
+  // people would never think to go find. Only marks "offered" now
+  // once truly subscribed, so a first attempt lost to a genuine
+  // hiccup (not an explicit decline) gets a real second chance next
+  // time the app opens, instead of being gone for good after one bad
+  // roll.
   var LS_PUSH_OFFERED = 'pt_push_offered_v1';
   function offerPushNotificationsIfSensible() {
     if (!pushSupported()) return;
     if (localStorage.getItem(LS_PUSH_OFFERED)) return;
-    localStorage.setItem(LS_PUSH_OFFERED, '1');
-    if (Notification.permission === 'default') enablePushNotifications();
+    if (Notification.permission !== 'default') return;
+    enablePushNotifications(function (ok) {
+      if (ok) localStorage.setItem(LS_PUSH_OFFERED, '1');
+    });
   }
 
-  function enablePushNotifications() {
+  function enablePushNotifications(onDone) {
     var toggle = document.getElementById('push-notif-toggle');
     Notification.requestPermission().then(function (perm) {
       if (perm !== 'granted') {
         toast('Permesso negato — puoi riattivarlo dalle impostazioni del telefono in qualsiasi momento.');
+        // An explicit "denied" is the person's own deliberate choice —
+        // that counts as a completed offer, not a glitch to retry.
+        // Anything else (prompt dismissed without answering) leaves
+        // the door open for a genuine retry next time.
+        if (onDone) onDone(perm === 'denied');
         return;
       }
       navigator.serviceWorker.ready.then(function (reg) {
@@ -9945,12 +9966,14 @@
           }).then(function () {
             if (toggle) toggle.classList.add('on');
             toast('Notifiche attivate');
-          });
+            if (onDone) onDone(true);
+          }).catch(function () { if (onDone) onDone(false); });
         }).catch(function () {
           toast('Non è stato possibile attivare le notifiche su questo dispositivo.');
+          if (onDone) onDone(false);
         });
-      });
-    });
+      }).catch(function () { if (onDone) onDone(false); });
+    }).catch(function () { if (onDone) onDone(false); });
   }
 
   function disablePushNotifications() {
@@ -10346,6 +10369,15 @@
     }
     history.replaceState(null, '', window.location.pathname + window.location.search);
     toast(email ? ('Accesso effettuato: ' + email) : 'Accesso effettuato');
+    // Requested directly: the automatic push offer only fired on the
+    // email-confirmation path (dismissEmailConfirmedScreen) — Google
+    // sign-in, landing back here through this same-shaped redirect
+    // instead, never triggered it at all. A short delay gives the
+    // rest of the app (service worker registration in particular)
+    // room to finish settling first, same as the natural pause the
+    // email path already has (person reads the confirmation screen,
+    // taps "Continua") before this fires there.
+    setTimeout(offerPushNotificationsIfSensible, 1000);
   }
   handleAuthCallback();
 
