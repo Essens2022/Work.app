@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v467"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v468"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -9907,6 +9907,20 @@
     return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
   }
 
+  // Requested directly: ION wants to distinguish, in admin, someone
+  // who explicitly declined the native prompt from someone who simply
+  // hasn't been asked yet — the browser itself never reports a
+  // "denied" decision back to any server on its own, so the app has
+  // to send it, at the one moment this information genuinely exists:
+  // right when the native dialog itself resolves to "denied".
+  function markPushDenied() {
+    fetch(SUPABASE_URL + '/functions/v1/push-subscription', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'mark_denied', device_id: getDeviceId() })
+    }).catch(function () { /* best-effort — admin's view just won't reflect this one denial if it fails */ });
+  }
+
   // Requested directly: the visible push-notifications toggle (and
   // this function that kept it in sync) was removed from Impostazioni
   // entirely — seeing "once accepted, this stays on for good" risked
@@ -9985,8 +9999,10 @@
     }
     if (Notification.permission !== 'default') {
       // 'denied' — a deliberate past choice, respected as final; no
-      // need to keep re-checking this on every future render.
-      if (Notification.permission === 'denied') localStorage.setItem(LS_PUSH_OFFERED, '1');
+      // need to keep re-checking this on every future render. Also
+      // reported to admin here too — covers someone who denied it a
+      // long time ago, before admin's own denied-tracking existed.
+      if (Notification.permission === 'denied') { localStorage.setItem(LS_PUSH_OFFERED, '1'); markPushDenied(); }
       return;
     }
     if (pushArmedListener) return; // already armed, waiting for that first tap
@@ -10047,6 +10063,7 @@
         // that counts as a completed offer, not a glitch to retry.
         // Anything else (prompt dismissed without answering) leaves
         // the door open for a genuine retry next time.
+        if (perm === 'denied') markPushDenied();
         if (onDone) onDone(perm === 'denied');
         return;
       }

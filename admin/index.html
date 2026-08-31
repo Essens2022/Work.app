@@ -584,7 +584,7 @@
           _latestForNameTarga: null, _latestWithRealActivity: null, _fallbackNome: null, _hasOfficialName: false,
           emails: {}, deviceIds: [], devices: [], hidden: true, lastActive: null, lastHeartbeat: null,
           sheetsByKey: {}, activeMonth: null, activeYear: null, dailyRate: null, driverId: null, opensToday: 0,
-          anyInstalled: false, anyPush: false
+          anyInstalled: false, anyPush: false, anyPushDenied: false
         };
       }
       var g = groups[key];
@@ -620,6 +620,10 @@
       // notifications actively enabled, to be able to reach drivers
       // with app news even without them checking manually.
       if (d.has_push) g.anyPush = true;
+      // Requested directly: distinguish someone who explicitly
+      // declined the native prompt from someone simply not asked yet
+      // — very different situations for ION's own follow-up plans.
+      if (d.push_denied && !d.has_push) g.anyPushDenied = true;
       // Group is "hidden" only if EVERY device under it is hidden.
       if (!d.hidden) g.hidden = false;
       if (d.last_active && (!g.lastActive || d.last_active > g.lastActive)) g.lastActive = d.last_active;
@@ -691,7 +695,12 @@
     html += '<div class="person-row" data-toggle-open="' + g.key + '">';
     html += '<div class="live-dot' + (g.isLive ? ' is-live' : '') + '"></div>';
     html += '<div class="person-main">';
-    html += '<div class="person-name"><span class="person-name-text">' + g.nome + '</span>' + (g.driverId ? '<span class="person-id-badge">' + g.driverId + '</span>' : '') + '<span class="install-badge ' + (g.anyInstalled ? 'installed">📱 App' : 'browser">🌐 Browser') + '</span>' + '<span class="install-badge ' + (g.anyPush ? 'installed" title="Notifiche push attive">🔔' : 'browser" title="Notifiche push non attive">🔕') + '</span></div>';
+    var pushBadge = g.anyPush
+      ? '<span class="install-badge installed" title="Notifiche push attive">🔔</span>'
+      : (g.anyPushDenied
+        ? '<span class="install-badge" style="color:#E05252;background:rgba(224,82,82,.14);" title="Notifiche push rifiutate">🚫</span>'
+        : '<span class="install-badge browser" title="Notifiche push non ancora attivate">🔕</span>');
+    html += '<div class="person-name"><span class="person-name-text">' + g.nome + '</span>' + (g.driverId ? '<span class="person-id-badge">' + g.driverId + '</span>' : '') + '<span class="install-badge ' + (g.anyInstalled ? 'installed">📱 App' : 'browser">🌐 Browser') + '</span>' + pushBadge + '</div>';
     if (g.emailList.length) html += '<div class="person-email">' + g.emailList.join(', ') + '</div>';
     html += '</div>';
     if (g.opensToday > 0) html += '<div class="opens-today-badge" title="Aperture app oggi">' + g.opensToday + '</div>';
