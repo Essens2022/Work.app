@@ -861,13 +861,37 @@
   var messaggiCurrentDeviceId = null;
   var messaggiEditingMessageId = null;
 
+  var messaggiThreadCache = {};
+
   function openMessaggiThread(deviceId, driverName) {
     messaggiCurrentDeviceId = deviceId;
     document.getElementById('messaggi-thread-name').textContent = driverName || '(senza nome)';
     document.getElementById('messaggi-list-view').style.display = 'none';
     document.getElementById('messaggi-thread-view').style.display = 'flex';
+    // REAL BUG, reported directly: switching conversations (or leaving
+    // and re-entering the SAME one) briefly showed the PREVIOUS
+    // conversation's messages, still sitting in the DOM from last
+    // time, until the fresh fetch resolved and overwrote them —
+    // exactly the "wrong chat flashes for a moment" ION described,
+    // and the opposite of how a real messaging app should feel.
+    // Fixed with a simple in-memory cache: if this device's thread was
+    // ever loaded before this session, show THAT immediately (correct,
+    // instant, no flicker) while a fresh fetch quietly runs behind it
+    // to catch anything new. Only a genuinely NEVER-opened conversation
+    // shows a brief, honest "loading" — never another person's messages.
+    if (messaggiThreadCache[deviceId]) {
+      renderThreadMessages(messaggiThreadCache[deviceId]);
+    } else {
+      document.getElementById('messaggi-thread-messages').innerHTML = '';
+    }
     chatCall({ action: 'admin_get_conversation', device_id: deviceId }).then(function (res) {
-      if (res.ok) renderThreadMessages(res.data.items);
+      if (res.ok) {
+        messaggiThreadCache[deviceId] = res.data.items;
+        // The person may have already navigated away to a DIFFERENT
+        // conversation by the time this slower fetch finally resolves
+        // — only actually paint it if we're still looking at this one.
+        if (messaggiCurrentDeviceId === deviceId) renderThreadMessages(res.data.items);
+      }
       chatCall({ action: 'admin_mark_read', device_id: deviceId }).then(loadMessaggiUnreadBadge);
     });
   }
@@ -893,8 +917,12 @@
       : chatCall({ action: 'admin_send', device_id: messaggiCurrentDeviceId, message: text });
     call.then(function (res) {
       if (res.ok) {
-        chatCall({ action: 'admin_get_conversation', device_id: messaggiCurrentDeviceId }).then(function (r2) {
-          if (r2.ok) renderThreadMessages(r2.data.items);
+        var deviceId = messaggiCurrentDeviceId;
+        chatCall({ action: 'admin_get_conversation', device_id: deviceId }).then(function (r2) {
+          if (r2.ok) {
+            messaggiThreadCache[deviceId] = r2.data.items;
+            if (messaggiCurrentDeviceId === deviceId) renderThreadMessages(r2.data.items);
+          }
         });
       } else {
         if (!editingId) input.value = text;
@@ -931,10 +959,11 @@
     if (!conversations.length) { listEl.innerHTML = '<div class="novita-empty">Nessun risultato.</div>'; return; }
     listEl.innerHTML = conversations.map(function (c) {
       var name = c.nome || '(senza nome)';
+      var idBadge = c.driver_id ? '<span class="person-id-badge">' + escapeHtmlNovita(c.driver_id) + '</span>' : '';
       var unreadBadge = c.unread_count > 0 ? '<span class="install-badge installed" style="margin-left:6px;">' + c.unread_count + '</span>' : '';
       var prefix = c.last_sender === 'admin' ? 'Tu: ' : '';
       return '<button class="novita-card" style="width:100%;text-align:left;border:1px solid var(--line);cursor:pointer;font-family:inherit;margin-bottom:10px;" data-open-thread="' + escapeHtmlNovita(c.device_id) + '" data-thread-name="' + escapeHtmlNovita(name) + '">' +
-        '<div class="person-name">' + escapeHtmlNovita(name) + unreadBadge + '</div>' +
+        '<div class="person-name">' + escapeHtmlNovita(name) + idBadge + unreadBadge + '</div>' +
         '<div class="novita-desc" style="margin-top:4px;">' + prefix + escapeHtmlNovita(c.last_message) + '</div>' +
         '</button>';
     }).join('');
@@ -966,8 +995,9 @@
     if (!drivers.length) { pickerEl.innerHTML = '<div class="novita-empty">' + (messaggiDriversRaw.length ? 'Nessun risultato.' : 'Nessun autista con account confermato.') + '</div>'; return; }
     pickerEl.innerHTML = drivers.map(function (d) {
       var name = d.official_first_name || d.nome || '(senza nome)';
+      var idBadge = d.driver_id ? '<span class="person-id-badge">' + escapeHtmlNovita(d.driver_id) + '</span>' : '';
       return '<button class="novita-card" style="width:100%;text-align:left;border:1px solid var(--line);cursor:pointer;font-family:inherit;margin-bottom:8px;padding:10px 14px;" data-open-thread="' + escapeHtmlNovita(d.device_id) + '" data-thread-name="' + escapeHtmlNovita(name) + '">' +
-        '<span class="person-name" style="font-size:13px;">' + escapeHtmlNovita(name) + '</span>' +
+        '<span class="person-name" style="font-size:13px;">' + escapeHtmlNovita(name) + idBadge + '</span>' +
         '</button>';
     }).join('');
     pickerEl.querySelectorAll('[data-open-thread]').forEach(function (btn) {
@@ -1232,8 +1262,12 @@
     // list behind it, so "read at" status and any new messages show
     // up immediately, without needing to back out and re-enter.
     if (messaggiCurrentDeviceId) {
-      chatCall({ action: 'admin_get_conversation', device_id: messaggiCurrentDeviceId }).then(function (res) {
-        if (res.ok) renderThreadMessages(res.data.items);
+      var deviceId = messaggiCurrentDeviceId;
+      chatCall({ action: 'admin_get_conversation', device_id: deviceId }).then(function (res) {
+        if (res.ok) {
+          messaggiThreadCache[deviceId] = res.data.items;
+          if (messaggiCurrentDeviceId === deviceId) renderThreadMessages(res.data.items);
+        }
       });
     }
     setTimeout(function () { btn.disabled = false; btn.textContent = '↻'; }, 600);
