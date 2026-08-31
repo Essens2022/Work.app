@@ -1181,13 +1181,6 @@
   // generic handler above only handles showing/hiding the modal, not
   // loading any data into it — each of autisti/novita/video already
   // does this same kind of thing on its own, right where it's opened).
-  document.querySelector('.admin-home-icon[data-open="messaggi"]').addEventListener('click', function () {
-    document.getElementById('messaggi-thread-view').style.display = 'none';
-    document.getElementById('messaggi-list-view').style.display = 'block';
-    document.getElementById('messaggi-search').value = '';
-    loadMessaggiConversations();
-    loadMessaggiDriverPicker();
-  });
   document.getElementById('messaggi-back-btn').addEventListener('click', backToMessaggiList);
   document.getElementById('messaggi-search').addEventListener('input', function () {
     renderMessaggiConversationsList();
@@ -1349,6 +1342,22 @@
         // A genuine quick tap — same behavior as always, open that function.
         document.getElementById('admin-home').style.display = 'none';
         document.getElementById('modal-' + icon.dataset.open).classList.add('open');
+        // REAL BUG, reported directly: Messaggi's own data-loading used
+        // to live in a SEPARATE 'click' listener on this same icon —
+        // which, on a real phone, raced against this shared long-press/
+        // drag handling (built around pointerdown/pointerup, not click)
+        // closely enough that the load sometimes silently lost the
+        // race, leaving the list empty until the (unrelated) refresh
+        // button was tapped by hand. Moved the load to fire from
+        // exactly this ONE proven, reliable "it was a genuine tap"
+        // path instead of a second, independently-timed listener.
+        if (icon.dataset.open === 'messaggi') {
+          document.getElementById('messaggi-thread-view').style.display = 'none';
+          document.getElementById('messaggi-list-view').style.display = 'block';
+          document.getElementById('messaggi-search').value = '';
+          loadMessaggiConversations();
+          loadMessaggiDriverPicker();
+        }
       }
     }
     icon.addEventListener('pointerup', finishDrag);
