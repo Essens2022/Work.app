@@ -436,8 +436,23 @@
   var FUNCTION_URL = 'https://chboalgzigdglygnnist.supabase.co/functions/v1/admin-data';
   var SUPABASE_URL = 'https://chboalgzigdglygnnist.supabase.co';
   var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoYm9hbGd6aWdkZ2x5Z25uaXN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1NTc4MjMsImV4cCI6MjEwMjEzMzgyM30.vorEiww3SvVAadgnAqFH42M-MjbpXOojAlhNm-cIeMI';
+  // REAL BUG, found directly, investigating ION's report of "Ion" being
+  // stuck showing Live no matter what: admin's own Supabase client was
+  // missing the same heartbeat reduction already applied to the driver
+  // app — meaning, unlike the driver's connection, admin's own
+  // connection to the presence channel was using the DEFAULT, longer
+  // heartbeat (25-30s). Since this admin page realistically stays open
+  // for hours at a time, its own connection is exactly the kind most
+  // likely to silently go stale over that long a stretch (a documented
+  // browser behavior — background tabs throttle JS timers, which can
+  // quietly stop heartbeats without any visible error) — freezing
+  // liveEmails at whatever the presence state happened to be at the
+  // moment THAT connection died, rather than reflecting reality. If
+  // ION himself happened to be connected right at that frozen moment,
+  // he'd appear permanently live from then on, while anyone who
+  // connected or disconnected afterward wouldn't show up at all.
   var supabaseClient = (typeof supabase !== 'undefined' && supabase.createClient)
-    ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { realtime: { heartbeatIntervalMs: 10000 } })
     : null;
   var currentPassword = '';
   var showHidden = false;
@@ -473,11 +488,25 @@
       setLiveDiagnostic('Conectat — ' + totalEntries + ' prezenta/e primita/e');
       if (lastGroups.length) renderDrivers(lastGroupsRaw);
     });
+    // REAL BUG, found directly, investigating ION's report of "Ion"
+    // showing stuck Live no matter what: this handler already noticed
+    // TIMED_OUT/CLOSED, but only updated a diagnostic label — it never
+    // actually did anything about it. Left alone, liveEmails stays
+    // frozen at whatever it was the instant this connection died,
+    // forever, since nothing was ever pulling a fresh channel back up
+    // to replace the dead one. Now it explicitly removes the dead
+    // channel and starts a completely fresh one, so a connection that
+    // silently goes stale (this admin page realistically stays open
+    // for hours, exactly the situation most prone to it) actually
+    // recovers instead of showing permanently outdated presence.
     channel.subscribe(function (status, err) {
       if (status === 'SUBSCRIBED') setLiveDiagnostic('Conectat, in asteptarea semnalelor...');
       else if (status === 'CHANNEL_ERROR') setLiveDiagnostic('Eroare de conexiune: ' + (err ? err.message : 'necunoscuta'));
-      else if (status === 'TIMED_OUT') setLiveDiagnostic('Conexiune expirata (timeout)');
-      else if (status === 'CLOSED') setLiveDiagnostic('Conexiune inchisa');
+      else if (status === 'TIMED_OUT' || status === 'CLOSED') {
+        setLiveDiagnostic((status === 'TIMED_OUT' ? 'Conexiune expirata' : 'Conexiune inchisa') + ' — reconectare...');
+        supabaseClient.removeChannel(channel);
+        setTimeout(startAdminPresenceWatch, 1000);
+      }
     });
   }
   function setLiveDiagnostic(text) {
