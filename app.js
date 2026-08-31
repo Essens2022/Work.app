@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v447"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v448"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -9453,9 +9453,33 @@
   document.getElementById('btn-settings').addEventListener('click', function () { openSettingsModal(null); });
   document.getElementById('btn-navigatore').addEventListener('click', function () { showScreen('navigatore'); });
   document.getElementById('btn-novita').addEventListener('click', openNovitaModal);
+  // REAL BUG, reported directly: on mobile, opening the keyboard (to
+  // type a chat message) pushed the "fixed" header (with the ×
+  // close button and "Assistenza" title) up along with it — the same
+  // well-known iOS Safari quirk where position:fixed anchors to the
+  // LAYOUT viewport, which does not shrink when the keyboard appears,
+  // unlike the actually-visible VISUAL viewport. Explicitly matching
+  // this modal's own height/position to window.visualViewport keeps
+  // it correctly pinned regardless of the keyboard.
+  function keepModalPinnedToVisualViewport(modalEl) {
+    if (!window.visualViewport) return;
+    function update() {
+      if (!modalEl.classList.contains('open')) return;
+      modalEl.style.top = window.visualViewport.offsetTop + 'px';
+      modalEl.style.height = window.visualViewport.height + 'px';
+    }
+    window.visualViewport.addEventListener('resize', update);
+    window.visualViewport.addEventListener('scroll', update);
+    modalEl.__syncViewport = update;
+  }
+  keepModalPinnedToVisualViewport(document.getElementById('modal-chat'));
+
   document.getElementById('btn-chat').addEventListener('click', openChatModal);
   document.getElementById('chat-close').addEventListener('click', function () {
-    document.getElementById('modal-chat').classList.remove('open');
+    var modalEl = document.getElementById('modal-chat');
+    modalEl.classList.remove('open');
+    modalEl.style.top = '';
+    modalEl.style.height = '';
   });
   document.getElementById('chat-send').addEventListener('click', sendChatMessage);
   var chatInputEl = document.getElementById('chat-input');
@@ -10072,6 +10096,7 @@
 
   function openChatModal() {
     document.getElementById('modal-chat').classList.add('open');
+    if (document.getElementById('modal-chat').__syncViewport) document.getElementById('modal-chat').__syncViewport();
     chatCall({ action: 'driver_list', device_id: getDeviceId() }).then(function (res) {
       if (res.ok) renderChatMessages(res.data.items);
       chatCall({ action: 'driver_mark_read', device_id: getDeviceId() }).then(function () {

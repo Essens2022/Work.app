@@ -1324,7 +1324,10 @@
 
   document.querySelectorAll('.admin-modal-close').forEach(function (btn) {
     btn.addEventListener('click', function () {
-      document.getElementById('modal-' + btn.dataset.close).classList.remove('open');
+      var closedModal = document.getElementById('modal-' + btn.dataset.close);
+      closedModal.classList.remove('open');
+      closedModal.style.top = '';
+      closedModal.style.height = '';
       document.getElementById('admin-home').style.display = 'grid';
     });
   });
@@ -1500,6 +1503,8 @@
         // A genuine quick tap — same behavior as always, open that function.
         document.getElementById('admin-home').style.display = 'none';
         document.getElementById('modal-' + icon.dataset.open).classList.add('open');
+        var openedModal = document.getElementById('modal-' + icon.dataset.open);
+        if (openedModal.__syncViewport) openedModal.__syncViewport();
         // REAL BUG, reported directly: Messaggi's own data-loading used
         // to live in a SEPARATE 'click' listener on this same icon —
         // which, on a real phone, raced against this shared long-press/
@@ -1737,6 +1742,30 @@
     attemptFaceIdUnlock();
   }
   document.getElementById('faceid-unlock-btn').addEventListener('click', attemptFaceIdUnlock);
+
+  // REAL BUG, reported directly: on mobile, opening the keyboard (to
+  // type a message) pushed the "fixed" header up along with it —
+  // exactly the well-known iOS Safari quirk where position:fixed is
+  // anchored to the LAYOUT viewport, which does NOT shrink when the
+  // keyboard appears, while the actually-visible area (the VISUAL
+  // viewport) does. The fix is to stop relying on position:fixed's
+  // own sizing here and instead explicitly match this modal's real
+  // height/position to window.visualViewport, which DOES correctly
+  // reflect the keyboard's presence — recalculated live, every time
+  // that visual viewport changes (keyboard opening, closing, or even
+  // just scrolling while it's open).
+  function keepModalPinnedToVisualViewport(modalEl) {
+    if (!window.visualViewport) return;
+    function update() {
+      if (!modalEl.classList.contains('open')) return;
+      modalEl.style.top = window.visualViewport.offsetTop + 'px';
+      modalEl.style.height = window.visualViewport.height + 'px';
+    }
+    window.visualViewport.addEventListener('resize', update);
+    window.visualViewport.addEventListener('scroll', update);
+    modalEl.__syncViewport = update;
+  }
+  keepModalPinnedToVisualViewport(document.getElementById('modal-messaggi'));
 
   document.getElementById('login-btn').addEventListener('click', login);
   document.getElementById('admin-push-btn').addEventListener('click', function () {
