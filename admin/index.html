@@ -1619,6 +1619,22 @@
         offerFaceIdIfSensible();
         loadNovita();
         loadOfficialVideoSetting();
+        // REAL INSIGHT, from ION's own direct comparison: Autisti
+        // feels instant and professional specifically because its
+        // data is already fetched and rendered by the time anyone
+        // taps the icon — it was pulled in right here, at login,
+        // long before that tap ever happens, so OPENING it is a pure
+        // display toggle, nothing more. Messaggi used to only start
+        // fetching WHEN tapped (even with the instant-cache fix from
+        // earlier, that still meant a real network round-trip had to
+        // happen at least once, right at that exact moment, the very
+        // first time). Prefetching both the conversation list and the
+        // "write to a driver" picker here too closes that gap
+        // completely — by the time Messaggi is actually opened, for
+        // the very first time or the hundredth, there is nothing left
+        // to wait on.
+        loadMessaggiConversations();
+        loadMessaggiDriverPicker();
         loadMessaggiUnreadBadge();
         offerAdminPushIfSensible();
         if (refreshTimer) clearInterval(refreshTimer);
