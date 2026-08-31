@@ -1686,6 +1686,17 @@
             <div class="field"><label>Veicolo / N. interno</label><input id="in-veicolo-interno" type="text" placeholder="Es. 12"></div>
           </div>
           <div class="settings-driver-note">Questi dati vengono salvati solo su questo telefono e riutilizzati automaticamente per i prossimi fogli. Puoi modificarli in qualsiasi momento.</div>
+          <!-- Requested directly: a mandatory consent checkbox, right
+               here on first-run Benvenuto only (never shown again on
+               Impostazioni, once a profile already exists) — "Salva"
+               itself is blocked without it. Checking it and having it
+               go through IS the direct tap iOS requires to show its
+               own native dialog for real — this isn't a substitute
+               for that dialog, it's what triggers it. -->
+          <div class="settings-driver-note" id="push-consent-row" style="display:flex;align-items:flex-start;gap:10px;margin-top:14px;">
+            <input type="checkbox" id="in-push-consent" style="width:20px;height:20px;flex:none;margin-top:1px;">
+            <label for="in-push-consent" style="cursor:pointer;">Acconsento a ricevere notifiche push su questo telefono, per messaggi e novità sull'app.</label>
+          </div>
         </div>
       </div>
 
