@@ -215,7 +215,17 @@
      afterward, but now only to flip an ALREADY-portrait-shaped page
      to the other direction if the sensor says the phone was turned
      the other way — a small correction between two already-correct
-     shapes, not a landscape flash. */
+     shapes, not a landscape flash.
+     Follow-up, reported directly again: even after the above, a very
+     brief (millisecond-scale) transition was still visible on a real
+     device — likely the GPU compositing this transform for the first
+     time only at the moment it's actually needed. will-change hints
+     the browser to prepare a compositing layer for this transform
+     AHEAD of time, so applying it doesn't incur that first-paint
+     setup cost right at the moment of rotation. transition:none is a
+     defensive addition, ruling out any inherited or implicit
+     animation on this property entirely. */
+  html{will-change:transform;}
   @media screen and (orientation:landscape){
     html{
       width:100vh;height:100vw;
@@ -224,6 +234,7 @@
       position:fixed;top:50%;left:50%;
       margin-top:calc(-50vw);margin-left:calc(-50vh);
       overflow:hidden;
+      transition:none;
     }
     html.force-portrait-flip{transform:rotate(90deg);}
   }
