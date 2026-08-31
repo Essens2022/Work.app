@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v452"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v453"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -10101,6 +10101,22 @@
     document.body.style.right = '';
     delete document.body.dataset.lockedScrollY;
     window.scrollTo(0, scrollY);
+  }
+
+  // Requested directly, confirmed specifically as an Android issue
+  // (the input row itself already correctly rises above the keyboard
+  // there — only the scroll position doesn't follow, leaving the
+  // latest message hidden until scrolled to by hand). Re-scrolling to
+  // the bottom whenever the visual viewport resizes (which is exactly
+  // when the keyboard opens or closes) keeps the latest message in
+  // view automatically, matching what already happens right after
+  // sending or receiving a message.
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', function () {
+      if (!document.getElementById('modal-chat').classList.contains('open')) return;
+      var scrollEl = document.getElementById('chat-scroll');
+      scrollEl.scrollTop = scrollEl.scrollHeight;
+    });
   }
 
   function openChatModal() {
