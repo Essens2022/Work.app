@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v437"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v438"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -9453,6 +9453,19 @@
   document.getElementById('btn-settings').addEventListener('click', function () { openSettingsModal(null); });
   document.getElementById('btn-navigatore').addEventListener('click', function () { showScreen('navigatore'); });
   document.getElementById('btn-novita').addEventListener('click', openNovitaModal);
+  document.getElementById('btn-chat').addEventListener('click', openChatModal);
+  document.getElementById('chat-close').addEventListener('click', function () {
+    document.getElementById('modal-chat').classList.remove('open');
+  });
+  document.getElementById('chat-send').addEventListener('click', sendChatMessage);
+  var chatInputEl = document.getElementById('chat-input');
+  chatInputEl.addEventListener('input', function () {
+    chatInputEl.style.height = 'auto';
+    chatInputEl.style.height = Math.min(chatInputEl.scrollHeight, 100) + 'px';
+  });
+  chatInputEl.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
+  });
   document.getElementById('novita-close-x').addEventListener('click', function () {
     document.getElementById('modal-novita').classList.remove('open');
   });
@@ -9860,6 +9873,7 @@
   // fetch can't accidentally leak a draft even if the code here had a
   // bug, which is a nice extra layer of safety for free.
   var LS_NOVITA_LAST_SEEN = 'pt_novita_last_seen_v1';
+  var CHAT_EDGE_URL = SUPABASE_URL + '/functions/v1/chat-messages';
   var NOVITA_TYPE_LABELS_APP = { video: 'Video', text: 'Novità', announcement: 'Annuncio' };
 
   // Real phone push notifications — entirely separate opt-in, on top
@@ -9968,6 +9982,105 @@
         if (dot) dot.style.display = (rows[0].created_at !== lastSeen) ? 'block' : 'none';
       })
       .catch(function () { /* offline — dot simply doesn't update this time, not worth surfacing */ });
+  }
+
+  // Support chat with ION — requested directly, one continuous thread
+  // per driver, WhatsApp-style. checkChatUnread() is the lightweight,
+  // badge-only check (called on load and periodically); openChatModal
+  // loads and renders the full thread, and marks everything read.
+  function chatCall(payload) {
+    return fetch(CHAT_EDGE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function (r) { return r.json(); }).then(function (data) { return { ok: !data.error, data: data }; })
+      .catch(function () { return { ok: false, data: null }; });
+  }
+
+  function checkChatUnread() {
+    chatCall({ action: 'driver_list', device_id: getDeviceId() }).then(function (res) {
+      var badge = document.getElementById('chat-unread-badge');
+      if (!badge || !res.ok || !res.data.items) return;
+      var unreadCount = res.data.items.filter(function (m) { return m.sender === 'admin' && !m.read_by_driver; }).length;
+      if (unreadCount > 0) {
+        badge.textContent = unreadCount > 9 ? '9+' : String(unreadCount);
+        badge.style.display = 'flex';
+      } else {
+        badge.style.display = 'none';
+      }
+    });
+  }
+
+  function chatBubbleTime(iso) {
+    var d = new Date(iso);
+    return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+  }
+
+  function chatDayLabel(iso) {
+    var d = new Date(iso);
+    var today = new Date();
+    var isToday = d.toDateString() === today.toDateString();
+    var yesterday = new Date(today); yesterday.setDate(yesterday.getDate() - 1);
+    var isYesterday = d.toDateString() === yesterday.toDateString();
+    if (isToday) return 'Oggi';
+    if (isYesterday) return 'Ieri';
+    return d.toLocaleDateString('it-IT', { day: 'numeric', month: 'long' });
+  }
+
+  function renderChatMessages(items) {
+    var container = document.getElementById('chat-messages');
+    var emptyEl = document.getElementById('chat-empty');
+    if (!items || !items.length) {
+      container.innerHTML = '';
+      emptyEl.style.display = 'block';
+      return;
+    }
+    emptyEl.style.display = 'none';
+    var html = '';
+    var lastDay = null;
+    items.forEach(function (m) {
+      var day = chatDayLabel(m.created_at);
+      if (day !== lastDay) {
+        html += '<div class="chat-day-divider">' + day + '</div>';
+        lastDay = day;
+      }
+      html += '<div class="chat-bubble ' + (m.sender === 'driver' ? 'driver' : 'admin') + '">' +
+        escapeHtml(m.message).replace(/\n/g, '<br>') +
+        '<span class="chat-bubble-time">' + chatBubbleTime(m.created_at) + '</span></div>';
+    });
+    container.innerHTML = html;
+    var scrollEl = document.getElementById('chat-scroll');
+    scrollEl.scrollTop = scrollEl.scrollHeight;
+  }
+
+  function openChatModal() {
+    document.getElementById('modal-chat').classList.add('open');
+    chatCall({ action: 'driver_list', device_id: getDeviceId() }).then(function (res) {
+      if (res.ok) renderChatMessages(res.data.items);
+      chatCall({ action: 'driver_mark_read', device_id: getDeviceId() }).then(function () {
+        var badge = document.getElementById('chat-unread-badge');
+        if (badge) badge.style.display = 'none';
+      });
+    });
+  }
+
+  function sendChatMessage() {
+    var input = document.getElementById('chat-input');
+    var text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    input.style.height = 'auto';
+    chatCall({ action: 'driver_send', device_id: getDeviceId(), account_email: currentAccountEmail(), message: text })
+      .then(function (res) {
+        if (res.ok) {
+          chatCall({ action: 'driver_list', device_id: getDeviceId() }).then(function (r2) {
+            if (r2.ok) renderChatMessages(r2.data.items);
+          });
+        } else {
+          toast('Impossibile inviare — verifica la connessione');
+          input.value = text; // give the message back so nothing typed is lost
+        }
+      });
   }
 
   function renderNovitaItem(item) {
@@ -10812,6 +10925,7 @@
     migrateReverifyClientPrecision(); // async, rate-limited, runs fully in the background — never blocks anything else in init()
     reportActivity().then(reportDailyOpen); // chained deliberately — the row reportActivity just wrote/confirmed must exist before this tries to update it
     checkNovitaUnread();
+    checkChatUnread();
     syncBarHeights();
     syncRealViewportHeight();
     // REAL BUG, reported directly: the home screen's top card sometimes
@@ -10849,17 +10963,6 @@
     // if .dp-sticky-header doesn't exist in the DOM right now).
     window.addEventListener('resize', dpSyncStickyHeaderHeight);
     window.addEventListener('orientationchange', function () { setTimeout(dpSyncStickyHeaderHeight, 200); });
-
-    // Requested directly: a dedicated vehicle-profile icon button in
-    // the topbar itself (always visible, on every screen), right next
-    // to the arrow that opens Percorso di oggi — not just reachable
-    // from inside the Delivery Planner or Impostazioni. Icon only, no
-    // text, same size/stroke/style as the other topbar icons here.
-    document.getElementById('btn-vehicle-topbar').innerHTML = svgIcon('truck-cab');
-    document.getElementById('btn-vehicle-topbar').addEventListener('click', function () {
-      populateNavVehicleForm();
-      document.getElementById('modal-nav-vehicle').classList.add('open');
-    });
 
     // Delivery photo camera — static modal elements, wired once here.
     document.getElementById('dp-camera-close-btn').addEventListener('click', dpCloseCameraModal);
