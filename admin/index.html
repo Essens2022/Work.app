@@ -90,16 +90,25 @@
     100%{box-shadow:0 0 0 0 rgba(60,184,120,0);}
   }
   .person-main{flex:1;min-width:0;}
-  .person-name{font-weight:800;font-size:15px;}
+  /* REAL BUG, reported directly: the ID and App/Browser badges
+     dropped to their own line whenever the name itself was long
+     enough (e.g. "Slusarenco") to run out of horizontal room — plain
+     text wrapping, not a rendering error, but not what was wanted
+     either. Turned into a flex row instead: the name itself can
+     truncate with an ellipsis if it's genuinely too long, while both
+     badges (flex:none) always stay put, on the same line, never
+     wrapping. */
+  .person-name{font-weight:800;font-size:15px;display:flex;align-items:center;gap:6px;min-width:0;}
+  .person-name-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;}
   .person-id-badge{
     display:inline-block;font-size:10.5px;font-weight:700;color:var(--ink-faint);
-    background:var(--surface-2);border-radius:6px;padding:2px 7px;margin-left:6px;vertical-align:middle;
+    background:var(--surface-2);border-radius:6px;padding:2px 7px;vertical-align:middle;flex:none;
   }
   /* Requested directly: a quick visual signal, per driver, of whether
      they actually installed the app (added to home screen) or are
      just using it through the browser. */
   .install-badge{
-    display:inline-block;font-size:10.5px;font-weight:700;border-radius:6px;padding:2px 7px;margin-left:6px;vertical-align:middle;
+    display:inline-block;font-size:10.5px;font-weight:700;border-radius:6px;padding:2px 7px;vertical-align:middle;flex:none;
   }
   .install-badge.installed{color:var(--live);background:rgba(60,184,120,.14);}
   .install-badge.browser{color:var(--ink-faint);background:var(--surface-2);}
@@ -678,7 +687,7 @@
     html += '<div class="person-row" data-toggle-open="' + g.key + '">';
     html += '<div class="live-dot' + (g.isLive ? ' is-live' : '') + '"></div>';
     html += '<div class="person-main">';
-    html += '<div class="person-name">' + g.nome + (g.driverId ? ' <span class="person-id-badge">' + g.driverId + '</span>' : '') + ' <span class="install-badge ' + (g.anyInstalled ? 'installed">📱 App' : 'browser">🌐 Browser') + '</span></div>';
+    html += '<div class="person-name"><span class="person-name-text">' + g.nome + '</span>' + (g.driverId ? '<span class="person-id-badge">' + g.driverId + '</span>' : '') + '<span class="install-badge ' + (g.anyInstalled ? 'installed">📱 App' : 'browser">🌐 Browser') + '</span></div>';
     if (g.emailList.length) html += '<div class="person-email">' + g.emailList.join(', ') + '</div>';
     html += '</div>';
     if (g.opensToday > 0) html += '<div class="opens-today-badge" title="Aperture app oggi">' + g.opensToday + '</div>';
@@ -1069,7 +1078,7 @@
       return '<button class="novita-card" style="width:100%;text-align:left;border:1px solid var(--line);cursor:pointer;font-family:inherit;margin-bottom:10px;display:flex;align-items:flex-start;gap:0;" data-open-thread="' + escapeHtmlNovita(c.device_id) + '" data-thread-name="' + escapeHtmlNovita(name) + '">' +
         dotHtml +
         '<div style="flex:1;min-width:0;">' +
-        '<div class="person-name">' + escapeHtmlNovita(name) + idBadge + unreadBadge + '</div>' +
+        '<div class="person-name"><span class="person-name-text">' + escapeHtmlNovita(name) + '</span>' + idBadge + unreadBadge + '</div>' +
         '<div class="novita-desc" style="margin-top:4px;">' + prefix + escapeHtmlNovita(c.last_message) + '</div>' +
         '</div></button>';
     }).join('');
@@ -1135,7 +1144,7 @@
       var dotHtml = '<span class="messaggi-live-dot' + (presence && presence.isLive ? ' is-live' : '') + '" style="display:inline-block;width:8px;height:8px;margin-right:8px;flex:none;"></span>';
       return '<button class="novita-card" style="width:100%;text-align:left;border:1px solid var(--line);cursor:pointer;font-family:inherit;margin-bottom:8px;padding:10px 14px;display:flex;align-items:center;" data-open-thread="' + escapeHtmlNovita(d.device_id) + '" data-thread-name="' + escapeHtmlNovita(name) + '">' +
         dotHtml +
-        '<span class="person-name" style="font-size:13px;">' + escapeHtmlNovita(name) + idBadge + '</span>' +
+        '<span class="person-name" style="font-size:13px;"><span class="person-name-text">' + escapeHtmlNovita(name) + '</span>' + idBadge + '</span>' +
         '</button>';
     }).join('');
     pickerEl.querySelectorAll('[data-open-thread]').forEach(function (btn) {
