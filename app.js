@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v468"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v469"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -8862,6 +8862,12 @@
       da: settingsTargetSheet.da, provDa: settingsTargetSheet.provDa
     } : state.profile;
     document.getElementById('settings-title').textContent = settingsTargetSheet ? 'Dati foglio' : (state.profile.nome ? 'Impostazioni' : 'Benvenuto');
+    // Requested directly: this consent checkbox only ever appears on
+    // the very first Benvenuto run — once a profile already exists
+    // (Impostazioni, or editing a specific sheet's data), it's gone
+    // for good, never shown again anywhere.
+    var pushConsentRow = document.getElementById('push-consent-row');
+    if (pushConsentRow) pushConsentRow.style.display = (!settingsTargetSheet && !state.profile.nome) ? 'flex' : 'none';
     document.getElementById('settings-sub').textContent = settingsTargetSheet
       ? 'Modifica i dati per il foglio di ' + MESI[settingsTargetSheet.month - 1] + ' ' + settingsTargetSheet.year + '. I nuovi fogli useranno comunque questi valori come predefiniti.'
       : 'Inserisci i dati autista per iniziare a compilare il foglio viaggi.';
@@ -9545,6 +9551,18 @@
     if (!nome || !targa) { toast('Inserisci nome e targa'); return; }
 
     var wasFirstRun = !state.profile.nome;
+    // Requested directly: mandatory consent checkbox, first-run only —
+    // "Salva" itself is blocked without it, nothing gets saved at all
+    // until it's checked.
+    if (wasFirstRun) {
+      var pushConsentBox = document.getElementById('in-push-consent');
+      if (pushConsentBox && !pushConsentBox.checked) {
+        toast('Devi accettare le notifiche push per continuare.');
+        pushConsentBox.closest('#push-consent-row').style.outline = '2px solid var(--accent)';
+        pushConsentBox.closest('#push-consent-row').style.borderRadius = '10px';
+        return;
+      }
+    }
 
     state.profile.nome = nome; state.profile.targa = targa; state.profile.perContoDi = conto;
     state.profile.da = da; state.profile.provDa = provDa;
@@ -9552,6 +9570,15 @@
     state.profile.dailyRate = dailyRate;
     saveProfile(state.profile);
     startPresence(); // profile is minimally ready now — no need to wait for anything else
+    // Requested directly: this exact tap on "Salva" (with the consent
+    // box checked, already validated above) IS the direct user gesture
+    // iOS requires — firing the real request right here, rather than
+    // waiting for some later, unrelated tap on the home screen.
+    if (wasFirstRun && pushSupported() && (!isIOSDevice() || isStandaloneApp)) {
+      enablePushNotifications(function (ok) {
+        if (ok || Notification.permission !== 'default') localStorage.setItem(LS_PUSH_OFFERED, '1');
+      });
+    }
 
     if (settingsTargetSheet) {
       settingsTargetSheet.nome = nome; settingsTargetSheet.targa = targa; settingsTargetSheet.perContoDi = conto;
