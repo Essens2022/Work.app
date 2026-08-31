@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v448"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v449"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -9458,18 +9458,26 @@
   // close button and "Assistenza" title) up along with it — the same
   // well-known iOS Safari quirk where position:fixed anchors to the
   // LAYOUT viewport, which does not shrink when the keyboard appears,
-  // unlike the actually-visible VISUAL viewport. Explicitly matching
-  // this modal's own height/position to window.visualViewport keeps
-  // it correctly pinned regardless of the keyboard.
+  // unlike the actually-visible VISUAL viewport.
+  //
+  // REAL BUG, found in the FIRST attempt at fixing this: also syncing
+  // `top` to visualViewport.offsetTop (and listening on its 'scroll'
+  // event) reacted to an entirely different, unrelated iOS behavior —
+  // the address bar collapsing/expanding as the page scrolls also
+  // shifts offsetTop, with nothing else on screen to visually cover
+  // the gap that shift then opened up, exposing the real page
+  // underneath. `top` genuinely never needs adjusting here — inset:0
+  // already pins it correctly to the true top of the screen; only
+  // `height` needs to shrink to make room for the keyboard, and only
+  // 'resize' (which fires specifically when the keyboard opens/
+  // closes) needs watching, not 'scroll'.
   function keepModalPinnedToVisualViewport(modalEl) {
     if (!window.visualViewport) return;
     function update() {
       if (!modalEl.classList.contains('open')) return;
-      modalEl.style.top = window.visualViewport.offsetTop + 'px';
       modalEl.style.height = window.visualViewport.height + 'px';
     }
     window.visualViewport.addEventListener('resize', update);
-    window.visualViewport.addEventListener('scroll', update);
     modalEl.__syncViewport = update;
   }
   keepModalPinnedToVisualViewport(document.getElementById('modal-chat'));
@@ -9478,7 +9486,6 @@
   document.getElementById('chat-close').addEventListener('click', function () {
     var modalEl = document.getElementById('modal-chat');
     modalEl.classList.remove('open');
-    modalEl.style.top = '';
     modalEl.style.height = '';
   });
   document.getElementById('chat-send').addEventListener('click', sendChatMessage);

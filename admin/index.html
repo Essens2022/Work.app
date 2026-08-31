@@ -1326,7 +1326,6 @@
     btn.addEventListener('click', function () {
       var closedModal = document.getElementById('modal-' + btn.dataset.close);
       closedModal.classList.remove('open');
-      closedModal.style.top = '';
       closedModal.style.height = '';
       document.getElementById('admin-home').style.display = 'grid';
     });
@@ -1748,21 +1747,26 @@
   // exactly the well-known iOS Safari quirk where position:fixed is
   // anchored to the LAYOUT viewport, which does NOT shrink when the
   // keyboard appears, while the actually-visible area (the VISUAL
-  // viewport) does. The fix is to stop relying on position:fixed's
-  // own sizing here and instead explicitly match this modal's real
-  // height/position to window.visualViewport, which DOES correctly
-  // reflect the keyboard's presence — recalculated live, every time
-  // that visual viewport changes (keyboard opening, closing, or even
-  // just scrolling while it's open).
+  // viewport) does.
+  //
+  // REAL BUG, found in the FIRST attempt at fixing this: also syncing
+  // `top` to visualViewport.offsetTop (and listening on its 'scroll'
+  // event) reacted to an entirely different, unrelated iOS behavior —
+  // the address bar collapsing/expanding as the page scrolls also
+  // shifts offsetTop, with nothing else on screen to visually cover
+  // the gap that shift then opened up, briefly exposing the real page
+  // underneath. `top` genuinely never needs adjusting here — inset:0
+  // already pins it correctly to the true top of the screen; only
+  // `height` needs to shrink to make room for the keyboard, and only
+  // 'resize' (which fires specifically when the keyboard opens/
+  // closes) needs watching, not 'scroll'.
   function keepModalPinnedToVisualViewport(modalEl) {
     if (!window.visualViewport) return;
     function update() {
       if (!modalEl.classList.contains('open')) return;
-      modalEl.style.top = window.visualViewport.offsetTop + 'px';
       modalEl.style.height = window.visualViewport.height + 'px';
     }
     window.visualViewport.addEventListener('resize', update);
-    window.visualViewport.addEventListener('scroll', update);
     modalEl.__syncViewport = update;
   }
   keepModalPinnedToVisualViewport(document.getElementById('modal-messaggi'));
