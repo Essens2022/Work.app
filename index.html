@@ -460,7 +460,20 @@
      panel/topbar/close-button classes above for visual consistency,
      with its own lighter chat background and bubble styling below. */
   #modal-chat .pdfviewer-panel{background:#EFEAE2;}
-  .chat-scroll{flex:1;overflow-y:auto;padding:16px 12px;display:flex;flex-direction:column;gap:2px;}
+  /* REAL BUG, found directly from ION's own sharp observation — the
+     exact same classic flexbox gotcha already found and fixed once
+     before in admin's own thread view: flex:1 without min-height:0
+     means a flex child CANNOT shrink below the size of its own
+     content. With enough messages, this forces the WHOLE PANEL to
+     grow taller than the screen — and since .modal-overlay bottom-
+     aligns that panel (align-items:flex-end), any excess height
+     extends UPWARD, off the top of the screen, dragging the header
+     along with it. This had nothing to do with the keyboard or iOS
+     specifically at all — six previous attempts all treated the
+     keyboard as the cause, when the keyboard opening merely shrinks
+     the available space enough to make this pre-existing overflow
+     bug become visible/severe. */
+  .chat-scroll{flex:1;min-height:0;overflow-y:auto;padding:16px 12px;display:flex;flex-direction:column;gap:2px;}
   .chat-empty{text-align:center;color:#8a8a8a;font-size:13.5px;padding:40px 20px;line-height:1.5;}
   .chat-bubble{max-width:78%;padding:8px 12px;border-radius:12px;margin-bottom:4px;font-size:14.5px;line-height:1.4;word-wrap:break-word;box-shadow:0 1px 1px rgba(0,0,0,.08);position:relative;}
   .chat-bubble.driver{align-self:flex-end;background:#DCF8C6;border-bottom-right-radius:3px;}
