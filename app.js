@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v475"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v476"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -3220,13 +3220,19 @@
   // logo (loading here, once, well before the actual photo capture,
   // since Image loading is asynchronous — the capture itself draws
   // synchronously and can't wait on a network request mid-shot).
+  // REAL BUG, reported directly: icon-96.png (only 96x96 source
+  // pixels) looked visibly blurry once drawn at watermark size on a
+  // high-resolution photo — that's upscaling a small source image,
+  // not downscaling a large one. icon-512.png is large enough to
+  // stay sharp even scaled up somewhat, and only ever gets scaled
+  // DOWN to the small watermark size, never up.
   var dpWatermarkLogoImg = null;
   function dpOpenCameraForClient(client) {
     dpCameraCurrentClient = client;
     if (!dpWatermarkLogoImg) {
       var logoImg = new Image();
       logoImg.onload = function () { dpWatermarkLogoImg = logoImg; };
-      logoImg.src = 'icon-96.png';
+      logoImg.src = 'icon-512.png';
     }
     document.getElementById('dp-camera-info-time').textContent = client.completedAt ? dpFormatTime(client.completedAt) : '';
     document.getElementById('dp-camera-info-name').textContent = client.nome || '';
@@ -3254,7 +3260,16 @@
       errEl.style.display = 'block';
       return;
     }
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false })
+    // REAL BUG, reported directly and confirmed: the delivery photo
+    // itself, watermark included, came out visibly poor quality —
+    // root cause found here: no resolution was ever requested from
+    // the camera at all, so the browser defaulted to a low one (often
+    // well under what the phone's actual camera sensor can do),
+    // regardless of how good the hardware itself is. "ideal" values
+    // ask for the highest resolution available without ever failing
+    // if the device can't reach it — a phone's back camera can
+    // typically do 4K (3840x2160) or more today.
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 3840 }, height: { ideal: 2160 } }, audio: false })
       .then(function (stream) {
         dpCameraStream = stream;
         video.srcObject = stream;
@@ -3487,7 +3502,9 @@
     ctx.textAlign = 'center'; // restored — other drawing code after this point may rely on the default
 
     dpStopCameraStream(); // frame is captured — no need to keep the live feed running while previewing
-    var dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+    // Requested directly: quality raised for a sharper final photo,
+    // matching the higher camera resolution now requested above.
+    var dataUrl = canvas.toDataURL('image/jpeg', 0.97);
     var img = document.getElementById('dp-camera-preview-img');
     img.src = dataUrl;
     // REAL BUG, reported directly and confirmed: setting style.display
@@ -3537,7 +3554,7 @@
         window.open(url, '_blank');
         dpCameraAdvanceQueue();
       }
-    }, 'image/jpeg', 0.92);
+    }, 'image/jpeg', 0.97);
   }
 
   function dpConfirmReordina() {
