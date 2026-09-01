@@ -2168,6 +2168,13 @@
          would be redundant with this one; toggled together with
          #day-second-giro-wrap via the same isDueGiri check. -->
     <div id="day-riscosso1-wrap" class="hidden">
+      <!-- Requested directly, following real driver feedback: the
+           driver could genuinely be in a different vehicle for Giro 1
+           than for Giro 2 (e.g. swapping vans partway through the
+           day) — optional, per-giro override; left blank, the
+           sheet's own targa (set once, for the whole month) is what
+           prints on the PDF, exactly as before this existed. -->
+      <div class="field"><label>Targa (Giro 1) — se diversa dal veicolo abituale</label><input id="day-targa1" type="text" placeholder="Lascia vuoto se invariata" style="text-transform:uppercase"></div>
       <div class="field"><label>Riscosso giro 1 (€)</label><input id="day-riscosso1" type="number" inputmode="decimal" placeholder="0" min="0" step="0.01"></div>
     </div>
     <div class="field-row">
@@ -2202,6 +2209,7 @@
         <div class="field narrow"><label>Prov.</label><input id="day-prova2" type="text" maxlength="2" style="text-transform:uppercase"></div>
         <div class="field"><label>DDT - 2</label><input id="day-ddt2" type="text" placeholder="Es. 45/80249"></div>
       </div>
+      <div class="field"><label>Targa (Giro 2) — se diversa dal veicolo abituale</label><input id="day-targa2" type="text" placeholder="Lascia vuoto se invariata" style="text-transform:uppercase"></div>
       <div class="field"><label>Riscosso giro 2 (€)</label><input id="day-riscosso2" type="number" inputmode="decimal" placeholder="0" min="0" step="0.01"></div>
       <div class="warn-banner" id="day-warn2">⚠ KM FINE inferiore a KM INIZIO (Giro 2). Controlla i valori.</div>
       <!-- Requested directly: Giro 2's own "Km inizio" auto-fills from
