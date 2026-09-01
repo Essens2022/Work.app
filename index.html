@@ -1859,6 +1859,23 @@
       <input type="text" id="dp-new-indirizzo" placeholder="Es. Via Fratta, 16, 35010 Borgoricco PD" autocomplete="off">
       <button type="button" class="ac-clear-btn" id="dp-new-indirizzo-clear" aria-label="Cancella">✕</button>
     </div>
+    <!-- Requested directly: some clients genuinely must be delivered
+         by a specific time (e.g. 7:00 or 7:30) — optional, left empty
+         for clients with no such constraint. When Reordina runs,
+         every client WITH a time set gets grouped and routed together
+         FIRST (optimized among just themselves, starting from the
+         driver's current position), and only once that's done does
+         the rest of the route (no deadline) continue from wherever
+         that group ended — instead of the driver having to manually
+         reorder the whole route themselves. Only shown when adding a
+         client to TODAY's active run — hidden when adding straight to
+         the archive (dpArchiveOpenNewClientModal), since a deadline
+         is tied to a specific day's delivery, not the client as a
+         standing archive entry. -->
+    <div class="field" id="dp-new-scadenza-wrap" style="margin-top:10px;">
+      <label>Consegna entro (opzionale)</label>
+      <input type="time" id="dp-new-scadenza">
+    </div>
     <div id="dp-new-save-result" style="margin-top:8px;"></div>
     <button type="button" class="btn btn-accent btn-block" id="dp-new-save-btn" style="margin-top:10px;">Salva e aggiungi</button>
   </div>
@@ -1947,6 +1964,10 @@
       <label>Indirizzo o link Google Maps</label>
       <input type="text" id="dp-edit-indirizzo" autocomplete="off">
       <button type="button" class="ac-clear-btn" id="dp-edit-indirizzo-clear" aria-label="Cancella">✕</button>
+    </div>
+    <div class="field" style="margin-top:10px;">
+      <label>Consegna entro (opzionale)</label>
+      <input type="time" id="dp-edit-scadenza">
     </div>
     <div id="dp-edit-save-result" style="margin-top:8px;"></div>
     <button type="button" class="btn btn-accent btn-block" id="dp-edit-save-btn" style="margin-top:10px;">Salva modifiche</button>
