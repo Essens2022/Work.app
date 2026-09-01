@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v481"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v482"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -7899,10 +7899,15 @@
 
     // Table — identical column shape to "classic"
     var tableY = gy + giroH;
+    // Requested directly: the table left a visible gap of unused
+    // space on the right, at the page's own margin — these widths
+    // used to sum to only 95% of contentW. Scaled every column up
+    // proportionally (same ratios between them, just larger overall)
+    // to use the full available width instead.
     var colWidths = {
-      data: contentW * 0.035, da: contentW * 0.145, provDa: contentW * 0.045,
-      a: contentW * 0.165, provA: contentW * 0.045, ddt: contentW * 0.125,
-      kmI: contentW * 0.125, kmF: contentW * 0.125, kmT: contentW * 0.14
+      data: contentW * 0.037, da: contentW * 0.153, provDa: contentW * 0.047,
+      a: contentW * 0.174, provA: contentW * 0.047, ddt: contentW * 0.132,
+      kmI: contentW * 0.132, kmF: contentW * 0.132, kmT: contentW * 0.147
     };
     var head = [
       [
@@ -8059,11 +8064,15 @@
       // shrinking the destination columns at all — confirmed directly
       // with a real render that long Italian place names (Villafranca
       // di Verona, San Giovanni Lupatoto, etc.) still fit on one line.
+      // Requested directly, separately: these also left a visible gap
+      // of unused space at the page's own right margin — scaled every
+      // column up proportionally (same ratios, larger overall) to use
+      // the full available width.
       colWidths = {
-        data: contentW * 0.025, da: contentW * 0.09, provDa: contentW * 0.028,
-        a1: contentW * 0.105, provA1: contentW * 0.028, ddt1: contentW * 0.07, ric1: contentW * 0.055,
-        a2: contentW * 0.105, provA2: contentW * 0.028, ddt2: contentW * 0.07, ric2: contentW * 0.055,
-        kmI: contentW * 0.097, kmF: contentW * 0.097, kmT: contentW * 0.097
+        data: contentW * 0.026, da: contentW * 0.095, provDa: contentW * 0.029,
+        a1: contentW * 0.111, provA1: contentW * 0.029, ddt1: contentW * 0.074, ric1: contentW * 0.058,
+        a2: contentW * 0.111, provA2: contentW * 0.029, ddt2: contentW * 0.074, ric2: contentW * 0.058,
+        kmI: contentW * 0.102, kmF: contentW * 0.102, kmT: contentW * 0.102
       };
       head = [
         [
@@ -8105,16 +8114,19 @@
         ]);
       }
     } else {
+      // Requested directly: same fix as the sibling table above — this
+      // one also left a visible gap of unused space at the page's
+      // right margin. Scaled every column up proportionally.
       colWidths = {
-        data: contentW * 0.035,
-        da: contentW * 0.145,
-        provDa: contentW * 0.045,
-        a: contentW * 0.165,
-        provA: contentW * 0.045,
-        ddt: contentW * 0.125,
-        kmI: contentW * 0.125,
-        kmF: contentW * 0.125,
-        kmT: contentW * 0.14
+        data: contentW * 0.037,
+        da: contentW * 0.153,
+        provDa: contentW * 0.047,
+        a: contentW * 0.174,
+        provA: contentW * 0.047,
+        ddt: contentW * 0.132,
+        kmI: contentW * 0.132,
+        kmF: contentW * 0.132,
+        kmT: contentW * 0.147
       };
 
       head = [
