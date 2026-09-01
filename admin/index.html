@@ -1139,7 +1139,30 @@
   function renderMessaggiDriverPickerList() {
     var searchText = document.getElementById('messaggi-search').value.trim();
     var pickerEl = document.getElementById('messaggi-driver-picker');
-    var drivers = messaggiDriversRaw.filter(function (d) {
+    // REAL BUG, reported directly: the same person showed up TWICE
+    // (or more) in this specific list — root cause found directly:
+    // this rendered straight from the raw, per-DEVICE rows (one row
+    // per device_id, e.g. someone who used the app both in-browser
+    // AND later installed it shows up as two separate rows) instead
+    // of running them through groupDrivers() first, the same grouping
+    // (by confirmed email, or name+targa as a fallback) the main
+    // Autisti list already correctly uses. For picking someone to
+    // WRITE to, the single device_id actually used to open the thread
+    // is the one from whichever of that person's devices was most
+    // recently active — the one they're actually still checking.
+    var groups = groupDrivers(messaggiDriversRaw);
+    var drivers = Object.keys(groups).map(function (key) {
+      var g = groups[key];
+      var mostRecentDevice = g.devices.slice().sort(function (a, b) {
+        return (b.last_active || '') < (a.last_active || '') ? -1 : 1;
+      })[0];
+      return {
+        device_id: mostRecentDevice ? mostRecentDevice.device_id : g.deviceIds[0],
+        official_first_name: g.nome, nome: g.nome,
+        account_email: Object.keys(g.emails)[0] || null,
+        driver_id: g.driverId, targa: g.targa
+      };
+    }).filter(function (d) {
       var name = d.official_first_name || d.nome;
       return messaggiMatchesSearch(searchText, [name, d.account_email, d.driver_id, d.targa]);
     });
