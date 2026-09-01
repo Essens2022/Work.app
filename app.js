@@ -7899,15 +7899,10 @@
 
     // Table — identical column shape to "classic"
     var tableY = gy + giroH;
-    // Requested directly: the table left a visible gap of unused
-    // space on the right, at the page's own margin — these widths
-    // used to sum to only 95% of contentW. Scaled every column up
-    // proportionally (same ratios between them, just larger overall)
-    // to use the full available width instead.
     var colWidths = {
-      data: contentW * 0.037, da: contentW * 0.153, provDa: contentW * 0.047,
-      a: contentW * 0.174, provA: contentW * 0.047, ddt: contentW * 0.132,
-      kmI: contentW * 0.132, kmF: contentW * 0.132, kmT: contentW * 0.147
+      data: contentW * 0.035, da: contentW * 0.145, provDa: contentW * 0.045,
+      a: contentW * 0.165, provA: contentW * 0.045, ddt: contentW * 0.125,
+      kmI: contentW * 0.125, kmF: contentW * 0.125, kmT: contentW * 0.14
     };
     var head = [
       [
@@ -8114,19 +8109,16 @@
         ]);
       }
     } else {
-      // Requested directly: same fix as the sibling table above — this
-      // one also left a visible gap of unused space at the page's
-      // right margin. Scaled every column up proportionally.
       colWidths = {
-        data: contentW * 0.037,
-        da: contentW * 0.153,
-        provDa: contentW * 0.047,
-        a: contentW * 0.174,
-        provA: contentW * 0.047,
-        ddt: contentW * 0.132,
-        kmI: contentW * 0.132,
-        kmF: contentW * 0.132,
-        kmT: contentW * 0.147
+        data: contentW * 0.035,
+        da: contentW * 0.145,
+        provDa: contentW * 0.045,
+        a: contentW * 0.165,
+        provA: contentW * 0.045,
+        ddt: contentW * 0.125,
+        kmI: contentW * 0.125,
+        kmF: contentW * 0.125,
+        kmT: contentW * 0.14
       };
 
       head = [
