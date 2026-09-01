@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v476"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v477"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -3613,6 +3613,24 @@
     confirmBtn.disabled = true;
     confirmBtn.textContent = 'Calcolo in corso...';
 
+    // REAL BUG, reported directly and confirmed: pressing "Reordina"
+    // manually — just to check off an already-completed client, with
+    // AUTO deliberately turned OFF — silently ran the full ORS
+    // optimization anyway, reshuffling clients ION had placed by hand
+    // in a specific order. AUTO off means exactly that: nothing here
+    // should ever reorder anything on its own, whether the trigger is
+    // automatic OR this manual confirm button — only marking who's
+    // done should happen, keeping the remaining clients in the exact
+    // order they were already in. AUTO on keeps today's existing
+    // behavior (Reordina's own button doubling as a manual "run the
+    // optimization now" trigger too). Reuses the SAME fallback path
+    // already built below for a failed/denied optimization attempt
+    // (which already correctly falls back to the current order) —
+    // rather than a separate branch, deliberately skipping straight
+    // to it with its own distinct error, so the toast further down
+    // can tell this apart from a genuine failure and stay silent.
+    var AUTO_OFF_SENTINEL = 'ADB_AUTO_RIORDINA_OFF';
+
     // Once geolocation has been denied THIS session, skip straight
     // past a fresh GPS attempt on every later Reordina press — ION
     // explained this is a deliberate, standing choice (location stays
@@ -3620,7 +3638,7 @@
     // about. In-memory only (dpGeoDeniedThisSession, not persisted) —
     // resets on the next app open, in case anything changes, without
     // needing a settings toggle for it.
-    var optimizePromise = geolocatable.length
+    var optimizePromise = !dpAutoRiordinaEnabled() ? Promise.reject(new Error(AUTO_OFF_SENTINEL)) : geolocatable.length
       // REAL BUG, reported directly: on Android specifically,
       // Reordina/AUTO could take several real seconds to respond,
       // while the exact same action was instant on iPhone. Root
@@ -3744,7 +3762,12 @@
       // quota, a real error) still gets a toast — that IS worth
       // knowing about, unlike the routine, expected permission case.
       var isPermissionDenied = (err && err.code === 1) || dpGeoDeniedThisSession;
-      if (!isPermissionDenied) {
+      // AUTO deliberately off is a second, equally silent, expected
+      // case, same reasoning as permission-denied above — this isn't
+      // a failure at all, just this manual confirm respecting ION's
+      // own standing choice to leave his manually-placed order alone.
+      var isAutoDeliberatelyOff = err && err.message === AUTO_OFF_SENTINEL;
+      if (!isPermissionDenied && !isAutoDeliberatelyOff) {
         toast('Impossibile ottimizzare (' + (err && err.message ? escapeHtml(err.message) : 'errore') + ') — uso l\'ordine attuale.', 6000);
       }
       applyOrder(remaining);
