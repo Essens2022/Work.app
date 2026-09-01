@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v494"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v495"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -1510,15 +1510,18 @@
     // finished delivery doesn't need to keep flagging as "urgent" or
     // "wait" after the fact.
     var badgeTimeClass = isDone ? '' : (c.scadenza ? ' dp-client-badge-scadenza' : (c.nonPrimaDi ? ' dp-client-badge-nonprima' : ''));
-    // Requested directly: the relevant time itself (whichever applies)
-    // shown right next to the client, in the same amber/blue as the
-    // badge, for context at a glance — same reasoning, hidden the
-    // moment the delivery is actually marked done, since a finished
-    // stop no longer needs a time constraint called out at all.
+    // Requested directly: moved to its OWN line, between the name and
+    // the address, instead of sitting inline right after the name —
+    // with a longer client name, the time used to get squeezed
+    // awkwardly right up against it (or wrap unpredictably); on its
+    // own line, it stays exactly as readable regardless of how long
+    // or short the name happens to be. Hidden the moment the delivery
+    // is actually marked done — a finished stop no longer needs its
+    // time constraint called out.
     var timeNote = '';
     if (!isDone) {
-      if (c.scadenza) timeNote = ' <span style="color:#B45309;font-weight:700;">⏱ entro ' + escapeHtml(c.scadenza) + '</span>';
-      else if (c.nonPrimaDi) timeNote = ' <span style="color:#1D4ED8;font-weight:700;">⏱ non prima delle ' + escapeHtml(c.nonPrimaDi) + '</span>';
+      if (c.scadenza) timeNote = '<div style="color:#B45309;font-weight:700;font-size:12.5px;margin-top:2px;">⏱ entro ' + escapeHtml(c.scadenza) + '</div>';
+      else if (c.nonPrimaDi) timeNote = '<div style="color:#1D4ED8;font-weight:700;font-size:12.5px;margin-top:2px;">⏱ non prima delle ' + escapeHtml(c.nonPrimaDi) + '</div>';
     }
     if (readOnly) {
       // Storico's own read-only rows — no drag, no swipe, no click.
@@ -1526,7 +1529,8 @@
         '<div class="card dp-client-row' + (isDone ? ' dp-client-done' : '') + '">' +
         '<div class="dp-client-badge' + (isDone ? ' dp-client-badge-done' : badgeTimeClass) + '">' + badge + '</div>' +
         '<div class="dp-client-info">' +
-        '<div class="dp-client-name">' + escapeHtml(c.nome) + timeNote + '</div>' +
+        '<div class="dp-client-name">' + escapeHtml(c.nome) + '</div>' +
+        timeNote +
         '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + ((c.lat == null || c.lon == null) ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + (c.orsUnreachable ? ' <span style="color:var(--accent);">⚠ non ottimizzato</span>' : '') + '</div>' +
         (c.completedAt ? '<div style="color:var(--teal);font-size:13px;font-weight:700;margin-top:3px;">✓ Consegnato ~' + dpFormatTime(c.completedAt) + '</div>' : '') +
         '</div>' +
@@ -1547,7 +1551,8 @@
       '<div class="dp-drag-handle" data-client-id="' + c.id + '">⠿</div>' +
       '<div class="dp-client-badge' + (isDone ? ' dp-client-badge-done' : badgeTimeClass) + '">' + badge + '</div>' +
       '<div class="dp-client-info">' +
-      '<div class="dp-client-name">' + escapeHtml(c.nome) + timeNote + '</div>' +
+      '<div class="dp-client-name">' + escapeHtml(c.nome) + '</div>' +
+      timeNote +
       '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + ((c.lat == null || c.lon == null) ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + (c.orsUnreachable ? ' <span style="color:var(--accent);">⚠ non ottimizzato</span>' : '') + '</div>' +
       (c.completedAt ? '<div style="color:var(--teal);font-size:13px;font-weight:700;margin-top:3px;">✓ Consegnato ~' + dpFormatTime(c.completedAt) + '</div>' : '') +
       '</div>' +
