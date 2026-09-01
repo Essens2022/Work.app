@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v495"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v496"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -3926,48 +3926,66 @@
   }
 
   // Requested directly: clients with a delivery deadline set (see the
-  // "Consegna entro" field) need to be visited FIRST, as their own
-  // separately-optimized group, before the rest of the route even
-  // starts — rather than a single combined optimization, which could
-  // freely place a deadline client anywhere in the sequence purely
-  // based on distance, ignoring that it may genuinely need to happen
-  // before others despite being further away.
+  // "Consegna entro" field) need to be visited FIRST — before the
+  // rest of the route — since they may genuinely need to happen early
+  // regardless of distance.
   //
-  // If there simply are none, this behaves exactly like a single
-  // dpCallOrsOptimization call always did — no behavior change for
-  // the common case with no deadlines set at all.
+  // REAL BUG, reported directly and confirmed: the original version
+  // of this ran the deadline group through its OWN, fully separate
+  // optimization call — blind to every other client on the route.
+  // With two deadline clients and a third, later, non-deadline one,
+  // this produced real, visible backtracking: the isolated group
+  // solve picked an order between the two deadline clients based
+  // purely on distance from the starting position, with zero
+  // awareness that going the OTHER way between them would set up a
+  // far more direct continuation toward client 3 afterward — ION
+  // watched the driver double back down the same street twice because
+  // of it. Setting one deadline a minute earlier than the other did
+  // NOT fix this either, and by design — ION had already asked,
+  // earlier, for every deadline client to be treated as one single,
+  // undifferentiated group (optimized together, not strictly ordered
+  // by exact time), so a one-minute difference was never meant to
+  // force an order between them in the first place.
+  //
+  // Fixed by running ONE single, fully combined optimization across
+  // EVERY client at once (deadline and non-deadline together) — this
+  // lets the solver see the whole picture, including what comes
+  // after the deadline group, when deciding the most efficient real
+  // path. The result is then simply re-partitioned: every deadline
+  // client, in whatever relative order the full, globally-aware
+  // solve already put them in, comes first; everyone else follows,
+  // also keeping their own relative order from that same solve. This
+  // still guarantees deadline clients are always visited before the
+  // rest, but the ordering WITHIN each group is now informed by the
+  // complete route, not decided in isolation — resolving exactly the
+  // backtracking ION described, since the solver can now correctly
+  // recognize when visiting the "further" deadline client first
+  // actually sets up a shorter overall path.
+  //
+  // If there simply are no deadline clients at all, the partitioning
+  // step is a no-op — the single combined call's own order is used
+  // directly, unchanged, same as before this whole feature existed.
   //
   // Requested directly, separately: clients with a "Non prima delle"
   // constraint instead (can't be delivered before a given time — a
   // shop that opens late, for instance) are the OPPOSITE of urgent,
-  // so they're deliberately left OUT of this priority grouping
-  // entirely — the filter below only ever looks at .scadenza, never
-  // .nonPrimaDi, so such a client simply stays in the normal group,
-  // exactly where distance-based optimization would already place
-  // it. HONEST LIMITATION: this does NOT enforce an actual real
-  // time-window constraint in the route math itself (VROOM/ORS does
-  // support that, but it's a materially bigger change — sending a
-  // real time window per job, not just a starting position — and
-  // this sandbox has no network access to openrouteservice.org to
-  // verify such a change against the real API). What's actually
-  // implemented here is the safer, narrower piece: simply not
-  // grouping these clients in with the genuinely urgent ones.
+  // so they're deliberately treated as perfectly ordinary clients
+  // here — never pulled into the priority group, regardless of this
+  // change. HONEST LIMITATION, unchanged from before: this does NOT
+  // enforce an actual real time-window constraint in the route math
+  // itself (VROOM/ORS does support that, but it's a materially bigger
+  // change — sending a real time window per job, not just a starting
+  // position — and this sandbox has no network access to
+  // openrouteservice.org to verify such a change against the real
+  // API).
   function dpCallOrsOptimizationWithDeadlines(startPos, clients) {
-    var withDeadline = clients.filter(function (c) { return c.scadenza; });
-    var withoutDeadline = clients.filter(function (c) { return !c.scadenza; });
-    if (!withDeadline.length) return dpCallOrsOptimization(startPos, clients);
+    var hasDeadlineClient = clients.some(function (c) { return c.scadenza; });
+    if (!hasDeadlineClient) return dpCallOrsOptimization(startPos, clients);
 
-    return dpCallOrsOptimization(startPos, withDeadline).then(function (deadlineOptimized) {
-      if (!withoutDeadline.length) return deadlineOptimized;
-      // The rest of the route picks up from wherever the deadline
-      // group's own route actually ends — not from the driver's
-      // current position again — since that's where the driver will
-      // genuinely be, in real life, once that first group is done.
-      var lastStop = deadlineOptimized[deadlineOptimized.length - 1];
-      var continueFrom = { lon: lastStop.lon, lat: lastStop.lat };
-      return dpCallOrsOptimization(continueFrom, withoutDeadline).then(function (restOptimized) {
-        return deadlineOptimized.concat(restOptimized);
-      });
+    return dpCallOrsOptimization(startPos, clients).then(function (fullyOptimized) {
+      var withDeadline = fullyOptimized.filter(function (c) { return c.scadenza; });
+      var withoutDeadline = fullyOptimized.filter(function (c) { return !c.scadenza; });
+      return withDeadline.concat(withoutDeadline);
     });
   }
 
