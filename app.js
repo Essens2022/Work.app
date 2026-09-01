@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v484"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v485"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -604,7 +604,14 @@
       // separate kmInizio2/kmFine2, since each trip is really its own
       // mini-journey with its own odometer range, not one shared
       // range for the whole day.
-      kmInizio: "", kmFine: "", kmInizio2: "", kmFine2: "", bonus: ""
+      kmInizio: "", kmFine: "", kmInizio2: "", kmFine2: "",
+      // Requested directly: the driver could genuinely be driving a
+      // DIFFERENT vehicle for Giro 2 than Giro 1 (e.g. swapping vans
+      // partway through the day) — optional, per-day overrides; left
+      // empty, the sheet's own targa (set once, for the whole month)
+      // is what's used, same as before this existed.
+      targa1: "", targa2: "",
+      bonus: ""
     };
   }
 
@@ -7983,6 +7990,21 @@
       return buildAdbStandardPage(doc, sheet, pageW, pageH, margin, contentW);
     }
 
+    // REAL BUG, reported directly and confirmed: due-giri's own two
+    // pages (see buildDueGiriPage) were being drawn ON TOP of this
+    // function's OWN generic single-giro header — this check used to
+    // sit much further down, AFTER already drawing the entire old
+    // header (logo, company info, driver/targa fields, GIRO bar) onto
+    // page 1. Moved up here, right alongside the adb-standard check
+    // above, so due-giri returns immediately, before any of that old
+    // header ever gets drawn on top of buildDueGiriPage's own.
+    if (sheet.pdfTemplate === 'due-giri') {
+      buildDueGiriPage(doc, sheet, margin, contentW, 1);
+      doc.addPage();
+      buildDueGiriPage(doc, sheet, margin, contentW, 2);
+      return;
+    }
+
     // Outer border
     doc.setDrawColor(20, 20, 20);
     doc.setLineWidth(0.4);
@@ -8059,21 +8081,6 @@
 
     // Table
     var tableY = gy + giroH;
-    var isDueGiri = sheet.pdfTemplate === 'due-giri';
-
-    // Requested directly, following real driver feedback: Due Giri no
-    // longer builds one single, very wide combined table — each giro
-    // now gets its OWN complete page within the same PDF, looking
-    // exactly like a normal single-giro monthly sheet (same header,
-    // same company info block, same table shape), just fed that
-    // giro's own specific fields (da/a/ddt/riscosso/kmInizio/kmFine
-    // for Giro 1, da2/a2/ddt2/riscosso2/kmInizio2/kmFine2 for Giro 2).
-    if (isDueGiri) {
-      buildDueGiriPage(doc, sheet, margin, contentW, 1);
-      doc.addPage();
-      buildDueGiriPage(doc, sheet, margin, contentW, 2);
-      return;
-    }
 
     var colWidths, head, body;
 
@@ -8218,7 +8225,9 @@
 
     doc.setFont('Roboto', 'normal');
     doc.setFontSize(7.8);
-    doc.text('Targa Veicolo:', margin + col1 + col2 + 2.5, fy + 4.8);
+    // Requested directly: labeled "abituale" (usual/default) - a
+    // per-day override (new Targa column below) can differ per giro.
+    doc.text('Targa Veicolo (abituale):', margin + col1 + col2 + 2.5, fy + 4.8);
     doc.setFont('Roboto', 'bold');
     doc.setFontSize(9.2);
     doc.text(sheet.targa || '—', margin + col1 + col2 + 2.5, fy + 10.2);
@@ -8239,20 +8248,24 @@
     doc.setTextColor(20, 20, 20);
     doc.text('GIRO ' + giroNum, margin + contentW / 2, gy + 4.2, { align: 'center' });
 
-    // Table — same shape as a normal single-giro sheet, plus one
-    // extra "Riscosso" column (money collected from the client),
-    // reading from whichever field set (1 or 2) this page is for.
+    // Table — same shape as a normal single-giro sheet, plus a
+    // "Riscosso" column (money collected from the client) and a
+    // "Targa" column (per-day/per-giro vehicle override, when the
+    // driver used a different vehicle than the sheet's own default
+    // that day — otherwise shows the sheet's usual targa), reading
+    // from whichever field set (1 or 2) this page is for.
     var tableY = gy + giroH;
     var colWidths = {
-      data: contentW * 0.034, da: contentW * 0.145, provDa: contentW * 0.043,
-      a: contentW * 0.161, provA: contentW * 0.043, ddt: contentW * 0.113, ric: contentW * 0.08,
-      kmI: contentW * 0.122, kmF: contentW * 0.122, kmT: contentW * 0.137
+      data: contentW * 0.032, da: contentW * 0.136, provDa: contentW * 0.04,
+      a: contentW * 0.151, provA: contentW * 0.04, ddt: contentW * 0.106, targa: contentW * 0.062, ric: contentW * 0.075,
+      kmI: contentW * 0.114, kmF: contentW * 0.114, kmT: contentW * 0.129
     };
     var head = [
       [
         { content: 'Data', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
         { content: 'Località di destinazione:', colSpan: 4, styles: { halign: 'center' } },
         { content: 'DDT', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+        { content: 'Targa', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
         { content: 'Riscosso', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
         { content: 'KM INIZIO', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
         { content: 'KM FINE', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
@@ -8270,10 +8283,11 @@
     var fDa = giroNum === 1 ? 'da' : 'da2', fProvDa = giroNum === 1 ? 'provDa' : 'provDa2';
     var fA = giroNum === 1 ? 'a' : 'a2', fProvA = giroNum === 1 ? 'provA' : 'provA2';
     var fDdt = giroNum === 1 ? 'ddt' : 'ddt2', fRisc = giroNum === 1 ? 'riscosso1' : 'riscosso2';
+    var fTarga = giroNum === 1 ? 'targa1' : 'targa2';
     var fKmI = giroNum === 1 ? 'kmInizio' : 'kmInizio2', fKmF = giroNum === 1 ? 'kmFine' : 'kmFine2';
     for (var d = 1; d <= 31; d++) {
       var g = d <= n ? sheet.giorni[d] : null;
-      if (!g) { body.push([d <= n ? d : '', '', '', '', '', '', '', '', '', '']); continue; }
+      if (!g) { body.push([d <= n ? d : '', '', '', '', '', '', '', '', '', '', '']); continue; }
       var ki = g[fKmI], kf = g[fKmF];
       var kmTot = (ki !== "" && ki !== undefined && kf !== "" && kf !== undefined && !isNaN(kf - ki)) ? (Number(kf) - Number(ki)) : '';
       var risc = g[fRisc];
@@ -8282,6 +8296,7 @@
         g[fDa] || '', g[fProvDa] || '',
         g[fA] || '', g[fProvA] || '',
         g[fDdt] || '',
+        g[fTarga] || sheet.targa || '',
         (risc !== "" && risc !== undefined) ? Number(risc).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '',
         (ki !== "" && ki !== undefined) ? ki : '',
         (kf !== "" && kf !== undefined) ? kf : '',
@@ -8306,10 +8321,11 @@
         3: { cellWidth: colWidths.a, halign: 'center' },
         4: { cellWidth: colWidths.provA, halign: 'center' },
         5: { cellWidth: colWidths.ddt, halign: 'center' },
-        6: { cellWidth: colWidths.ric, halign: 'center' },
-        7: { cellWidth: colWidths.kmI, halign: 'center' },
-        8: { cellWidth: colWidths.kmF, halign: 'center' },
-        9: { cellWidth: colWidths.kmT, halign: 'center', fontStyle: 'bold' }
+        6: { cellWidth: colWidths.targa, halign: 'center' },
+        7: { cellWidth: colWidths.ric, halign: 'center' },
+        8: { cellWidth: colWidths.kmI, halign: 'center' },
+        9: { cellWidth: colWidths.kmF, halign: 'center' },
+        10: { cellWidth: colWidths.kmT, halign: 'center', fontStyle: 'bold' }
       }
     });
   }
@@ -8954,11 +8970,19 @@
     document.getElementById('day-ddt2').value = g.ddt2 || '';
     document.getElementById('day-riscosso1').value = g.riscosso1 || '';
     document.getElementById('day-riscosso2').value = g.riscosso2 || '';
+    document.getElementById('day-targa1').value = g.targa1 || '';
+    document.getElementById('day-targa2').value = g.targa2 || '';
     document.getElementById('day-da2').value = g.da2 || '';
     document.getElementById('day-provda2').value = g.provDa2 || '';
     document.getElementById('day-kminizio2').value = g.kmInizio2 !== undefined && g.kmInizio2 !== '' ? g.kmInizio2 : '';
     document.getElementById('day-kmfine2').value = g.kmFine2 || '';
     updateKmTot2();
+    // Requested directly: re-arms the auto-fill for THIS day's own
+    // modal session — a day that already has its own kmInizio2 saved
+    // (from a previous edit) keeps that value protected from being
+    // silently overwritten if Km fine (Giro 1) gets touched again;
+    // a genuinely new, still-empty day allows the live auto-fill.
+    dpKmInizio2ManuallyEdited = (g.kmInizio2 !== undefined && g.kmInizio2 !== '');
 
     document.getElementById('day-kminizio').value = kmInizioVal !== undefined ? kmInizioVal : '';
     document.getElementById('day-kmfine').value = g.kmFine || '';
@@ -9024,15 +9048,24 @@
   }
   document.getElementById('day-kminizio2').addEventListener('input', updateKmTot2);
   document.getElementById('day-kmfine2').addEventListener('input', updateKmTot2);
-  // Requested directly: Giro 2's own "Km inizio" auto-fills the moment
-  // Giro 1's own "Km fine" is entered — the vehicle's odometer simply
-  // continues from there. Only fills it in if Giro 2's own field is
-  // still genuinely empty, never overwriting a value the driver may
-  // have already typed or deliberately changed by hand.
+  // REAL BUG, reported directly and confirmed: typing "2500" digit by
+  // digit into Km fine (Giro 1) only copied over the very FIRST digit
+  // ("2") into Km inizio (Giro 2), then got stuck there — because the
+  // old check ("only fill if empty") passed on that very first
+  // keystroke, filling the field with just "2"; from that point on,
+  // the field was no longer empty, so every subsequent keystroke
+  // ("25", "250", "2500") got silently ignored. Fixed with an
+  // explicit flag instead: keeps copying the CURRENT, full value on
+  // every keystroke, live, right up until the driver manually types
+  // into Giro 2's own field themselves — at which point their
+  // deliberate edit is respected and live-copying stops for this day.
+  var dpKmInizio2ManuallyEdited = false;
+  document.getElementById('day-kminizio2').addEventListener('input', function () {
+    dpKmInizio2ManuallyEdited = true;
+  });
   document.getElementById('day-kmfine').addEventListener('input', function () {
-    var kmInizio2El = document.getElementById('day-kminizio2');
-    if (kmInizio2El.value === '') {
-      kmInizio2El.value = this.value;
+    if (!dpKmInizio2ManuallyEdited) {
+      document.getElementById('day-kminizio2').value = this.value;
       updateKmTot2();
     }
   });
@@ -9067,6 +9100,8 @@
       kmFine: document.getElementById('day-kmfine').value === '' ? '' : Number(document.getElementById('day-kmfine').value),
       kmInizio2: document.getElementById('day-kminizio2').value === '' ? '' : Number(document.getElementById('day-kminizio2').value),
       kmFine2: document.getElementById('day-kmfine2').value === '' ? '' : Number(document.getElementById('day-kmfine2').value),
+      targa1: document.getElementById('day-targa1').value.trim().toUpperCase(),
+      targa2: document.getElementById('day-targa2').value.trim().toUpperCase(),
       bonus: document.getElementById('day-bonus').value === '' ? '' : Math.max(0, Number(document.getElementById('day-bonus').value))
     };
     sheet.giorni[day] = g;
