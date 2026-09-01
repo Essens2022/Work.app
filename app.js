@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v498"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v499"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -3559,7 +3559,18 @@
     // absolute pixels, since it was never actually tied to the size
     // of the text itself. Tightened here to track much closer to the
     // live preview's own compact look.
-    var bottomPad = h * 0.035;
+    //
+    // REAL BUG, reported directly right after that fix, and
+    // confirmed by ION actually sending a photo through WhatsApp:
+    // once the text sat this tight against the true bottom edge,
+    // WhatsApp's own preview cropping cut it off — only "Consegnato"
+    // stayed visible; the time, name, and address were all sitting in
+    // the zone WhatsApp actually trims for its own thumbnail/preview
+    // rendering. Raised well clear of that zone here — same tight
+    // internal spacing between the four lines as just fixed above,
+    // just anchored higher up as a group, comfortably inside the
+    // portion WhatsApp keeps intact.
+    var bottomPad = h * 0.16;
     ctx.textAlign = 'center';
     ctx.fillStyle = '#fff';
 
