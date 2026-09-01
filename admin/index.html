@@ -430,7 +430,7 @@
         <div id="messaggi-thread-scroll" class="messaggi-scroll-area" style="padding-top:14px;">
           <div id="messaggi-thread-messages" style="display:flex;flex-direction:column;gap:2px;"></div>
         </div>
-        <div style="display:flex;align-items:flex-end;gap:8px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));flex:none;">
+        <div id="messaggi-input-row" style="display:flex;align-items:flex-end;gap:8px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));flex:none;">
           <textarea id="messaggi-thread-input" placeholder="Scrivi un messaggio…" rows="1" style="flex:1;border:1px solid var(--line);border-radius:16px;padding:10px 14px;font-size:16px;font-family:inherit;resize:none;max-height:100px;background:var(--surface-2);color:var(--ink);"></textarea>
           <button type="button" id="messaggi-thread-send" style="width:38px;height:38px;border-radius:50%;border:none;background:var(--accent);color:#fff;flex-shrink:0;display:flex;align-items:center;justify-content:center;cursor:pointer;">
             <!-- REAL BUG, reported directly: this rendered as barely
@@ -1431,12 +1431,14 @@
       document.getElementById('admin-home').style.display = 'grid';
       if (btn.dataset.close === 'messaggi') {
         unlockBodyScroll();
-        // Requested directly: clears the explicit pixel height set by
-        // the visualViewport listener above while the keyboard was
-        // open — without this, the NEXT time Messaggi opens, it could
-        // start out stuck at whatever height the keyboard last left
-        // it at, instead of the normal, full 100dvh from the CSS.
+        // Requested directly: clears the explicit pixel height AND
+        // top set by the visualViewport listener above while the
+        // keyboard was open — without this, the NEXT time Messaggi
+        // opens, it could start out stuck at whatever position/size
+        // the keyboard last left it at, instead of the normal, full
+        // 100dvh (at top:0) from the CSS.
         closedModal.style.height = '';
+        closedModal.style.top = '';
       }
     });
   });
@@ -1491,17 +1493,24 @@
   // enough by itself here. Adds a direct, explicit height in pixels,
   // read straight from visualViewport (the browser's own live measure
   // of what's actually still visible above the keyboard) — recalculated
-  // on every resize the keyboard triggers. A previous, unrelated
-  // attempt at this exact style of fix (see the 100dvh comment above)
-  // shrank things too aggressively, exposing the page behind — this
-  // one is scoped ONLY to when Messaggi is genuinely open, and only
-  // ever sets a height, never touches top/position, keeping the risk
-  // of that earlier mistake from repeating.
+  // on every resize the keyboard triggers.
+  //
+  // FOLLOW-UP REAL BUG, reported directly after the first attempt:
+  // the bar ended up sitting noticeably ABOVE the keyboard, with a
+  // visible gap, not glued to it. Root cause: only height was being
+  // set, never top — visualViewport.offsetTop (how far the visible
+  // area itself has shifted, which can genuinely change once the
+  // keyboard opens, not just its height) was never accounted for, so
+  // the modal's own top:0 (from inset:0) silently drifted out of
+  // alignment with where the visible area actually started. Now sets
+  // BOTH together, keeping the modal exactly matched to the real
+  // visible rectangle, not just its size.
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', function () {
       var modal = document.getElementById('modal-messaggi');
       if (!modal.classList.contains('open')) return;
       modal.style.height = window.visualViewport.height + 'px';
+      modal.style.top = window.visualViewport.offsetTop + 'px';
     });
   }
 
