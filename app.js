@@ -8197,16 +8197,16 @@
       bodyStyles: { minCellHeight: 4.1 },
       columnStyles: columnStyles,
       // Requested directly: on the due-giri table specifically, Giro 1
-      // and Giro 2 looked identical at a glance — a very light gray
+      // and Giro 2 looked identical at a glance — a light gray
       // background on Giro 2's own body cells (columns 7-10: A/Prov./
       // DDT/Riscosso) makes it immediately obvious which data belongs
       // to which trip, without needing to read the header row every
-      // time. Subtle on purpose (barely off-white) — a stronger color
-      // would fight with the bold "Giro 2" header label already doing
-      // that job up top.
+      // time. A first, more subtle shade (245,245,245) wasn't visible
+      // enough — this one is clearly noticeable while still keeping
+      // the black text on top easy to read.
       didParseCell: isDueGiri ? function (data) {
         if (data.section === 'body' && data.column.index >= 7 && data.column.index <= 10) {
-          data.cell.styles.fillColor = [245, 245, 245];
+          data.cell.styles.fillColor = [220, 220, 220];
         }
       } : undefined
     });
