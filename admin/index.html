@@ -1511,6 +1511,14 @@
       if (!modal.classList.contains('open')) return;
       modal.style.height = window.visualViewport.height + 'px';
       modal.style.top = window.visualViewport.offsetTop + 'px';
+      // Requested directly: opening the keyboard here should bring
+      // the latest message into view automatically, the same way it
+      // already does in the driver app's own chat — matching exactly
+      // when the keyboard opens or closes (the same moment this whole
+      // resize event fires), so the newest message is always what's
+      // showing right above the keyboard, with no manual scrolling.
+      var scrollEl = document.getElementById('messaggi-thread-scroll');
+      if (scrollEl) scrollEl.scrollTop = scrollEl.scrollHeight;
     });
   }
 
