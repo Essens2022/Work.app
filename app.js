@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v473"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v474"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -3424,7 +3424,7 @@
     // two adjoining pieces, right-aligned, with "Smart"'s own width
     // measured first to place "ADB " flush against its left edge.
     var wmPad = w * 0.035;
-    var wmFontSize = Math.round(w * 0.026);
+    var wmFontSize = Math.round(w * 0.023);
     ctx.font = '800 ' + wmFontSize + 'px sans-serif';
     ctx.textAlign = 'right';
     var smartWidth = ctx.measureText('Smart').width;
@@ -3433,7 +3433,7 @@
     var logoSize = wmFontSize * 1.6;
     var logoGap = wmFontSize * 0.35;
     var groupRight = w - wmPad;
-    var groupTop = cardTop + wmPad;
+    var groupTop = cardTop + wmPad + h * 0.018;
     var groupWidth = logoSize + logoGap + textWidth;
     var groupHeight = logoSize;
 
