@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v489"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v490"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -2455,7 +2455,7 @@
     }
     state.deliveryRun.clients.push({
       id: uid(), clientId: saved.id, nome: saved.nome, indirizzo: saved.indirizzo,
-      lat: saved.lat, lon: saved.lon, status: 'pending'
+      lat: saved.lat, lon: saved.lon, status: 'pending', scadenza: saved.scadenza || ''
     });
     saveDeliveryRun(state.deliveryRun);
     if (currentScreen === 'navigatore') renderDeliveryPlanner(); // reflects immediately underneath if that screen happens to be showing right now
@@ -2505,6 +2505,7 @@
     document.getElementById('dp-new-nome').value = '';
     document.getElementById('dp-new-indirizzo').value = '';
     document.getElementById('dp-new-save-result').innerHTML = '';
+    document.getElementById('dp-new-scadenza-wrap').style.display = 'none';
     document.getElementById('dp-new-close-x').onclick = function () { dpCloseModal('modal-dp-new-client'); };
     document.getElementById('dp-new-save-btn').onclick = dpArchiveSaveNewClient;
     wireNavClearButton(document.getElementById('dp-new-nome'), document.getElementById('dp-new-nome-clear'), function () {});
@@ -2797,7 +2798,7 @@
     }
     state.deliveryRun.clients.push({
       id: uid(), clientId: saved.id, nome: saved.nome, indirizzo: saved.indirizzo,
-      lat: saved.lat, lon: saved.lon, status: 'pending'
+      lat: saved.lat, lon: saved.lon, status: 'pending', scadenza: saved.scadenza || ''
     });
     saveDeliveryRun(state.deliveryRun);
     renderDeliveryPlanner();
@@ -2807,6 +2808,8 @@
     dpCloseModal('modal-dp-add-client');
     document.getElementById('dp-new-nome').value = prefillName || '';
     document.getElementById('dp-new-indirizzo').value = '';
+    document.getElementById('dp-new-scadenza').value = '';
+    document.getElementById('dp-new-scadenza-wrap').style.display = '';
     document.getElementById('dp-new-save-result').innerHTML = '';
     document.getElementById('dp-new-close-x').onclick = function () { dpCloseModal('modal-dp-new-client'); };
     document.getElementById('dp-new-save-btn').onclick = dpSaveNewClientTrusted;
@@ -2862,12 +2865,13 @@
     // share link this way — worth testing directly rather than
     // rejecting it outright as the previous version of this did.
     var saved = {
-      id: uid(), nome: nome, indirizzo: indirizzo, lat: null, lon: null, createdAt: Date.now()
+      id: uid(), nome: nome, indirizzo: indirizzo, lat: null, lon: null, createdAt: Date.now(),
+      scadenza: document.getElementById('dp-new-scadenza').value || ''
     };
     state.deliveryClients.push(saved);
     saveDeliveryClients(state.deliveryClients);
     state.deliveryRun.clients.push({
-      id: uid(), clientId: saved.id, nome: nome, indirizzo: indirizzo, lat: null, lon: null, status: 'pending'
+      id: uid(), clientId: saved.id, nome: nome, indirizzo: indirizzo, lat: null, lon: null, status: 'pending', scadenza: saved.scadenza
     });
     saveDeliveryRun(state.deliveryRun);
     dpCloseModal('modal-dp-new-client');
@@ -2949,6 +2953,7 @@
     if (!client) return;
     document.getElementById('dp-edit-nome').value = client.nome;
     document.getElementById('dp-edit-indirizzo').value = client.indirizzo || '';
+    document.getElementById('dp-edit-scadenza').value = client.scadenza || '';
     document.getElementById('dp-edit-save-result').innerHTML = '';
     document.getElementById('dp-edit-close-x').onclick = function () { dpCloseModal('modal-dp-edit-client'); };
     document.getElementById('dp-edit-remove-btn').onclick = function () { dpConfirmRemoveClient(clientId); };
@@ -2977,11 +2982,12 @@
     var addressChanged = indirizzo !== client.indirizzo;
     client.nome = nome;
     client.indirizzo = indirizzo;
+    client.scadenza = document.getElementById('dp-edit-scadenza').value || '';
     if (addressChanged) { client.lat = null; client.lon = null; client.orsUnreachable = false; } // stale coordinates from the OLD address would silently mislead Reordina's ordering — cleared until the new address is (silently) re-geocoded below; orsUnreachable cleared too since that verdict was about the OLD address's position, not this new one
     if (client.clientId) {
       var saved = state.deliveryClients.find(function (s) { return s.id === client.clientId; });
       if (saved) {
-        saved.nome = nome; saved.indirizzo = indirizzo;
+        saved.nome = nome; saved.indirizzo = indirizzo; saved.scadenza = client.scadenza;
         if (addressChanged) { saved.lat = null; saved.lon = null; }
         saveDeliveryClients(state.deliveryClients);
       }
@@ -3092,7 +3098,7 @@
       // though other real uses of GPS elsewhere in this app (e.g.
       // live turn-by-turn) still correctly want full precision.
       ? (dpGeoDeniedThisSession ? Promise.reject(new Error('User denied Geolocation')) : currentPositionSafe(12000, { enableHighAccuracy: false, maximumAge: 60000 }))
-          .then(function (pos) { return dpCallOrsOptimization(pos, geolocatable); })
+          .then(function (pos) { return dpCallOrsOptimizationWithDeadlines(pos, geolocatable); })
           .catch(function (err) {
             // REAL BUG, reported directly: "nu poate merge un sofer cu
             // adresa din alt loc, pornirea lui trebuie mereu sa fie
@@ -3695,7 +3701,7 @@
       // though other real uses of GPS elsewhere in this app (e.g.
       // live turn-by-turn) still correctly want full precision.
       ? (dpGeoDeniedThisSession ? Promise.reject(new Error('User denied Geolocation')) : currentPositionSafe(12000, { enableHighAccuracy: false, maximumAge: 60000 }))
-          .then(function (pos) { return dpCallOrsOptimization(pos, geolocatable); })
+          .then(function (pos) { return dpCallOrsOptimizationWithDeadlines(pos, geolocatable); })
           .catch(function (err) {
             // REAL BUG, reported directly: the route's starting point
             // must ALWAYS be the driver's real position at that exact
@@ -3809,6 +3815,36 @@
         toast('Impossibile ottimizzare (' + (err && err.message ? escapeHtml(err.message) : 'errore') + ') — uso l\'ordine attuale.', 6000);
       }
       applyOrder(remaining);
+    });
+  }
+
+  // Requested directly: clients with a delivery deadline set (see the
+  // "Consegna entro" field) need to be visited FIRST, as their own
+  // separately-optimized group, before the rest of the route even
+  // starts — rather than a single combined optimization, which could
+  // freely place a deadline client anywhere in the sequence purely
+  // based on distance, ignoring that it may genuinely need to happen
+  // before others despite being further away.
+  //
+  // If there simply are none, this behaves exactly like a single
+  // dpCallOrsOptimization call always did — no behavior change for
+  // the common case with no deadlines set at all.
+  function dpCallOrsOptimizationWithDeadlines(startPos, clients) {
+    var withDeadline = clients.filter(function (c) { return c.scadenza; });
+    var withoutDeadline = clients.filter(function (c) { return !c.scadenza; });
+    if (!withDeadline.length) return dpCallOrsOptimization(startPos, clients);
+
+    return dpCallOrsOptimization(startPos, withDeadline).then(function (deadlineOptimized) {
+      if (!withoutDeadline.length) return deadlineOptimized;
+      // The rest of the route picks up from wherever the deadline
+      // group's own route actually ends — not from the driver's
+      // current position again — since that's where the driver will
+      // genuinely be, in real life, once that first group is done.
+      var lastStop = deadlineOptimized[deadlineOptimized.length - 1];
+      var continueFrom = { lon: lastStop.lon, lat: lastStop.lat };
+      return dpCallOrsOptimization(continueFrom, withoutDeadline).then(function (restOptimized) {
+        return deadlineOptimized.concat(restOptimized);
+      });
     });
   }
 
