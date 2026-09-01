@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v493"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v494"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -1500,13 +1500,33 @@
   function dpClientRowHtml(c, idx, readOnly) {
     var isDone = c.status === 'completed';
     var badge = isDone ? '✓' : String(idx + 1);
+    // Requested directly: a client with a delivery deadline
+    // ("Consegna entro") gets its numbered badge colored amber —
+    // urgent, do this soon — while one that can't be delivered before
+    // a given time ("Non prima delle") gets blue instead — the
+    // OPPOSITE signal, wait rather than hurry. Once actually
+    // completed, neither applies any more — the existing teal "done"
+    // color already communicates that clearly on its own, so a
+    // finished delivery doesn't need to keep flagging as "urgent" or
+    // "wait" after the fact.
+    var badgeTimeClass = isDone ? '' : (c.scadenza ? ' dp-client-badge-scadenza' : (c.nonPrimaDi ? ' dp-client-badge-nonprima' : ''));
+    // Requested directly: the relevant time itself (whichever applies)
+    // shown right next to the client, in the same amber/blue as the
+    // badge, for context at a glance — same reasoning, hidden the
+    // moment the delivery is actually marked done, since a finished
+    // stop no longer needs a time constraint called out at all.
+    var timeNote = '';
+    if (!isDone) {
+      if (c.scadenza) timeNote = ' <span style="color:#B45309;font-weight:700;">⏱ entro ' + escapeHtml(c.scadenza) + '</span>';
+      else if (c.nonPrimaDi) timeNote = ' <span style="color:#1D4ED8;font-weight:700;">⏱ non prima delle ' + escapeHtml(c.nonPrimaDi) + '</span>';
+    }
     if (readOnly) {
       // Storico's own read-only rows — no drag, no swipe, no click.
       return '' +
         '<div class="card dp-client-row' + (isDone ? ' dp-client-done' : '') + '">' +
-        '<div class="dp-client-badge' + (isDone ? ' dp-client-badge-done' : '') + '">' + badge + '</div>' +
+        '<div class="dp-client-badge' + (isDone ? ' dp-client-badge-done' : badgeTimeClass) + '">' + badge + '</div>' +
         '<div class="dp-client-info">' +
-        '<div class="dp-client-name">' + escapeHtml(c.nome) + '</div>' +
+        '<div class="dp-client-name">' + escapeHtml(c.nome) + timeNote + '</div>' +
         '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + ((c.lat == null || c.lon == null) ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + (c.orsUnreachable ? ' <span style="color:var(--accent);">⚠ non ottimizzato</span>' : '') + '</div>' +
         (c.completedAt ? '<div style="color:var(--teal);font-size:13px;font-weight:700;margin-top:3px;">✓ Consegnato ~' + dpFormatTime(c.completedAt) + '</div>' : '') +
         '</div>' +
@@ -1525,9 +1545,9 @@
       '<button type="button" class="dp-swipe-delete-btn" data-client-id="' + c.id + '">Elimina</button>' +
       '<div class="card dp-client-row dp-swipe-row' + (isDone ? ' dp-client-done' : '') + '" data-client-id="' + c.id + '">' +
       '<div class="dp-drag-handle" data-client-id="' + c.id + '">⠿</div>' +
-      '<div class="dp-client-badge' + (isDone ? ' dp-client-badge-done' : '') + '">' + badge + '</div>' +
+      '<div class="dp-client-badge' + (isDone ? ' dp-client-badge-done' : badgeTimeClass) + '">' + badge + '</div>' +
       '<div class="dp-client-info">' +
-      '<div class="dp-client-name">' + escapeHtml(c.nome) + '</div>' +
+      '<div class="dp-client-name">' + escapeHtml(c.nome) + timeNote + '</div>' +
       '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + ((c.lat == null || c.lon == null) ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + (c.orsUnreachable ? ' <span style="color:var(--accent);">⚠ non ottimizzato</span>' : '') + '</div>' +
       (c.completedAt ? '<div style="color:var(--teal);font-size:13px;font-weight:700;margin-top:3px;">✓ Consegnato ~' + dpFormatTime(c.completedAt) + '</div>' : '') +
       '</div>' +
@@ -2309,6 +2329,25 @@
 
   function dpCloseModal(id) { document.getElementById(id).classList.remove('open'); }
 
+  // Requested directly: rather than saving "06:50" as an actual
+  // default VALUE the moment a client is created (which would give
+  // every single client a deadline whether the driver wanted one or
+  // not), this only pre-fills the native time picker's own starting
+  // point — the field itself stays genuinely empty (still saves as
+  // "no deadline set") right up until the driver actually taps into
+  // it, at which point 06:50 is filled in as a sensible starting
+  // point to scroll from, rather than the device's own default
+  // (usually the current time, rarely useful here). Wired once per
+  // field, guarded so a second focus never overwrites whatever the
+  // driver already chose.
+  function dpWireTimeDefault(inputEl) {
+    if (!inputEl || inputEl.dataset.timeDefaultWired) return;
+    inputEl.dataset.timeDefaultWired = '1';
+    inputEl.addEventListener('focus', function () {
+      if (!inputEl.value) inputEl.value = '06:50';
+    });
+  }
+
   function dpOpenAddClientModal() {
     document.getElementById('dp-add-search-input').value = '';
     dpRenderAddClientResults('');
@@ -2455,7 +2494,7 @@
     }
     state.deliveryRun.clients.push({
       id: uid(), clientId: saved.id, nome: saved.nome, indirizzo: saved.indirizzo,
-      lat: saved.lat, lon: saved.lon, status: 'pending', scadenza: saved.scadenza || ''
+      lat: saved.lat, lon: saved.lon, status: 'pending', scadenza: saved.scadenza || '', nonPrimaDi: saved.nonPrimaDi || ''
     });
     saveDeliveryRun(state.deliveryRun);
     if (currentScreen === 'navigatore') renderDeliveryPlanner(); // reflects immediately underneath if that screen happens to be showing right now
@@ -2504,12 +2543,20 @@
     // needed to work around the stacking bug).
     document.getElementById('dp-new-nome').value = '';
     document.getElementById('dp-new-indirizzo').value = '';
+    document.getElementById('dp-new-scadenza').value = '';
+    document.getElementById('dp-new-nonprima').value = '';
     document.getElementById('dp-new-save-result').innerHTML = '';
-    document.getElementById('dp-new-scadenza-wrap').style.display = 'none';
+    // Requested directly: now that a deadline lives permanently on
+    // the client itself (not just for one day's run), it makes just
+    // as much sense to set it here too, at the moment a brand new
+    // client is first saved into the archive — no longer hidden.
+    document.getElementById('dp-new-scadenza-wrap').style.display = '';
     document.getElementById('dp-new-close-x').onclick = function () { dpCloseModal('modal-dp-new-client'); };
     document.getElementById('dp-new-save-btn').onclick = dpArchiveSaveNewClient;
     wireNavClearButton(document.getElementById('dp-new-nome'), document.getElementById('dp-new-nome-clear'), function () {});
     wireNavClearButton(document.getElementById('dp-new-indirizzo'), document.getElementById('dp-new-indirizzo-clear'), function () {});
+    dpWireTimeDefault(document.getElementById('dp-new-scadenza'));
+    dpWireTimeDefault(document.getElementById('dp-new-nonprima'));
     document.getElementById('modal-dp-new-client').classList.add('open');
   }
 
@@ -2521,7 +2568,7 @@
       resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Inserisci nome e indirizzo.</div>';
       return;
     }
-    var saved = { id: uid(), nome: nome, indirizzo: indirizzo, lat: null, lon: null, createdAt: Date.now() };
+    var saved = { id: uid(), nome: nome, indirizzo: indirizzo, lat: null, lon: null, createdAt: Date.now(), scadenza: document.getElementById('dp-new-scadenza').value || '', nonPrimaDi: document.getElementById('dp-new-nonprima').value || '' };
     state.deliveryClients.push(saved);
     saveDeliveryClients(state.deliveryClients);
     dpCloseModal('modal-dp-new-client');
@@ -2655,8 +2702,12 @@
     if (!c) return;
     document.getElementById('dp-archive-edit-nome').value = c.nome;
     document.getElementById('dp-archive-edit-indirizzo').value = c.indirizzo || '';
+    document.getElementById('dp-archive-edit-scadenza').value = c.scadenza || '';
+    document.getElementById('dp-archive-edit-nonprima').value = c.nonPrimaDi || '';
     wireNavClearButton(document.getElementById('dp-archive-edit-nome'), document.getElementById('dp-archive-edit-nome-clear'), function () {});
     wireNavClearButton(document.getElementById('dp-archive-edit-indirizzo'), document.getElementById('dp-archive-edit-indirizzo-clear'), function () {});
+    dpWireTimeDefault(document.getElementById('dp-archive-edit-scadenza'));
+    dpWireTimeDefault(document.getElementById('dp-archive-edit-nonprima'));
     document.getElementById('dp-archive-edit-result').innerHTML = '';
     document.getElementById('dp-archive-edit-close-x').onclick = function () { dpCloseModal('modal-dp-archive-edit'); };
     document.getElementById('dp-archive-edit-remove-btn').onclick = function () {
@@ -2687,10 +2738,21 @@
       var addressChanged = indirizzo !== c.indirizzo;
       c.nome = nome;
       c.indirizzo = indirizzo;
+      c.scadenza = document.getElementById('dp-archive-edit-scadenza').value || '';
+      c.nonPrimaDi = document.getElementById('dp-archive-edit-nonprima').value || '';
       if (addressChanged) { c.lat = null; c.lon = null; } // stale coordinates from the OLD address would silently mislead Reordina's ordering later — cleared until re-geocoded (or set directly below, if the new text is itself coordinates)
       saveDeliveryClients(state.deliveryClients);
+      // Requested directly: a client that's ALREADY in today's run
+      // gets its scadenza kept in sync with this edit too — otherwise
+      // changing it here would silently do nothing for a client
+      // already added, until removed and re-added.
+      state.deliveryRun.clients.forEach(function (rc) {
+        if (rc.clientId === c.id) { rc.scadenza = c.scadenza; rc.nonPrimaDi = c.nonPrimaDi; }
+      });
+      saveDeliveryRun(state.deliveryRun);
       dpCloseModal('modal-dp-archive-edit');
       dpRenderArchiveList(document.getElementById('dp-archive-search-input') ? document.getElementById('dp-archive-search-input').value : '');
+      if (currentScreen === 'navigatore') renderDeliveryPlanner();
       if (addressChanged) dpBackgroundGeocodeForOrdering(c.id, indirizzo); // re-geocodes silently in the background — or, if the text is itself a coordinate pair, uses it directly with no network call at all; see dpParseCoordinatesFromText
     };
     document.getElementById('modal-dp-archive-edit').classList.add('open');
@@ -2798,7 +2860,7 @@
     }
     state.deliveryRun.clients.push({
       id: uid(), clientId: saved.id, nome: saved.nome, indirizzo: saved.indirizzo,
-      lat: saved.lat, lon: saved.lon, status: 'pending', scadenza: saved.scadenza || ''
+      lat: saved.lat, lon: saved.lon, status: 'pending', scadenza: saved.scadenza || '', nonPrimaDi: saved.nonPrimaDi || ''
     });
     saveDeliveryRun(state.deliveryRun);
     renderDeliveryPlanner();
@@ -2809,10 +2871,13 @@
     document.getElementById('dp-new-nome').value = prefillName || '';
     document.getElementById('dp-new-indirizzo').value = '';
     document.getElementById('dp-new-scadenza').value = '';
+    document.getElementById('dp-new-nonprima').value = '';
     document.getElementById('dp-new-scadenza-wrap').style.display = '';
     document.getElementById('dp-new-save-result').innerHTML = '';
     document.getElementById('dp-new-close-x').onclick = function () { dpCloseModal('modal-dp-new-client'); };
     document.getElementById('dp-new-save-btn').onclick = dpSaveNewClientTrusted;
+    dpWireTimeDefault(document.getElementById('dp-new-scadenza'));
+    dpWireTimeDefault(document.getElementById('dp-new-nonprima'));
     // Reuses the same clear-button helper already built for the
     // Casa/Lavoro fields — one tap empties the field completely,
     // per ION's explicit request, rather than holding backspace.
@@ -2866,12 +2931,13 @@
     // rejecting it outright as the previous version of this did.
     var saved = {
       id: uid(), nome: nome, indirizzo: indirizzo, lat: null, lon: null, createdAt: Date.now(),
-      scadenza: document.getElementById('dp-new-scadenza').value || ''
+      scadenza: document.getElementById('dp-new-scadenza').value || '',
+      nonPrimaDi: document.getElementById('dp-new-nonprima').value || ''
     };
     state.deliveryClients.push(saved);
     saveDeliveryClients(state.deliveryClients);
     state.deliveryRun.clients.push({
-      id: uid(), clientId: saved.id, nome: nome, indirizzo: indirizzo, lat: null, lon: null, status: 'pending', scadenza: saved.scadenza
+      id: uid(), clientId: saved.id, nome: nome, indirizzo: indirizzo, lat: null, lon: null, status: 'pending', scadenza: saved.scadenza, nonPrimaDi: saved.nonPrimaDi
     });
     saveDeliveryRun(state.deliveryRun);
     dpCloseModal('modal-dp-new-client');
@@ -2986,12 +3052,15 @@
     document.getElementById('dp-edit-nome').value = client.nome;
     document.getElementById('dp-edit-indirizzo').value = client.indirizzo || '';
     document.getElementById('dp-edit-scadenza').value = client.scadenza || '';
+    document.getElementById('dp-edit-nonprima').value = client.nonPrimaDi || '';
     document.getElementById('dp-edit-save-result').innerHTML = '';
     document.getElementById('dp-edit-close-x').onclick = function () { dpCloseModal('modal-dp-edit-client'); };
     document.getElementById('dp-edit-remove-btn').onclick = function () { dpConfirmRemoveClient(clientId); };
     document.getElementById('dp-edit-save-btn').onclick = function () { dpSaveEditedClientTrusted(clientId); };
     wireNavClearButton(document.getElementById('dp-edit-nome'), document.getElementById('dp-edit-nome-clear'), function () {});
     wireNavClearButton(document.getElementById('dp-edit-indirizzo'), document.getElementById('dp-edit-indirizzo-clear'), function () {});
+    dpWireTimeDefault(document.getElementById('dp-edit-scadenza'));
+    dpWireTimeDefault(document.getElementById('dp-edit-nonprima'));
     document.getElementById('modal-dp-edit-client').classList.add('open');
   }
 
@@ -3015,11 +3084,12 @@
     client.nome = nome;
     client.indirizzo = indirizzo;
     client.scadenza = document.getElementById('dp-edit-scadenza').value || '';
+    client.nonPrimaDi = document.getElementById('dp-edit-nonprima').value || '';
     if (addressChanged) { client.lat = null; client.lon = null; client.orsUnreachable = false; } // stale coordinates from the OLD address would silently mislead Reordina's ordering — cleared until the new address is (silently) re-geocoded below; orsUnreachable cleared too since that verdict was about the OLD address's position, not this new one
     if (client.clientId) {
       var saved = state.deliveryClients.find(function (s) { return s.id === client.clientId; });
       if (saved) {
-        saved.nome = nome; saved.indirizzo = indirizzo; saved.scadenza = client.scadenza;
+        saved.nome = nome; saved.indirizzo = indirizzo; saved.scadenza = client.scadenza; saved.nonPrimaDi = client.nonPrimaDi;
         if (addressChanged) { saved.lat = null; saved.lon = null; }
         saveDeliveryClients(state.deliveryClients);
       }
@@ -3861,6 +3931,22 @@
   // If there simply are none, this behaves exactly like a single
   // dpCallOrsOptimization call always did — no behavior change for
   // the common case with no deadlines set at all.
+  //
+  // Requested directly, separately: clients with a "Non prima delle"
+  // constraint instead (can't be delivered before a given time — a
+  // shop that opens late, for instance) are the OPPOSITE of urgent,
+  // so they're deliberately left OUT of this priority grouping
+  // entirely — the filter below only ever looks at .scadenza, never
+  // .nonPrimaDi, so such a client simply stays in the normal group,
+  // exactly where distance-based optimization would already place
+  // it. HONEST LIMITATION: this does NOT enforce an actual real
+  // time-window constraint in the route math itself (VROOM/ORS does
+  // support that, but it's a materially bigger change — sending a
+  // real time window per job, not just a starting position — and
+  // this sandbox has no network access to openrouteservice.org to
+  // verify such a change against the real API). What's actually
+  // implemented here is the safer, narrower piece: simply not
+  // grouping these clients in with the genuinely urgent ones.
   function dpCallOrsOptimizationWithDeadlines(startPos, clients) {
     var withDeadline = clients.filter(function (c) { return c.scadenza; });
     var withoutDeadline = clients.filter(function (c) { return !c.scadenza; });
