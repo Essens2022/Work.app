@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v482"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v483"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -8051,7 +8051,7 @@
       // Two separate trips (each with its own destination + DDT) can
       // happen on the same day — some clients require that split
       // explicitly rather than combining it into one row.
-      // Requested directly: two new "€ Risc." columns, one per giro —
+      // Requested directly: two new "Riscosso" columns, one per giro —
       // money the driver physically collects from the client on
       // delivery, printed directly on the PDF (unlike "Bonus", which
       // stays app-only). KM columns shrunk slightly (short, numeric
@@ -8085,11 +8085,11 @@
           { content: 'A:', styles: { halign: 'center' } },
           { content: 'Prov.', styles: { halign: 'center' } },
           { content: 'DDT', styles: { halign: 'center' } },
-          { content: '€ Risc.', styles: { halign: 'center' } },
+          { content: 'Riscosso', styles: { halign: 'center' } },
           { content: 'A:', styles: { halign: 'center' } },
           { content: 'Prov.', styles: { halign: 'center' } },
           { content: 'DDT', styles: { halign: 'center' } },
-          { content: '€ Risc.', styles: { halign: 'center' } }
+          { content: 'Riscosso', styles: { halign: 'center' } }
         ]
       ];
       body = [];
