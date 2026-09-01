@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v483"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v484"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -581,6 +581,14 @@
       // simply empty otherwise, so switching a sheet's template later
       // doesn't require migrating existing days.
       a2: "", provA2: "", ddt2: "",
+      // Requested directly, following real driver feedback on this
+      // template: Giro 2 needed its OWN complete "Da" (departure) —
+      // pre-filled the same way Giro 1's own da/provDa already are,
+      // since it's typically the same base departure point (e.g.
+      // "Ponte San Nicolò") for both trips that day, but kept
+      // editable/independent since the two trips could genuinely
+      // start from different places.
+      da2: prefillDa || "", provDa2: prefillProvDa || "",
       // Requested directly: the amount of money the driver physically
       // collects from the client on delivery (not "Bonus" below, which
       // is the driver's own internal pay, never printed) — one per
@@ -589,7 +597,14 @@
       // PDF itself. Present on every giorno regardless, same reasoning
       // as a2/provA2/ddt2 above.
       riscosso1: "", riscosso2: "",
-      kmInizio: "", kmFine: "", bonus: ""
+      // Requested directly, same follow-up feedback: kmInizio/kmFine
+      // below now belong to Giro 1 specifically (unchanged field
+      // names, for full backward compatibility with existing due-giri
+      // data and the single-giro templates) — Giro 2 gets its own,
+      // separate kmInizio2/kmFine2, since each trip is really its own
+      // mini-journey with its own odometer range, not one shared
+      // range for the whole day.
+      kmInizio: "", kmFine: "", kmInizio2: "", kmFine2: "", bonus: ""
     };
   }
 
@@ -8045,70 +8060,24 @@
     // Table
     var tableY = gy + giroH;
     var isDueGiri = sheet.pdfTemplate === 'due-giri';
+
+    // Requested directly, following real driver feedback: Due Giri no
+    // longer builds one single, very wide combined table — each giro
+    // now gets its OWN complete page within the same PDF, looking
+    // exactly like a normal single-giro monthly sheet (same header,
+    // same company info block, same table shape), just fed that
+    // giro's own specific fields (da/a/ddt/riscosso/kmInizio/kmFine
+    // for Giro 1, da2/a2/ddt2/riscosso2/kmInizio2/kmFine2 for Giro 2).
+    if (isDueGiri) {
+      buildDueGiriPage(doc, sheet, margin, contentW, 1);
+      doc.addPage();
+      buildDueGiriPage(doc, sheet, margin, contentW, 2);
+      return;
+    }
+
     var colWidths, head, body;
 
-    if (isDueGiri) {
-      // Two separate trips (each with its own destination + DDT) can
-      // happen on the same day — some clients require that split
-      // explicitly rather than combining it into one row.
-      // Requested directly: two new "Riscosso" columns, one per giro —
-      // money the driver physically collects from the client on
-      // delivery, printed directly on the PDF (unlike "Bonus", which
-      // stays app-only). KM columns shrunk slightly (short, numeric
-      // values, don't need much room) to make space, WITHOUT
-      // shrinking the destination columns at all — confirmed directly
-      // with a real render that long Italian place names (Villafranca
-      // di Verona, San Giovanni Lupatoto, etc.) still fit on one line.
-      // Requested directly, separately: these also left a visible gap
-      // of unused space at the page's own right margin — scaled every
-      // column up proportionally (same ratios, larger overall) to use
-      // the full available width.
-      colWidths = {
-        data: contentW * 0.026, da: contentW * 0.095, provDa: contentW * 0.029,
-        a1: contentW * 0.111, provA1: contentW * 0.029, ddt1: contentW * 0.074, ric1: contentW * 0.058,
-        a2: contentW * 0.111, provA2: contentW * 0.029, ddt2: contentW * 0.074, ric2: contentW * 0.058,
-        kmI: contentW * 0.102, kmF: contentW * 0.102, kmT: contentW * 0.102
-      };
-      head = [
-        [
-          { content: 'Data', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
-          { content: 'Partenza', colSpan: 2, styles: { halign: 'center' } },
-          { content: 'Giro 1', colSpan: 4, styles: { halign: 'center' } },
-          { content: 'Giro 2', colSpan: 4, styles: { halign: 'center' } },
-          { content: 'KM INIZIO', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
-          { content: 'KM FINE', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
-          { content: 'KM TOT.', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } }
-        ],
-        [
-          { content: 'Da:', styles: { halign: 'center' } },
-          { content: 'Prov.', styles: { halign: 'center' } },
-          { content: 'A:', styles: { halign: 'center' } },
-          { content: 'Prov.', styles: { halign: 'center' } },
-          { content: 'DDT', styles: { halign: 'center' } },
-          { content: 'Riscosso', styles: { halign: 'center' } },
-          { content: 'A:', styles: { halign: 'center' } },
-          { content: 'Prov.', styles: { halign: 'center' } },
-          { content: 'DDT', styles: { halign: 'center' } },
-          { content: 'Riscosso', styles: { halign: 'center' } }
-        ]
-      ];
-      body = [];
-      var n2 = daysInMonth(sheet.month, sheet.year);
-      for (var d2 = 1; d2 <= 31; d2++) {
-        var g2 = d2 <= n2 ? sheet.giorni[d2] : null;
-        if (!g2) { body.push([d2 <= n2 ? d2 : '', '', '', '', '', '', '', '', '', '', '', '', '', '']); continue; }
-        var kmTot2 = (g2.kmInizio !== "" && g2.kmFine !== "" && !isNaN(g2.kmFine - g2.kmInizio)) ? (Number(g2.kmFine) - Number(g2.kmInizio)) : '';
-        body.push([
-          d2,
-          g2.da || '', g2.provDa || '',
-          g2.a || '', g2.provA || '', g2.ddt || '', g2.riscosso1 !== "" && g2.riscosso1 !== undefined ? Number(g2.riscosso1).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '',
-          g2.a2 || '', g2.provA2 || '', g2.ddt2 || '', g2.riscosso2 !== "" && g2.riscosso2 !== undefined ? Number(g2.riscosso2).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '',
-          g2.kmInizio !== "" ? g2.kmInizio : '',
-          g2.kmFine !== "" ? g2.kmFine : '',
-          kmTot2 !== '' ? kmTot2 : ''
-        ]);
-      }
-    } else {
+    {
       colWidths = {
         data: contentW * 0.035,
         da: contentW * 0.145,
@@ -8158,22 +8127,7 @@
       }
     }
 
-    var columnStyles = isDueGiri ? {
-      0: { cellWidth: colWidths.data, halign: 'center', fontStyle: 'bold' },
-      1: { cellWidth: colWidths.da, halign: 'center' },
-      2: { cellWidth: colWidths.provDa, halign: 'center' },
-      3: { cellWidth: colWidths.a1, halign: 'center' },
-      4: { cellWidth: colWidths.provA1, halign: 'center' },
-      5: { cellWidth: colWidths.ddt1, halign: 'center' },
-      6: { cellWidth: colWidths.ric1, halign: 'center' },
-      7: { cellWidth: colWidths.a2, halign: 'center' },
-      8: { cellWidth: colWidths.provA2, halign: 'center' },
-      9: { cellWidth: colWidths.ddt2, halign: 'center' },
-      10: { cellWidth: colWidths.ric2, halign: 'center' },
-      11: { cellWidth: colWidths.kmI, halign: 'center' },
-      12: { cellWidth: colWidths.kmF, halign: 'center' },
-      13: { cellWidth: colWidths.kmT, halign: 'center', fontStyle: 'bold' }
-    } : {
+    var columnStyles = {
       0: { cellWidth: colWidths.data, halign: 'center', fontStyle: 'bold' },
       1: { cellWidth: colWidths.da, halign: 'center' },
       2: { cellWidth: colWidths.provDa, halign: 'center' },
@@ -8195,20 +8149,168 @@
       styles: { font: 'Roboto', fontSize: 7.4, cellPadding: { top: 0.7, bottom: 0.7, left: 1.1, right: 1.1 }, lineColor: [20, 20, 20], lineWidth: 0.25, textColor: [20, 20, 20], valign: 'middle' },
       headStyles: { fillColor: [255, 255, 255], textColor: [20, 20, 20], fontStyle: 'bold', fontSize: 7.2, cellPadding: { top: 1, bottom: 1, left: 1.1, right: 1.1 }, lineColor: [20, 20, 20], lineWidth: 0.25 },
       bodyStyles: { minCellHeight: 4.1 },
-      columnStyles: columnStyles,
-      // Requested directly: on the due-giri table specifically, Giro 1
-      // and Giro 2 looked identical at a glance — a light gray
-      // background on Giro 2's own body cells (columns 7-10: A/Prov./
-      // DDT/Riscosso) makes it immediately obvious which data belongs
-      // to which trip, without needing to read the header row every
-      // time. A first, more subtle shade (245,245,245) wasn't visible
-      // enough — this one is clearly noticeable while still keeping
-      // the black text on top easy to read.
-      didParseCell: isDueGiri ? function (data) {
-        if (data.section === 'body' && data.column.index >= 7 && data.column.index <= 10) {
-          data.cell.styles.fillColor = [220, 220, 220];
-        }
-      } : undefined
+      columnStyles: columnStyles
+    });
+  }
+
+  // Requested directly, following real driver feedback: each giro on
+  // a due-giri sheet now gets its own COMPLETE page — same shape as a
+  // normal single-giro monthly sheet (company header, driver/targa
+  // fields, GIRO title bar, then the table), just fed that giro's own
+  // specific fields. giroNum is 1 or 2, selecting which of the
+  // giorno's parallel field sets (da/a/ddt/riscosso1/kmInizio/kmFine
+  // vs da2/a2/ddt2/riscosso2/kmInizio2/kmFine2) this page draws from.
+  function buildDueGiriPage(doc, sheet, margin, contentW, giroNum) {
+    var pageH = 210;
+
+    // Outer border
+    doc.setDrawColor(20, 20, 20);
+    doc.setLineWidth(0.4);
+    doc.rect(margin, margin, contentW, pageH - margin * 2);
+
+    // Header block: logo (left) | company info (right) — identical to
+    // the standard due-giri header used before this change.
+    var headerH = 15;
+    var logoW = contentW * 0.34;
+    doc.line(margin + logoW, margin, margin + logoW, margin + headerH);
+    doc.line(margin, margin + headerH, margin + contentW, margin + headerH);
+
+    try {
+      var img = document.getElementById('pt-logo-img');
+      if (img && img.complete && img.naturalWidth > 0) {
+        var ratio = img.naturalWidth / img.naturalHeight;
+        var imgH = headerH * 0.6;
+        var imgW = imgH * ratio;
+        if (imgW > logoW - 8) { imgW = logoW - 8; imgH = imgW / ratio; }
+        doc.addImage(img, 'PNG', margin + (logoW - imgW) / 2, margin + (headerH - imgH) / 2, imgW, imgH);
+      }
+    } catch (e) { /* logo unavailable */ }
+
+    doc.setFont('Roboto', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(20, 20, 20);
+    doc.text(COMPANY.indirizzo, margin + logoW + contentW * (1 - 0.34) / 2, margin + 6.5, { align: 'center' });
+    doc.setFontSize(9);
+    doc.text('CF: ' + COMPANY.cf + '   P.IVA: ' + COMPANY.piva, margin + logoW + contentW * (1 - 0.34) / 2, margin + 11.5, { align: 'center' });
+
+    // Fields row
+    var fieldsH = 12.5;
+    var fy = margin + headerH;
+    var col1 = contentW * 0.30, col2 = contentW * 0.24, col3 = contentW * 0.24, col4 = contentW * 0.22;
+    doc.line(margin + col1, fy, margin + col1, fy + fieldsH);
+    doc.line(margin + col1 + col2, fy, margin + col1 + col2, fy + fieldsH);
+    doc.line(margin + col1 + col2 + col3, fy, margin + col1 + col2 + col3, fy + fieldsH);
+    doc.line(margin, fy + fieldsH, margin + contentW, fy + fieldsH);
+
+    doc.setFont('Roboto', 'normal');
+    doc.setFontSize(7.8);
+    doc.text('Viaggi effettuati nel mese di:', margin + 2.5, fy + 4.8);
+    doc.setFont('Roboto', 'bold');
+    doc.setFontSize(9);
+    doc.text(MESI[sheet.month - 1] + '   ' + sheet.year, margin + 2.5, fy + 9.8);
+
+    doc.setFont('Roboto', 'normal');
+    doc.setFontSize(7.8);
+    doc.text('Nome autista:', margin + col1 + 2.5, fy + 4.8);
+    doc.setFont('Roboto', 'bold');
+    doc.setFontSize(9.2);
+    doc.text(sheet.nome || '—', margin + col1 + 2.5, fy + 10.2);
+
+    doc.setFont('Roboto', 'normal');
+    doc.setFontSize(7.8);
+    doc.text('Targa Veicolo:', margin + col1 + col2 + 2.5, fy + 4.8);
+    doc.setFont('Roboto', 'bold');
+    doc.setFontSize(9.2);
+    doc.text(sheet.targa || '—', margin + col1 + col2 + 2.5, fy + 10.2);
+
+    doc.setFont('Roboto', 'bold');
+    doc.setFontSize(9);
+    doc.text('Per conto di: ' + (sheet.perContoDi || '—'), margin + col1 + col2 + col3 + 2.5, fy + 7.5);
+
+    // GIRO title bar — shows which of the two giri this page is,
+    // making it immediately obvious at a glance.
+    var giroH = 6;
+    var gy = fy + fieldsH;
+    doc.setFillColor(230, 230, 228);
+    doc.rect(margin, gy, contentW, giroH, 'F');
+    doc.rect(margin, gy, contentW, giroH);
+    doc.setFont('Roboto', 'bold');
+    doc.setFontSize(10.5);
+    doc.setTextColor(20, 20, 20);
+    doc.text('GIRO ' + giroNum, margin + contentW / 2, gy + 4.2, { align: 'center' });
+
+    // Table — same shape as a normal single-giro sheet, plus one
+    // extra "Riscosso" column (money collected from the client),
+    // reading from whichever field set (1 or 2) this page is for.
+    var tableY = gy + giroH;
+    var colWidths = {
+      data: contentW * 0.034, da: contentW * 0.145, provDa: contentW * 0.043,
+      a: contentW * 0.161, provA: contentW * 0.043, ddt: contentW * 0.113, ric: contentW * 0.08,
+      kmI: contentW * 0.122, kmF: contentW * 0.122, kmT: contentW * 0.137
+    };
+    var head = [
+      [
+        { content: 'Data', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+        { content: 'Località di destinazione:', colSpan: 4, styles: { halign: 'center' } },
+        { content: 'DDT', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+        { content: 'Riscosso', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+        { content: 'KM INIZIO', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+        { content: 'KM FINE', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+        { content: 'KM TOT.', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } }
+      ],
+      [
+        { content: 'Da:', styles: { halign: 'center' } },
+        { content: 'Prov.', styles: { halign: 'center' } },
+        { content: 'A:', styles: { halign: 'center' } },
+        { content: 'Prov.', styles: { halign: 'center' } }
+      ]
+    ];
+    var body = [];
+    var n = daysInMonth(sheet.month, sheet.year);
+    var fDa = giroNum === 1 ? 'da' : 'da2', fProvDa = giroNum === 1 ? 'provDa' : 'provDa2';
+    var fA = giroNum === 1 ? 'a' : 'a2', fProvA = giroNum === 1 ? 'provA' : 'provA2';
+    var fDdt = giroNum === 1 ? 'ddt' : 'ddt2', fRisc = giroNum === 1 ? 'riscosso1' : 'riscosso2';
+    var fKmI = giroNum === 1 ? 'kmInizio' : 'kmInizio2', fKmF = giroNum === 1 ? 'kmFine' : 'kmFine2';
+    for (var d = 1; d <= 31; d++) {
+      var g = d <= n ? sheet.giorni[d] : null;
+      if (!g) { body.push([d <= n ? d : '', '', '', '', '', '', '', '', '', '']); continue; }
+      var ki = g[fKmI], kf = g[fKmF];
+      var kmTot = (ki !== "" && ki !== undefined && kf !== "" && kf !== undefined && !isNaN(kf - ki)) ? (Number(kf) - Number(ki)) : '';
+      var risc = g[fRisc];
+      body.push([
+        d,
+        g[fDa] || '', g[fProvDa] || '',
+        g[fA] || '', g[fProvA] || '',
+        g[fDdt] || '',
+        (risc !== "" && risc !== undefined) ? Number(risc).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '',
+        (ki !== "" && ki !== undefined) ? ki : '',
+        (kf !== "" && kf !== undefined) ? kf : '',
+        kmTot !== '' ? kmTot : ''
+      ]);
+    }
+
+    doc.autoTable({
+      startY: tableY,
+      margin: { left: margin, right: margin },
+      tableWidth: contentW,
+      theme: 'grid',
+      head: head,
+      body: body,
+      styles: { font: 'Roboto', fontSize: 7.4, cellPadding: { top: 0.7, bottom: 0.7, left: 1.1, right: 1.1 }, lineColor: [20, 20, 20], lineWidth: 0.25, textColor: [20, 20, 20], valign: 'middle' },
+      headStyles: { fillColor: [255, 255, 255], textColor: [20, 20, 20], fontStyle: 'bold', fontSize: 7.2, cellPadding: { top: 1, bottom: 1, left: 1.1, right: 1.1 }, lineColor: [20, 20, 20], lineWidth: 0.25 },
+      bodyStyles: { minCellHeight: 4.1 },
+      columnStyles: {
+        0: { cellWidth: colWidths.data, halign: 'center', fontStyle: 'bold' },
+        1: { cellWidth: colWidths.da, halign: 'center' },
+        2: { cellWidth: colWidths.provDa, halign: 'center' },
+        3: { cellWidth: colWidths.a, halign: 'center' },
+        4: { cellWidth: colWidths.provA, halign: 'center' },
+        5: { cellWidth: colWidths.ddt, halign: 'center' },
+        6: { cellWidth: colWidths.ric, halign: 'center' },
+        7: { cellWidth: colWidths.kmI, halign: 'center' },
+        8: { cellWidth: colWidths.kmF, halign: 'center' },
+        9: { cellWidth: colWidths.kmT, halign: 'center', fontStyle: 'bold' }
+      }
     });
   }
 
@@ -8841,11 +8943,22 @@
     document.getElementById('day-riscosso1-wrap').classList.toggle('hidden', !isDueGiri);
     document.getElementById('day-a-label').textContent = isDueGiri ? 'Località di destinazione (A: 1)' : 'Località di destinazione (A)';
     document.getElementById('day-ddt-label').textContent = isDueGiri ? 'DDT - 1' : 'DDT';
+    // Requested directly: relabeled to make clear these now belong to
+    // Giro 1 specifically, once a second giro (with its OWN separate
+    // km fields, below) exists on the same day.
+    document.getElementById('day-kminizio-label').textContent = isDueGiri ? 'KM inizio (Giro 1)' : 'KM inizio';
+    document.getElementById('day-kmfine-label').textContent = isDueGiri ? 'KM fine (Giro 1)' : 'KM fine';
+    document.getElementById('day-kmtot-label').textContent = isDueGiri ? 'KM totali (Giro 1)' : 'KM totali';
     document.getElementById('day-a2').value = g.a2 || '';
     document.getElementById('day-prova2').value = g.provA2 || '';
     document.getElementById('day-ddt2').value = g.ddt2 || '';
     document.getElementById('day-riscosso1').value = g.riscosso1 || '';
     document.getElementById('day-riscosso2').value = g.riscosso2 || '';
+    document.getElementById('day-da2').value = g.da2 || '';
+    document.getElementById('day-provda2').value = g.provDa2 || '';
+    document.getElementById('day-kminizio2').value = g.kmInizio2 !== undefined && g.kmInizio2 !== '' ? g.kmInizio2 : '';
+    document.getElementById('day-kmfine2').value = g.kmFine2 || '';
+    updateKmTot2();
 
     document.getElementById('day-kminizio').value = kmInizioVal !== undefined ? kmInizioVal : '';
     document.getElementById('day-kmfine').value = g.kmFine || '';
@@ -8893,6 +9006,37 @@
   document.getElementById('day-kminizio').addEventListener('input', updateKmTot);
   document.getElementById('day-kmfine').addEventListener('input', updateKmTot);
 
+  // Requested directly, following real driver feedback: Giro 2 gets
+  // its own, separate KM total, calculated the same way as Giro 1's.
+  function updateKmTot2() {
+    var ki2 = document.getElementById('day-kminizio2').value;
+    var kf2 = document.getElementById('day-kmfine2').value;
+    var warn2 = document.getElementById('day-warn2');
+    var totField2 = document.getElementById('day-kmtot2');
+    if (ki2 !== '' && kf2 !== '' && !isNaN(ki2) && !isNaN(kf2)) {
+      var tot2 = Number(kf2) - Number(ki2);
+      if (tot2 < 0) { if (warn2) warn2.classList.add('show'); totField2.value = tot2.toLocaleString('it-IT') + ' (verifica)'; }
+      else { if (warn2) warn2.classList.remove('show'); totField2.value = tot2.toLocaleString('it-IT') + ' km'; }
+    } else {
+      if (warn2) warn2.classList.remove('show');
+      totField2.value = '';
+    }
+  }
+  document.getElementById('day-kminizio2').addEventListener('input', updateKmTot2);
+  document.getElementById('day-kmfine2').addEventListener('input', updateKmTot2);
+  // Requested directly: Giro 2's own "Km inizio" auto-fills the moment
+  // Giro 1's own "Km fine" is entered — the vehicle's odometer simply
+  // continues from there. Only fills it in if Giro 2's own field is
+  // still genuinely empty, never overwriting a value the driver may
+  // have already typed or deliberately changed by hand.
+  document.getElementById('day-kmfine').addEventListener('input', function () {
+    var kmInizio2El = document.getElementById('day-kminizio2');
+    if (kmInizio2El.value === '') {
+      kmInizio2El.value = this.value;
+      updateKmTot2();
+    }
+  });
+
   document.getElementById('day-save').addEventListener('click', function () {
     if (!state.editingDay) return;
     var sheet = findSheet(state.editingDay.sheetId);
@@ -8915,10 +9059,14 @@
       a2: a2Val,
       provA2: provA2Val,
       ddt2: document.getElementById('day-ddt2').value.trim(),
+      da2: document.getElementById('day-da2').value.trim(),
+      provDa2: document.getElementById('day-provda2').value.trim().toUpperCase(),
       riscosso1: document.getElementById('day-riscosso1').value === '' ? '' : Math.max(0, Number(document.getElementById('day-riscosso1').value)),
       riscosso2: document.getElementById('day-riscosso2').value === '' ? '' : Math.max(0, Number(document.getElementById('day-riscosso2').value)),
       kmInizio: document.getElementById('day-kminizio').value === '' ? '' : Number(document.getElementById('day-kminizio').value),
       kmFine: document.getElementById('day-kmfine').value === '' ? '' : Number(document.getElementById('day-kmfine').value),
+      kmInizio2: document.getElementById('day-kminizio2').value === '' ? '' : Number(document.getElementById('day-kminizio2').value),
+      kmFine2: document.getElementById('day-kmfine2').value === '' ? '' : Number(document.getElementById('day-kmfine2').value),
       bonus: document.getElementById('day-bonus').value === '' ? '' : Math.max(0, Number(document.getElementById('day-bonus').value))
     };
     sheet.giorni[day] = g;

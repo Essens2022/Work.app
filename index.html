@@ -2170,7 +2170,27 @@
     <div id="day-riscosso1-wrap" class="hidden">
       <div class="field"><label>Riscosso giro 1 (€)</label><input id="day-riscosso1" type="number" inputmode="decimal" placeholder="0" min="0" step="0.01"></div>
     </div>
+    <div class="field-row">
+      <div class="field"><label id="day-kminizio-label">KM inizio</label><input id="day-kminizio" type="number" inputmode="numeric" placeholder="0"></div>
+      <div class="field"><label id="day-kmfine-label">KM fine</label><input id="day-kmfine" type="number" inputmode="numeric" placeholder="0"></div>
+    </div>
+    <div class="field">
+      <label id="day-kmtot-label">KM totali</label>
+      <input id="day-kmtot" type="text" disabled style="background:var(--surface-2);color:var(--ink-soft);font-family:'SF Mono',Menlo,monospace;">
+    </div>
     <div id="day-second-giro-wrap" class="hidden">
+      <!-- Requested directly, following real driver feedback: Giro 2
+           needed its own complete "Da" — the same way Giro 1 has one —
+           since it's genuinely its own separate trip, with its own
+           starting point (even if that usually matches the same base
+           departure, e.g. "Ponte San Nicolò", as Giro 1's own "Da"). -->
+      <div class="field">
+        <label>Da (Giro 2)</label>
+        <input id="day-da2" type="text" placeholder="Es. Padova">
+      </div>
+      <div class="field-row">
+        <div class="field narrow"><label>Prov.</label><input id="day-provda2" type="text" maxlength="2" style="text-transform:uppercase"></div>
+      </div>
       <div class="field">
         <label>Località di destinazione (A: 2)</label>
         <div class="autocomplete-wrap">
@@ -2183,14 +2203,22 @@
         <div class="field"><label>DDT - 2</label><input id="day-ddt2" type="text" placeholder="Es. 45/80249"></div>
       </div>
       <div class="field"><label>Riscosso giro 2 (€)</label><input id="day-riscosso2" type="number" inputmode="decimal" placeholder="0" min="0" step="0.01"></div>
-    </div>
-    <div class="field-row">
-      <div class="field"><label>KM inizio</label><input id="day-kminizio" type="number" inputmode="numeric" placeholder="0"></div>
-      <div class="field"><label>KM fine</label><input id="day-kmfine" type="number" inputmode="numeric" placeholder="0"></div>
-    </div>
-    <div class="field">
-      <label>KM totali</label>
-      <input id="day-kmtot" type="text" disabled style="background:var(--surface-2);color:var(--ink-soft);font-family:'SF Mono',Menlo,monospace;">
+      <div class="warn-banner" id="day-warn2">⚠ KM FINE inferiore a KM INIZIO (Giro 2). Controlla i valori.</div>
+      <!-- Requested directly: Giro 2's own "Km inizio" auto-fills from
+           Giro 1's own "Km fine" the moment it's entered — the vehicle
+           physically continues from that same reading, so the driver
+           shouldn't have to copy it over by hand. Still fully
+           editable afterward, in case the two trips genuinely aren't
+           back-to-back (e.g. a detour, or Giro 2 happening on a
+           different stretch of the day). -->
+      <div class="field-row">
+        <div class="field"><label>KM inizio (Giro 2)</label><input id="day-kminizio2" type="number" inputmode="numeric" placeholder="0"></div>
+        <div class="field"><label>KM fine (Giro 2)</label><input id="day-kmfine2" type="number" inputmode="numeric" placeholder="0"></div>
+      </div>
+      <div class="field">
+        <label>KM totali (Giro 2)</label>
+        <input id="day-kmtot2" type="text" disabled style="background:var(--surface-2);color:var(--ink-soft);font-family:'SF Mono',Menlo,monospace;">
+      </div>
     </div>
 
     <div class="field" style="margin-top:6px;">
