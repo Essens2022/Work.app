@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v497"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v498"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -4007,6 +4007,41 @@
   // solver, resolved from the response's job-id sequence back to the
   // actual client objects (the API itself only returns coordinates/ids,
   // not the original objects).
+  //
+  // REAL BUG, reported directly and confirmed, with the exact error
+  // text: "Impossibile ottimizzare (Load failed)" — Safari's own
+  // generic message for a fetch() call that fails at the NETWORK
+  // level itself (before any HTTP response ever comes back — distinct
+  // from an HTTP error like "ORS 429", which already has its own
+  // clear message). This app already has a documented history of
+  // iOS-specific standalone-PWA network quirks (see the geolocation
+  // fixes elsewhere in this file) — a transient network-level fetch
+  // failure, retried immediately, succeeds the overwhelming majority
+  // of the time on a real connection. One silent retry, after a short
+  // pause, before ever surfacing the error to the driver — genuine,
+  // repeated failures (bad connectivity, a real ORS outage) still
+  // correctly fail and fall back to the current order, same as
+  // before, just no longer on the very FIRST transient blip.
+  function dpFetchOrsOptimization(body) {
+    function attempt() {
+      return fetch('https://api.openrouteservice.org/optimization', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': ORS_API_KEY },
+        body: JSON.stringify(body)
+      });
+    }
+    return attempt().catch(function (err) {
+      // Only retries a genuine NETWORK-level failure (fetch itself
+      // rejecting — a TypeError, with no HTTP response at all) — an
+      // actual HTTP error response (rate limit, bad request, etc.)
+      // already resolves normally instead of rejecting here, so it's
+      // never retried this way; that's handled separately, below,
+      // exactly as before.
+      if (!(err instanceof TypeError)) throw err;
+      return new Promise(function (resolve) { setTimeout(resolve, 1200); }).then(attempt);
+    });
+  }
+
   function dpCallOrsOptimization(startPos, clients) {
     var v = state.vehicle;
     var profile = v.tipo === 'auto' ? 'driving-car' : 'driving-hgv';
@@ -4014,11 +4049,7 @@
       jobs: clients.map(function (c, i) { return { id: i + 1, location: [c.lon, c.lat] }; }),
       vehicles: [{ id: 1, profile: profile, start: [startPos.lon, startPos.lat] }]
     };
-    return fetch('https://api.openrouteservice.org/optimization', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': ORS_API_KEY },
-      body: JSON.stringify(body)
-    }).then(function (r) {
+    return dpFetchOrsOptimization(body).then(function (r) {
       dpTrackOrsQuota(r, 'optimization');
       if (!r.ok) throw new Error('ORS ' + r.status);
       return r.json();
