@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v492"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v493"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -2915,7 +2915,29 @@
     // before either pattern is tried, rather than complicating both
     // regexes with optional-parenthesis handling twice over.
     var t = text.trim().replace(/^\(|\)$/g, '').trim();
-    var decimalMatch = t.match(/^(-?\d{1,3}(?:\.\d+)?)[,\s]+(-?\d{1,3}(?:\.\d+)?)$/);
+    // Requested directly, following ION's own explicit preference:
+    // since he plans to rely on pasting raw coordinates specifically
+    // (rather than fighting address-geocoding gaps one street at a
+    // time), this must work with every realistic way Google Maps
+    // itself actually hands out coordinates, not just the format
+    // already fixed above:
+    //   "45.6145663, 12.3834851"   (the share-sheet / long-press card)
+    //   "(45.6145663, 12.3834851)" (already handled above)
+    //   "@45.6145663,12.3834851,15z" (copied straight from the
+    //     browser's own address bar, which prefixes an "@" and always
+    //     appends a trailing zoom level like ",15z" or ",17.5z")
+    // Rather than three near-duplicate regexes, one leading "@" is
+    // stripped if present, then the decimal match itself no longer
+    // anchors to the END of the string ($) — just requires the two
+    // numbers to be immediately followed by either nothing, or a
+    // comma/semicolon and then anything else (the zoom level,
+    // ignored). Still anchored at the START (^) so this can't
+    // accidentally match two random numbers buried in the middle of
+    // an actual street address — a real address is never going to
+    // start with a bare decimal number followed immediately by a
+    // comma-separated second decimal.
+    var t2 = t.replace(/^@/, '');
+    var decimalMatch = t2.match(/^(-?\d{1,3}(?:\.\d+)?)[,\s]+(-?\d{1,3}(?:\.\d+)?)(?:\s*[,;].*)?$/);
     if (decimalMatch) {
       var lat = parseFloat(decimalMatch[1]);
       var lon = parseFloat(decimalMatch[2]);
