@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v496"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v497"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -3548,14 +3548,25 @@
     // edge.
     var client = dpCameraCurrentClient || {};
     var centerX = w / 2;
-    var bottomPad = h * 0.05;
+    // REAL BUG, reported directly and confirmed: on the actual
+    // captured photo (not the live CSS preview, which already looked
+    // fine and stayed untouched — see .dp-camera-info-card's own tight
+    // gap:6px), these Y positions used to be spaced by large, fixed
+    // fractions of the full image height (0.075, 0.065) — reasonable-
+    // looking at the camera's old, much lower default resolution, but
+    // once a previous fix forced 4K capture for sharper photos, that
+    // SAME proportional spacing produced genuinely large gaps in
+    // absolute pixels, since it was never actually tied to the size
+    // of the text itself. Tightened here to track much closer to the
+    // live preview's own compact look.
+    var bottomPad = h * 0.035;
     ctx.textAlign = 'center';
     ctx.fillStyle = '#fff';
 
     var addrY = h - bottomPad;
-    var nameY = addrY - h * 0.075;
-    var timeY = nameY - h * 0.065;
-    var badgeY = timeY - h * 0.075;
+    var nameY = addrY - h * 0.042;
+    var timeY = nameY - h * 0.042;
+    var badgeY = timeY - h * 0.042;
 
     ctx.font = '700 ' + Math.round(w * 0.045) + 'px sans-serif';
     ctx.fillText('✓ Consegnato', centerX, badgeY);
