@@ -464,6 +464,17 @@
   .dp-client-row.dp-client-done{background:var(--teal-soft);}
   .dp-client-badge{flex:0 0 auto;width:30px;height:30px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;}
   .dp-client-badge-done{background:var(--teal-soft);color:var(--teal);}
+  /* Requested directly: clients with a delivery deadline ("Consegna
+     entro") get a visually distinct badge color — amber/yellow, a
+     universally understood "urgent, do this soon" signal — so it's
+     obvious at a glance in the numbered list which ones need to be
+     done fast, without having to open each one to check. Clients
+     with the OPPOSITE constraint ("Non prima delle" — can't be
+     delivered before a given time) get a different, calmer blue —
+     "wait, not yet" rather than "hurry" — kept clearly distinct from
+     both the urgent amber and the already-done teal. */
+  .dp-client-badge-scadenza{background:#FEF3C7;color:#B45309;}
+  .dp-client-badge-nonprima{background:#DBEAFE;color:#1D4ED8;}
   .dp-client-info{flex:1;min-width:0;}
   .dp-client-chevron{flex:0 0 auto;color:var(--ink-faint);font-size:20px;}
   .dp-camera-retake-icon-btn{
@@ -1867,14 +1878,25 @@
          driver's current position), and only once that's done does
          the rest of the route (no deadline) continue from wherever
          that group ended — instead of the driver having to manually
-         reorder the whole route themselves. Only shown when adding a
-         client to TODAY's active run — hidden when adding straight to
-         the archive (dpArchiveOpenNewClientModal), since a deadline
-         is tied to a specific day's delivery, not the client as a
-         standing archive entry. -->
+         reorder the whole route themselves. Also settable straight
+         from the archive itself (dpArchiveOpenNewClientModal/
+         dpArchiveOpenEdit) — it lives permanently on the client, not
+         just for one day's run, so it carries over automatically
+         every time this same client gets added to a future route. -->
     <div class="field" id="dp-new-scadenza-wrap" style="margin-top:10px;">
       <label>Consegna entro (opzionale)</label>
       <input type="time" id="dp-new-scadenza">
+    </div>
+    <!-- Requested directly: the OPPOSITE constraint — some clients
+         (a shop that only opens at a certain hour, for instance)
+         genuinely cannot be delivered to before a given time, no
+         matter how convenient it'd be distance-wise to go early.
+         Kept as its own separate, independent field — a client could
+         in principle have neither, either, or (less commonly) both
+         set at once. -->
+    <div class="field" style="margin-top:10px;">
+      <label>Non prima delle (opzionale)</label>
+      <input type="time" id="dp-new-nonprima">
     </div>
     <div id="dp-new-save-result" style="margin-top:8px;"></div>
     <button type="button" class="btn btn-accent btn-block" id="dp-new-save-btn" style="margin-top:10px;">Salva e aggiungi</button>
@@ -1969,6 +1991,10 @@
       <label>Consegna entro (opzionale)</label>
       <input type="time" id="dp-edit-scadenza">
     </div>
+    <div class="field" style="margin-top:10px;">
+      <label>Non prima delle (opzionale)</label>
+      <input type="time" id="dp-edit-nonprima">
+    </div>
     <div id="dp-edit-save-result" style="margin-top:8px;"></div>
     <button type="button" class="btn btn-accent btn-block" id="dp-edit-save-btn" style="margin-top:10px;">Salva modifiche</button>
     <button type="button" class="btn btn-danger btn-block" id="dp-edit-remove-btn" style="margin-top:10px;">Rimuovi dalla lista di oggi</button>
@@ -2035,6 +2061,20 @@
       <label>Indirizzo, coordinate o link Google Maps</label>
       <input type="text" id="dp-archive-edit-indirizzo" autocomplete="off">
       <button type="button" class="ac-clear-btn" id="dp-archive-edit-indirizzo-clear" aria-label="Cancella">✕</button>
+    </div>
+    <!-- Requested directly: setting a client's own delivery deadline
+         shouldn't require waiting until it's already added to a
+         specific day's run — knowing in advance which clients always
+         need to be done early, this lets it be set once, here, and
+         it'll automatically carry over every time this client gets
+         added to any future day's route. -->
+    <div class="field" style="margin-top:10px;">
+      <label>Consegna entro (opzionale)</label>
+      <input type="time" id="dp-archive-edit-scadenza">
+    </div>
+    <div class="field" style="margin-top:10px;">
+      <label>Non prima delle (opzionale)</label>
+      <input type="time" id="dp-archive-edit-nonprima">
     </div>
     <div id="dp-archive-edit-result" style="margin-top:8px;"></div>
     <button type="button" class="btn btn-accent btn-block" id="dp-archive-edit-save-btn" style="margin-top:10px;">Salva modifiche</button>
