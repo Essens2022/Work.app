@@ -9611,9 +9611,11 @@
     chatInputEl.style.height = 'auto';
     chatInputEl.style.height = Math.min(chatInputEl.scrollHeight, 100) + 'px';
   });
-  chatInputEl.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
-  });
+  // Requested directly: Enter/Invio on a real keyboard should only
+  // ever add a new line — the textarea's own normal, default
+  // behavior — never send. Sending only ever happens from a genuine
+  // tap on the dedicated send button, nothing else. Removed the
+  // keydown handler entirely rather than leaving an empty one behind.
   document.getElementById('novita-close-x').addEventListener('click', function () {
     document.getElementById('modal-novita').classList.remove('open');
   });

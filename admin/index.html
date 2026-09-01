@@ -1429,7 +1429,15 @@
       var closedModal = document.getElementById('modal-' + btn.dataset.close);
       closedModal.classList.remove('open');
       document.getElementById('admin-home').style.display = 'grid';
-      if (btn.dataset.close === 'messaggi') unlockBodyScroll();
+      if (btn.dataset.close === 'messaggi') {
+        unlockBodyScroll();
+        // Requested directly: clears the explicit pixel height set by
+        // the visualViewport listener above while the keyboard was
+        // open — without this, the NEXT time Messaggi opens, it could
+        // start out stuck at whatever height the keyboard last left
+        // it at, instead of the normal, full 100dvh from the CSS.
+        closedModal.style.height = '';
+      }
     });
   });
   document.getElementById('novita-add-btn').addEventListener('click', function () { openNovitaForm(null); });
@@ -1470,9 +1478,32 @@
     messaggiInputEl.style.height = 'auto';
     messaggiInputEl.style.height = Math.min(messaggiInputEl.scrollHeight, 100) + 'px';
   });
-  messaggiInputEl.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessaggiThreadMessage(); }
-  });
+  // Requested directly: Enter/Invio on a real keyboard should only
+  // ever add a new line — the textarea's own normal, default
+  // behavior — never send. Sending only ever happens from a genuine
+  // tap on the dedicated send button, nothing else. Removed the
+  // keydown handler entirely rather than leaving an empty one behind.
+
+  // REAL BUG, reported directly: tapping this input and opening the
+  // keyboard left the input bar hidden BEHIND the keyboard, on a real
+  // Android device — 100dvh alone (already set on .admin-modal-
+  // fullscreen.open, added for a related but different reason) wasn't
+  // enough by itself here. Adds a direct, explicit height in pixels,
+  // read straight from visualViewport (the browser's own live measure
+  // of what's actually still visible above the keyboard) — recalculated
+  // on every resize the keyboard triggers. A previous, unrelated
+  // attempt at this exact style of fix (see the 100dvh comment above)
+  // shrank things too aggressively, exposing the page behind — this
+  // one is scoped ONLY to when Messaggi is genuinely open, and only
+  // ever sets a height, never touches top/position, keeping the risk
+  // of that earlier mistake from repeating.
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', function () {
+      var modal = document.getElementById('modal-messaggi');
+      if (!modal.classList.contains('open')) return;
+      modal.style.height = window.visualViewport.height + 'px';
+    });
+  }
 
   // Requested directly: iPhone-style reordering for the home icons -
   // hold one down, drag it over another, they swap places; the new
