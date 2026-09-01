@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v474"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v475"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -3433,7 +3433,7 @@
     var logoSize = wmFontSize * 1.6;
     var logoGap = wmFontSize * 0.35;
     var groupRight = w - wmPad;
-    var groupTop = cardTop + wmPad + h * 0.018;
+    var groupTop = cardTop + wmPad + h * 0.032;
     var groupWidth = logoSize + logoGap + textWidth;
     var groupHeight = logoSize;
 
@@ -3464,12 +3464,23 @@
       ctx.arcTo(logoX, groupTop, logoX + logoSize, groupTop, logoR);
       ctx.closePath();
       ctx.clip();
+      // Requested directly: at this small size the logo's own photo
+      // (already somewhat dark/moody by design) read as muted — a
+      // punch of extra saturation and brightness, applied only here,
+      // makes it pop clearly at watermark scale without touching the
+      // source image file itself or its look anywhere else in the app.
+      ctx.filter = 'saturate(1.6) brightness(1.2) contrast(1.1)';
       ctx.drawImage(dpWatermarkLogoImg, logoX, groupTop, logoSize, logoSize);
+      ctx.filter = 'none';
       ctx.restore();
     }
 
     var wmY = groupTop + logoSize / 2 + wmFontSize * 0.35;
-    ctx.fillStyle = '#E8542B';
+    // Requested directly: a brighter, more saturated orange than the
+    // app's own brand accent (#E8542B) specifically for this
+    // watermark — at this small size, the standard brand color read
+    // as a little dull; a punchier tone pops more clearly.
+    ctx.fillStyle = '#FF6A2E';
     ctx.fillText('Smart', groupRight, wmY);
     ctx.fillStyle = '#fff';
     ctx.fillText('ADB ', groupRight - smartWidth, wmY);
