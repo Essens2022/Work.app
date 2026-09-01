@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v490"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v491"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -2904,7 +2904,17 @@
   // used both forms already in this same conversation.
   function dpParseCoordinatesFromText(text) {
     if (!text) return null;
-    var t = text.trim();
+    // REAL BUG, reported directly and confirmed: coordinates copied
+    // straight from Google Maps often come wrapped in parentheses —
+    // "(45.6145663, 12.3834851)" — which the regexes below, anchored
+    // to match the ENTIRE trimmed string exactly (^...$), rejected
+    // outright, even though the actual numbers inside were perfectly
+    // valid. ION found that manually deleting the parentheses (and,
+    // he thought, the space after the comma — that part was already
+    // handled by [,\s]+ below) made it work. Stripped here, once,
+    // before either pattern is tried, rather than complicating both
+    // regexes with optional-parenthesis handling twice over.
+    var t = text.trim().replace(/^\(|\)$/g, '').trim();
     var decimalMatch = t.match(/^(-?\d{1,3}(?:\.\d+)?)[,\s]+(-?\d{1,3}(?:\.\d+)?)$/);
     if (decimalMatch) {
       var lat = parseFloat(decimalMatch[1]);
