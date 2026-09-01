@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v470"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v471"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -3395,6 +3395,32 @@
 
     ctx.font = '600 ' + Math.round(w * 0.042) + 'px sans-serif';
     ctx.fillText(client.indirizzo || '', centerX, addrY);
+
+    // Requested directly, ION's own marketing idea: a small, tasteful
+    // watermark on every delivery photo — since these get shared
+    // straight to WhatsApp/clients, each one becomes a tiny bit of
+    // free advertising for the app itself. Deliberately subtle (small,
+    // corner-placed, semi-transparent) rather than a loud stamp across
+    // the photo — the point is it's noticeable if you look, not that
+    // it dominates the actual delivery confirmation. "Smart" drawn in
+    // the brand accent orange, "ADB " in white, right up against it —
+    // canvas fillText can't mix colors in one call, so it's drawn as
+    // two adjoining pieces, right-aligned, with the exact width of
+    // "Smart" measured first to place "ADB " flush against its left
+    // edge with no gap.
+    var wmPad = w * 0.03;
+    var wmY = h - wmPad;
+    var wmFontSize = Math.round(w * 0.032);
+    ctx.font = '800 ' + wmFontSize + 'px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = '#E8542B';
+    ctx.fillText('Smart', w - wmPad, wmY);
+    var smartWidth = ctx.measureText('Smart').width;
+    ctx.fillStyle = '#fff';
+    ctx.fillText('ADB ', w - wmPad - smartWidth, wmY);
+    ctx.globalAlpha = 1;
+    ctx.textAlign = 'center'; // restored — other drawing code after this point may rely on the default
 
     dpStopCameraStream(); // frame is captured — no need to keep the live feed running while previewing
     var dataUrl = canvas.toDataURL('image/jpeg', 0.92);
