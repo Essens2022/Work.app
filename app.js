@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v471"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v472"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -3216,8 +3216,18 @@
     dpOpenCameraForClient(client);
   }
 
+  // Requested directly, part of ION's watermark idea: the app's own
+  // logo (loading here, once, well before the actual photo capture,
+  // since Image loading is asynchronous — the capture itself draws
+  // synchronously and can't wait on a network request mid-shot).
+  var dpWatermarkLogoImg = null;
   function dpOpenCameraForClient(client) {
     dpCameraCurrentClient = client;
+    if (!dpWatermarkLogoImg) {
+      var logoImg = new Image();
+      logoImg.onload = function () { dpWatermarkLogoImg = logoImg; };
+      logoImg.src = 'icon-96.png';
+    }
     document.getElementById('dp-camera-info-time').textContent = client.completedAt ? dpFormatTime(client.completedAt) : '';
     document.getElementById('dp-camera-info-name').textContent = client.nome || '';
     document.getElementById('dp-camera-info-addr').textContent = client.indirizzo || '';
@@ -3399,27 +3409,70 @@
     // Requested directly, ION's own marketing idea: a small, tasteful
     // watermark on every delivery photo — since these get shared
     // straight to WhatsApp/clients, each one becomes a tiny bit of
-    // free advertising for the app itself. Deliberately subtle (small,
-    // corner-placed, semi-transparent) rather than a loud stamp across
-    // the photo — the point is it's noticeable if you look, not that
-    // it dominates the actual delivery confirmation. "Smart" drawn in
-    // the brand accent orange, "ADB " in white, right up against it —
+    // free advertising for the app itself. Moved to the top-right
+    // (ION's own follow-up: clearer up there, away from the green
+    // card's own text) with a small translucent dark backing behind
+    // it, so it stays readable regardless of what's actually in the
+    // photo at that corner — a plain sky or light-colored background
+    // would otherwise wash out white text with nothing behind it. The
+    // app's own logo sits just to the left of the text, both drawn at
+    // FULL opacity now (ION found the previous semi-transparent
+    // version too soft) for a cleaner, sharper look, even though it
+    // reads slightly smaller than the first attempt. "Smart" in the
+    // brand accent orange, "ADB " in white, right up against it —
     // canvas fillText can't mix colors in one call, so it's drawn as
-    // two adjoining pieces, right-aligned, with the exact width of
-    // "Smart" measured first to place "ADB " flush against its left
-    // edge with no gap.
-    var wmPad = w * 0.03;
-    var wmY = h - wmPad;
-    var wmFontSize = Math.round(w * 0.032);
+    // two adjoining pieces, right-aligned, with "Smart"'s own width
+    // measured first to place "ADB " flush against its left edge.
+    var wmPad = w * 0.035;
+    var wmFontSize = Math.round(w * 0.026);
     ctx.font = '800 ' + wmFontSize + 'px sans-serif';
     ctx.textAlign = 'right';
-    ctx.globalAlpha = 0.85;
-    ctx.fillStyle = '#E8542B';
-    ctx.fillText('Smart', w - wmPad, wmY);
     var smartWidth = ctx.measureText('Smart').width;
-    ctx.fillStyle = '#fff';
-    ctx.fillText('ADB ', w - wmPad - smartWidth, wmY);
+    var adbWidth = ctx.measureText('ADB ').width;
+    var textWidth = smartWidth + adbWidth;
+    var logoSize = wmFontSize * 1.6;
+    var logoGap = wmFontSize * 0.35;
+    var groupRight = w - wmPad;
+    var groupTop = wmPad;
+    var groupWidth = logoSize + logoGap + textWidth;
+    var groupHeight = logoSize;
+
+    // Backing plate, rounded corners, behind both the logo and text.
+    var bgPad = wmFontSize * 0.3;
+    ctx.globalAlpha = 0.4;
+    ctx.fillStyle = '#000';
+    var bx = groupRight - groupWidth - bgPad, by = groupTop - bgPad, bw = groupWidth + bgPad * 2, bh = groupHeight + bgPad * 2, br = bh * 0.25;
+    ctx.beginPath();
+    ctx.moveTo(bx + br, by);
+    ctx.arcTo(bx + bw, by, bx + bw, by + bh, br);
+    ctx.arcTo(bx + bw, by + bh, bx, by + bh, br);
+    ctx.arcTo(bx, by + bh, bx, by, br);
+    ctx.arcTo(bx, by, bx + bw, by, br);
+    ctx.closePath();
+    ctx.fill();
     ctx.globalAlpha = 1;
+
+    if (dpWatermarkLogoImg) {
+      var logoX = groupRight - textWidth - logoGap - logoSize;
+      var logoR = logoSize * 0.22;
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(logoX + logoR, groupTop);
+      ctx.arcTo(logoX + logoSize, groupTop, logoX + logoSize, groupTop + logoSize, logoR);
+      ctx.arcTo(logoX + logoSize, groupTop + logoSize, logoX, groupTop + logoSize, logoR);
+      ctx.arcTo(logoX, groupTop + logoSize, logoX, groupTop, logoR);
+      ctx.arcTo(logoX, groupTop, logoX + logoSize, groupTop, logoR);
+      ctx.closePath();
+      ctx.clip();
+      ctx.drawImage(dpWatermarkLogoImg, logoX, groupTop, logoSize, logoSize);
+      ctx.restore();
+    }
+
+    var wmY = groupTop + logoSize / 2 + wmFontSize * 0.35;
+    ctx.fillStyle = '#E8542B';
+    ctx.fillText('Smart', groupRight, wmY);
+    ctx.fillStyle = '#fff';
+    ctx.fillText('ADB ', groupRight - smartWidth, wmY);
     ctx.textAlign = 'center'; // restored — other drawing code after this point may rely on the default
 
     dpStopCameraStream(); // frame is captured — no need to keep the live feed running while previewing
