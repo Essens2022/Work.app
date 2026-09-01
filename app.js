@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v482"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v483"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -8195,7 +8195,20 @@
       styles: { font: 'Roboto', fontSize: 7.4, cellPadding: { top: 0.7, bottom: 0.7, left: 1.1, right: 1.1 }, lineColor: [20, 20, 20], lineWidth: 0.25, textColor: [20, 20, 20], valign: 'middle' },
       headStyles: { fillColor: [255, 255, 255], textColor: [20, 20, 20], fontStyle: 'bold', fontSize: 7.2, cellPadding: { top: 1, bottom: 1, left: 1.1, right: 1.1 }, lineColor: [20, 20, 20], lineWidth: 0.25 },
       bodyStyles: { minCellHeight: 4.1 },
-      columnStyles: columnStyles
+      columnStyles: columnStyles,
+      // Requested directly: on the due-giri table specifically, Giro 1
+      // and Giro 2 looked identical at a glance — a very light gray
+      // background on Giro 2's own body cells (columns 7-10: A/Prov./
+      // DDT/Riscosso) makes it immediately obvious which data belongs
+      // to which trip, without needing to read the header row every
+      // time. Subtle on purpose (barely off-white) — a stronger color
+      // would fight with the bold "Giro 2" header label already doing
+      // that job up top.
+      didParseCell: isDueGiri ? function (data) {
+        if (data.section === 'body' && data.column.index >= 7 && data.column.index <= 10) {
+          data.cell.styles.fillColor = [245, 245, 245];
+        }
+      } : undefined
     });
   }
 
