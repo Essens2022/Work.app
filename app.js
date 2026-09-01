@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v480"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v481"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -581,6 +581,14 @@
       // simply empty otherwise, so switching a sheet's template later
       // doesn't require migrating existing days.
       a2: "", provA2: "", ddt2: "",
+      // Requested directly: the amount of money the driver physically
+      // collects from the client on delivery (not "Bonus" below, which
+      // is the driver's own internal pay, never printed) — one per
+      // giro, since a 'due-giri' day genuinely has two separate
+      // deliveries, each with its own amount. Printed directly on the
+      // PDF itself. Present on every giorno regardless, same reasoning
+      // as a2/provA2/ddt2 above.
+      riscosso1: "", riscosso2: "",
       kmInizio: "", kmFine: "", bonus: ""
     };
   }
@@ -8043,18 +8051,26 @@
       // Two separate trips (each with its own destination + DDT) can
       // happen on the same day — some clients require that split
       // explicitly rather than combining it into one row.
+      // Requested directly: two new "€ Risc." columns, one per giro —
+      // money the driver physically collects from the client on
+      // delivery, printed directly on the PDF (unlike "Bonus", which
+      // stays app-only). KM columns shrunk slightly (short, numeric
+      // values, don't need much room) to make space, WITHOUT
+      // shrinking the destination columns at all — confirmed directly
+      // with a real render that long Italian place names (Villafranca
+      // di Verona, San Giovanni Lupatoto, etc.) still fit on one line.
       colWidths = {
-        data: contentW * 0.028, da: contentW * 0.115, provDa: contentW * 0.032,
-        a1: contentW * 0.105, provA1: contentW * 0.032, ddt1: contentW * 0.085,
-        a2: contentW * 0.105, provA2: contentW * 0.032, ddt2: contentW * 0.085,
-        kmI: contentW * 0.12, kmF: contentW * 0.12, kmT: contentW * 0.141
+        data: contentW * 0.025, da: contentW * 0.09, provDa: contentW * 0.028,
+        a1: contentW * 0.105, provA1: contentW * 0.028, ddt1: contentW * 0.07, ric1: contentW * 0.055,
+        a2: contentW * 0.105, provA2: contentW * 0.028, ddt2: contentW * 0.07, ric2: contentW * 0.055,
+        kmI: contentW * 0.097, kmF: contentW * 0.097, kmT: contentW * 0.097
       };
       head = [
         [
           { content: 'Data', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
           { content: 'Partenza', colSpan: 2, styles: { halign: 'center' } },
-          { content: 'Giro 1', colSpan: 3, styles: { halign: 'center' } },
-          { content: 'Giro 2', colSpan: 3, styles: { halign: 'center' } },
+          { content: 'Giro 1', colSpan: 4, styles: { halign: 'center' } },
+          { content: 'Giro 2', colSpan: 4, styles: { halign: 'center' } },
           { content: 'KM INIZIO', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
           { content: 'KM FINE', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
           { content: 'KM TOT.', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } }
@@ -8065,22 +8081,24 @@
           { content: 'A:', styles: { halign: 'center' } },
           { content: 'Prov.', styles: { halign: 'center' } },
           { content: 'DDT', styles: { halign: 'center' } },
+          { content: '€ Risc.', styles: { halign: 'center' } },
           { content: 'A:', styles: { halign: 'center' } },
           { content: 'Prov.', styles: { halign: 'center' } },
-          { content: 'DDT', styles: { halign: 'center' } }
+          { content: 'DDT', styles: { halign: 'center' } },
+          { content: '€ Risc.', styles: { halign: 'center' } }
         ]
       ];
       body = [];
       var n2 = daysInMonth(sheet.month, sheet.year);
       for (var d2 = 1; d2 <= 31; d2++) {
         var g2 = d2 <= n2 ? sheet.giorni[d2] : null;
-        if (!g2) { body.push([d2 <= n2 ? d2 : '', '', '', '', '', '', '', '', '', '', '', '']); continue; }
+        if (!g2) { body.push([d2 <= n2 ? d2 : '', '', '', '', '', '', '', '', '', '', '', '', '', '']); continue; }
         var kmTot2 = (g2.kmInizio !== "" && g2.kmFine !== "" && !isNaN(g2.kmFine - g2.kmInizio)) ? (Number(g2.kmFine) - Number(g2.kmInizio)) : '';
         body.push([
           d2,
           g2.da || '', g2.provDa || '',
-          g2.a || '', g2.provA || '', g2.ddt || '',
-          g2.a2 || '', g2.provA2 || '', g2.ddt2 || '',
+          g2.a || '', g2.provA || '', g2.ddt || '', g2.riscosso1 !== "" && g2.riscosso1 !== undefined ? Number(g2.riscosso1).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '',
+          g2.a2 || '', g2.provA2 || '', g2.ddt2 || '', g2.riscosso2 !== "" && g2.riscosso2 !== undefined ? Number(g2.riscosso2).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '',
           g2.kmInizio !== "" ? g2.kmInizio : '',
           g2.kmFine !== "" ? g2.kmFine : '',
           kmTot2 !== '' ? kmTot2 : ''
@@ -8143,12 +8161,14 @@
       3: { cellWidth: colWidths.a1, halign: 'center' },
       4: { cellWidth: colWidths.provA1, halign: 'center' },
       5: { cellWidth: colWidths.ddt1, halign: 'center' },
-      6: { cellWidth: colWidths.a2, halign: 'center' },
-      7: { cellWidth: colWidths.provA2, halign: 'center' },
-      8: { cellWidth: colWidths.ddt2, halign: 'center' },
-      9: { cellWidth: colWidths.kmI, halign: 'center' },
-      10: { cellWidth: colWidths.kmF, halign: 'center' },
-      11: { cellWidth: colWidths.kmT, halign: 'center', fontStyle: 'bold' }
+      6: { cellWidth: colWidths.ric1, halign: 'center' },
+      7: { cellWidth: colWidths.a2, halign: 'center' },
+      8: { cellWidth: colWidths.provA2, halign: 'center' },
+      9: { cellWidth: colWidths.ddt2, halign: 'center' },
+      10: { cellWidth: colWidths.ric2, halign: 'center' },
+      11: { cellWidth: colWidths.kmI, halign: 'center' },
+      12: { cellWidth: colWidths.kmF, halign: 'center' },
+      13: { cellWidth: colWidths.kmT, halign: 'center', fontStyle: 'bold' }
     } : {
       0: { cellWidth: colWidths.data, halign: 'center', fontStyle: 'bold' },
       1: { cellWidth: colWidths.da, halign: 'center' },
@@ -8801,11 +8821,14 @@
     // trips, each needing its own DDT.
     var isDueGiri = sheet.pdfTemplate === 'due-giri';
     document.getElementById('day-second-giro-wrap').classList.toggle('hidden', !isDueGiri);
+    document.getElementById('day-riscosso1-wrap').classList.toggle('hidden', !isDueGiri);
     document.getElementById('day-a-label').textContent = isDueGiri ? 'Località di destinazione (A: 1)' : 'Località di destinazione (A)';
     document.getElementById('day-ddt-label').textContent = isDueGiri ? 'DDT - 1' : 'DDT';
     document.getElementById('day-a2').value = g.a2 || '';
     document.getElementById('day-prova2').value = g.provA2 || '';
     document.getElementById('day-ddt2').value = g.ddt2 || '';
+    document.getElementById('day-riscosso1').value = g.riscosso1 || '';
+    document.getElementById('day-riscosso2').value = g.riscosso2 || '';
 
     document.getElementById('day-kminizio').value = kmInizioVal !== undefined ? kmInizioVal : '';
     document.getElementById('day-kmfine').value = g.kmFine || '';
@@ -8875,6 +8898,8 @@
       a2: a2Val,
       provA2: provA2Val,
       ddt2: document.getElementById('day-ddt2').value.trim(),
+      riscosso1: document.getElementById('day-riscosso1').value === '' ? '' : Math.max(0, Number(document.getElementById('day-riscosso1').value)),
+      riscosso2: document.getElementById('day-riscosso2').value === '' ? '' : Math.max(0, Number(document.getElementById('day-riscosso2').value)),
       kmInizio: document.getElementById('day-kminizio').value === '' ? '' : Number(document.getElementById('day-kminizio').value),
       kmFine: document.getElementById('day-kmfine').value === '' ? '' : Number(document.getElementById('day-kmfine').value),
       bonus: document.getElementById('day-bonus').value === '' ? '' : Math.max(0, Number(document.getElementById('day-bonus').value))
