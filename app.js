@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v477"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v478"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -9611,9 +9611,11 @@
     chatInputEl.style.height = 'auto';
     chatInputEl.style.height = Math.min(chatInputEl.scrollHeight, 100) + 'px';
   });
-  chatInputEl.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
-  });
+  // Requested directly: Enter/Invio on a real keyboard should only
+  // ever add a new line — the textarea's own normal, default
+  // behavior — never send. Sending only ever happens from a genuine
+  // tap on the dedicated send button, nothing else. Removed the
+  // keydown handler entirely rather than leaving an empty one behind.
   document.getElementById('novita-close-x').addEventListener('click', function () {
     document.getElementById('modal-novita').classList.remove('open');
   });
