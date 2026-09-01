@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v479"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v480"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -1228,7 +1228,15 @@
       });
     }
     pdfLibsPromise = loadScript('vendor/jspdf.umd.min.js')
-      .then(function () { return loadScript('vendor/jspdf.plugin.autotable.min.js'); });
+      .then(function () { return loadScript('vendor/jspdf.plugin.autotable.min.js'); })
+      // Requested directly: accented characters (Ò, À, È, Ù, Ì — common
+      // in Italian place names) came out corrupted in every generated
+      // PDF — the standard 'helvetica' font jsPDF ships with only
+      // supports ASCII/WinAnsi, not full UTF-8. Loading a real font
+      // with those glyphs alongside the existing PDF libraries, the
+      // same lazy way, so it's ready by the time any PDF actually
+      // gets built.
+      .then(function () { return loadScript('vendor/pdf-font-roboto.js'); });
     return pdfLibsPromise;
   }
 
@@ -7813,22 +7821,22 @@
     var brandW = contentW * 0.22;
     doc.setFillColor(20, 20, 20);
     doc.rect(margin, margin, brandW, headerH, 'F');
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('Roboto', 'bold');
     doc.setFontSize(11);
     doc.setTextColor(232, 84, 43); // brand accent orange
     doc.text('ADB', margin + 3, margin + 6.5);
     doc.setTextColor(255, 255, 255);
     doc.text(' Smart', margin + 3 + doc.getTextWidth('ADB'), margin + 6.5);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('Roboto', 'normal');
     doc.setFontSize(6.5);
     doc.text('Il tuo viaggio digitale', margin + 3, margin + 10.5);
 
     doc.line(margin + brandW, margin, margin + brandW, margin + headerH);
     doc.setTextColor(20, 20, 20);
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('Roboto', 'bold');
     doc.setFontSize(13.5);
     doc.text('RAPPORTO VIAGGI MENSILE', margin + brandW + (contentW * 0.56) / 2, margin + 7, { align: 'center' });
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('Roboto', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(90, 90, 90);
     doc.text('Registro giornaliero autista', margin + brandW + (contentW * 0.56) / 2, margin + 11.5, { align: 'center' });
@@ -7836,10 +7844,10 @@
 
     var meseX = margin + brandW + contentW * 0.56;
     doc.line(meseX, margin, meseX, margin + headerH);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('Roboto', 'normal');
     doc.setFontSize(7.5);
     doc.text('MESE / ANNO:', meseX + 2.5, margin + 6);
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('Roboto', 'bold');
     doc.setFontSize(9);
     doc.text(MESI[sheet.month - 1] + ' ' + sheet.year, meseX + 2.5, margin + 11);
 
@@ -7857,10 +7865,10 @@
     doc.line(margin, fy2 + fieldsH, margin + contentW, fy2 + fieldsH);
 
     function field(label, value, x, y) {
-      doc.setFont('helvetica', 'normal');
+      doc.setFont('Roboto', 'normal');
       doc.setFontSize(7);
       doc.text(label, x + 2, y + 3.3);
-      doc.setFont('helvetica', 'bold');
+      doc.setFont('Roboto', 'bold');
       doc.setFontSize(8.6);
       doc.text(value || '—', x + 2, y + 7);
     }
@@ -7877,7 +7885,7 @@
     doc.setFillColor(230, 230, 228);
     doc.rect(margin, gy, contentW, giroH, 'F');
     doc.rect(margin, gy, contentW, giroH);
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('Roboto', 'bold');
     doc.setFontSize(10);
     doc.text('GIRO / VIAGGI EFFETTUATI', margin + contentW / 2, gy + 4.2, { align: 'center' });
 
@@ -7919,7 +7927,7 @@
       theme: 'grid',
       head: head,
       body: body,
-      styles: { font: 'helvetica', fontSize: 7.4, cellPadding: { top: 0.7, bottom: 0.7, left: 1.1, right: 1.1 }, lineColor: [20, 20, 20], lineWidth: 0.25, textColor: [20, 20, 20], valign: 'middle' },
+      styles: { font: 'Roboto', fontSize: 7.4, cellPadding: { top: 0.7, bottom: 0.7, left: 1.1, right: 1.1 }, lineColor: [20, 20, 20], lineWidth: 0.25, textColor: [20, 20, 20], valign: 'middle' },
       headStyles: { fillColor: [255, 255, 255], textColor: [20, 20, 20], fontStyle: 'bold', fontSize: 7.2, cellPadding: { top: 1, bottom: 1, left: 1.1, right: 1.1 }, lineColor: [20, 20, 20], lineWidth: 0.25 },
       bodyStyles: { minCellHeight: 4.1 },
       columnStyles: {
@@ -7974,7 +7982,7 @@
       }
     } catch (e) { /* logo unavailable */ }
 
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('Roboto', 'bold');
     doc.setFontSize(10);
     doc.setTextColor(20, 20, 20);
     doc.text(COMPANY.indirizzo, margin + logoW + contentW * (1 - 0.34) / 2, margin + 6.5, { align: 'center' });
@@ -7990,28 +7998,28 @@
     doc.line(margin + col1 + col2 + col3, fy, margin + col1 + col2 + col3, fy + fieldsH);
     doc.line(margin, fy + fieldsH, margin + contentW, fy + fieldsH);
 
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('Roboto', 'normal');
     doc.setFontSize(7.8);
     doc.text('Viaggi effettuati nel mese di:', margin + 2.5, fy + 4.8);
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('Roboto', 'bold');
     doc.setFontSize(9);
     doc.text(MESI[sheet.month - 1] + '   ' + sheet.year, margin + 2.5, fy + 9.8);
 
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('Roboto', 'normal');
     doc.setFontSize(7.8);
     doc.text('Nome autista:', margin + col1 + 2.5, fy + 4.8);
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('Roboto', 'bold');
     doc.setFontSize(9.2);
     doc.text(sheet.nome || '—', margin + col1 + 2.5, fy + 10.2);
 
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('Roboto', 'normal');
     doc.setFontSize(7.8);
     doc.text('Targa Veicolo:', margin + col1 + col2 + 2.5, fy + 4.8);
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('Roboto', 'bold');
     doc.setFontSize(9.2);
     doc.text(sheet.targa || '—', margin + col1 + col2 + 2.5, fy + 10.2);
 
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('Roboto', 'bold');
     doc.setFontSize(9);
     doc.text('Per conto di: ' + (sheet.perContoDi || '—'), margin + col1 + col2 + col3 + 2.5, fy + 7.5);
 
@@ -8021,7 +8029,7 @@
     doc.setFillColor(230, 230, 228);
     doc.rect(margin, gy, contentW, giroH, 'F');
     doc.rect(margin, gy, contentW, giroH);
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('Roboto', 'bold');
     doc.setFontSize(10.5);
     doc.setTextColor(20, 20, 20);
     doc.text('GIRO', margin + contentW / 2, gy + 4.2, { align: 'center' });
@@ -8160,16 +8168,33 @@
       theme: 'grid',
       head: head,
       body: body,
-      styles: { font: 'helvetica', fontSize: 7.4, cellPadding: { top: 0.7, bottom: 0.7, left: 1.1, right: 1.1 }, lineColor: [20, 20, 20], lineWidth: 0.25, textColor: [20, 20, 20], valign: 'middle' },
+      styles: { font: 'Roboto', fontSize: 7.4, cellPadding: { top: 0.7, bottom: 0.7, left: 1.1, right: 1.1 }, lineColor: [20, 20, 20], lineWidth: 0.25, textColor: [20, 20, 20], valign: 'middle' },
       headStyles: { fillColor: [255, 255, 255], textColor: [20, 20, 20], fontStyle: 'bold', fontSize: 7.2, cellPadding: { top: 1, bottom: 1, left: 1.1, right: 1.1 }, lineColor: [20, 20, 20], lineWidth: 0.25 },
       bodyStyles: { minCellHeight: 4.1 },
       columnStyles: columnStyles
     });
   }
 
-  function buildPdf(sheet) {
+  // Requested directly: accented characters (Ò, À, È, Ù, Ì, and the
+  // euro sign) came out corrupted in generated PDFs — jsPDF's own
+  // built-in 'helvetica' font is limited to ASCII/WinAnsi, the
+  // standard fix for this is loading a real font with those glyphs
+  // (here: Roboto, subsetted to Western European Latin, kept loaded
+  // alongside jsPDF itself — see ensurePdfLibsLoaded above) and using
+  // it in place of 'helvetica' everywhere a PDF gets built.
+  function createPdfDoc() {
     var jsPDFCtor = window.jspdf.jsPDF;
     var doc = new jsPDFCtor({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    doc.addFileToVFS('Roboto-Regular.ttf', PDF_FONT_ROBOTO_REGULAR_B64);
+    doc.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
+    doc.addFileToVFS('Roboto-Bold.ttf', PDF_FONT_ROBOTO_BOLD_B64);
+    doc.addFont('Roboto-Bold.ttf', 'Roboto', 'bold');
+    doc.setFont('Roboto', 'normal');
+    return doc;
+  }
+
+  function buildPdf(sheet) {
+    var doc = createPdfDoc();
     buildPdfPage(doc, sheet);
     return doc;
   }
@@ -8183,8 +8208,7 @@
       return (a.perContoDi || '').localeCompare(b.perContoDi || '');
     });
     if (!sheets.length) return null;
-    var jsPDFCtor = window.jspdf.jsPDF;
-    var doc = new jsPDFCtor({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    var doc = createPdfDoc();
     sheets.forEach(function (s, i) {
       if (i > 0) doc.addPage();
       buildPdfPage(doc, s);
@@ -8253,7 +8277,7 @@
     function startPage() {
       doc.addPage();
       pageNum++;
-      doc.setFont('helvetica', 'bold');
+      doc.setFont('Roboto', 'bold');
       doc.setFontSize(12);
       doc.setTextColor(20, 20, 20);
       var pageLabel = totalPages > 1
@@ -8270,7 +8294,7 @@
       if (x + w > margin + usableW && x > margin) { x = margin; y += rowH + captionH + gap; }
       if (y + captionH + h > margin + headerH + usableH) { startPage(); }
 
-      doc.setFont('helvetica', 'bold');
+      doc.setFont('Roboto', 'bold');
       doc.setFontSize(7);
       doc.setTextColor(90, 90, 90);
       var label = 'G.' + r.day + (r.totalInDay > 1 ? ' (' + (r.indexInDay + 1) + '/' + r.totalInDay + ')' : '');
