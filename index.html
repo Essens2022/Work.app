@@ -2160,6 +2160,16 @@
       <div class="field narrow"><label>Prov.</label><input id="day-prova" type="text" maxlength="2" style="text-transform:uppercase"></div>
       <div class="field"><label id="day-ddt-label">DDT</label><input id="day-ddt" type="text" placeholder="Es. 45/80248"></div>
     </div>
+    <!-- Requested directly: money the driver physically collects from
+         the client on delivery — distinct from "Bonus" further below
+         (the driver's own pay, never printed). Only shown on the
+         'due-giri' template — a plain single-giro day already has
+         just one destination/DDT, so a single Riscosso field there
+         would be redundant with this one; toggled together with
+         #day-second-giro-wrap via the same isDueGiri check. -->
+    <div id="day-riscosso1-wrap" class="hidden">
+      <div class="field"><label>Riscosso giro 1 (€)</label><input id="day-riscosso1" type="number" inputmode="decimal" placeholder="0" min="0" step="0.01"></div>
+    </div>
     <div id="day-second-giro-wrap" class="hidden">
       <div class="field">
         <label>Località di destinazione (A: 2)</label>
@@ -2172,6 +2182,7 @@
         <div class="field narrow"><label>Prov.</label><input id="day-prova2" type="text" maxlength="2" style="text-transform:uppercase"></div>
         <div class="field"><label>DDT - 2</label><input id="day-ddt2" type="text" placeholder="Es. 45/80249"></div>
       </div>
+      <div class="field"><label>Riscosso giro 2 (€)</label><input id="day-riscosso2" type="number" inputmode="decimal" placeholder="0" min="0" step="0.01"></div>
     </div>
     <div class="field-row">
       <div class="field"><label>KM inizio</label><input id="day-kminizio" type="number" inputmode="numeric" placeholder="0"></div>
