@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v491"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v492"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -5687,13 +5687,37 @@
   // OpenStreetMap yet (a very recently opened shop, in a small town
   // with few local contributors) — that's a real gap in the free data
   // itself, not something any query tuning can work around.
+  // Requested directly, following two real, confirmed cases: an
+  // address failing to geocode not because of a typo or a missing
+  // street in OpenStreetMap, but because the CITY name typed (from
+  // Google Maps, which often shows the local "frazione" — a
+  // sub-locality — rather than the actual comune/municipality it
+  // officially belongs to) doesn't match what OpenStreetMap has on
+  // record for that street. Real confirmed example: "Bidasio" is a
+  // frazione of "Nervesa della Battaglia" — Google Maps shows
+  // "Bidasio", but the street is only findable searching for the
+  // actual comune name. Rather than needing a lookup table mapping
+  // every Italian frazione to its comune (a huge, ongoing
+  // maintenance burden), this drops the locality word entirely,
+  // keeping just the postal code + province — the postal code alone
+  // is specific enough to correctly place the search, regardless of
+  // which local name was used for the town in between.
+  function dpStripLocalityKeepingPostalCode(text) {
+    var m = text.match(/^(.*?\d{5})\s+\S+\s+([A-Z]{2})\s*$/);
+    if (!m) return null;
+    return m[1] + ' ' + m[2];
+  }
+
   function navGeocodeFetch(endpoint, text) {
     var attempts = [{}, { noLayers: true }];
+    var strippedText = dpStripLocalityKeepingPostalCode(text);
+    if (strippedText && strippedText !== text) attempts.push({ overrideText: strippedText });
     if (navSearchFocusPoint) attempts.push({ venueOnly: true }); // last resort: business-name-only, still softly biased nearby
 
     function tryNext(i) {
       if (i >= attempts.length) return Promise.resolve({ features: [] });
-      return fetchWithTimeout(navGeocodeUrl(endpoint, text, attempts[i]), null, 6000)
+      var opts = attempts[i];
+      return fetchWithTimeout(navGeocodeUrl(endpoint, opts.overrideText || text, opts), null, 6000)
         .then(function (r) { dpTrackOrsQuota(r, 'geocode'); return r.json(); })
         .then(function (data) {
           if (data.features && data.features.length) return data;
