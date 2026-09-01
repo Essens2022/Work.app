@@ -1485,6 +1485,14 @@
   // behavior — never send. Sending only ever happens from a genuine
   // tap on the dedicated send button, nothing else. Removed the
   // keydown handler entirely rather than leaving an empty one behind.
+  // Requested directly: tapping anywhere ABOVE the input bar (the
+  // messages themselves) should dismiss the keyboard, matching how
+  // WhatsApp and most real chat apps behave — blur() is what actually
+  // closes an on-screen keyboard; there's no other way to trigger it
+  // from JS.
+  document.getElementById('messaggi-thread-scroll').addEventListener('click', function () {
+    messaggiInputEl.blur();
+  });
 
   // REAL BUG, reported directly: tapping this input and opening the
   // keyboard left the input bar hidden BEHIND the keyboard, on a real
