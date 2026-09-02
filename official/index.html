@@ -101,22 +101,6 @@ fbq('track', 'PageView');
      entirely for the duration of an active zoom, same pattern as the
      streaks' blur above. */
   body.zoom-active .phone-frame{box-shadow:none!important;}
-  /* Requested directly, follow-up: the crash persisted even after
-     removing the streaks' blur — reported clearly this time: a black
-     square appears and part of the page stops rendering, ANYWHERE on
-     the page (top or bottom), the moment a pinch-zoom happens. That
-     "anywhere" detail points squarely at #fullpage-route — a single
-     SVG element that spans the ENTIRE page height (several thousand
-     pixels on a long page), containing many nodes/vehicles and their
-     filters. Mobile browsers have well-documented tile-rendering
-     limits for very large elements; a pinch-zoom forces the whole
-     thing to be re-rasterized at the new scale, and a tile that fails
-     to render shows up as exactly this kind of blank/black rectangle
-     — independent of scroll position, since the ONE oversized element
-     spans the whole page regardless of where the zoom happens.
-     Hidden entirely during an active zoom — restored the instant it
-     ends, same pattern already used for the streaks. */
-  body.zoom-active #fullpage-route{display:none!important;}
   .streak-1{top:8%;transform:rotate(-35deg);animation:streak-move-1 22s ease-in-out infinite;}
   /* Blur radius reduced (50/60px -> 24/28px), same Android-performance
      pass — CSS filter:blur() is expensive relative to its radius, and
@@ -137,7 +121,6 @@ fbq('track', 'PageView');
   }
   @media (prefers-reduced-motion:reduce){
     .streak{animation:none !important;}
-    .route-node{animation:none !important;}
   }
 
   section{position:relative;z-index:1;padding:110px 24px;}
@@ -167,43 +150,14 @@ fbq('track', 'PageView');
   }
   /* Requested directly, follow-up: "aceasta linie ar fi bine sa fie
      pe intregul site, de sus pana jos... sa mearga ca un zigzag
-     oval". Complete redesign: no longer confined to the hero — a
-     single SVG now spans the FULL page height (measured and set by
-     JS, since content height varies), with a path that zigzags
-     left-right-left down the entire page.
-     Requested directly, second follow-up: "nu neaparat sa fie cate
-     unul... in timp ce unul se deplaseaza poate aparea altul... la
-     fiecare 3 secunde... cel vechi isi continua cursa cu viteza lui
-     fluida" — several vehicles travel it at once now, each at a
-     constant speed, a new one starting every 3 seconds, completely
-     independent of the others (no more pause-at-node behavior).
-     Deliberately GPU-cheap, same principles as before: no large
-     blurred layers, only stroke/opacity/transform. */
-  #fullpage-route{
-    position:absolute;top:0;left:0;width:100%;z-index:0;
-    pointer-events:none;
-  }
-  #fullpage-route svg{display:block;opacity:.7;}
-  .route-path{
-    fill:none;stroke:url(#routeGrad);stroke-width:2.5;stroke-linecap:round;
-    filter:drop-shadow(0 0 6px rgba(255,106,0,.8)) drop-shadow(0 0 14px rgba(255,106,0,.4));
-  }
-  .route-node{
-    fill:#0A0A0A;stroke:var(--accent-2);stroke-width:2;
-    filter:drop-shadow(0 0 5px var(--accent-2)) drop-shadow(0 0 12px var(--accent-2));
-    animation:node-pulse 2.6s ease-in-out infinite;
-  }
-  @keyframes node-pulse{
-    0%,100%{opacity:.65;r:5;}
-    50%{opacity:1;r:7;}
-  }
-  .route-vehicle{
-    fill:#fff;
-    filter:drop-shadow(0 0 10px #fff) drop-shadow(0 0 22px var(--accent)) drop-shadow(0 0 40px var(--accent)) drop-shadow(0 0 60px rgba(255,106,0,.6));
-  }
-  .route-vehicle-halo{
-    fill:var(--accent);opacity:.85;filter:url(#haloBlur);
-  }
+     oval". This was later removed entirely — real Android phones,
+     mid/low-end ones especially, struggled with a full-page SVG
+     route plus continuously-animated vehicles, and it had also
+     caused a separate, more serious rendering bug (a black rectangle
+     appearing during pinch-zoom, since fixed by removing the
+     oversized element that caused it in the first place). Nothing
+     replaces it — the hero's own static van illustration below still
+     stays. */
   .hero-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:60px;align-items:center;}
   .hero h1{
     font-size:clamp(38px,5.4vw,62px);font-weight:900;line-height:1.08;letter-spacing:-.02em;margin-bottom:22px;
@@ -378,8 +332,6 @@ fbq('track', 'PageView');
 </style>
 </head>
 <body>
-
-<div id="fullpage-route" aria-hidden="true"></div>
 
 <div class="streaks-field" id="streaksField">
   <div class="streak streak-1"></div>
@@ -859,7 +811,6 @@ fbq('track', 'PageView');
     // actually happens (by which point construction has long
     // finished) — never re-queried again after that.
     var cachedStreaks = null;
-    var cachedRouteNodes = null;
     var wasZooming = false;
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', function () {
@@ -867,401 +818,13 @@ fbq('track', 'PageView');
         if (zooming === wasZooming) return; // the overwhelming majority of firings during a gesture — nothing actually changed, so nothing more to do
         wasZooming = zooming;
         if (!cachedStreaks) cachedStreaks = document.querySelectorAll('.streak');
-        if (!cachedRouteNodes) cachedRouteNodes = document.querySelectorAll('.route-node');
         field.style.animationPlayState = zooming ? 'paused' : 'running';
         document.body.classList.toggle('zoom-active', zooming);
         cachedStreaks.forEach(function (s) { s.style.animationPlayState = zooming ? 'paused' : 'running'; });
-        // Same reasoning applied to the full-page route animation —
-        // the pulsing nodes are a continuous CSS animation too, paused
-        // for the same reason during an active pinch-zoom.
-        cachedRouteNodes.forEach(function (s) { s.style.animationPlayState = zooming ? 'paused' : 'running'; });
-        // Vehicle movement is now plain JS (requestAnimationFrame),
-        // not SMIL — paused via a shared flag exposed by that other
-        // module, set up regardless of which one initializes first.
-        if (window.__setRouteAnimPaused) window.__setRouteAnimPaused(zooming);
       });
     }
   })();
 
-  // Requested directly: "aceasta linie ar fi bine sa fie pe intregul
-  // site, de sus pana jos... sa mearga ca un zigzag oval... cand
-  // ajunge la destinatie, sa se opreasca o secunda" — builds the
-  // route dynamically, since the actual page height depends on
-  // content (varies by viewport width, font rendering, etc.) and
-  // can't be hardcoded reliably.
-  (function () {
-    // REAL BUG, root cause finally confirmed directly, via the
-    // temporary debug panel: this device genuinely reports
-    // prefers-reduced-motion as true (iOS Accessibility → Motion →
-    // Reduce Motion, or similar) — NOT a guess this time, seen
-    // directly in the diagnostic output. This check was ADDED
-    // earlier specifically to fix a DIFFERENT reported issue ("route
-    // disappeared entirely"), based on an INCORRECT diagnosis at the
-    // time — it actually introduced this exact regression instead:
-    // confirmed directly — "inainte de a face modificari linia era
-    // dinamica, totul mergea... mai apoi a incetat" (it worked before
-    // any of these changes, then stopped) — matching precisely when
-    // this reduced-motion check was first added. Removed entirely —
-    // this decorative marketing-page animation now always plays,
-    // regardless of the device's motion preference, since that's
-    // explicitly what's wanted here.
-    var container = document.getElementById('fullpage-route');
-    var isMobile = window.innerWidth <= 760;
-    var vbWidth = isMobile ? 400 : 1000;
-    var leftX = isMobile ? 70 : 120;
-    var rightX = isMobile ? 330 : vbWidth - 120;
-    var segmentH = isMobile ? 480 : 420;
-
-    function buildRoute() {
-      // REAL BUG, found directly, reported clearly: the page kept
-      // scrolling well past where real content actually ends — the
-      // footer, "Foglio viaggi digitale / App per autisti / Itinerario
-      // consegne / Apri l'app" links, should be the true bottom.
-      // Root cause: document.body.scrollHeight INCLUDES this very
-      // container's own height (position:absolute doesn't exclude an
-      // element from the page's scroll height once it has an explicit
-      // height set) — so on every rebuild, the measurement is
-      // contaminated by whatever height THIS container was already
-      // set to from the PREVIOUS build. If an early measurement (say,
-      // before webfonts fully settle) ever comes out even slightly
-      // taller than the true final content height, that inflated
-      // value gets "locked in" — later rebuilds can only match or grow
-      // it, never correct back down to the real, shorter height,
-      // since the container's own leftover height keeps propping the
-      // measurement up. Fixed by collapsing the container's height
-      // to 0 immediately before measuring, so the reading reflects
-      // only the real page content, never its own previous output.
-      container.style.height = '0px';
-      var pageHeight = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);
-      container.style.height = pageHeight + 'px';
-      var numTurns = Math.max(3, Math.ceil((pageHeight - 80) / segmentH) + 1);
-
-      var points = [];
-      for (var i = 0; i < numTurns; i++) {
-        var x = (i % 2 === 0) ? leftX : rightX;
-        var y = 40 + i * segmentH;
-        points.push([x, y]);
-      }
-      // Requested directly: the last point could overshoot the real
-      // page height by a bit (numTurns rounds up to make sure the
-      // route always reaches far enough) — clamped dynamically here,
-      // to whatever pageHeight actually measures for THIS page, on
-      // THIS load, rather than a fixed number. Ensures the route ends
-      // exactly at the true bottom of the page every time, regardless
-      // of how tall the content turns out to be.
-      points[points.length - 1][1] = pageHeight - 40;
-
-      var d = 'M' + points[0][0] + ',' + points[0][1];
-      // Requested directly: "nu se opreste exact in cerc" — the pause
-      // position for each node used i/(numNodes-1) as an ESTIMATE of
-      // where that node sits along the total arc length, assuming
-      // roughly even spacing — close, but not exact, since consecutive
-      // curve segments don't all have identical arc length (especially
-      // the very last one, its endpoint adjusted separately to reach
-      // the true bottom of the page). Building each segment's 'd'
-      // string separately here too, so the EXACT arc length up to each
-      // node can be measured directly afterward, rather than assumed.
-      var segments = [d];
-      for (var j = 1; j < points.length; j++) {
-        var x0 = points[j - 1][0], y0 = points[j - 1][1];
-        var x1 = points[j][0], y1 = points[j][1];
-        var midY = (y0 + y1) / 2;
-        d += ' C' + x0 + ',' + midY + ' ' + x1 + ',' + midY + ' ' + x1 + ',' + y1;
-        segments.push(d);
-      }
-
-      var nodesSvg = points.map(function (pt) {
-        return '<circle class="route-node" cx="' + pt[0] + '" cy="' + pt[1] + '" r="6"/>';
-      }).join('');
-
-      // REAL BUG, reported directly: nothing dynamic showed up at all
-      // on a real phone (confirmed, directly, not a battery-saver or
-      // reduced-motion setting) even though this worked correctly in
-      // every sandboxed test. SMIL (<animateMotion>) is old, and real-
-      // world support has genuinely become inconsistent across
-      // browsers/versions in a way a desktop-Chromium test can't
-      // always catch. Rebuilt the moving-vehicle logic on plain,
-      // universally-supported DOM/SVG APIs instead — getTotalLength(),
-      // getPointAtLength(), and requestAnimationFrame — no SMIL
-      // involved anywhere, so there's nothing browser-specific left to
-      // silently fail.
-      var vehicleCount = 0;
-      var traversalSeconds = 0;
-      var vehiclesSvg = '';
-      {
-        var totalLength = 0;
-        for (var m = 1; m < points.length; m++) {
-          var dx = points[m][0] - points[m - 1][0];
-          var dy = points[m][1] - points[m - 1][1];
-          totalLength += Math.sqrt(dx * dx + dy * dy);
-        }
-        // Requested directly: at 140px/s, a full traversal of a real
-        // page (thousands of px tall) took nearly a MINUTE — far too
-        // slow to notice within a normal glance at the page, even
-        // though the underlying mechanism itself works correctly
-        // (confirmed by measuring the actual rendered curve length
-        // directly: ~7765 units for a 6604px-tall mobile page, close
-        // to but slightly under the straight-line estimate — the
-        // math wasn't wrong, the chosen speed just was). Increased
-        // substantially so movement is unmistakable within a couple
-        // of seconds, not something you need to stare at for a while
-        // to notice.
-        var speedPxPerSecond = 380;
-        traversalSeconds = Math.max(6, totalLength / speedPxPerSecond);
-        var spawnIntervalSeconds = 3;
-        // Vehicle count must account for the pauses too (added below,
-        // in startVehicleAnimation) — the full cycle (travel + a 1s
-        // pause at each of the numTurns nodes) is longer than pure
-        // travel time alone, so more vehicles are needed to keep the
-        // path continuously populated without gaps.
-        var estimatedCycleSeconds = traversalSeconds + numTurns * 1;
-        // REAL PERFORMANCE ISSUE, reported directly: the page (and the
-        // app in general) ran noticeably worse on Android than on
-        // iPhone — confirmed, concretely, this exact effect creates
-        // 14 continuously-moving vehicles (each with its own blurred
-        // halo) on a real, typical page height, ALL recalculated via
-        // requestAnimationFrame on every single frame, forever. iOS
-        // Safari's tightly integrated GPU pipeline absorbs this kind
-        // of sustained SVG-filter compositing far more gracefully
-        // than the much wider spread of Android GPUs/Chrome versions
-        // ever will. Capped at a flat maximum regardless of how tall
-        // the page is — still keeps the route visibly, continuously
-        // populated with moving dots (the actual visual goal), just
-        // without unboundedly scaling the animated+blurred element
-        // count up with page length.
-        vehicleCount = Math.min(6, Math.max(2, Math.ceil(estimatedCycleSeconds / spawnIntervalSeconds)));
-        for (var v = 0; v < vehicleCount; v++) {
-          // Requested directly: "punctul dinamic trebuie sa fie
-          // retroiluminant" — a genuine backlit halo now, using a
-          // real SVG blur filter on a larger circle rendered BEHIND
-          // the sharp, bright dot on top, rather than relying only on
-          // CSS drop-shadow layering (visually flatter, less like a
-          // true glow coming from behind).
-          vehiclesSvg += '<circle class="route-vehicle-halo" r="16" style="display:none;"/>' +
-            '<circle class="route-vehicle" r="5" style="display:none;"/>';
-        }
-      }
-
-      // Requested directly, follow-up: iPhone/Chrome-on-iOS (which is
-      // really Safari's WebKit engine underneath — Apple requires
-      // this for every browser on iOS) still showed nothing moving.
-      // Found a documented, real WebKit bug: SVG height gets
-      // miscalculated specifically when width is set as a percentage
-      // (width="100%") while height is an explicit pixel value — this
-      // exact mismatched combination is what was used here. If the
-      // SVG's actual rendered box differs from what the code assumes,
-      // every coordinate this script calculates (including each
-      // vehicle's position) ends up wrong or invisible. Both
-      // dimensions are explicit pixel values now — no percentage
-      // sizing anywhere on the SVG element itself — sidestepping this
-      // WebKit quirk entirely rather than depending on it being fixed.
-      var containerWidth = window.innerWidth;
-      var svg = '<svg viewBox="0 0 ' + vbWidth + ' ' + pageHeight + '" width="' + containerWidth + '" height="' + pageHeight + '" preserveAspectRatio="none">' +
-        '<defs>' +
-        // Blur reduced (8 -> 5) as part of the same Android-performance
-        // pass above — still reads as a soft glow, but a materially
-        // lighter one for the GPU to keep recompositing on every
-        // frame, across all 6 (now capped) simultaneously-animated halos.
-        '<filter id="haloBlur" x="-200%" y="-200%" width="500%" height="500%"><feGaussianBlur stdDeviation="5"/></filter>' +
-        '<linearGradient id="routeGrad" x1="0%" y1="0%" x2="0%" y2="100%">' +
-        '<stop offset="0%" stop-color="#FF6A00"/><stop offset="100%" stop-color="#FF3D00"/>' +
-        '</linearGradient></defs>' +
-        '<path class="route-path" id="routePathEl" d="' + d + '"/>' +
-        nodesSvg + vehiclesSvg + '</svg>';
-      // REAL BUG, found directly, extensively debugged: replacing
-      // container.innerHTML directly, while a PREVIOUS SVG with a
-      // live, running <animateMotion> is already inside it, leaves
-      // the new one permanently frozen — confirmed repeatedly, this
-      // exact freeze happens on ANY rebuild (resize/orientation
-      // change included), not just the specific double-build case
-      // that first surfaced it. Explicitly tearing down the old
-      // content first (empty the container, force the browser to
-      // actually process that removal via a frame boundary) before
-      // inserting the new SVG avoids whatever internal SMIL timeline
-      // conflict causes the freeze. Kept even after moving off SMIL —
-      // a clean teardown before rebuilding is simply good practice.
-      container.innerHTML = '';
-      requestAnimationFrame(function () {
-        container.innerHTML = svg;
-        startVehicleAnimation(vehicleCount, traversalSeconds, segments);
-      });
-    }
-
-    var rafId = null;
-    var animPaused = false;
-    var animGeneration = 0;
-    // Exposed so the separate zoom-handling module (defined earlier in
-    // this same script) can pause/resume this animation loop too,
-    // without either module needing to know the other's internals.
-    window.__setRouteAnimPaused = function (paused) { animPaused = paused; };
-    function startVehicleAnimation(vehicleCount, traversalSeconds, segments) {
-      // Requested directly: "dispare in locuri diferite... cand la o
-      // statie, cand la alta" — different vehicles freezing at
-      // whatever position each happened to be in, at inconsistent
-      // times, points to the periodic rebuild (every ~500ms after
-      // load, and on resize) occasionally leaving TWO animation loops
-      // running at once — the OLD one still holding references to
-      // vehicle/halo elements that the NEW rebuild already removed
-      // from the DOM, throwing and silently killing that loop's
-      // requestAnimationFrame chain entirely, right where it happened
-      // to be. cancelAnimationFrame() alone should prevent this, but
-      // isn't airtight against every timing edge case — a generation
-      // token makes it unconditional: any in-flight frame() from a
-      // now-superseded call simply stops itself immediately, no
-      // matter what.
-      if (rafId) cancelAnimationFrame(rafId);
-      var myGeneration = ++animGeneration;
-      var pathEl = container.querySelector('#routePathEl');
-      if (!pathEl) return;
-      var totalLen;
-      try {
-        totalLen = pathEl.getTotalLength();
-      } catch (e) {
-        return;
-      }
-      var numNodes = segments.length;
-      // Requested directly: "nu se opreste exact in cerc" — measuring
-      // the REAL arc length up to each node directly (via a
-      // temporary, invisible path per segment), instead of assuming
-      // even i/(numNodes-1) spacing. Guarantees the pause position
-      // always lands exactly on the node's own rendered coordinate,
-      // regardless of how curve length actually varies segment to
-      // segment.
-      var svgNs = 'http://www.w3.org/2000/svg';
-      var measurer = document.createElementNS(svgNs, 'path');
-      var nodeLengths = segments.map(function (segD) {
-        measurer.setAttribute('d', segD);
-        return measurer.getTotalLength();
-      });
-      nodeLengths[nodeLengths.length - 1] = totalLen; // guard against float rounding on the very last one
-
-      var vehicles = container.querySelectorAll('.route-vehicle');
-      var halos = container.querySelectorAll('.route-vehicle-halo');
-      var spawnIntervalSeconds = 3;
-      var startTime = null;
-      var lastFrameTime = null;
-
-      // Requested directly, follow-up: bring back a real 1-second
-      // pause at each node/circle — combined with several vehicles
-      // moving independently (kept from the earlier request), each
-      // one now pauses briefly at every stop it reaches, then
-      // continues at the same fluid speed to the next.
-      var pauseSeconds = 1;
-      var travelPerSegment = traversalSeconds / (numNodes - 1);
-      var cycleSeconds = traversalSeconds + numNodes * pauseSeconds;
-
-      // Returns an absolute LENGTH along the path now (not a 0–1
-      // fraction) — lines up directly with the exact, measured
-      // nodeLengths breakpoints above.
-      function lengthAtTime(t) {
-        var tMod = ((t % cycleSeconds) + cycleSeconds) % cycleSeconds;
-        var acc = 0;
-        for (var i = 0; i < numNodes; i++) {
-          var here = nodeLengths[i];
-          if (tMod < acc + pauseSeconds) return here;
-          acc += pauseSeconds;
-          if (i < numNodes - 1) {
-            if (tMod < acc + travelPerSegment) {
-              var segT = (tMod - acc) / travelPerSegment;
-              var next = nodeLengths[i + 1];
-              return here + (next - here) * segT;
-            }
-            acc += travelPerSegment;
-          }
-        }
-        return totalLen;
-      }
-
-      function frame(now) {
-        // Generation check first — if a newer rebuild has already
-        // superseded this one, stop immediately, unconditionally,
-        // before touching any (possibly now-removed) DOM elements.
-        if (myGeneration !== animGeneration) return;
-        if (startTime === null) { startTime = now; lastFrameTime = now; }
-        if (animPaused) {
-          // Shift the reference start time forward by exactly however
-          // long this frame took — keeps "elapsed" frozen at whatever
-          // it was the moment pausing began, so resuming continues
-          // smoothly from that exact point instead of jumping forward
-          // by the whole paused duration.
-          startTime += (now - lastFrameTime);
-        } else {
-          try {
-            var elapsed = (now - startTime) / 1000;
-            for (var i = 0; i < vehicles.length; i++) {
-              var vehicleElapsed = elapsed - i * spawnIntervalSeconds;
-              if (vehicleElapsed < 0) {
-                vehicles[i].style.display = 'none';
-                halos[i].style.display = 'none';
-              } else {
-                vehicles[i].style.display = '';
-                halos[i].style.display = '';
-                var lengthAlong = lengthAtTime(vehicleElapsed);
-                var pt = pathEl.getPointAtLength(lengthAlong);
-                vehicles[i].setAttribute('cx', pt.x);
-                vehicles[i].setAttribute('cy', pt.y);
-                halos[i].setAttribute('cx', pt.x);
-                halos[i].setAttribute('cy', pt.y);
-              }
-            }
-          } catch (e) {
-            // A stale element reference from an old, superseded build
-            // (or any other transient issue) stops just THIS loop —
-            // never silently, and never taking the whole page down.
-            return;
-          }
-        }
-        lastFrameTime = now;
-        rafId = requestAnimationFrame(frame);
-      }
-      rafId = requestAnimationFrame(frame);
-    }
-
-    // Wraps every buildRoute() call site — a genuine error during a
-    // rebuild (network hiccup mid-measurement, a transient DOM state,
-    // anything) stops just that one rebuild attempt instead of
-    // silently taking the whole route down with it.
-    function safeBuildRoute() {
-      try { buildRoute(); } catch (e) { /* this rebuild attempt failed; leave whatever's already on screen as-is */ }
-    }
-
-    safeBuildRoute();
-    // Rebuild after a short delay too — page height can shift slightly
-    // once fonts/images fully settle after the very first measurement.
-    // Safe now that buildRoute() itself tears down before rebuilding
-    // (see comment inside it) — confirmed this specific freeze no
-    // longer happens with that fix in place.
-    setTimeout(safeBuildRoute, 500);
-    var resizeTimer;
-    var lastKnownWidth = window.innerWidth;
-    window.addEventListener('resize', function () {
-      // Requested directly: "cand scrolez in acel timp incep sa
-      // dispara" — iOS Safari's address bar collapses/expands during
-      // normal scrolling, firing plain 'resize' events even though
-      // nothing meaningful about the layout actually changed (only
-      // the visible viewport HEIGHT shifts as the toolbar hides —
-      // WIDTH stays the same). This listener used to treat every
-      // resize as a real layout change worth a full route rebuild —
-      // during active scrolling, that meant rebuilding (tearing down
-      // and reconstructing every vehicle) repeatedly, rapidly,
-      // exactly matching the reported disappearing. The route's own
-      // shape only actually depends on WIDTH (isMobile threshold,
-      // vbWidth, node x-positions) — height is remeasured fresh on
-      // every rebuild regardless, so a height-only change needs no
-      // rebuild at all.
-      if (window.innerWidth === lastKnownWidth) return;
-      lastKnownWidth = window.innerWidth;
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(function () {
-        isMobile = window.innerWidth <= 760;
-        vbWidth = isMobile ? 400 : 1000;
-        leftX = isMobile ? 70 : 120;
-        rightX = isMobile ? 330 : vbWidth - 120;
-        segmentH = isMobile ? 480 : 420;
-        safeBuildRoute();
-      }, 400);
-    });
-  })();
 </script>
 <script>
   // Requested directly (Facebook Pixel setup, ad campaigns landing on
