@@ -1535,7 +1535,13 @@
     <div class="topbar-actions">
       <button class="icon-btn" id="btn-novita" aria-label="Novità" style="position:relative;">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-        <span id="novita-unread-dot" style="display:none;position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:var(--accent);"></span>
+        <!-- Requested directly: matched exactly to the chat unread
+             badge's own size and color (16x16, same var(--accent)
+             background) — previously a much smaller 8x8 dot, which
+             read as noticeably less prominent than chat's own badge
+             right next to it, even though both mean the same kind of
+             thing ("something new here"). -->
+        <span id="novita-unread-dot" style="display:none;position:absolute;top:2px;right:2px;width:16px;height:16px;border-radius:50%;background:var(--accent);"></span>
       </button>
       <!-- Requested directly: a support chat with ION, reachable from
            anywhere in the app, right next to Novità — the vehicle
