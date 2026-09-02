@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v501"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v502"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -3279,7 +3279,29 @@
       // include it after all.
       optimized.forEach(function (c) { c.orsUnreachable = false; });
       droppedByOrs.forEach(function (c) { c.orsUnreachable = true; });
-      var finalOrder = optimized.concat(unverified).concat(droppedByOrs).concat(completed);
+      // REAL BUG, reported directly and confirmed via ION's own exact
+      // reproduction steps: "completed" above was captured ONCE, as a
+      // snapshot, before the network call even started — a real round
+      // trip (now sometimes two, with the added retry) that can
+      // easily take several real seconds. Marking MORE clients done
+      // WHILE that old snapshot was still mid-flight meant those
+      // brand-new completions existed only in the live state, not in
+      // this closure's stale "completed" — so the instant this old
+      // result finally landed and overwrote state.deliveryRun.clients
+      // wholesale, it silently REVERTED those newer completions right
+      // back to pending, exactly matching "mark a few done, mark a
+      // few more, redo the route — the problem shows itself". Fixed
+      // by re-reading what's ACTUALLY completed right now, instead of
+      // trusting the old snapshot — and dropping anything this old
+      // result thought was still "remaining" but has since actually
+      // been completed for real, so a newly-finished client is never
+      // silently un-finished by a stale result landing late.
+      var completedNowIds = {};
+      state.deliveryRun.clients.forEach(function (c) { if (c.status === 'completed') completedNowIds[c.id] = true; });
+      var completedNow = state.deliveryRun.clients.filter(function (c) { return c.status === 'completed'; });
+      var finalOrder = optimized.concat(unverified).concat(droppedByOrs)
+        .filter(function (c) { return !completedNowIds[c.id]; })
+        .concat(completedNow);
       dpAnimateListReorder(function () {
         state.deliveryRun.clients = finalOrder;
         saveDeliveryRun(state.deliveryRun);
@@ -3893,7 +3915,21 @@
     // position, but keeping them out of the numbered sequence avoids
     // interleaving done items between upcoming ones).
     function applyOrder(orderedRemaining, wasActuallyOptimized) {
-      state.deliveryRun.clients = orderedRemaining.concat(completed);
+      // REAL BUG, reported directly and confirmed via ION's own exact
+      // reproduction steps (see the identical fix in
+      // dpRunAutoOptimization, right above this function, for the
+      // full explanation): "completed" here is captured once, near
+      // the top of dpConfirmReordina, before the network round trip
+      // even starts. Re-read fresh here instead of trusting that old
+      // snapshot, and anything orderedRemaining still thinks is
+      // pending but has ACTUALLY been completed since is dropped from
+      // it — so a completion that happens while this request is still
+      // in flight can never be silently reverted by this result
+      // landing late.
+      var completedNowIds = {};
+      state.deliveryRun.clients.forEach(function (c) { if (c.status === 'completed') completedNowIds[c.id] = true; });
+      var completedNow = state.deliveryRun.clients.filter(function (c) { return c.status === 'completed'; });
+      state.deliveryRun.clients = orderedRemaining.filter(function (c) { return !completedNowIds[c.id]; }).concat(completedNow);
       saveDeliveryRun(state.deliveryRun);
       confirmBtn.disabled = false;
       confirmBtn.textContent = 'Ricalcola percorso';
