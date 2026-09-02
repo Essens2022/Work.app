@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v500"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v501"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -3289,14 +3289,25 @@
       dpAutoOptimizationInFlight = false;
       clearTimeout(dpAutoOptimizationSafetyTimer);
       toast('Percorso riordinato automaticamente ✓', 2500);
-    }).catch(function () {
-      // Silent — see comment above the function. Still need to clear
-      // the calculating pulse and the in-flight guard on this path
-      // too, since a failure here does NOT re-render (the toggle
-      // element from above is still the live one in the DOM) — and
-      // deliberately does NOT touch dpLastAutoOptimizedSignature, so
-      // the very next render tries again fresh rather than treating a
-      // failed attempt as if it had actually succeeded.
+    }).catch(function (err) {
+      // REAL BUG, reported repeatedly and confirmed: AUTO staying
+      // fully silent on failure — by original design, to avoid
+      // nagging about routine, expected cases like permission denied
+      // or AUTO itself being off — made it genuinely impossible to
+      // tell WHY it wasn't reordering, across several real attempts
+      // to diagnose this. ION was explicit the app worked fine before
+      // and broke after a specific change, ruling out environment
+      // guesses — the only way to find the actual remaining cause is
+      // to actually SEE what error is happening, instead of guessing
+      // blind. Still stays quiet for the two genuinely routine,
+      // expected cases (permission denied, AUTO deliberately off) —
+      // any OTHER failure now shows the same toast manual Reordina
+      // already uses, with the real error text in it.
+      var isPermissionDenied = (err && err.code === 1) || dpGeoRecentlyDenied();
+      var isAutoDeliberatelyOff = false; // AUTO's own optimizePromise never uses AUTO_OFF_SENTINEL — that's only dpConfirmReordina's manual path
+      if (!isPermissionDenied && !isAutoDeliberatelyOff) {
+        toast('Auto non riuscito (' + (err && err.message ? escapeHtml(err.message) : 'errore') + ')', 6000);
+      }
       if (toggleEl) toggleEl.classList.remove('calculating');
       dpAutoOptimizationInFlight = false;
       clearTimeout(dpAutoOptimizationSafetyTimer);
