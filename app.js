@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v502"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v503"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -2363,11 +2363,18 @@
   // (usually the current time, rarely useful here). Wired once per
   // field, guarded so a second focus never overwrites whatever the
   // driver already chose.
-  function dpWireTimeDefault(inputEl) {
+  // Requested directly: the pre-filled starting point in the native
+  // time picker differs by field — "Consegna entro" (a deadline,
+  // typically an early-morning cutoff) defaults to 06:50, while "Non
+  // prima delle" (can't be delivered before this time — typically a
+  // shop's own opening hour, later in the morning) defaults to 07:50
+  // instead — each field's own caller passes its own sensible
+  // default in.
+  function dpWireTimeDefault(inputEl, defaultTime) {
     if (!inputEl || inputEl.dataset.timeDefaultWired) return;
     inputEl.dataset.timeDefaultWired = '1';
     inputEl.addEventListener('focus', function () {
-      if (!inputEl.value) inputEl.value = '06:50';
+      if (!inputEl.value) inputEl.value = defaultTime;
     });
   }
 
@@ -2578,8 +2585,8 @@
     document.getElementById('dp-new-save-btn').onclick = dpArchiveSaveNewClient;
     wireNavClearButton(document.getElementById('dp-new-nome'), document.getElementById('dp-new-nome-clear'), function () {});
     wireNavClearButton(document.getElementById('dp-new-indirizzo'), document.getElementById('dp-new-indirizzo-clear'), function () {});
-    dpWireTimeDefault(document.getElementById('dp-new-scadenza'));
-    dpWireTimeDefault(document.getElementById('dp-new-nonprima'));
+    dpWireTimeDefault(document.getElementById('dp-new-scadenza'), '06:50');
+    dpWireTimeDefault(document.getElementById('dp-new-nonprima'), '07:50');
     document.getElementById('modal-dp-new-client').classList.add('open');
   }
 
@@ -2729,8 +2736,8 @@
     document.getElementById('dp-archive-edit-nonprima').value = c.nonPrimaDi || '';
     wireNavClearButton(document.getElementById('dp-archive-edit-nome'), document.getElementById('dp-archive-edit-nome-clear'), function () {});
     wireNavClearButton(document.getElementById('dp-archive-edit-indirizzo'), document.getElementById('dp-archive-edit-indirizzo-clear'), function () {});
-    dpWireTimeDefault(document.getElementById('dp-archive-edit-scadenza'));
-    dpWireTimeDefault(document.getElementById('dp-archive-edit-nonprima'));
+    dpWireTimeDefault(document.getElementById('dp-archive-edit-scadenza'), '06:50');
+    dpWireTimeDefault(document.getElementById('dp-archive-edit-nonprima'), '07:50');
     document.getElementById('dp-archive-edit-result').innerHTML = '';
     document.getElementById('dp-archive-edit-close-x').onclick = function () { dpCloseModal('modal-dp-archive-edit'); };
     document.getElementById('dp-archive-edit-remove-btn').onclick = function () {
@@ -2899,8 +2906,8 @@
     document.getElementById('dp-new-save-result').innerHTML = '';
     document.getElementById('dp-new-close-x').onclick = function () { dpCloseModal('modal-dp-new-client'); };
     document.getElementById('dp-new-save-btn').onclick = dpSaveNewClientTrusted;
-    dpWireTimeDefault(document.getElementById('dp-new-scadenza'));
-    dpWireTimeDefault(document.getElementById('dp-new-nonprima'));
+    dpWireTimeDefault(document.getElementById('dp-new-scadenza'), '06:50');
+    dpWireTimeDefault(document.getElementById('dp-new-nonprima'), '07:50');
     // Reuses the same clear-button helper already built for the
     // Casa/Lavoro fields — one tap empties the field completely,
     // per ION's explicit request, rather than holding backspace.
@@ -3082,8 +3089,8 @@
     document.getElementById('dp-edit-save-btn').onclick = function () { dpSaveEditedClientTrusted(clientId); };
     wireNavClearButton(document.getElementById('dp-edit-nome'), document.getElementById('dp-edit-nome-clear'), function () {});
     wireNavClearButton(document.getElementById('dp-edit-indirizzo'), document.getElementById('dp-edit-indirizzo-clear'), function () {});
-    dpWireTimeDefault(document.getElementById('dp-edit-scadenza'));
-    dpWireTimeDefault(document.getElementById('dp-edit-nonprima'));
+    dpWireTimeDefault(document.getElementById('dp-edit-scadenza'), '06:50');
+    dpWireTimeDefault(document.getElementById('dp-edit-nonprima'), '07:50');
     document.getElementById('modal-dp-edit-client').classList.add('open');
   }
 
