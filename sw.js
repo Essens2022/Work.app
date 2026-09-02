@@ -9,7 +9,7 @@
 //  - Large, rarely-changing files (jsPDF, the comuni database, icons, logo)
 //    stay CACHE-FIRST, so they don't get re-downloaded on every load.
 
-const CACHE_VERSION = 'pt-foglio-v507';
+const CACHE_VERSION = 'pt-foglio-v508';
 const CORE_ASSETS = ['./', './index.html', './app.js', './manifest.json', './version.json'];
 // REAL BUG, reported directly, TWICE — a first attempt excluded these
 // pages from the service worker entirely, reasoning that removing a
@@ -187,6 +187,32 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   var notificationType = (event.notification.data && event.notification.data.type) || 'generic';
+  // REAL BUG, reported directly and confirmed: works correctly on
+  // Android, but on iOS, tapping the notification always just opened
+  // the app generically — this is a well-documented WebKit/iOS
+  // limitation, not something specific to this app: iOS Safari's own
+  // clients.openWindow(url) ignores whatever URL is actually passed
+  // to it and always opens the PWA's fixed start_url instead — so the
+  // ?notif=... query param below, which works fine on Chrome/Android,
+  // silently gets thrown away on iOS. The postMessage path (used when
+  // the app is already open, further below) has its own separate,
+  // also-documented iOS unreliability.
+  //
+  // Fixed with a handoff through the Cache Storage API — unlike
+  // IndexedDB (confirmed, directly, to sometimes be entirely
+  // UNAVAILABLE to a service worker specifically woken up by a push
+  // notification on iOS), the Cache Storage API stays reliably usable
+  // in that exact circumstance, and is readable from both the service
+  // worker and the page. The notification type is stashed here,
+  // before either navigation attempt below — app.js's own startup
+  // check reads it back and clears it, working regardless of whether
+  // the URL param or postMessage route actually got through on this
+  // particular platform.
+  event.waitUntil(
+    caches.open('adb-notif-handoff').then(function (cache) {
+      return cache.put('/pending-notification', new Response(JSON.stringify({ type: notificationType, at: Date.now() })));
+    })
+  );
   event.waitUntil(
     self.clients.matchAll({ type: 'window' }).then(function (clientList) {
       for (var i = 0; i < clientList.length; i++) {

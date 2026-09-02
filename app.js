@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v507"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v508"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -11868,6 +11868,31 @@
     }
   }
 
+  // REAL BUG, reported directly and confirmed: worked correctly on
+  // Android, but on iOS, tapping a notification always just opened
+  // the app generically — a well-documented WebKit/iOS limitation
+  // (see sw.js's own fuller comment on this): iOS ignores the actual
+  // URL passed to clients.openWindow(), so the ?notif=... param this
+  // function's own caller reads above never even arrives on that
+  // platform. This is the matching read side of the Cache Storage
+  // handoff sw.js writes to right before attempting either
+  // navigation — checked in ADDITION to the URL param (which still
+  // works fine on Chrome/Android, so both are checked rather than
+  // picking one), and cleared immediately after reading so a normal,
+  // un-notification-triggered app launch later never re-triggers it.
+  function dpCheckNotificationCacheHandoff() {
+    if (!window.caches) return;
+    caches.open('adb-notif-handoff').then(function (cache) {
+      cache.match('/pending-notification').then(function (res) {
+        if (!res) return;
+        cache.delete('/pending-notification');
+        res.json().then(function (data) {
+          if (data && data.type) dpHandleNotificationNavigation(data.type);
+        });
+      });
+    });
+  }
+
   if (navigator.serviceWorker) {
     navigator.serviceWorker.addEventListener('message', function (event) {
       if (event.data && event.data.type === 'notification-click') {
@@ -11875,6 +11900,19 @@
       }
     });
   }
+
+  // Requested directly, same iOS investigation as above: the
+  // "app was already open" postMessage path (right above) is ALSO
+  // documented as unreliable on iOS specifically (a background PWA
+  // brought back to the foreground by a notification tap doesn't
+  // always actually fire the notificationclick→postMessage chain
+  // correctly there). Re-checking the same Cache Storage handoff
+  // every time the app becomes visible again — not just once, at
+  // startup — catches this case too, on any platform, regardless of
+  // whether postMessage itself got through.
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') dpCheckNotificationCacheHandoff();
+  });
 
   function init() {
     // Requested directly: tapping a push notification used to just
@@ -11887,6 +11925,7 @@
     // further down in this same function — that one can't rely on
     // this URL check since the page never actually reloads then.
     dpHandleNotificationNavigation(new URLSearchParams(window.location.search).get('notif'));
+    dpCheckNotificationCacheHandoff();
 
     // Requested directly: AUTO (auto-riordina) was persisting across
     // full app closes/reopens via localStorage — if left on from a
