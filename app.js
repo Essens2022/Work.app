@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v499"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v500"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -1580,7 +1580,25 @@
   // Planner's own geocoding bias fix, which is what actually broke.
   var navLocateMarker = null; // "you are here" marker dropped by the standalone locate button, kept separate from the active-navigation position marker
   var navSearchFocusPoint = null; // driver's GPS position, used to bias/rank geocoding results toward nearby places first
-  var dpGeoDeniedThisSession = false; // once a fresh GPS request is denied, skip repeating the attempt for the rest of this session — see dpConfirmReordina
+  // REAL BUG, reported directly and confirmed: this used to be a
+  // plain boolean, set once on a genuine PERMISSION_DENIED and never
+  // reset except by a full page reload — meaning a single denial
+  // (including a transient one, e.g. iOS briefly refusing a location
+  // request for its own internal reasons even with permission
+  // actually granted) silently disabled AUTO, manual Reordina, AND
+  // the nearby-search bias for the ENTIRE rest of the session, with
+  // zero visible feedback on AUTO's own silent-failure path — exactly
+  // matching a report of "AUTO does nothing at all, no message,
+  // nothing changes". Changed to a timestamp instead: still skips
+  // repeating a GPS prompt for a short cooldown right after a real
+  // denial (avoiding hammering the browser with rapid repeat prompts
+  // during that immediate moment), but automatically expires and
+  // tries again fresh after 60 seconds — a genuinely permanent denial
+  // (from the device's own Settings) will simply get re-flagged
+  // again quickly, at negligible cost; a transient one recovers on
+  // its own instead of bricking these features until reload.
+  var dpGeoDeniedAt = null;
+  function dpGeoRecentlyDenied() { return dpGeoDeniedAt !== null && (Date.now() - dpGeoDeniedAt) < 60000; }
   var dpLastAutoOptimizedSignature = null; // exact ORDER of pending client ids last successfully applied by auto-riordina — see the auto-riordina check at the top of renderDeliveryPlanner
   var dpAutoOptimizationInFlight = false; // guards against a second auto-riordina call firing while one is still waiting on a network response
   var dpAutoOptimizationSafetyTimer = null; // independent 20s safety net — force-clears dpAutoOptimizationInFlight no matter what, so a single failure can never permanently disable auto-riordina for the rest of the session
@@ -1744,7 +1762,7 @@
     // Fetched here instead, once per visit to this screen, silently
     // (no permission-prompt banner needed — this is a soft ranking
     // input, not a hard requirement the way active navigation was).
-    if (navigator.geolocation && !dpGeoDeniedThisSession) {
+    if (navigator.geolocation && !dpGeoRecentlyDenied()) {
       // REAL BUG, found and confirmed while diagnosing a reported bad
       // auto-riordina ordering: this used the browser's raw
       // getCurrentPosition directly, relying only on its own internal
@@ -1755,7 +1773,7 @@
       // once — it means navSearchFocusPoint stays FROZEN at whatever
       // its last successful value was (which could be from early in
       // the day, even from home) for the rest of the session, since
-      // dpGeoDeniedThisSession never gets set either (no error
+      // dpGeoDeniedAt never gets set either (no error
       // callback fires to set it). Every later auto-riordina fallback
       // to this stale point would then compute a route relative to a
       // WRONG starting location — exactly matching the report that
@@ -1768,8 +1786,8 @@
         navSearchFocusPoint = { lat: pos.lat, lon: pos.lon };
       }).catch(function (err) {
         // no GPS fix available — searches still work, just without the nearby-bias.
-        // A DENIED result specifically also stops every later visit to
-        // this screen from re-attempting for the rest of the session —
+        // A DENIED result specifically also pauses re-attempts from
+        // this screen for a short cooldown (dpGeoRecentlyDenied) —
         // same reasoning as dpConfirmReordina below. Checked as the
         // literal code 1 (not err.PERMISSION_DENIED) on purpose — a
         // plain Error (from currentPositionSafe's own timeout) has
@@ -1778,7 +1796,7 @@
         // undefined and misclassify a mere timeout as a permanent
         // denial, wrongly disabling every later GPS attempt this
         // session over what might have been a one-off hang.
-        if (err && err.code === 1) dpGeoDeniedThisSession = true;
+        if (err && err.code === 1) dpGeoDeniedAt = Date.now();
       });
     }
 
@@ -3204,7 +3222,7 @@
       // caching) is the right tradeoff here specifically, even
       // though other real uses of GPS elsewhere in this app (e.g.
       // live turn-by-turn) still correctly want full precision.
-      ? (dpGeoDeniedThisSession ? Promise.reject(new Error('User denied Geolocation')) : currentPositionSafe(12000, { enableHighAccuracy: false, maximumAge: 60000 }))
+      ? (dpGeoRecentlyDenied() ? Promise.reject(new Error('User denied Geolocation')) : currentPositionSafe(12000, { enableHighAccuracy: false, maximumAge: 60000 }))
           .then(function (pos) { return dpCallOrsOptimizationWithDeadlines(pos, geolocatable); })
           .catch(function (err) {
             // REAL BUG, reported directly: "nu poate merge un sofer cu
@@ -3220,7 +3238,7 @@
             // live GPS read just fails the optimization outright (see
             // the .catch below) — no stand-in position is ever
             // substituted for "where I actually am right now".
-            if (err && err.code === 1) dpGeoDeniedThisSession = true; // 1 === GeolocationPositionError.PERMISSION_DENIED
+            if (err && err.code === 1) dpGeoDeniedAt = Date.now(); // 1 === GeolocationPositionError.PERMISSION_DENIED
             throw err;
           })
       : Promise.resolve([]);
@@ -3808,9 +3826,10 @@
     // past a fresh GPS attempt on every later Reordina press — ION
     // explained this is a deliberate, standing choice (location stays
     // off for ADB Smart specifically), not something to keep asking
-    // about. In-memory only (dpGeoDeniedThisSession, not persisted) —
-    // resets on the next app open, in case anything changes, without
-    // needing a settings toggle for it.
+    // about. In-memory only (dpGeoDeniedAt, not persisted), and self-
+    // expiring after 60s (see dpGeoRecentlyDenied) rather than
+    // sticking for the entire session — see that function's own
+    // comment for the real bug this fixed.
     var optimizePromise = !dpAutoRiordinaEnabled() ? Promise.reject(new Error(AUTO_OFF_SENTINEL)) : geolocatable.length
       // REAL BUG, reported directly: on Android specifically,
       // Reordina/AUTO could take several real seconds to respond,
@@ -3829,7 +3848,7 @@
       // caching) is the right tradeoff here specifically, even
       // though other real uses of GPS elsewhere in this app (e.g.
       // live turn-by-turn) still correctly want full precision.
-      ? (dpGeoDeniedThisSession ? Promise.reject(new Error('User denied Geolocation')) : currentPositionSafe(12000, { enableHighAccuracy: false, maximumAge: 60000 }))
+      ? (dpGeoRecentlyDenied() ? Promise.reject(new Error('User denied Geolocation')) : currentPositionSafe(12000, { enableHighAccuracy: false, maximumAge: 60000 }))
           .then(function (pos) { return dpCallOrsOptimizationWithDeadlines(pos, geolocatable); })
           .catch(function (err) {
             // REAL BUG, reported directly: the route's starting point
@@ -3844,7 +3863,7 @@
             // which already falls back to the current, unoptimized
             // order — a real, always-usable list, just not
             // reordered).
-            if (err && err.code === 1) dpGeoDeniedThisSession = true; // 1 === GeolocationPositionError.PERMISSION_DENIED, the standard constant — more reliable than matching the message text, which can vary by browser
+            if (err && err.code === 1) dpGeoDeniedAt = Date.now(); // 1 === GeolocationPositionError.PERMISSION_DENIED, the standard constant — more reliable than matching the message text, which can vary by browser
             throw err;
           })
       : Promise.resolve([]);
@@ -3934,7 +3953,7 @@
       // Any OTHER, genuinely unexpected failure (network issue, ORS
       // quota, a real error) still gets a toast — that IS worth
       // knowing about, unlike the routine, expected permission case.
-      var isPermissionDenied = (err && err.code === 1) || dpGeoDeniedThisSession;
+      var isPermissionDenied = (err && err.code === 1) || dpGeoRecentlyDenied();
       // AUTO deliberately off is a second, equally silent, expected
       // case, same reasoning as permission-denied above — this isn't
       // a failure at all, just this manual confirm respecting ION's
