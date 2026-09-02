@@ -9,7 +9,7 @@
 //  - Large, rarely-changing files (jsPDF, the comuni database, icons, logo)
 //    stay CACHE-FIRST, so they don't get re-downloaded on every load.
 
-const CACHE_VERSION = 'pt-foglio-v506';
+const CACHE_VERSION = 'pt-foglio-v507';
 const CORE_ASSETS = ['./', './index.html', './app.js', './manifest.json', './version.json'];
 // REAL BUG, reported directly, TWICE — a first attempt excluded these
 // pages from the service worker entirely, reasoning that removing a
@@ -162,7 +162,24 @@ self.addEventListener('push', (event) => {
       // whatever it was about themselves — carried through to the
       // notificationclick handler below, which reads this back to
       // decide where to actually navigate.
-      data: { type: data.type || 'generic' }
+      //
+      // REAL BUG, reported directly and confirmed: ION tested for
+      // real (sent himself a chat message from the admin panel,
+      // received the real push notification, tapped it) and it still
+      // just opened the app generically — the fallback here was
+      // 'generic' (a safe no-op), which is exactly what fired if the
+      // real backend payload doesn't actually include a "type" field
+      // at all (this app has no access to that Edge Function's own
+      // code, deployed separately in Supabase, to confirm one way or
+      // the other). The only real push notification this app
+      // currently ever sends the driver IS a chat message — checked
+      // directly: "Novità" only ever updates an in-app badge dot via
+      // a plain fetch, never a push notification of its own — so
+      // defaulting to 'chat' instead of 'generic' is correct for
+      // every notification this app can currently send, and still
+      // leaves room for the backend to specify a different type
+      // explicitly later, if a second kind of push ever gets added.
+      data: { type: data.type || 'chat' }
     })
   );
 });

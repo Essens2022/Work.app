@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v506"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v507"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -11843,14 +11843,28 @@
   });
 
   // Requested directly: routes to the right place based on what a
-  // tapped push notification was actually about — currently, the
-  // only real notification type this app sends is a new chat
-  // message, so "generic"/unrecognized falls back to just opening
-  // the app itself (today's exact old behavior), never anything
-  // broken or a dead end.
+  // tapped push notification was actually about. Handles every
+  // notification type ION named — chat (a new driver message) and
+  // novita (a news/update post) — with an unrecognized/missing type
+  // falling back to just opening the app itself (today's exact old
+  // behavior), never anything broken or a dead end.
+  //
+  // HONEST DEPENDENCY: this can only route correctly if the actual
+  // push payload — built and sent by the Edge Function running
+  // separately in Supabase, whose code isn't in this repo — includes
+  // a "type" field identifying which kind of notification this is
+  // ("chat" or "novita"). Confirmed directly: right now, chat is the
+  // ONLY one of these that's ever actually sent as a real push at all
+  // (Novita currently only updates an in-app badge via a plain fetch,
+  // checkNovitaUnread() — see sw.js's own comment on the fallback
+  // default for the fuller explanation) — so if a real Novita push
+  // gets added on the backend side, that Edge Function needs to set
+  // this same "type": "novita" field for this to work for it too.
   function dpHandleNotificationNavigation(notificationType) {
     if (notificationType === 'chat') {
       setTimeout(openChatModal, 300); // small delay — gives the rest of init() a moment to finish setting up the screen underneath first, so the chat modal doesn't open onto a half-built page
+    } else if (notificationType === 'novita') {
+      setTimeout(openNovitaModal, 300);
     }
   }
 
