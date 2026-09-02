@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v504"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v505"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -11832,7 +11832,38 @@
     if (e.target === installHelpModal) installHelpModal.classList.remove('open');
   });
 
+  // Requested directly: routes to the right place based on what a
+  // tapped push notification was actually about — currently, the
+  // only real notification type this app sends is a new chat
+  // message, so "generic"/unrecognized falls back to just opening
+  // the app itself (today's exact old behavior), never anything
+  // broken or a dead end.
+  function dpHandleNotificationNavigation(notificationType) {
+    if (notificationType === 'chat') {
+      setTimeout(openChatModal, 300); // small delay — gives the rest of init() a moment to finish setting up the screen underneath first, so the chat modal doesn't open onto a half-built page
+    }
+  }
+
+  if (navigator.serviceWorker) {
+    navigator.serviceWorker.addEventListener('message', function (event) {
+      if (event.data && event.data.type === 'notification-click') {
+        dpHandleNotificationNavigation(event.data.notificationType);
+      }
+    });
+  }
+
   function init() {
+    // Requested directly: tapping a push notification used to just
+    // open (or focus) the app generically — the driver then had to
+    // go find whatever it was actually about themselves. This
+    // handles the "app wasn't open yet" case — a fresh load, reading
+    // the ?notif= param the service worker's own notificationclick
+    // handler attaches to the URL it opens. The "app was ALREADY
+    // open" case is handled separately, by the postMessage listener
+    // further down in this same function — that one can't rely on
+    // this URL check since the page never actually reloads then.
+    dpHandleNotificationNavigation(new URLSearchParams(window.location.search).get('notif'));
+
     // Requested directly: AUTO (auto-riordina) was persisting across
     // full app closes/reopens via localStorage — if left on from a
     // previous session and forgotten, it keeps calling the paid
