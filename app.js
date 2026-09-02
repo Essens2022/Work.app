@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v503"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v504"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -2643,6 +2643,15 @@
       // outside that context.
       var unverifiedBadge = (c.lat == null || c.lon == null)
         ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '';
+      // Requested directly: the archive should show a client's own
+      // saved schedule too, in the same amber/blue used everywhere
+      // else this shows up (today's numbered list) — same reasoning,
+      // same colors, just without a numbered position badge to color
+      // here (the archive isn't an ordered route), so it's shown as
+      // its own small line instead, right under the name.
+      var scheduleNote = '';
+      if (c.scadenza) scheduleNote = '<div style="color:#B45309;font-weight:700;font-size:12.5px;margin-top:2px;">⏱ entro ' + escapeHtml(c.scadenza) + '</div>';
+      else if (c.nonPrimaDi) scheduleNote = '<div style="color:#1D4ED8;font-weight:700;font-size:12.5px;margin-top:2px;">⏱ non prima delle ' + escapeHtml(c.nonPrimaDi) + '</div>';
       // Requested directly: a standalone "+" button, independent from
       // tapping the row itself (which opens Modifica cliente) — since
       // the archive is already sorted alphabetically, scrolling to
@@ -2657,6 +2666,7 @@
         '<button type="button" class="dp-swipe-delete-btn" data-saved-id="' + c.id + '">Elimina</button>' +
         '<div class="dp-search-result-row dp-archive-row dp-swipe-row" data-saved-id="' + c.id + '">' +
         '<div class="dp-search-result-name">' + escapeHtml(c.nome) + '</div>' +
+        scheduleNote +
         '<div class="dp-search-result-addr">' + escapeHtml(c.indirizzo || '') + unverifiedBadge + '</div>' +
         '<button type="button" class="dp-archive-add-today-btn" data-saved-id="' + c.id + '" aria-label="Aggiungi al percorso di oggi">+</button>' +
         '</div>' +
