@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v505"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v506"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -2853,17 +2853,25 @@
         byName[(c.nome || '').trim().toLowerCase()] = c;
       });
 
+      // Requested directly: ION was explicit that an exported/imported
+      // client must come through EXACTLY as saved, including its own
+      // schedule (scadenza/nonPrimaDi) — since a colleague loading a
+      // shared client list, or restoring after moving to a new phone,
+      // expects the full client, not just name/address/coordinates.
       var added = 0, updated = 0;
       data.clients.forEach(function (c) {
         if (!c || !c.nome) return;
         var key = (c.nome || '').trim().toLowerCase();
         var existing = byName[key];
         if (existing) {
-          var changed = existing.indirizzo !== (c.indirizzo || '') || existing.lat !== (c.lat != null ? c.lat : null) || existing.lon !== (c.lon != null ? c.lon : null);
+          var changed = existing.indirizzo !== (c.indirizzo || '') || existing.lat !== (c.lat != null ? c.lat : null) || existing.lon !== (c.lon != null ? c.lon : null)
+            || existing.scadenza !== (c.scadenza || '') || existing.nonPrimaDi !== (c.nonPrimaDi || '');
           if (changed) {
             existing.indirizzo = c.indirizzo || '';
             existing.lat = c.lat != null ? c.lat : null;
             existing.lon = c.lon != null ? c.lon : null;
+            existing.scadenza = c.scadenza || '';
+            existing.nonPrimaDi = c.nonPrimaDi || '';
             updated++;
           }
           return;
@@ -2873,7 +2881,9 @@
           nome: c.nome,
           indirizzo: c.indirizzo || '',
           lat: c.lat != null ? c.lat : null,
-          lon: c.lon != null ? c.lon : null
+          lon: c.lon != null ? c.lon : null,
+          scadenza: c.scadenza || '',
+          nonPrimaDi: c.nonPrimaDi || ''
         };
         state.deliveryClients.push(fresh);
         byName[key] = fresh; // guards against two entries with the same nome inside the SAME imported file colliding with each other
