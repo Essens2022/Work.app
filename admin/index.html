@@ -1109,6 +1109,25 @@
     });
   }
 
+  // Requested directly: shared by both the actual admin-home icon tap
+  // (see the pointerup handler below) and a tapped push notification
+  // about a new driver message (see the notification-click handler
+  // further down) — one single, proven "open Messaggi correctly"
+  // path, rather than two separately-written copies that could drift
+  // apart or race against each other the way the old click-listener
+  // duplicate used to (see the REAL BUG comment right where this gets
+  // called from the icon tap).
+  function dpOpenMessaggiModal() {
+    document.getElementById('admin-home').style.display = 'none';
+    document.getElementById('modal-messaggi').classList.add('open');
+    document.getElementById('messaggi-thread-view').style.display = 'none';
+    document.getElementById('messaggi-list-view').style.display = 'flex';
+    document.getElementById('messaggi-search').value = '';
+    loadMessaggiConversations();
+    loadMessaggiDriverPicker();
+    lockBodyScroll();
+  }
+
   function loadMessaggiConversations() {
     var listEl = document.getElementById('messaggi-conversations-list');
     // Requested directly: leaving a conversation and coming back to
@@ -1669,14 +1688,7 @@
         // button was tapped by hand. Moved the load to fire from
         // exactly this ONE proven, reliable "it was a genuine tap"
         // path instead of a second, independently-timed listener.
-        if (icon.dataset.open === 'messaggi') {
-          document.getElementById('messaggi-thread-view').style.display = 'none';
-          document.getElementById('messaggi-list-view').style.display = 'flex';
-          document.getElementById('messaggi-search').value = '';
-          loadMessaggiConversations();
-          loadMessaggiDriverPicker();
-          lockBodyScroll();
-        }
+        if (icon.dataset.open === 'messaggi') dpOpenMessaggiModal();
       }
     }
     icon.addEventListener('pointerup', finishDrag);
@@ -1956,6 +1968,28 @@
   if (savedPw) {
     document.getElementById('password-input').value = savedPw;
     login();
+  }
+
+  // Requested directly: tapping a push notification about a new
+  // driver message used to just open (or focus) the admin panel
+  // generically, leaving ION to go find the actual conversation
+  // himself. Handles the "admin panel wasn't open yet" case here —
+  // the "already open" case is the postMessage listener right below.
+  // Every notification this admin panel sends is currently about a
+  // new message (see admin/sw.js's own comment), so this only ever
+  // needs to recognize that one type for now — an unrecognized/
+  // missing one is simply a no-op, same as before this existed.
+  (function () {
+    var notif = new URLSearchParams(window.location.search).get('notif');
+    if (notif === 'messaggi') setTimeout(dpOpenMessaggiModal, 300);
+  })();
+
+  if (navigator.serviceWorker) {
+    navigator.serviceWorker.addEventListener('message', function (event) {
+      if (event.data && event.data.type === 'notification-click' && event.data.notificationType === 'messaggi') {
+        dpOpenMessaggiModal();
+      }
+    });
   }
 </script>
 </body>

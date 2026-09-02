@@ -9,7 +9,7 @@
 //  - Large, rarely-changing files (jsPDF, the comuni database, icons, logo)
 //    stay CACHE-FIRST, so they don't get re-downloaded on every load.
 
-const CACHE_VERSION = 'pt-foglio-v504';
+const CACHE_VERSION = 'pt-foglio-v505';
 const CORE_ASSETS = ['./', './index.html', './app.js', './manifest.json', './version.json'];
 // REAL BUG, reported directly, TWICE — a first attempt excluded these
 // pages from the service worker entirely, reasoning that removing a
@@ -157,18 +157,35 @@ self.addEventListener('push', (event) => {
       body: data.body || '',
       icon: 'icon-192.png',
       badge: 'icon-192.png',
+      // Requested directly: tapping a notification used to just open
+      // (or focus) the app generically, leaving the driver to go find
+      // whatever it was about themselves — carried through to the
+      // notificationclick handler below, which reads this back to
+      // decide where to actually navigate.
+      data: { type: data.type || 'generic' }
     })
   );
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  var notificationType = (event.notification.data && event.notification.data.type) || 'generic';
   event.waitUntil(
     self.clients.matchAll({ type: 'window' }).then(function (clientList) {
       for (var i = 0; i < clientList.length; i++) {
-        if ('focus' in clientList[i]) return clientList[i].focus();
+        if ('focus' in clientList[i]) {
+          // Already open — the page can't re-read a URL param since
+          // it isn't reloading, so tell it directly what to do instead.
+          clientList[i].postMessage({ type: 'notification-click', notificationType: notificationType });
+          return clientList[i].focus();
+        }
       }
-      if (self.clients.openWindow) return self.clients.openWindow('./index.html');
+      // Nothing open yet — a fresh load DOES read the URL, so the
+      // param carries the same instruction through app.js's own
+      // startup check (see the matching code there).
+      if (self.clients.openWindow) {
+        return self.clients.openWindow('./index.html?notif=' + encodeURIComponent(notificationType));
+      }
     })
   );
 });
