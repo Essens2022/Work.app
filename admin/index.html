@@ -344,6 +344,15 @@
         <span>Messaggi</span>
         <span class="admin-home-badge" id="messaggi-unread-badge" style="display:none;"></span>
       </button>
+      <!-- Requested directly: a fleet is a transport company account,
+           with its own branded page (adbsmart.it/nomeazienda) where
+           the owner logs in and sees the drivers linked to them —
+           built on top of the SAME driver_activity/driver_sheets_summary
+           data already shown right here in Autisti, never duplicated. -->
+      <button class="admin-home-icon" data-open="flotte">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V7l9-4 9 4v14"/><path d="M9 21v-6h6v6"/></svg>
+        <span>Flotte</span>
+      </button>
     </div>
 
     <div id="modal-autisti" class="admin-modal">
@@ -388,6 +397,24 @@
           <span id="official-video-status" style="font-size:12px;color:var(--ink-faint);align-self:center;"></span>
         </div>
       </div>
+    </div>
+
+    <!-- Requested directly: a fleet is a transport company account,
+         with its own branded page (adbsmart.it/nomeazienda) where the
+         owner logs in and sees the drivers linked to them — the login
+         and dashboard actually served there live in a separate page
+         (404.html, at the site root), served via GitHub Pages' own
+         standard "any unknown path shows 404.html" mechanism, since
+         this static host has no real per-fleet routing. This modal is
+         only ION's own management side: create fleets, see the list,
+         and get each one's password to pass along. -->
+    <div id="modal-flotte" class="admin-modal">
+      <div class="admin-modal-header">
+        <button class="admin-modal-close" data-close="flotte">×</button>
+        <div class="admin-modal-title">Flotte</div>
+      </div>
+      <button id="flotte-add-btn" class="btn-block" style="margin-bottom:16px;background:var(--accent);">+ Aggiungi flotta</button>
+      <div id="flotte-list"></div>
     </div>
 
     <!-- Requested directly: a support chat with drivers, WhatsApp-style,
@@ -873,7 +900,9 @@
   // -------- Novità (video/text/announcement feed shown in the app) --------
   var NOVITA_URL = 'https://chboalgzigdglygnnist.supabase.co/functions/v1/novita-admin';
   var CHAT_URL = 'https://chboalgzigdglygnnist.supabase.co/functions/v1/chat-messages';
+  var FLEET_URL = 'https://chboalgzigdglygnnist.supabase.co/functions/v1/fleet-data';
   var lastNovita = [];
+  var lastFlotte = [];
 
   function novitaCall(payload) {
     var body = Object.assign({ password: currentPassword }, payload);
@@ -883,6 +912,66 @@
       body: JSON.stringify(body)
     }).then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); });
   }
+
+  // Requested directly: fleet management, same shape as novitaCall —
+  // currentPassword (ION's own admin password, already checked at
+  // login) is re-sent with every call, the same way admin-data and
+  // novita-admin already gate their own admin actions.
+  function fleetCall(payload) {
+    var body = Object.assign({ password: currentPassword }, payload);
+    return fetch(FLEET_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }).then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); });
+  }
+
+  function loadFlotte() {
+    return fleetCall({ action: 'admin_list_fleets' }).then(function (res) {
+      if (res.ok && res.data.ok) { lastFlotte = res.data.fleets; renderFlotteList(); }
+    });
+  }
+
+  function renderFlotteList() {
+    var el = document.getElementById('flotte-list');
+    if (!lastFlotte.length) {
+      el.innerHTML = '<div class="novita-card" style="text-align:center;color:var(--ink-faint);">Nessuna flotta creata ancora.</div>';
+      return;
+    }
+    var html = '';
+    lastFlotte.forEach(function (f) {
+      html += '<div class="novita-card">' +
+        '<div class="novita-title">' + escHtml(f.name) + '</div>' +
+        '<div class="novita-desc">adbsmart.it/' + escHtml(f.slug) + ' · ' + f.driver_count + ' autist' + (f.driver_count === 1 ? 'a' : 'i') + ' collegat' + (f.driver_count === 1 ? 'o' : 'i') + '</div>' +
+        '<div class="novita-desc" style="opacity:.7;">Titolare: ' + escHtml(f.owner_email) + '</div>' +
+        '</div>';
+    });
+    el.innerHTML = html;
+  }
+
+  function escHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s == null ? '' : s;
+    return d.innerHTML;
+  }
+
+  document.getElementById('flotte-add-btn').addEventListener('click', function () {
+    var name = prompt('Nome azienda (es. Rossi Trasporti SRL):');
+    if (!name || !name.trim()) return;
+    var ownerEmail = prompt('Email del titolare:');
+    if (!ownerEmail || !ownerEmail.trim()) return;
+    fleetCall({ action: 'admin_create_fleet', name: name.trim(), owner_email: ownerEmail.trim() }).then(function (res) {
+      if (!res.ok || !res.data.ok) { alert('Errore: ' + (res.data && res.data.error || 'impossibile creare la flotta')); return; }
+      var fleet = res.data.fleet;
+      alert(
+        'Flotta creata!\n\n' +
+        'Indirizzo: adbsmart.it/' + fleet.slug + '\n' +
+        'Password temporanea: ' + res.data.temp_password + '\n\n' +
+        'Passa queste informazioni al titolare — non verranno mostrate di nuovo qui.'
+      );
+      loadFlotte();
+    });
+  });
 
   // Support chat with drivers — requested directly, one continuous
   // thread per driver, WhatsApp-style, mirroring the exact same
@@ -1862,6 +1951,7 @@
         offerFaceIdIfSensible();
         loadNovita();
         loadOfficialVideoSetting();
+        loadFlotte();
         // REAL INSIGHT, from ION's own direct comparison: Autisti
         // feels instant and professional specifically because its
         // data is already fetched and rendered by the time anyone

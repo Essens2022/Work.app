@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ADB Smart Flotte</title>
+<!--
+  Requested directly: each fleet gets a clean address like
+  adbsmart.it/rossitrasporti — but this is a static site (GitHub
+  Pages), with no server-side routing to generate a real file per
+  fleet on the fly. This file is the standard, well-established
+  workaround for that on static hosts: GitHub Pages serves 404.html
+  for ANY path that doesn't match a real file — this page reads the
+  attempted path directly (e.g. "rossitrasporti") and renders the
+  correct fleet's login/dashboard for it, entirely in JS. The browser
+  never shows a visible redirect and the address bar keeps showing
+  exactly the clean URL that was typed — the 404 only ever shows up
+  in the network tab, invisible to an ordinary visitor.
+  A genuinely unknown/mistyped path (not a real fleet) still shows a
+  plain, honest "not found" message below, styled to match the rest
+  of the site.
+-->
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap');
+  :root {
+    --bg: #0E0E0F; --surface: #17181A; --surface-2: #1F2023; --line: #2A2B2E;
+    --accent: #E8542B; --accent-soft: rgba(232,84,43,.14);
+    --ink: #F5F3EF; --ink-soft: #8B8D93; --green: #34A874; --amber: #D9A441;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; min-height: 100vh; }
+  h1, h3 { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; letter-spacing: -.01em; margin: 0; }
+  .center-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .card { width: 100%; max-width: 380px; text-align: center; }
+  .fleet-badge { width: 56px; height: 56px; border-radius: 14px; background: var(--accent-soft); color: var(--accent); font-family: 'Barlow Condensed'; font-weight: 800; font-size: 22px; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; }
+  .card h1 { font-size: 28px; margin-bottom: 4px; }
+  .card p.sub { color: var(--ink-soft); font-size: 14px; margin: 0 0 26px; }
+  .field { margin-bottom: 14px; text-align: left; }
+  .field label { display: block; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); margin-bottom: 6px; }
+  .field input { width: 100%; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; color: var(--ink); font-size: 14.5px; font-family: 'Inter', sans-serif; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: none; cursor: pointer; font-family: 'Inter', sans-serif; font-weight: 700; font-size: 14px; border-radius: 10px; padding: 13px 18px; width: 100%; }
+  .btn-accent { background: var(--accent); color: #fff; margin-top: 6px; }
+  .btn-ghost { background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); }
+  .error-msg { color: var(--accent); font-size: 13px; margin-top: 10px; display: none; }
+  .foot-note { margin-top: 22px; font-size: 12.5px; color: var(--ink-soft); }
+
+  /* dashboard */
+  .dash { display: none; max-width: 980px; margin: 0 auto; padding: 32px 20px 60px; }
+  .dash-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 26px; flex-wrap: wrap; }
+  .dash-brand { display: flex; align-items: center; gap: 12px; }
+  .dash-brand .fleet-badge { margin: 0; width: 46px; height: 46px; font-size: 17px; }
+  .dash-title { font-size: 26px; }
+  .dash-sub { font-size: 12.5px; color: var(--ink-soft); }
+  .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; }
+  .stat-num { font-family: 'Barlow Condensed'; font-size: 28px; font-weight: 800; }
+  .stat-label { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+  .driver-table { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  .driver-row { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr auto; align-items: center; gap: 14px; padding: 15px 20px; border-bottom: 1px solid var(--line); }
+  .driver-row.head { color: var(--ink-soft); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .driver-row:last-child { border-bottom: none; }
+  .driver-name { font-weight: 700; font-size: 14.5px; }
+  .driver-sub { font-size: 12px; color: var(--ink-soft); }
+  .empty-note { text-align: center; color: var(--ink-soft); padding: 40px 20px; font-size: 14px; }
+  .remove-btn { background: none; border: none; color: var(--ink-soft); cursor: pointer; font-size: 13px; }
+  .add-row { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+  .add-row input { flex: 1; min-width: 200px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 11px 16px; color: var(--ink); font-size: 14px; font-family: 'Inter', sans-serif; }
+  .add-row .btn { width: auto; }
+  @media (max-width: 700px) {
+    .driver-row { grid-template-columns: 1fr; gap: 4px; }
+    .driver-row.head { display: none; }
+    .driver-row:not(.head) { border: 1px solid var(--line); border-radius: 12px; margin: 0 0 10px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="center-wrap" id="loginScreen">
+  <div class="card">
+    <div class="fleet-badge" id="loginBadge">··</div>
+    <h1 id="loginTitle">ADB Smart Flotte</h1>
+    <p class="sub" id="loginSub">Caricamento…</p>
+    <div id="loginFormArea" style="display:none;">
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="passwordInput" placeholder="••••••••">
+      </div>
+      <button class="btn btn-accent" id="loginBtn">Accedi</button>
+      <div class="error-msg" id="loginError"></div>
+    </div>
+    <div class="foot-note">Gestito su ADB Smart · Assistenza: supporto@adbsmart.it</div>
+  </div>
+</div>
+
+<div class="dash" id="dashScreen">
+  <div class="dash-top">
+    <div class="dash-brand">
+      <div class="fleet-badge" id="dashBadge">··</div>
+      <div><div class="dash-title" id="dashName">—</div><div class="dash-sub">Pannello flotta · ADB Smart</div></div>
+    </div>
+  </div>
+
+  <div class="stats-row" id="statsRow"></div>
+
+  <div class="add-row">
+    <input type="text" id="addDriverInput" placeholder="Email o ID autista (es. mario.b@email.it oppure IB-01)">
+    <button class="btn btn-accent" id="addDriverBtn">+ Aggiungi autista</button>
+  </div>
+  <div class="error-msg" id="addDriverError"></div>
+
+  <div class="driver-table" id="driverTable"></div>
+</div>
+
+<script>
+(function () {
+  var FLEET_API = 'https://chboalgzigdglygnnist.supabase.co/functions/v1/fleet-data';
+
+  function call(payload) {
+    return fetch(FLEET_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function (r) { return r.json(); }).catch(function () { return { error: 'network' }; });
+  }
+
+  // The attempted path is the slug — e.g. "/rossitrasporti" -> "rossitrasporti".
+  // A path with more than one segment, or an empty one, was never a
+  // real fleet address to begin with.
+  var pathParts = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
+  var slug = pathParts.length === 1 ? pathParts[0].toLowerCase() : null;
+
+  var badgeInitials = function (name) {
+    return (name || '?').trim().split(/\s+/).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase();
+  };
+
+  function showPlainNotFound() {
+    document.getElementById('loginTitle').textContent = 'Pagina non trovata';
+    document.getElementById('loginSub').textContent = 'Questo indirizzo non corrisponde a nessuna flotta registrata.';
+    document.getElementById('loginBadge').textContent = '?';
+  }
+
+  if (!slug) {
+    showPlainNotFound();
+    return;
+  }
+
+  call({ action: 'fleet_get_public_info', slug: slug }).then(function (res) {
+    if (!res.ok) { showPlainNotFound(); return; }
+
+    var fleetName = res.fleet.name;
+    document.getElementById('loginTitle').textContent = fleetName;
+    document.getElementById('loginSub').textContent = 'adbsmart.it/' + slug;
+    document.getElementById('loginBadge').textContent = badgeInitials(fleetName);
+    document.getElementById('loginFormArea').style.display = 'block';
+
+    // Requested directly, same session-storage pattern already used
+    // by admin/index.html — no separate session/token system, the
+    // password itself is simply re-sent with every later request
+    // (see fleet-data's own requireFleet, which re-checks it fresh
+    // every time).
+    var savedPw = sessionStorage.getItem('adb_fleet_pw_' + slug);
+    if (savedPw) tryLogin(savedPw);
+
+    document.getElementById('loginBtn').addEventListener('click', function () {
+      tryLogin(document.getElementById('passwordInput').value);
+    });
+    document.getElementById('passwordInput').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') tryLogin(this.value);
+    });
+
+    function tryLogin(password) {
+      var errEl = document.getElementById('loginError');
+      errEl.style.display = 'none';
+      call({ action: 'fleet_login', slug: slug, password: password }).then(function (loginRes) {
+        if (!loginRes.ok) {
+          errEl.textContent = loginRes.reason === 'wrong_password' ? 'Password errata.' : 'Impossibile accedere.';
+          errEl.style.display = 'block';
+          return;
+        }
+        sessionStorage.setItem('adb_fleet_pw_' + slug, password);
+        showDashboard(fleetName, password);
+      });
+    }
+  });
+
+  function timeAgoLabel(iso) {
+    if (!iso) return 'mai';
+    var diffMs = Date.now() - new Date(iso).getTime();
+    var mins = Math.round(diffMs / 60000);
+    if (mins < 2) return 'ora';
+    if (mins < 60) return mins + ' min fa';
+    var hours = Math.round(mins / 60);
+    if (hours < 24) return hours + ' h fa';
+    return Math.round(hours / 24) + ' giorni fa';
+  }
+
+  function showDashboard(fleetName, password) {
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('dashScreen').style.display = 'block';
+    document.getElementById('dashName').textContent = fleetName;
+    document.getElementById('dashBadge').textContent = badgeInitials(fleetName);
+
+    function refresh() {
+      call({ action: 'fleet_get_dashboard', slug: slug, password: password }).then(function (res) {
+        if (!res.ok) return;
+        renderStats(res.drivers);
+        renderDrivers(res.drivers);
+      });
+    }
+
+    function renderStats(drivers) {
+      var totalKm = drivers.reduce(function (s, d) { return s + (d.total_km || 0); }, 0);
+      var totalGiorni = drivers.reduce(function (s, d) { return s + (d.total_giorni || 0); }, 0);
+      document.getElementById('statsRow').innerHTML =
+        '<div class="stat-card"><div class="stat-num">' + drivers.length + '</div><div class="stat-label">Autisti collegati</div></div>' +
+        '<div class="stat-card"><div class="stat-num">' + Math.round(totalKm) + ' km</div><div class="stat-label">Percorsi totali</div></div>' +
+        '<div class="stat-card"><div class="stat-num">' + totalGiorni + '</div><div class="stat-label">Giorni di consegna totali</div></div>';
+    }
+
+    function esc(s) {
+      var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML;
+    }
+
+    function renderDrivers(drivers) {
+      var el = document.getElementById('driverTable');
+      if (!drivers.length) {
+        el.innerHTML = '<div class="empty-note">Nessun autista collegato ancora — aggiungine uno sopra, usando la sua email o il suo ID.</div>';
+        return;
+      }
+      var html = '<div class="driver-row head"><div>Autista</div><div>Targa</div><div>Km totali</div><div>Ultima attività</div><div></div></div>';
+      drivers.forEach(function (d) {
+        html += '<div class="driver-row">' +
+          '<div><div class="driver-name">' + esc(d.nome || d.account_email) + '</div><div class="driver-sub">' + esc(d.account_email) + '</div></div>' +
+          '<div>' + esc(d.targa || '—') + '</div>' +
+          '<div>' + Math.round(d.total_km || 0) + ' km</div>' +
+          '<div>' + timeAgoLabel(d.last_active) + '</div>' +
+          '<div><button class="remove-btn" data-email="' + esc(d.account_email) + '">Rimuovi</button></div>' +
+          '</div>';
+      });
+      el.innerHTML = html;
+      el.querySelectorAll('.remove-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          call({ action: 'fleet_remove_driver', slug: slug, password: password, account_email: btn.dataset.email }).then(refresh);
+        });
+      });
+    }
+
+    document.getElementById('addDriverBtn').addEventListener('click', function () {
+      var input = document.getElementById('addDriverInput');
+      var errEl = document.getElementById('addDriverError');
+      errEl.style.display = 'none';
+      var identifier = input.value.trim();
+      if (!identifier) return;
+      call({ action: 'fleet_add_driver', slug: slug, password: password, identifier: identifier }).then(function (res) {
+        if (!res.ok) {
+          var messages = {
+            driver_not_found: 'Nessun autista trovato con questa email o ID.',
+            already_linked: 'Questo autista è già collegato alla flotta.'
+          };
+          errEl.textContent = messages[res.reason] || 'Impossibile aggiungere questo autista.';
+          errEl.style.display = 'block';
+          return;
+        }
+        input.value = '';
+        refresh();
+      });
+    });
+
+    refresh();
+  }
+})();
+</script>
+
+</body>
+</html>
