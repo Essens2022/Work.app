@@ -101,6 +101,14 @@
 
   /* ---------- Stats + table ---------- */
   .fleet-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 28px; }
+  .fleet-stats-6 { grid-template-columns: repeat(3, 1fr); }
+  .alert-banner {
+    display: flex; align-items: center; gap: 12px; background: rgba(217,164,65,.1);
+    border: 1px solid rgba(217,164,65,.3); color: var(--amber); border-radius: 12px;
+    padding: 13px 18px; font-size: 13.5px; margin-bottom: 22px;
+  }
+  .alert-banner b { color: var(--ink); }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
   .stat-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
   .stat-num { font-family: 'Barlow Condensed', sans-serif; font-size: 32px; font-weight: 800; }
   .stat-label { font-size: 12.5px; color: var(--ink-soft); margin-top: 2px; }
@@ -319,8 +327,10 @@
         <div class="rail-brand-text"><span id="dashName">—</span><span>ADB Smart Flotte</span></div>
       </div>
       <div class="rail-item on" data-goto="panoramica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Panoramica</div>
+      <div class="rail-item" data-goto="panoramica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Autisti</div>
       <div class="rail-item" data-goto="documenti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Documenti</div>
       <div class="rail-item" data-goto="consegne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><path d="M9 11l2 2 4-4"/></svg>Consegne</div>
+      <div class="rail-item" data-goto="mappa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4z"/><path d="M8 2v16M16 6v16"/></svg>Mappa</div>
       <div class="rail-divider"></div>
       <div class="rail-item owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
     </div>
@@ -330,14 +340,25 @@
           <div class="eyebrow" id="dashSub">Pannello flotta · ADB Smart</div>
           <h1 class="page-title">Panoramica flotta</h1>
         </div>
-        <button class="btn btn-accent owner-only" id="openAddDriverModalBtn">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-          Aggiungi autista
-        </button>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-ghost" data-goto="mappa">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4z"/><path d="M8 2v16M16 6v16"/></svg>
+            Mappa live
+          </button>
+          <button class="btn btn-accent owner-only" id="openAddDriverModalBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+            Aggiungi autista
+          </button>
+        </div>
       </div>
 
       <div class="main-inner">
-      <div class="fleet-stats" id="statsRow"></div>
+      <div class="alert-banner" id="alertBanner" style="display:none;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+        <div id="alertBannerText"></div>
+      </div>
+
+      <div class="fleet-stats fleet-stats-6" id="statsRow"></div>
 
       <div class="settings-section owner-only" style="padding:16px 18px;">
         <label style="display:block;font-size:11.5px;font-weight:700;color:var(--ink-soft);margin-bottom:6px;">Promemoria per i nuovi autisti</label>
@@ -366,8 +387,10 @@
         <div class="rail-brand-text"><span id="dashName2">—</span><span>ADB Smart Flotte</span></div>
       </div>
       <div class="rail-item" data-goto="panoramica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Panoramica</div>
+      <div class="rail-item" data-goto="panoramica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Autisti</div>
       <div class="rail-item" data-goto="documenti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Documenti</div>
       <div class="rail-item on" data-goto="consegne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><path d="M9 11l2 2 4-4"/></svg>Consegne</div>
+      <div class="rail-item" data-goto="mappa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4z"/><path d="M8 2v16M16 6v16"/></svg>Mappa</div>
       <div class="rail-divider"></div>
       <div class="rail-item owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
     </div>
@@ -409,8 +432,10 @@
         <div class="rail-brand-text"><span id="dashName3">—</span><span>ADB Smart Flotte</span></div>
       </div>
       <div class="rail-item" data-goto="panoramica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Panoramica</div>
+      <div class="rail-item" data-goto="panoramica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Autisti</div>
       <div class="rail-item on" data-goto="documenti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Documenti</div>
       <div class="rail-item" data-goto="consegne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><path d="M9 11l2 2 4-4"/></svg>Consegne</div>
+      <div class="rail-item" data-goto="mappa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4z"/><path d="M8 2v16M16 6v16"/></svg>Mappa</div>
       <div class="rail-divider"></div>
       <div class="rail-item owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
     </div>
@@ -439,9 +464,54 @@
   </div>
 </div>
 
-<!-- SCREEN: Impostazioni (mockup's fleet-settings — only "Persone con
-     accesso" is wired to real data; branding/default-settings/reports
-     sections from the mockup are left out, not fabricated) -->
+<!-- SCREEN: Mappa live (mockup's fleet-mappa) — static placeholder,
+     matching the mockup exactly; no real position data exists yet
+     (live GPS tracking + consent flow are a separate, not-yet-built
+     feature), so this shows the mockup's own illustrative layout
+     rather than either fabricating driver positions or leaving the
+     screen out. -->
+<div class="screen" id="fleet-mappa" data-screen="mappa">
+  <div class="shell">
+    <div class="rail">
+      <div class="rail-brand">
+        <div class="fleet-logo" id="dashBadge5" style="margin:0;">··</div>
+        <div class="rail-brand-text"><span id="dashName5">—</span><span>ADB Smart Flotte</span></div>
+      </div>
+      <div class="rail-item" data-goto="panoramica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Panoramica</div>
+      <div class="rail-item" data-goto="panoramica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Autisti</div>
+      <div class="rail-item" data-goto="documenti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Documenti</div>
+      <div class="rail-item" data-goto="consegne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><path d="M9 11l2 2 4-4"/></svg>Consegne</div>
+      <div class="rail-item on" data-goto="mappa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4z"/><path d="M8 2v16M16 6v16"/></svg>Mappa</div>
+      <div class="rail-divider"></div>
+      <div class="rail-item owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
+    </div>
+    <div class="main">
+      <div class="topline">
+        <div>
+          <div class="eyebrow">Posizione in tempo reale — funzionalità in arrivo</div>
+          <h1 class="page-title">Mappa flotta</h1>
+        </div>
+      </div>
+      <div class="main-inner">
+      <div style="position:relative;border-radius:16px;border:1px solid var(--line);overflow:hidden;height:400px;background:linear-gradient(135deg, var(--surface) 0%, var(--bg) 100%);display:flex;align-items:center;justify-content:center;">
+        <div style="text-align:center;color:var(--ink-soft);max-width:320px;padding:20px;">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:12px;"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4z"/><path d="M8 2v16M16 6v16"/></svg>
+          <div style="font-size:14px;">La mappa live sarà disponibile qui, una volta che i tuoi autisti avranno attivato la condivisione della posizione.</div>
+        </div>
+      </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN: Impostazioni (mockup's fleet-settings) — "Persone con
+     accesso" is wired to real data; the other three sections
+     (branding, default new-driver settings, automatic reports) are
+     shown exactly as in the mockup, but not yet functional — each
+     needs its own backend work (logo storage + delivery to the
+     driver app, a settings-defaults table, a scheduled email job)
+     that doesn't exist yet. Kept visible per direct request, to be
+     wired up progressively rather than fabricated or hidden now. -->
 <div class="screen" id="fleet-settings" data-screen="impostazioni">
   <div class="shell">
     <div class="rail">
@@ -450,8 +520,10 @@
         <div class="rail-brand-text"><span id="dashName4">—</span><span>ADB Smart Flotte</span></div>
       </div>
       <div class="rail-item" data-goto="panoramica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Panoramica</div>
+      <div class="rail-item" data-goto="panoramica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Autisti</div>
       <div class="rail-item" data-goto="documenti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Documenti</div>
       <div class="rail-item" data-goto="consegne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><path d="M9 11l2 2 4-4"/></svg>Consegne</div>
+      <div class="rail-item" data-goto="mappa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4z"/><path d="M8 2v16M16 6v16"/></svg>Mappa</div>
       <div class="rail-divider"></div>
       <div class="rail-item on owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
     </div>
@@ -465,6 +537,15 @@
 
       <div class="main-inner">
       <div class="settings-section">
+        <h3>Il tuo marchio</h3>
+        <p class="sub">Il logo che carichi qui appare anche nell'app dei tuoi autisti — la vedranno come l'app della loro azienda.</p>
+        <div style="display:flex;align-items:center;gap:16px;">
+          <div class="fleet-logo" id="brandLogoPreview" style="width:64px;height:64px;border-radius:14px;margin:0;font-size:20px;">··</div>
+          <button class="btn btn-ghost" disabled title="In arrivo">Cambia logo</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
         <h3>Persone con accesso</h3>
         <p class="sub">Invita colleghi al tuo account, con permessi diversi in base al loro ruolo.</p>
         <div id="teamMembersList"></div>
@@ -475,6 +556,32 @@
             <option value="owner">Accesso completo</option>
           </select>
           <button class="btn btn-accent" id="teamAddBtn">+ Invita collega</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Impostazioni predefinite per i nuovi autisti</h3>
+        <p class="sub">Applicate automaticamente a ogni nuovo autista aggiunto alla flotta — in arrivo.</p>
+        <div class="toggle-row" style="display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--line);">
+          <div><div style="font-weight:700;font-size:14px;">Tipo di veicolo predefinito</div><div style="font-size:12.5px;color:var(--ink-soft);margin-top:2px;">Non impostato</div></div>
+          <button class="btn btn-ghost" style="padding:8px 14px;font-size:13px;" disabled title="In arrivo">Cambia</button>
+        </div>
+        <div class="toggle-row" style="display:flex;align-items:center;justify-content:space-between;padding:13px 0;">
+          <div><div style="font-weight:700;font-size:14px;">Orario di consegna predefinito</div><div style="font-size:12.5px;color:var(--ink-soft);margin-top:2px;">Non impostato</div></div>
+          <button class="btn btn-ghost" style="padding:8px 14px;font-size:13px;" disabled title="In arrivo">Cambia</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Report automatici</h3>
+        <p class="sub">In arrivo.</p>
+        <div class="toggle-row" style="display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--line);">
+          <div><div style="font-weight:700;font-size:14px;">Riepilogo mensile via email</div><div style="font-size:12.5px;color:var(--ink-soft);margin-top:2px;">Consegne, km del mese — inviato il giorno 1</div></div>
+          <div style="width:42px;height:24px;border-radius:100px;background:var(--surface-2);border:1px solid var(--line);flex:none;opacity:.5;"></div>
+        </div>
+        <div class="toggle-row" style="display:flex;align-items:center;justify-content:space-between;padding:13px 0;">
+          <div><div style="font-weight:700;font-size:14px;">Avviso autista inattivo</div><div style="font-size:12.5px;color:var(--ink-soft);margin-top:2px;">Se un autista non apre l'app da più di 2 giorni</div></div>
+          <div style="width:42px;height:24px;border-radius:100px;background:var(--surface-2);border:1px solid var(--line);flex:none;opacity:.5;"></div>
         </div>
       </div>
       </div>
@@ -650,11 +757,11 @@
   function showApp(fleetName, password, role) {
     document.getElementById('fleet-login').classList.remove('active');
     document.body.classList.add('app-shown');
-    ['dashName', 'dashName2', 'dashName3', 'dashName4'].forEach(function (id) { document.getElementById(id).textContent = fleetName; });
-    ['dashBadge', 'dashBadge2', 'dashBadge3', 'dashBadge4'].forEach(function (id) { document.getElementById(id).textContent = badgeInitials(fleetName); });
+    ['dashName', 'dashName2', 'dashName3', 'dashName4', 'dashName5'].forEach(function (id) { document.getElementById(id).textContent = fleetName; });
+    ['dashBadge', 'dashBadge2', 'dashBadge3', 'dashBadge4', 'dashBadge5', 'brandLogoPreview'].forEach(function (id) { document.getElementById(id).textContent = badgeInitials(fleetName); });
     if (role === 'viewer') document.body.classList.add('role-viewer');
 
-    var SCREEN_ID_BY_NAME = { panoramica: 'fleet-dashboard', documenti: 'fleet-docs', consegne: 'fleet-consegne', impostazioni: 'fleet-settings' };
+    var SCREEN_ID_BY_NAME = { panoramica: 'fleet-dashboard', documenti: 'fleet-docs', consegne: 'fleet-consegne', mappa: 'fleet-mappa', impostazioni: 'fleet-settings' };
 
     function goToScreen(name) {
       document.querySelectorAll('.screen').forEach(function (s) { s.classList.remove('active'); });
@@ -675,18 +782,51 @@
 
     var currentDrivers = [];
 
+    var todayDeliveryCountByEmail = {};
+
     function refresh() {
       call({ action: 'fleet_get_dashboard', slug: slug, password: password }).then(function (res) {
         if (!res.ok) return;
         currentDrivers = res.drivers;
-        renderStats(res.drivers, res.period);
-        renderDrivers(res.drivers);
         populateDriverDropdowns();
         document.getElementById('driverNoteInput').value = res.driver_note || '';
         var readonlyNote = document.getElementById('driverNoteReadonly');
         readonlyNote.textContent = res.driver_note ? ('Promemoria: ' + res.driver_note) : '';
         readonlyNote.style.display = res.driver_note ? 'block' : 'none';
+
+        // Requested directly, matching the mockup's own "Consegne
+        // oggi" figure: a real count IS available here — today's
+        // deliveries, from the same source Consegne itself uses —
+        // fetched once per refresh, then used both for this stat and
+        // for the driver table's own per-driver column below.
+        var todayStr = new Date().toISOString().slice(0, 10);
+        call({ action: 'fleet_get_deliveries', slug: slug, password: password, date_from: todayStr }).then(function (delRes) {
+          todayDeliveryCountByEmail = {};
+          var deliveriesToday = (delRes.ok ? delRes.deliveries : []);
+          deliveriesToday.forEach(function (d) { todayDeliveryCountByEmail[d.driver_email] = (todayDeliveryCountByEmail[d.driver_email] || 0) + 1; });
+          renderStats(res.drivers, res.period, deliveriesToday.length);
+          renderDrivers(res.drivers);
+          renderAlertBanner(res.drivers);
+        });
       });
+    }
+
+    // Requested directly: a real, not fabricated, alert — a driver
+    // who hasn't opened the app in 2+ days, matching the mockup's own
+    // "hasn't opened the app" wording exactly, just driven by
+    // last_active instead of invented. The mockup's other alert
+    // (an expiring document) has no real data behind it yet, so it's
+    // simply not shown rather than faked — the banner only appears
+    // when there's a genuine driver-inactivity alert to show.
+    function renderAlertBanner(drivers) {
+      var banner = document.getElementById('alertBanner');
+      var inactive = drivers.filter(function (d) {
+        if (!d.last_active) return true;
+        return (Date.now() - new Date(d.last_active).getTime()) > 2 * 24 * 60 * 60 * 1000;
+      });
+      if (!inactive.length) { banner.style.display = 'none'; return; }
+      document.getElementById('alertBannerText').innerHTML = '<b>' + esc(inactive[0].nome || inactive[0].account_email) + '</b> non ha aperto l\'app da almeno 2 giorni' + (inactive.length > 1 ? (' · altri ' + (inactive.length - 1) + ' autisti nella stessa situazione') : '');
+      banner.style.display = 'flex';
     }
 
     function populateDriverDropdowns() {
@@ -704,19 +844,26 @@
 
     var MONTH_NAMES_IT = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
 
-    // Requested directly: the mockup's own 6-stat grid includes
-    // figures with no real data behind them yet (live delivery
-    // status, cash collected today, expiring documents) — shown here
-    // as the 3 stats that ARE real, at the mockup's own 3-column
-    // grid, rather than inventing the other 3.
-    function renderStats(drivers, period) {
+    // Requested directly: kept at the mockup's own 6-card layout.
+    // Three of these ARE real data (Autisti totali, Consegne oggi —
+    // computed above from today's real deliveries — and Percorsi
+    // questo mese, the closest real equivalent to the mockup's
+    // per-day figure, since no per-day km tracking exists yet).
+    // The other three (In consegna ora, Documenti in scadenza,
+    // Riscosso oggi) need functionality that doesn't exist yet —
+    // live GPS status, document expiry dates, collected-cash
+    // tracking — so they show "—", never a fabricated number, until
+    // each is genuinely built.
+    function renderStats(drivers, period, todayDeliveryTotal) {
       var totalKm = drivers.reduce(function (s, d) { return s + (d.total_km || 0); }, 0);
-      var totalGiorni = drivers.reduce(function (s, d) { return s + (d.total_giorni || 0); }, 0);
       var monthLabel = period ? MONTH_NAMES_IT[period.month - 1] : '';
       document.getElementById('statsRow').innerHTML =
-        '<div class="stat-card"><div class="stat-num">' + drivers.length + '</div><div class="stat-label">Autisti collegati</div></div>' +
-        '<div class="stat-card"><div class="stat-num">' + Math.round(totalKm) + ' km</div><div class="stat-label">Percorsi a ' + monthLabel + '</div></div>' +
-        '<div class="stat-card"><div class="stat-num">' + totalGiorni + '</div><div class="stat-label">Giorni di consegna a ' + monthLabel + '</div></div>';
+        '<div class="stat-card"><div class="stat-num">' + drivers.length + '</div><div class="stat-label">Autisti totali</div></div>' +
+        '<div class="stat-card"><div class="stat-num">—</div><div class="stat-label">In consegna ora</div></div>' +
+        '<div class="stat-card"><div class="stat-num">' + todayDeliveryTotal + '</div><div class="stat-label">Consegne oggi</div></div>' +
+        '<div class="stat-card"><div class="stat-num">—</div><div class="stat-label">Documenti in scadenza</div></div>' +
+        '<div class="stat-card"><div class="stat-num">—</div><div class="stat-label">Riscosso oggi</div></div>' +
+        '<div class="stat-card"><div class="stat-num">' + Math.round(totalKm) + ' km</div><div class="stat-label">Percorsi a ' + monthLabel + '</div></div>';
     }
 
     function renderDrivers(drivers) {
@@ -725,14 +872,23 @@
         el.innerHTML = '<div class="empty-note">Nessun autista collegato ancora — aggiungine uno sopra, usando la sua email o il suo ID.</div>';
         return;
       }
-      var html = '<div class="driver-card head"><div></div><div>Autista</div><div>Targa</div><div>Km totali</div><div>Ultima attività</div><div></div></div>';
+      var html = '<div class="driver-card head"><div></div><div>Autista</div><div>Stato</div><div>Consegne oggi</div><div>Veicolo</div><div></div></div>';
       drivers.forEach(function (d) {
+        // Requested directly: "Stato" (live delivery status) needs
+        // real-time tracking that doesn't exist yet — shown as a
+        // neutral gray dot with "—" rather than a fabricated
+        // in-consegna/in-pausa value. "Consegne oggi" IS real (see
+        // todayDeliveryCountByEmail, built in refresh() above).
+        // "Veicolo" shows the real plate; the vehicle type/model
+        // itself isn't tracked anywhere yet, so only the plate half
+        // of the mockup's "Fiat Ducato · AB123CD" format is real.
+        var todayCount = todayDeliveryCountByEmail[d.account_email] || 0;
         html += '<div class="driver-card">' +
           '<div class="avatar">' + esc(badgeInitials(d.nome || d.account_email)) + '</div>' +
           '<div><div class="driver-name">' + esc(d.nome || d.account_email) + '</div><div class="driver-sub">' + esc(d.account_email) + '</div></div>' +
+          '<div><span class="status-dot" style="background:var(--ink-soft);"></span>—</div>' +
+          '<div>' + todayCount + '</div>' +
           '<div>' + esc(d.targa || '—') + '</div>' +
-          '<div>' + Math.round(d.total_km || 0) + ' km</div>' +
-          '<div>' + timeAgoLabel(d.last_active) + '</div>' +
           '<div><button class="doc-actions-btn owner-only remove-btn" data-email="' + esc(d.account_email) + '" data-name="' + esc(d.nome || d.account_email) + '" style="background:none;border:none;color:var(--ink-soft);cursor:pointer;font-size:13px;">Rimuovi</button></div>' +
           '</div>';
       });
