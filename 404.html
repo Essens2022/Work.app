@@ -265,12 +265,19 @@
           '<div>' + esc(d.targa || '—') + '</div>' +
           '<div>' + Math.round(d.total_km || 0) + ' km</div>' +
           '<div>' + timeAgoLabel(d.last_active) + '</div>' +
-          '<div><button class="remove-btn" data-email="' + esc(d.account_email) + '">Rimuovi</button></div>' +
+          '<div><button class="remove-btn" data-email="' + esc(d.account_email) + '" data-name="' + esc(d.nome || d.account_email) + '">Rimuovi</button></div>' +
           '</div>';
       });
       el.innerHTML = html;
       el.querySelectorAll('.remove-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
+          // Requested implicitly by good practice: removing was
+          // instant, no confirmation — a single mistaken tap could
+          // silently unlink a driver from the fleet with no warning
+          // at all. A native confirm() is enough here; this isn't a
+          // destructive DELETE of the driver's own account or data,
+          // just the link between them and this fleet.
+          if (!confirm('Rimuovere ' + btn.dataset.name + ' dalla flotta?')) return;
           call({ action: 'fleet_remove_driver', slug: slug, password: password, account_email: btn.dataset.email }).then(refresh);
         });
       });
