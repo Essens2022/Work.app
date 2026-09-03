@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v513"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v514"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -3864,10 +3864,20 @@
     // another, for however many were marked done together, not for
     // ones that were already completed before this action.
     var newlyCompleted = [];
+    // Requested directly ("de ce nu arata consegnele de azi?"): also
+    // track the opposite transition — a client un-checked back to
+    // pending after having been marked completed. Its OLD completedAt
+    // is captured here, before the line right below resets it to
+    // null, so the matching server row (identified by that exact
+    // timestamp) can be deleted — otherwise a mistaken tap that gets
+    // corrected would leave a "ghost" delivery behind on the fleet's
+    // own Consegne screen forever.
+    var newlyUncompleted = [];
     checkboxes.forEach(function (cb) {
       var client = state.deliveryRun.clients.find(function (c) { return c.id === cb.getAttribute('data-client-id'); });
       if (!client) return;
       var wasCompleted = client.status === 'completed';
+      if (wasCompleted && !cb.checked) newlyUncompleted.push({ nome: client.nome, completedAt: client.completedAt });
       client.status = cb.checked ? 'completed' : 'pending';
       // Approximate delivery time — ION's own explicit request, for
       // the history detail view. Genuinely approximate, not a precise
@@ -3882,6 +3892,16 @@
       if (client.status === 'completed' && !wasCompleted) newlyCompleted.push(client);
     });
     saveDeliveryRun(state.deliveryRun);
+    // REAL BUG, reported directly: a fleet owner looking at "Consegne"
+    // during the day saw nothing from today, because deliveries were
+    // only ever pushed to the server when the whole day got archived —
+    // which normally only happens the NEXT day (or manually). Sent
+    // here instead, the moment each delivery is actually confirmed —
+    // same lightweight push already used at archive time
+    // (syncDeliveriesToServer), just triggered live instead of a day
+    // later. Uncompleted ones are removed from the server the same way.
+    if (newlyCompleted.length) syncDeliveriesToServer(newlyCompleted);
+    if (newlyUncompleted.length) deleteDeliveriesFromServer(newlyUncompleted);
 
     var completed = state.deliveryRun.clients.filter(function (c) { return c.status === 'completed'; });
     var remaining = state.deliveryRun.clients.filter(function (c) { return c.status !== 'completed'; });
@@ -11526,6 +11546,30 @@
       },
       body: JSON.stringify(rows)
     }).catch(function () { /* offline or blocked — silently skip, same as syncSheetSummaries */ });
+  }
+
+  // Requested directly, as the other half of the fix above: removes a
+  // delivery from the server the moment it's un-checked back to
+  // pending — otherwise a corrected mistake would leave a stale
+  // "ghost" entry visible forever on the fleet's own Consegne screen.
+  // Identified by the same natural key already used for the insert
+  // (device_id, client_nome, completed_at) — one DELETE call per item,
+  // since this only ever fires for the handful a driver just unchecked.
+  function deleteDeliveriesFromServer(items) {
+    if (!items || !items.length) return;
+    var deviceId = getDeviceId();
+    items.forEach(function (item) {
+      if (!item.completedAt) return; // nothing was ever sent for this one — no matching server row to remove
+      var completedIso = new Date(item.completedAt).toISOString();
+      var url = SUPABASE_URL + '/rest/v1/driver_deliveries'
+        + '?device_id=eq.' + encodeURIComponent(deviceId)
+        + '&client_nome=eq.' + encodeURIComponent(item.nome || '')
+        + '&completed_at=eq.' + encodeURIComponent(completedIso);
+      fetch(url, {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY }
+      }).catch(function () { /* offline or blocked — silently skip */ });
+    });
   }
 
   // Pushes a lightweight summary (km + days worked, no photos or PDFs —
