@@ -203,18 +203,27 @@
     function refresh() {
       call({ action: 'fleet_get_dashboard', slug: slug, password: password }).then(function (res) {
         if (!res.ok) return;
-        renderStats(res.drivers);
+        renderStats(res.drivers, res.period);
         renderDrivers(res.drivers);
       });
     }
 
-    function renderStats(drivers) {
+    var MONTH_NAMES_IT = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
+
+    // Requested directly: an ever-growing lifetime km total wasn't
+    // actually useful — it only ever goes up, and says nothing about
+    // how a driver is doing right now. Switched to the CURRENT month
+    // only (matching how driver_sheets_summary is already organized,
+    // one row per driver per month) — labeled explicitly with the
+    // month name so it's never mistaken for a lifetime figure again.
+    function renderStats(drivers, period) {
       var totalKm = drivers.reduce(function (s, d) { return s + (d.total_km || 0); }, 0);
       var totalGiorni = drivers.reduce(function (s, d) { return s + (d.total_giorni || 0); }, 0);
+      var monthLabel = period ? MONTH_NAMES_IT[period.month - 1] : '';
       document.getElementById('statsRow').innerHTML =
         '<div class="stat-card"><div class="stat-num">' + drivers.length + '</div><div class="stat-label">Autisti collegati</div></div>' +
-        '<div class="stat-card"><div class="stat-num">' + Math.round(totalKm) + ' km</div><div class="stat-label">Percorsi totali</div></div>' +
-        '<div class="stat-card"><div class="stat-num">' + totalGiorni + '</div><div class="stat-label">Giorni di consegna totali</div></div>';
+        '<div class="stat-card"><div class="stat-num">' + Math.round(totalKm) + ' km</div><div class="stat-label">Percorsi a ' + monthLabel + '</div></div>' +
+        '<div class="stat-card"><div class="stat-num">' + totalGiorni + '</div><div class="stat-label">Giorni di consegna a ' + monthLabel + '</div></div>';
     }
 
     function esc(s) {
