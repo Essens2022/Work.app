@@ -955,6 +955,16 @@
     return d.innerHTML;
   }
 
+  // Icons are inline SVG, not Unicode glyphs — checked directly:
+  // the original copy icon (⧉, U+29C9) is an obscure technical
+  // symbol, not a standard emoji, and isn't guaranteed to be covered
+  // by every system font — risking a blank box on some phones
+  // instead of an icon. SVG renders identically everywhere. Shared
+  // by both copyToClipboard (below) and showFleetCredentialsModal
+  // (which builds the buttons these icons live inside).
+  var COPY_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+  var CHECK_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" width="15" height="15"><path d="M20 6L9 17l-5-5"/></svg>';
+
   // Requested directly: ION needs to copy the URL and the generated
   // password easily, to send them to the fleet owner — replaced the
   // plain alert() dialog (text couldn't be selected/copied cleanly on
@@ -964,9 +974,8 @@
   // original of this exact pattern).
   function copyToClipboard(text, btn) {
     var done = function () {
-      var original = btn.innerHTML;
-      btn.innerHTML = '✓';
-      setTimeout(function () { btn.innerHTML = original; }, 1200);
+      btn.innerHTML = CHECK_ICON_SVG;
+      setTimeout(function () { btn.innerHTML = COPY_ICON_SVG; }, 1200);
     };
     var copyPromise = (navigator.clipboard && navigator.clipboard.writeText)
       ? navigator.clipboard.writeText(text)
@@ -989,10 +998,10 @@
       '<p style="margin:0 0 18px;font-size:13px;color:var(--ink-faint,#999);">Passa queste informazioni al titolare — non verranno mostrate di nuovo qui.</p>' +
       '<div style="margin-bottom:12px;"><label style="display:block;font-size:11.5px;font-weight:700;color:var(--ink-faint,#999);margin-bottom:5px;">Indirizzo</label>' +
       '<div style="display:flex;gap:8px;"><input readonly value="' + escHtml(url) + '" style="flex:1;background:var(--surface-2,#222);border:1px solid var(--line,#333);border-radius:8px;padding:9px 12px;color:inherit;font-size:16px;">' +
-      '<button class="fleet-copy-btn" data-copy="' + escHtml(url) + '" style="flex:none;width:38px;border-radius:8px;border:1px solid var(--line,#333);background:var(--surface-2,#222);color:inherit;cursor:pointer;font-size:15px;">⧉</button></div></div>' +
+      '<button class="fleet-copy-btn" data-copy="' + escHtml(url) + '" style="flex:none;width:38px;border-radius:8px;border:1px solid var(--line,#333);background:var(--surface-2,#222);color:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;">' + COPY_ICON_SVG + '</button></div></div>' +
       '<div style="margin-bottom:20px;"><label style="display:block;font-size:11.5px;font-weight:700;color:var(--ink-faint,#999);margin-bottom:5px;">Password temporanea</label>' +
       '<div style="display:flex;gap:8px;"><input readonly value="' + escHtml(password) + '" style="flex:1;background:var(--surface-2,#222);border:1px solid var(--line,#333);border-radius:8px;padding:9px 12px;color:inherit;font-size:16px;">' +
-      '<button class="fleet-copy-btn" data-copy="' + escHtml(password) + '" style="flex:none;width:38px;border-radius:8px;border:1px solid var(--line,#333);background:var(--surface-2,#222);color:inherit;cursor:pointer;font-size:15px;">⧉</button></div></div>' +
+      '<button class="fleet-copy-btn" data-copy="' + escHtml(password) + '" style="flex:none;width:38px;border-radius:8px;border:1px solid var(--line,#333);background:var(--surface-2,#222);color:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;">' + COPY_ICON_SVG + '</button></div></div>' +
       '<button id="fleet-cred-close" class="btn-block" style="background:var(--accent);">Fatto</button>' +
       '</div>';
     document.body.appendChild(overlay);
