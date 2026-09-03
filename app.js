@@ -8016,6 +8016,21 @@
   }
 
   function openPdfViewerModal(pdfArrayBuffer, title) {
+    // REAL BUG history, preserved carefully: this exact screen is the
+    // one already documented (see the comment right below) to crash
+    // the renderer via native pinch-zoom, chased at length. The
+    // touch-action:none on .pdfviewer-scroll below is the primary
+    // fix, but a global viewport now allows zoom EVERYWHERE ELSE
+    // (requested directly, separately — auto-zoom on input focus
+    // should never happen, but manual pinch-zoom should still work
+    // app-wide). Rather than trust touch-action alone to cover every
+    // possible gesture start point on a screen already proven to
+    // crash, the global viewport is explicitly pinned back to
+    // no-zoom for the exact duration this modal is open — restored
+    // the instant it closes, in closePdfViewerModal below.
+    var vp = document.getElementById('viewport-meta');
+    if (vp) vp.dataset.prevContent = vp.getAttribute('content');
+    if (vp) vp.setAttribute('content', 'width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no');
     document.getElementById('pdfviewer-title').textContent = title || 'Anteprima';
     document.getElementById('pdfviewer-pages').innerHTML = '';
     document.getElementById('pdfviewer-loading').style.display = '';
@@ -8162,6 +8177,8 @@
   function closePdfViewerModal() {
     document.getElementById('modal-pdfviewer').classList.remove('open');
     teardownPdfViewerZoomPan();
+    var vp = document.getElementById('viewport-meta');
+    if (vp && vp.dataset.prevContent) { vp.setAttribute('content', vp.dataset.prevContent); delete vp.dataset.prevContent; }
   }
   document.getElementById('pdfviewer-close').addEventListener('click', closePdfViewerModal);
   document.getElementById('pdfviewer-download').addEventListener('click', downloadCurrentPdf);
