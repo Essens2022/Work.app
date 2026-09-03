@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v510"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v511"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -402,6 +402,18 @@
       viaggi++;
       if (g.kmInizio !== "" && g.kmFine !== "" && !isNaN(g.kmFine - g.kmInizio)) {
         km += (Number(g.kmFine) - Number(g.kmInizio));
+      }
+      // REAL BUG, reported directly: on a "due giri" day, only Giro 1's
+      // own km ever made it into "KM totali" on the home screen — the
+      // second round's kilometers were silently dropped from every
+      // total, even though the driver actually drove them. Added here
+      // as its own separate addition (not folded into the check
+      // above), since a day can have Giro 1 complete and Giro 2 still
+      // in progress (or vice versa, right after Giro 2's own fields
+      // finish before Giro 1 for some reason) — each round's km should
+      // count independently, whenever ITS OWN start/end are both filled.
+      if (g.kmInizio2 !== "" && g.kmInizio2 !== undefined && g.kmFine2 !== "" && g.kmFine2 !== undefined && !isNaN(g.kmFine2 - g.kmInizio2)) {
+        km += (Number(g.kmFine2) - Number(g.kmInizio2));
       }
     });
     return { viaggi: viaggi, km: km };
@@ -1034,7 +1046,18 @@
         continue;
       }
       var filled = g && (g.a || g.ddt || g.kmFine !== "");
-      var kmtot = (g && g.kmInizio !== "" && g.kmFine !== "" && !isNaN(g.kmFine - g.kmInizio)) ? (Number(g.kmFine) - Number(g.kmInizio)) : null;
+      // REAL BUG, reported directly: this per-day km figure (shown
+      // right in the day list, not just the monthly total) only ever
+      // counted Giro 1 — same underlying gap as sheetKmAndTrips above,
+      // fixed the same way, adding Giro 2's own km whenever it's
+      // genuinely filled in.
+      var kmtot = null;
+      if (g && g.kmInizio !== "" && g.kmFine !== "" && !isNaN(g.kmFine - g.kmInizio)) {
+        kmtot = (Number(g.kmFine) - Number(g.kmInizio));
+      }
+      if (g && g.kmInizio2 !== "" && g.kmInizio2 !== undefined && g.kmFine2 !== "" && g.kmFine2 !== undefined && !isNaN(g.kmFine2 - g.kmInizio2)) {
+        kmtot = (kmtot || 0) + (Number(g.kmFine2) - Number(g.kmInizio2));
+      }
       html += '<div class="day-row ' + (filled ? 'filled' : '') + '" data-day="' + d + '">';
       html += '<div class="day-num">' + d + '</div>';
       html += '<div class="day-main">';
