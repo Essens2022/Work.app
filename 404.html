@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ADB Smart Flotte</title>
+<script>
+  // Applied here, before anything else renders, so switching to light
+  // mode earlier doesn't show a flash of the dark theme first on
+  // every reload.
+  (function () {
+    if (localStorage.getItem('adb_fleet_theme') === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  })();
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap');
   :root {
@@ -11,12 +19,31 @@
     --accent: #E8542B; --accent-soft: rgba(232,84,43,.14);
     --ink: #F5F3EF; --ink-soft: #8B8D93; --green: #34A874; --green-soft: rgba(52,168,116,.14); --amber: #D9A441;
   }
+  /* Requested directly: light theme option ("sfondo scuro e uno bianco")
+     — same palette logic (same accent, same relative contrast), just
+     inverted for a light background instead of redesigning colors
+     from scratch. Toggled via a data-theme attribute on <html>, so it
+     applies instantly, everywhere, without needing a page reload. */
+  html[data-theme="light"] {
+    --bg: #FFFFFF; --surface: #F6F6F7; --surface-2: #EDEDF0; --line: #DCDCE1;
+    --accent: #E8542B; --accent-soft: rgba(232,84,43,.10);
+    --ink: #1A1B1E; --ink-soft: #6B6D74; --green: #1F8A57; --green-soft: rgba(31,138,87,.10); --amber: #A9752A;
+  }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; min-height: 100vh; }
   h1, h3 { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; letter-spacing: -.01em; margin: 0; }
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: none; cursor: pointer; font-family: 'Inter', sans-serif; font-weight: 700; font-size: 14px; border-radius: 10px; padding: 12px 18px; }
   .btn-accent { background: var(--accent); color: #fff; }
   .btn-ghost { background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); }
+  .theme-toggle {
+    position: fixed; top: 16px; right: 16px; z-index: 300;
+    width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--surface); color: var(--ink); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .theme-toggle svg { width: 19px; height: 19px; }
+  html[data-theme="light"] .theme-toggle .icon-moon { display: none; }
+  html:not([data-theme="light"]) .theme-toggle .icon-sun { display: none; }
   .center-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
   .login-card { width: 100%; max-width: 380px; text-align: center; }
   .fleet-badge { width: 56px; height: 56px; border-radius: 14px; background: var(--accent-soft); color: var(--accent); font-family: 'Barlow Condensed'; font-weight: 800; font-size: 22px; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; flex: none; }
@@ -110,6 +137,15 @@
 </style>
 </head>
 <body>
+
+<!-- Requested directly: switch between dark and light background,
+     one button, visible everywhere (login screen and all four
+     screens after login) — fixed position, so it doesn't need to be
+     duplicated inside every rail/screen. -->
+<button class="theme-toggle" id="themeToggle" aria-label="Cambia tema" type="button">
+  <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+  <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>
+</button>
 
 <div class="center-wrap" id="loginScreen">
   <div class="login-card">
@@ -297,6 +333,17 @@
 
 <script>
 (function () {
+  document.getElementById('themeToggle').addEventListener('click', function () {
+    var isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    if (isLight) {
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.setItem('adb_fleet_theme', 'dark');
+    } else {
+      document.documentElement.setAttribute('data-theme', 'light');
+      localStorage.setItem('adb_fleet_theme', 'light');
+    }
+  });
+
   var FLEET_API = 'https://chboalgzigdglygnnist.supabase.co/functions/v1/fleet-data';
 
   function call(payload) {
