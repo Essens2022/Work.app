@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v512"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v513"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -1658,6 +1658,7 @@
   // end-of-calendar-day archiving and the manual "archive now" action.
   function dpArchiveRunToHistory(run) {
     if (run.date && run.clients && run.clients.length) {
+      syncDeliveriesToServer(run.clients);
       var history = loadDeliveryHistory();
       // REAL BUG, reported directly, with a concrete example: archiving
       // more than once on the SAME calendar day (e.g. manually starting
@@ -11491,6 +11492,41 @@
     if (presenceChannel) { presenceChannel.untrack(); }
   }
 
+
+  // Requested directly, part of the fleet system's "Storico consegne"
+  // screen: pushes each ACTUALLY-completed delivery (name, address,
+  // when) the moment a day's clients get archived — same lightweight-
+  // summary spirit as syncSheetSummaries right below (no photos, those
+  // stay on-device), just per-delivery instead of per-sheet. Only
+  // ever called with the exact clients dpArchiveRunToHistory is about
+  // to archive, so this naturally fires once per real archiving event,
+  // never re-sending days already sent before.
+  function syncDeliveriesToServer(clients) {
+    if (!state.profile.nome || !clients || !clients.length) return;
+    var deviceId = getDeviceId();
+    var accountEmail = currentAccountEmail();
+    var rows = clients
+      .filter(function (c) { return c.status === 'completed' && c.completedAt; })
+      .map(function (c) {
+        var completedIso = new Date(c.completedAt).toISOString();
+        return {
+          account_email: accountEmail, device_id: deviceId,
+          client_nome: c.nome || '', client_indirizzo: c.indirizzo || '',
+          completed_at: completedIso, delivery_date: completedIso.slice(0, 10)
+        };
+      });
+    if (!rows.length) return;
+    fetch(SUPABASE_URL + '/rest/v1/driver_deliveries?on_conflict=device_id,client_nome,completed_at', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+        'Prefer': 'resolution=merge-duplicates,return=minimal'
+      },
+      body: JSON.stringify(rows)
+    }).catch(function () { /* offline or blocked — silently skip, same as syncSheetSummaries */ });
+  }
 
   // Pushes a lightweight summary (km + days worked, no photos or PDFs —
   // those never leave the phone) for every sheet this device has, so the

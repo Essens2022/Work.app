@@ -90,6 +90,19 @@
   .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 200; align-items: center; justify-content: center; padding: 20px; }
   .modal-backdrop.open { display: flex; }
   .modal { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px; max-width: 400px; width: 100%; }
+  .modal.modal-wide { max-width: 900px; max-height: 85vh; overflow-y: auto; }
+  .storico-filters { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+  .storico-filters select, .storico-filters input { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; color: var(--ink); font-size: 14px; font-family: 'Inter', sans-serif; }
+  .delivery-row { display: grid; grid-template-columns: 1.6fr 1.2fr 1fr; gap: 14px; padding: 13px 16px; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+  .delivery-row.head { color: var(--ink-soft); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .delivery-row:last-child { border-bottom: none; }
+  .delivery-client-name { font-weight: 700; }
+  .delivery-addr { color: var(--ink-soft); font-size: 12px; margin-top: 1px; }
+  @media (max-width: 600px) {
+    .delivery-row { grid-template-columns: 1fr; gap: 3px; }
+    .delivery-row.head { display: none; }
+    .delivery-row:not(.head) { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; }
+  }
   .modal h3 { font-size: 21px; margin: 0 0 6px; }
   .modal p.sub { color: var(--ink-soft); font-size: 13px; margin: 0 0 18px; }
   .modal-actions { display: flex; gap: 10px; margin-top: 18px; }
@@ -125,7 +138,10 @@
       <div class="fleet-badge" id="dashBadge">··</div>
       <div><div class="dash-title" id="dashName">—</div><div class="dash-sub" id="dashSub">Pannello flotta · ADB Smart</div></div>
     </div>
-    <button class="btn btn-ghost owner-only" id="teamBtn" style="width:auto;">Gestione team</button>
+    <div style="display:flex;gap:10px;">
+      <button class="btn btn-ghost" id="storicoBtn" style="width:auto;">Storico consegne</button>
+      <button class="btn btn-ghost owner-only" id="teamBtn" style="width:auto;">Gestione team</button>
+    </div>
   </div>
 
   <div class="stats-row" id="statsRow"></div>
@@ -185,6 +201,23 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" id="teamModalClose">Chiudi</button>
       <button class="btn btn-accent" id="teamAddBtn">Invita</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="storicoModalBackdrop">
+  <div class="modal modal-wide">
+    <h3>Storico consegne</h3>
+    <p class="sub">Tutte le consegne effettuate, per tutti gli autisti collegati.</p>
+    <div class="storico-filters">
+      <select id="storicoDriverFilter"><option value="">Tutti gli autisti</option></select>
+      <input type="date" id="storicoDateFrom">
+      <input type="date" id="storicoDateTo">
+      <button class="btn btn-ghost" id="storicoFilterBtn" style="width:auto;">Filtra</button>
+    </div>
+    <div id="storicoList"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="storicoModalClose">Chiudi</button>
     </div>
   </div>
 </div>
@@ -278,10 +311,12 @@
     document.getElementById('dashName').textContent = fleetName;
     document.getElementById('dashBadge').textContent = badgeInitials(fleetName);
     if (role === 'viewer') document.body.classList.add('role-viewer');
+    var currentDrivers = [];
 
     function refresh() {
       call({ action: 'fleet_get_dashboard', slug: slug, password: password }).then(function (res) {
         if (!res.ok) return;
+        currentDrivers = res.drivers;
         renderStats(res.drivers, res.period);
         renderDrivers(res.drivers);
         document.getElementById('driverNoteInput').value = res.driver_note || '';
@@ -431,6 +466,56 @@
         });
       });
     }
+
+    // Requested directly: the fleet's own delivery history — pulls
+    // from driver_deliveries (see syncDeliveriesToServer in the main
+    // driver app, app.js), populated the moment a driver's day gets
+    // archived. Driver filter dropdown built from currentDrivers
+    // (already loaded by the dashboard's own refresh()) rather than a
+    // separate call — same real names already shown in the driver
+    // table above.
+
+    function loadStorico() {
+      var driverFilter = document.getElementById('storicoDriverFilter').value;
+      var dateFrom = document.getElementById('storicoDateFrom').value;
+      var dateTo = document.getElementById('storicoDateTo').value;
+      var payload = { action: 'fleet_get_deliveries', slug: slug, password: password };
+      if (driverFilter) payload.driver_email = driverFilter;
+      if (dateFrom) payload.date_from = dateFrom;
+      if (dateTo) payload.date_to = dateTo;
+
+      call(payload).then(function (res) {
+        var el = document.getElementById('storicoList');
+        if (!res.ok) { el.innerHTML = '<div class="empty-note">Impossibile caricare lo storico.</div>'; return; }
+        if (!res.deliveries.length) { el.innerHTML = '<div class="empty-note">Nessuna consegna trovata per questo filtro.</div>'; return; }
+
+        var html = '<div class="delivery-row head"><div>Cliente</div><div>Autista</div><div>Quando</div></div>';
+        res.deliveries.forEach(function (d) {
+          var when = new Date(d.completed_at);
+          var whenLabel = when.toLocaleDateString('it-IT') + ' · ' + when.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+          html += '<div class="delivery-row">' +
+            '<div><div class="delivery-client-name">' + esc(d.client_nome) + '</div><div class="delivery-addr">' + esc(d.client_indirizzo || '') + '</div></div>' +
+            '<div>' + esc(d.driver_nome) + '</div>' +
+            '<div>' + whenLabel + '</div>' +
+            '</div>';
+        });
+        el.innerHTML = html;
+      });
+    }
+
+    document.getElementById('storicoBtn').addEventListener('click', function () {
+      var driverSelect = document.getElementById('storicoDriverFilter');
+      driverSelect.innerHTML = '<option value="">Tutti gli autisti</option>';
+      currentDrivers.forEach(function (d) {
+        driverSelect.innerHTML += '<option value="' + esc(d.account_email) + '">' + esc(d.nome || d.account_email) + '</option>';
+      });
+      document.getElementById('storicoModalBackdrop').classList.add('open');
+      loadStorico();
+    });
+    document.getElementById('storicoModalClose').addEventListener('click', function () {
+      document.getElementById('storicoModalBackdrop').classList.remove('open');
+    });
+    document.getElementById('storicoFilterBtn').addEventListener('click', loadStorico);
 
     document.getElementById('teamBtn').addEventListener('click', function () {
       document.getElementById('teamModalBackdrop').classList.add('open');
