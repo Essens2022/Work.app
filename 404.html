@@ -190,8 +190,11 @@
     .driver-card { grid-template-columns: 1fr; gap: 4px; }
     .driver-card.head { display: none; }
     .driver-card:not(.head) { padding: 16px; border-radius: 12px; margin: 0 0 10px; border: 1px solid var(--line); }
-    .main-inner { padding: 20px 16px 90px; }
-    .topline { padding: 20px 16px; margin: 0 0 8px; }
+    .main-inner { padding: 20px 16px 90px; padding-top: calc(var(--topline-h, 90px) + 12px); }
+    .topline {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 15;
+      padding: calc(16px + env(safe-area-inset-top)) 16px 16px; margin: 0;
+    }
     .driver-toolbar { flex-direction: column; }
     body.app-shown .bottom-nav { display: flex; }
   }
@@ -768,6 +771,21 @@
 
     var SCREEN_ID_BY_NAME = { panoramica: 'fleet-dashboard', documenti: 'fleet-docs', consegne: 'fleet-consegne', mappa: 'fleet-mappa', impostazioni: 'fleet-settings' };
 
+    // Requested directly: the top bar should be fully fixed on
+    // mobile, exactly like the bottom nav bar (not just "sticky",
+    // which still depends on/scrolls briefly within its container
+    // before locking). Fixed positioning takes it out of normal
+    // document flow, so the content below needs matching top padding
+    // to avoid being hidden underneath it — measured here for real,
+    // since its height isn't constant (a long fleet name, or the
+    // action button wrapping to its own line, both change it).
+    function updateToplineHeight() {
+      var activeTopline = document.querySelector('.screen.active .topline');
+      if (!activeTopline) return;
+      document.documentElement.style.setProperty('--topline-h', activeTopline.offsetHeight + 'px');
+    }
+    window.addEventListener('resize', updateToplineHeight);
+
     function goToScreen(name) {
       document.querySelectorAll('.screen').forEach(function (s) { s.classList.remove('active'); });
       var target = document.getElementById(SCREEN_ID_BY_NAME[name]);
@@ -779,6 +797,7 @@
       if (name === 'consegne') loadStorico();
       if (name === 'documenti') loadDocumenti();
       if (name === 'impostazioni') loadTeam();
+      requestAnimationFrame(updateToplineHeight);
     }
     document.querySelectorAll('[data-goto]').forEach(function (el) {
       el.addEventListener('click', function () { goToScreen(el.dataset.goto); });
