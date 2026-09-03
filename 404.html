@@ -55,9 +55,9 @@
   .login-btn { width: 100%; margin-top: 6px; }
   .error-msg { color: var(--accent); font-size: 13px; margin-top: 10px; display: none; }
   .foot-note { margin-top: 22px; font-size: 12.5px; color: var(--ink-soft); }
-  .shell { display: none; min-height: 100vh; }
+  .shell { display: none; height: 100vh; }
   .shell.active { display: flex; }
-  .rail { width: 232px; flex: none; background: var(--surface); border-right: 1px solid var(--line); padding: 24px 16px; display: flex; flex-direction: column; gap: 4px; }
+  .rail { width: 232px; flex: none; background: var(--surface); border-right: 1px solid var(--line); padding: 24px 16px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
   .rail-brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 22px; }
   .rail-brand-text { font-size: 15px; font-weight: 800; line-height: 1.15; }
   .rail-brand-text span { display: block; font-size: 10.5px; font-weight: 600; color: var(--ink-soft); letter-spacing: .02em; }
@@ -65,16 +65,29 @@
   .rail-item svg { width: 18px; height: 18px; flex: none; }
   .rail-item.on { background: var(--accent-soft); color: var(--accent); }
   .rail-divider { height: 1px; background: var(--line); margin: 14px 4px; }
-  .main { flex: 1; min-width: 0; padding: 30px 40px 90px; max-width: 1100px; }
-  .topline { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 28px; flex-wrap: wrap; }
+  .main { flex: 1; min-width: 0; max-width: 1100px; height: 100vh; overflow-y: auto; }
+  .main-inner { padding: 0 40px 90px; }
+  /* Requested directly: the rail should stay in place ("ferma") while
+     scrolling the content, and the top header bar should stay pinned
+     too — .shell is now a fixed-height flex row (100vh) with .rail
+     and .main each scrolling independently, instead of the whole
+     page scrolling together as one. .topline sticks to the top of
+     .main's own scroll area; the negative side margins let its
+     background span the full width, covering .main-inner's own side
+     padding so content scrolling underneath is never visible through
+     the edges. */
+  .topline {
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+    position: sticky; top: 0; z-index: 10; background: var(--bg); padding: 30px 40px 20px; margin: 0 -40px 8px;
+  }
   .eyebrow { font-size: 13px; color: var(--ink-soft); font-weight: 600; margin-bottom: 6px; }
   .page-title { font-size: 30px; line-height: 1; }
   .bottom-nav { display: none; }
-  body.app-shown .bottom-nav { display: flex; }
   @media (max-width: 860px) {
     .rail { display: none; }
-    .main { padding: 20px 16px 90px; }
-    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--line); z-index: 40; padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); }
+    .main-inner { padding: 20px 16px 90px; }
+    .topline { padding: 20px 16px; margin: 0 -16px 8px; }
+    body.app-shown .bottom-nav { display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--line); z-index: 40; padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); }
     .bottom-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 2px; color: var(--ink-soft); font-size: 10.5px; font-weight: 700; cursor: pointer; }
     .bottom-nav-item svg { width: 20px; height: 20px; }
     .bottom-nav-item.on { color: var(--accent); }
@@ -90,12 +103,14 @@
   #driverNoteReadonly { font-size: 13.5px; color: var(--ink-soft); }
   .add-driver-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
   .add-driver-tab { padding: 9px 16px; border-radius: 100px; font-size: 13px; font-weight: 700; cursor: pointer; background: var(--surface); color: var(--ink-soft); border: 1px solid var(--line); }
-  .add-driver-tab.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+  .add-driver-tab.on, .doc-scope-filter-tab.on, .upload-scope-tab.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+  .doc-scope-filter-tab, .upload-scope-tab { padding: 9px 16px; border-radius: 100px; font-size: 13px; font-weight: 700; cursor: pointer; background: var(--surface); color: var(--ink-soft); border: 1px solid var(--line); }
   .add-row { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; align-items: flex-start; }
   .add-row input, .add-row select { flex: 1; min-width: 180px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 11px 16px; color: var(--ink); font-size: 16px; font-family: 'Inter', sans-serif; }
   .add-row .btn { width: auto; flex: none; }
   .fleet-table { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
-  .driver-row { display: grid; grid-template-columns: 1.6fr 1fr 1fr 1fr auto; align-items: center; gap: 14px; padding: 15px 20px; border-bottom: 1px solid var(--line); }
+  .driver-row { display: grid; grid-template-columns: auto 1.6fr 1fr 1fr 1fr auto; align-items: center; gap: 14px; padding: 15px 20px; border-bottom: 1px solid var(--line); }
+  .avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: var(--ink-soft); flex: none; }
   .driver-row.head { color: var(--ink-soft); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
   .driver-row:last-child { border-bottom: none; }
   .driver-name { font-weight: 700; font-size: 14.5px; }
@@ -110,7 +125,6 @@
   }
   .storico-filters { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
   .storico-filters select, .storico-filters input { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; color: var(--ink); font-size: 16px; font-family: 'Inter', sans-serif; }
-  .storico-filters input[type="date"] { color-scheme: dark; }
   .delivery-row { display: grid; grid-template-columns: 1.6fr 1.2fr 1fr; gap: 14px; padding: 13px 16px; border-bottom: 1px solid var(--line); font-size: 13.5px; }
   .delivery-row.head { color: var(--ink-soft); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
   .delivery-row:last-child { border-bottom: none; }
@@ -122,6 +136,8 @@
     .delivery-row:not(.head) { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; padding: 12px 14px; }
   }
   .document-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 16px; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+  .document-icon { width: 34px; height: 34px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; flex: none; }
+  .document-icon svg { width: 16px; height: 16px; }
   .document-row:last-child { border-bottom: none; }
   .document-name { font-weight: 700; }
   .document-meta { color: var(--ink-soft); font-size: 12px; margin-top: 1px; }
@@ -182,8 +198,10 @@
         <div class="eyebrow" id="dashSub">Pannello flotta · ADB Smart</div>
         <h1 class="page-title">Panoramica</h1>
       </div>
+      <button class="btn btn-accent owner-only" id="openAddDriverModalBtn" style="width:auto;">+ Aggiungi autista</button>
     </div>
 
+    <div class="main-inner">
     <div class="fleet-stats" id="statsRow"></div>
 
     <div class="note-card owner-only">
@@ -194,32 +212,12 @@
     </div>
     <div class="note-card viewer-only" id="driverNoteReadonly" style="display:none;"></div>
 
-    <div class="add-driver-tabs owner-only">
-      <div class="add-driver-tab on" data-tab="existing">Autista esistente</div>
-      <div class="add-driver-tab" data-tab="invite">Invita nuovo autista</div>
-    </div>
-
-    <div id="addExistingArea" class="owner-only">
-      <div class="add-row">
-        <input type="text" id="addDriverInput" placeholder="Email o ID autista (es. mario.b@email.it oppure IB-01)">
-        <button class="btn btn-accent" id="addDriverBtn">+ Aggiungi autista</button>
-      </div>
-      <div class="error-msg" id="addDriverError"></div>
-    </div>
-
-    <div id="addInviteArea" class="owner-only" style="display:none;margin-bottom:18px;">
-      <div class="add-row">
-        <input type="text" id="inviteNameInput" placeholder="Nome e cognome">
-        <input type="text" id="invitePhoneInput" placeholder="Numero di telefono (es. 333 1234567)">
-        <button class="btn btn-accent" id="inviteSendBtn">Invia invito WhatsApp</button>
-      </div>
-      <p style="font-size:12.5px;color:var(--ink-soft);margin:0;">
-        Si aprirà WhatsApp con un messaggio già pronto — dopo che l'autista scarica l'app e crea il suo account,
-        aggiungilo qui sopra con la sua email, nella scheda "Autista esistente".
-      </p>
+    <div class="add-row" style="margin-bottom:14px;">
+      <input type="text" id="driverSearchInput" placeholder="Cerca autista per nome…">
     </div>
 
     <div class="fleet-table" id="driverTable"></div>
+    </div>
   </div>
 </div>
 
@@ -241,20 +239,18 @@
         <div class="eyebrow">Listini, contratti e anagrafiche clienti</div>
         <h1 class="page-title">Documenti</h1>
       </div>
+      <button class="btn btn-accent owner-only" id="openUploadModalBtn" style="width:auto;">+ Carica documento</button>
     </div>
 
-    <div class="add-row owner-only" style="align-items:flex-start;">
-      <input type="file" id="documentoFileInput" style="flex:1;min-width:200px;padding:9px 0;">
-      <select id="documentoScopeInput">
-        <option value="fleet">Tutta la flotta</option>
-        <option value="driver">Un autista specifico</option>
-      </select>
-      <select id="documentoDriverInput" style="display:none;"></select>
-      <button class="btn btn-accent" id="documentoUploadBtn">Carica</button>
+    <div class="main-inner">
+    <div class="add-driver-tabs">
+      <div class="doc-scope-filter-tab on" data-scope="">Tutti</div>
+      <div class="doc-scope-filter-tab" data-scope="fleet">Condivisi con la flotta</div>
+      <div class="doc-scope-filter-tab" data-scope="driver">Per singolo autista</div>
     </div>
-    <div class="error-msg" id="documentoError"></div>
 
-    <div class="fleet-table" id="documentiList" style="margin-top:16px;"></div>
+    <div class="fleet-table" id="documentiList" style="margin-top:0;"></div>
+    </div>
   </div>
 </div>
 
@@ -276,15 +272,21 @@
         <div class="eyebrow">Tutte le consegne effettuate</div>
         <h1 class="page-title">Consegne</h1>
       </div>
+      <button class="btn btn-ghost" id="exportCsvBtn" style="width:auto;">↓ Esporta CSV</button>
     </div>
 
+    <div class="main-inner">
     <div class="storico-filters">
       <select id="storicoDriverFilter"><option value="">Tutti gli autisti</option></select>
-      <input type="date" id="storicoDateFrom">
-      <input type="date" id="storicoDateTo">
-      <button class="btn btn-ghost" id="storicoFilterBtn" style="width:auto;">Filtra</button>
+      <select id="storicoPeriodFilter">
+        <option value="7">Ultimi 7 giorni</option>
+        <option value="30" selected>Ultimi 30 giorni</option>
+        <option value="">Tutti</option>
+      </select>
+      <input type="text" id="storicoSearchInput" placeholder="Cerca cliente o indirizzo…" style="flex:1;min-width:200px;">
     </div>
     <div class="fleet-table" id="storicoList"></div>
+    </div>
   </div>
 </div>
 
@@ -300,7 +302,7 @@
     <div class="rail-divider"></div>
     <div class="rail-item on owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
   </div>
-  <div class="main" style="max-width:720px;">
+  <div class="main">
     <div class="topline">
       <div>
         <div class="eyebrow">Il tuo account flotta</div>
@@ -308,6 +310,7 @@
       </div>
     </div>
 
+    <div class="main-inner" style="max-width:720px;">
     <div class="settings-section">
       <h3>Persone con accesso</h3>
       <p class="sub">Invita colleghi al tuo account, con permessi diversi in base al loro ruolo.</p>
@@ -320,6 +323,64 @@
         </select>
         <button class="btn btn-accent" id="teamAddBtn">Invita</button>
       </div>
+    </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="addDriverModalBackdrop">
+  <div class="modal">
+    <h3>Aggiungi autista</h3>
+    <p class="sub">Collega un autista che usa già ADB Smart, oppure invitane uno nuovo a scaricare l'app.</p>
+    <div class="add-driver-tabs">
+      <div class="add-driver-tab on" data-tab="existing">Autista esistente</div>
+      <div class="add-driver-tab" data-tab="invite">Invita nuovo autista</div>
+    </div>
+    <div id="addExistingArea">
+      <div class="field">
+        <label>Email o ID autista</label>
+        <input type="text" id="addDriverInput" placeholder="Es. mario.b@email.it oppure IB-01">
+      </div>
+      <div class="error-msg" id="addDriverError"></div>
+    </div>
+    <div id="addInviteArea" style="display:none;">
+      <div class="field">
+        <label>Nome e cognome</label>
+        <input type="text" id="inviteNameInput" placeholder="Es. Paolo Neri">
+      </div>
+      <div class="field">
+        <label>Numero di telefono</label>
+        <input type="text" id="invitePhoneInput" placeholder="Es. 333 1234567">
+      </div>
+      <p class="sub" style="margin-bottom:0;">Si aprirà WhatsApp con un messaggio già pronto — dopo che l'autista scarica l'app e crea il suo account, aggiungilo qui, nella scheda "Autista esistente".</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="addDriverModalClose">Annulla</button>
+      <button class="btn btn-accent" id="addDriverSubmitBtn">Invia richiesta</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="uploadModalBackdrop">
+  <div class="modal">
+    <h3>Carica documento</h3>
+    <p class="sub">Scegli se il documento vale per tutta la flotta o solo per un autista specifico.</p>
+    <div class="add-driver-tabs">
+      <div class="upload-scope-tab on" data-scope="fleet">Tutta la flotta</div>
+      <div class="upload-scope-tab" data-scope="driver">Un autista</div>
+    </div>
+    <div class="field" id="documentoDriverField" style="display:none;">
+      <label>Autista</label>
+      <select id="documentoDriverInput"></select>
+    </div>
+    <div class="field">
+      <label>File</label>
+      <input type="file" id="documentoFileInput">
+    </div>
+    <div class="error-msg" id="documentoError"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="uploadModalClose">Annulla</button>
+      <button class="btn btn-accent" id="documentoUploadBtn">Carica</button>
     </div>
   </div>
 </div>
@@ -475,9 +536,10 @@
         el.innerHTML = '<div class="empty-note">Nessun autista collegato ancora — aggiungine uno sopra, usando la sua email o il suo ID.</div>';
         return;
       }
-      var html = '<div class="driver-row head"><div>Autista</div><div>Targa</div><div>Km totali</div><div>Ultima attività</div><div></div></div>';
+      var html = '<div class="driver-row head"><div></div><div>Autista</div><div>Targa</div><div>Km totali</div><div>Ultima attività</div><div></div></div>';
       drivers.forEach(function (d) {
         html += '<div class="driver-row">' +
+          '<div class="avatar">' + esc(badgeInitials(d.nome || d.account_email)) + '</div>' +
           '<div><div class="driver-name">' + esc(d.nome || d.account_email) + '</div><div class="driver-sub">' + esc(d.account_email) + '</div></div>' +
           '<div>' + esc(d.targa || '—') + '</div>' +
           '<div>' + Math.round(d.total_km || 0) + ' km</div>' +
@@ -494,7 +556,37 @@
       });
     }
 
-    document.getElementById('addDriverBtn').addEventListener('click', function () {
+    document.getElementById('openAddDriverModalBtn').addEventListener('click', function () {
+      document.getElementById('addDriverModalBackdrop').classList.add('open');
+    });
+    document.getElementById('addDriverModalClose').addEventListener('click', function () {
+      document.getElementById('addDriverModalBackdrop').classList.remove('open');
+    });
+
+    var addDriverMode = 'existing';
+    document.querySelectorAll('.add-driver-tab').forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        document.querySelectorAll('.add-driver-tab').forEach(function (t) { t.classList.remove('on'); });
+        tab.classList.add('on');
+        addDriverMode = tab.dataset.tab;
+        var isInvite = addDriverMode === 'invite';
+        document.getElementById('addExistingArea').style.display = isInvite ? 'none' : 'block';
+        document.getElementById('addInviteArea').style.display = isInvite ? 'block' : 'none';
+        document.getElementById('addDriverSubmitBtn').textContent = isInvite ? 'Invia invito WhatsApp' : 'Invia richiesta';
+      });
+    });
+
+    document.getElementById('addDriverSubmitBtn').addEventListener('click', function () {
+      if (addDriverMode === 'invite') {
+        var name = document.getElementById('inviteNameInput').value.trim();
+        var phoneRaw = document.getElementById('invitePhoneInput').value.trim();
+        if (!name || !phoneRaw) return;
+        var phoneDigits = phoneRaw.replace(/[^0-9]/g, '');
+        var message = 'Ciao ' + name + '! Ti invito a unirti a ' + fleetName + ' su ADB Smart, l\'app per la gestione delle consegne. Scarica l\'app qui: https://adbsmart.it — dopo aver creato il tuo account, faccelo sapere per collegarti alla flotta.';
+        var waUrl = 'https://wa.me/' + phoneDigits + '?text=' + encodeURIComponent(message);
+        window.open(waUrl, '_blank');
+        return;
+      }
       var input = document.getElementById('addDriverInput');
       var errEl = document.getElementById('addDriverError');
       errEl.style.display = 'none';
@@ -511,28 +603,20 @@
           return;
         }
         input.value = '';
+        document.getElementById('addDriverModalBackdrop').classList.remove('open');
         refresh();
       });
     });
 
-    document.querySelectorAll('.add-driver-tab').forEach(function (tab) {
-      tab.addEventListener('click', function () {
-        document.querySelectorAll('.add-driver-tab').forEach(function (t) { t.classList.remove('on'); });
-        tab.classList.add('on');
-        var isInvite = tab.dataset.tab === 'invite';
-        document.getElementById('addExistingArea').style.display = isInvite ? 'none' : 'block';
-        document.getElementById('addInviteArea').style.display = isInvite ? 'block' : 'none';
+    // Requested directly: search box above the driver table, matching
+    // the mockup — filters the already-loaded list purely client-side
+    // (currentDrivers), no extra server call needed.
+    document.getElementById('driverSearchInput').addEventListener('input', function () {
+      var query = this.value.trim().toLowerCase();
+      var filtered = !query ? currentDrivers : currentDrivers.filter(function (d) {
+        return (d.nome || d.account_email).toLowerCase().indexOf(query) !== -1;
       });
-    });
-
-    document.getElementById('inviteSendBtn').addEventListener('click', function () {
-      var name = document.getElementById('inviteNameInput').value.trim();
-      var phoneRaw = document.getElementById('invitePhoneInput').value.trim();
-      if (!name || !phoneRaw) return;
-      var phoneDigits = phoneRaw.replace(/[^0-9]/g, '');
-      var message = 'Ciao ' + name + '! Ti invito a unirti a ' + fleetName + ' su ADB Smart, l\'app per la gestione delle consegne. Scarica l\'app qui: https://adbsmart.it — dopo aver creato il tuo account, faccelo sapere per collegarti alla flotta.';
-      var waUrl = 'https://wa.me/' + phoneDigits + '?text=' + encodeURIComponent(message);
-      window.open(waUrl, '_blank');
+      renderDrivers(filtered);
     });
 
     document.getElementById('driverNoteSaveBtn').addEventListener('click', function () {
@@ -564,6 +648,8 @@
       });
     }
 
+    var lastDeliveries = [];
+
     function loadStorico() {
       var driverSelect = document.getElementById('storicoDriverFilter');
       if (!driverSelect.dataset.populated) {
@@ -573,32 +659,86 @@
         driverSelect.dataset.populated = '1';
       }
       var driverFilter = driverSelect.value;
-      var dateFrom = document.getElementById('storicoDateFrom').value;
-      var dateTo = document.getElementById('storicoDateTo').value;
+      // Requested directly, matching the mockup exactly: a period
+      // dropdown (Ultimi 7/30 giorni, Tutti) instead of a native date
+      // range picker — the picker's own calendar popup couldn't be
+      // restyled to match the rest of this dark page (a separate,
+      // real complaint fixed earlier with color-scheme, but this
+      // simpler control avoids the mismatch entirely, as the mockup
+      // already did).
+      var periodDays = document.getElementById('storicoPeriodFilter').value;
       var payload = { action: 'fleet_get_deliveries', slug: slug, password: password };
       if (driverFilter) payload.driver_email = driverFilter;
-      if (dateFrom) payload.date_from = dateFrom;
-      if (dateTo) payload.date_to = dateTo;
+      if (periodDays) {
+        var fromDate = new Date();
+        fromDate.setDate(fromDate.getDate() - Number(periodDays));
+        payload.date_from = fromDate.toISOString().slice(0, 10);
+      }
 
+      var el = document.getElementById('storicoList');
+      el.innerHTML = '<div class="empty-note">Caricamento…</div>';
       call(payload).then(function (res) {
-        var el = document.getElementById('storicoList');
         if (!res.ok) { el.innerHTML = '<div class="empty-note">Impossibile caricare lo storico.</div>'; return; }
-        if (!res.deliveries.length) { el.innerHTML = '<div class="empty-note">Nessuna consegna trovata per questo filtro.</div>'; return; }
-
-        var html = '<div class="delivery-row head"><div>Cliente</div><div>Autista</div><div>Quando</div></div>';
-        res.deliveries.forEach(function (d) {
-          var when = new Date(d.completed_at);
-          var whenLabel = when.toLocaleDateString('it-IT') + ' · ' + when.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-          html += '<div class="delivery-row">' +
-            '<div><div class="delivery-client-name">' + esc(d.client_nome) + '</div><div class="delivery-addr">' + esc(d.client_indirizzo || '') + '</div></div>' +
-            '<div>' + esc(d.driver_nome) + '</div>' +
-            '<div>' + whenLabel + '</div>' +
-            '</div>';
-        });
-        el.innerHTML = html;
+        lastDeliveries = res.deliveries;
+        renderStorico();
       });
     }
-    document.getElementById('storicoFilterBtn').addEventListener('click', loadStorico);
+
+    // Requested directly: text search over client name/address,
+    // matching the mockup — filters the already-loaded batch
+    // client-side, same spirit as the driver search on Panoramica.
+    function renderStorico() {
+      var el = document.getElementById('storicoList');
+      var query = document.getElementById('storicoSearchInput').value.trim().toLowerCase();
+      var filtered = !query ? lastDeliveries : lastDeliveries.filter(function (d) {
+        return (d.client_nome || '').toLowerCase().indexOf(query) !== -1 || (d.client_indirizzo || '').toLowerCase().indexOf(query) !== -1;
+      });
+      if (!filtered.length) { el.innerHTML = '<div class="empty-note">Nessuna consegna trovata per questo filtro.</div>'; return; }
+
+      var html = '<div class="delivery-row head"><div>Cliente</div><div>Autista</div><div>Quando</div></div>';
+      filtered.forEach(function (d) {
+        var when = new Date(d.completed_at);
+        var whenLabel = when.toLocaleDateString('it-IT') + ' · ' + when.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+        html += '<div class="delivery-row">' +
+          '<div><div class="delivery-client-name">' + esc(d.client_nome) + '</div><div class="delivery-addr">' + esc(d.client_indirizzo || '') + '</div></div>' +
+          '<div>' + esc(d.driver_nome) + '</div>' +
+          '<div>' + whenLabel + '</div>' +
+          '</div>';
+      });
+      el.innerHTML = html;
+    }
+
+    document.getElementById('storicoDriverFilter').addEventListener('change', loadStorico);
+    document.getElementById('storicoPeriodFilter').addEventListener('change', loadStorico);
+    document.getElementById('storicoSearchInput').addEventListener('input', renderStorico);
+
+    // Requested directly ("Esporta CSV", matching the mockup): built
+    // entirely client-side, from whatever's already loaded (including
+    // the current search filter) — no new backend endpoint needed,
+    // this is just formatting already-fetched data and triggering a
+    // browser download.
+    document.getElementById('exportCsvBtn').addEventListener('click', function () {
+      var query = document.getElementById('storicoSearchInput').value.trim().toLowerCase();
+      var rows = !query ? lastDeliveries : lastDeliveries.filter(function (d) {
+        return (d.client_nome || '').toLowerCase().indexOf(query) !== -1 || (d.client_indirizzo || '').toLowerCase().indexOf(query) !== -1;
+      });
+      if (!rows.length) return;
+      var csvEscape = function (s) { return '"' + String(s == null ? '' : s).replace(/"/g, '""') + '"'; };
+      var lines = ['Cliente,Indirizzo,Autista,Data e ora'];
+      rows.forEach(function (d) {
+        lines.push([csvEscape(d.client_nome), csvEscape(d.client_indirizzo), csvEscape(d.driver_nome), csvEscape(new Date(d.completed_at).toLocaleString('it-IT'))].join(','));
+      });
+      var blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = 'consegne.csv';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+
+    var lastDocuments = [];
+    var docFilterScope = '';
+    var DOC_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
 
     function loadDocumenti() {
       var driverSelect = document.getElementById('documentoDriverInput');
@@ -608,41 +748,76 @@
         });
         driverSelect.dataset.populated = '1';
       }
+      var el = document.getElementById('documentiList');
+      el.innerHTML = '<div class="empty-note">Caricamento…</div>';
       call({ action: 'fleet_list_documents', slug: slug, password: password }).then(function (res) {
-        var el = document.getElementById('documentiList');
         if (!res.ok) { el.innerHTML = '<div class="empty-note">Impossibile caricare i documenti.</div>'; return; }
-        if (!res.documents.length) { el.innerHTML = '<div class="empty-note">Nessun documento caricato ancora.</div>'; return; }
+        lastDocuments = res.documents;
+        renderDocumenti();
+      });
+    }
 
-        var html = '';
-        res.documents.forEach(function (d) {
-          var meta = d.scope === 'driver' ? ('Per ' + esc(d.driver_nome)) : 'Tutta la flotta';
-          html += '<div class="document-row">' +
-            '<div><div class="document-name">' + esc(d.filename) + '</div><div class="document-meta">' + meta + '</div></div>' +
-            '<div class="document-actions">' +
-            '<button class="doc-download-btn" data-id="' + esc(d.id) + '">Scarica</button>' +
-            '<button class="doc-delete-btn owner-only" data-id="' + esc(d.id) + '">Elimina</button>' +
-            '</div></div>';
-        });
-        el.innerHTML = html;
+    // Requested directly, matching the mockup: visual filter tabs
+    // (Tutti / Condivisi con la flotta / Per singolo autista) — pure
+    // client-side filtering of the already-loaded batch, on the same
+    // "scope" field the backend already returns.
+    function renderDocumenti() {
+      var el = document.getElementById('documentiList');
+      var filtered = !docFilterScope ? lastDocuments : lastDocuments.filter(function (d) { return d.scope === docFilterScope; });
+      if (!filtered.length) { el.innerHTML = '<div class="empty-note">Nessun documento trovato per questo filtro.</div>'; return; }
 
-        el.querySelectorAll('.doc-download-btn').forEach(function (btn) {
-          btn.addEventListener('click', function () {
-            call({ action: 'fleet_get_download_url', slug: slug, password: password, document_id: btn.dataset.id }).then(function (r) {
-              if (r.ok) window.open(r.url, '_blank');
-            });
+      var html = '';
+      filtered.forEach(function (d) {
+        var meta = d.scope === 'driver' ? ('Per ' + esc(d.driver_nome)) : 'Tutta la flotta';
+        html += '<div class="document-row">' +
+          '<div class="document-icon">' + DOC_ICON_SVG + '</div>' +
+          '<div style="flex:1;"><div class="document-name">' + esc(d.filename) + '</div><div class="document-meta">' + meta + '</div></div>' +
+          '<div class="document-actions">' +
+          '<button class="doc-download-btn" data-id="' + esc(d.id) + '">Scarica</button>' +
+          '<button class="doc-delete-btn owner-only" data-id="' + esc(d.id) + '">Elimina</button>' +
+          '</div></div>';
+      });
+      el.innerHTML = html;
+
+      el.querySelectorAll('.doc-download-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          call({ action: 'fleet_get_download_url', slug: slug, password: password, document_id: btn.dataset.id }).then(function (r) {
+            if (r.ok) window.open(r.url, '_blank');
           });
         });
-        el.querySelectorAll('.doc-delete-btn').forEach(function (btn) {
-          btn.addEventListener('click', function () {
-            if (!confirm('Eliminare questo documento?')) return;
-            call({ action: 'fleet_delete_document', slug: slug, password: password, document_id: btn.dataset.id }).then(loadDocumenti);
-          });
+      });
+      el.querySelectorAll('.doc-delete-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          if (!confirm('Eliminare questo documento?')) return;
+          call({ action: 'fleet_delete_document', slug: slug, password: password, document_id: btn.dataset.id }).then(loadDocumenti);
         });
       });
     }
 
-    document.getElementById('documentoScopeInput').addEventListener('change', function () {
-      document.getElementById('documentoDriverInput').style.display = this.value === 'driver' ? 'block' : 'none';
+    document.querySelectorAll('.doc-scope-filter-tab').forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        document.querySelectorAll('.doc-scope-filter-tab').forEach(function (t) { t.classList.remove('on'); });
+        tab.classList.add('on');
+        docFilterScope = tab.dataset.scope;
+        renderDocumenti();
+      });
+    });
+
+    document.getElementById('openUploadModalBtn').addEventListener('click', function () {
+      document.getElementById('uploadModalBackdrop').classList.add('open');
+    });
+    document.getElementById('uploadModalClose').addEventListener('click', function () {
+      document.getElementById('uploadModalBackdrop').classList.remove('open');
+    });
+
+    var uploadScope = 'fleet';
+    document.querySelectorAll('.upload-scope-tab').forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        document.querySelectorAll('.upload-scope-tab').forEach(function (t) { t.classList.remove('on'); });
+        tab.classList.add('on');
+        uploadScope = tab.dataset.scope;
+        document.getElementById('documentoDriverField').style.display = uploadScope === 'driver' ? 'block' : 'none';
+      });
     });
 
     document.getElementById('documentoUploadBtn').addEventListener('click', function () {
@@ -651,9 +826,8 @@
       errEl.style.display = 'none';
       var file = fileInput.files[0];
       if (!file) return;
-      var scope = document.getElementById('documentoScopeInput').value;
-      var driverEmail = scope === 'driver' ? document.getElementById('documentoDriverInput').value : null;
-      if (scope === 'driver' && !driverEmail) { errEl.textContent = 'Seleziona un autista.'; errEl.style.display = 'block'; return; }
+      var driverEmail = uploadScope === 'driver' ? document.getElementById('documentoDriverInput').value : null;
+      if (uploadScope === 'driver' && !driverEmail) { errEl.textContent = 'Seleziona un autista.'; errEl.style.display = 'block'; return; }
 
       call({ action: 'fleet_get_upload_url', slug: slug, password: password, filename: file.name }).then(function (res) {
         if (!res.ok) { errEl.textContent = 'Impossibile ottenere il link di caricamento.'; errEl.style.display = 'block'; return; }
@@ -661,11 +835,12 @@
         fetch(res.upload_url, { method: 'PUT', body: file, headers: { 'Content-Type': file.type || 'application/octet-stream' } })
           .then(function (uploadRes) {
             if (!uploadRes.ok) throw new Error('upload failed');
-            return call({ action: 'fleet_confirm_upload', slug: slug, password: password, filename: file.name, storage_path: res.storage_path, scope: scope, driver_email: driverEmail });
+            return call({ action: 'fleet_confirm_upload', slug: slug, password: password, filename: file.name, storage_path: res.storage_path, scope: uploadScope, driver_email: driverEmail });
           })
           .then(function (confirmRes) {
             if (!confirmRes || !confirmRes.ok) { errEl.textContent = 'Caricamento non riuscito.'; errEl.style.display = 'block'; return; }
             fileInput.value = '';
+            document.getElementById('uploadModalBackdrop').classList.remove('open');
             loadDocumenti();
           })
           .catch(function () { errEl.textContent = 'Caricamento non riuscito.'; errEl.style.display = 'block'; });
