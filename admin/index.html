@@ -955,6 +955,53 @@
     return d.innerHTML;
   }
 
+  // Requested directly: ION needs to copy the URL and the generated
+  // password easily, to send them to the fleet owner — replaced the
+  // plain alert() dialog (text couldn't be selected/copied cleanly on
+  // mobile) with a proper small modal, each value with its own copy
+  // icon, same clipboard-with-fallback pattern already used elsewhere
+  // (see app.js's own settings-driver-id-value handler for the
+  // original of this exact pattern).
+  function copyToClipboard(text, btn) {
+    var done = function () {
+      var original = btn.innerHTML;
+      btn.innerHTML = '✓';
+      setTimeout(function () { btn.innerHTML = original; }, 1200);
+    };
+    var copyPromise = (navigator.clipboard && navigator.clipboard.writeText)
+      ? navigator.clipboard.writeText(text)
+      : Promise.reject();
+    copyPromise.then(done).catch(function () {
+      var tmp = document.createElement('textarea');
+      tmp.value = text; tmp.style.position = 'fixed'; tmp.style.opacity = '0';
+      document.body.appendChild(tmp); tmp.focus(); tmp.select();
+      try { document.execCommand('copy'); done(); } catch (e) { /* nothing more to try */ }
+      document.body.removeChild(tmp);
+    });
+  }
+
+  function showFleetCredentialsModal(url, password) {
+    var overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    overlay.innerHTML =
+      '<div style="background:var(--surface,#1a1a1a);border-radius:16px;padding:24px;max-width:380px;width:100%;">' +
+      '<h3 style="margin:0 0 6px;font-size:19px;">Flotta creata</h3>' +
+      '<p style="margin:0 0 18px;font-size:13px;color:var(--ink-faint,#999);">Passa queste informazioni al titolare — non verranno mostrate di nuovo qui.</p>' +
+      '<div style="margin-bottom:12px;"><label style="display:block;font-size:11.5px;font-weight:700;color:var(--ink-faint,#999);margin-bottom:5px;">Indirizzo</label>' +
+      '<div style="display:flex;gap:8px;"><input readonly value="' + escHtml(url) + '" style="flex:1;background:var(--surface-2,#222);border:1px solid var(--line,#333);border-radius:8px;padding:9px 12px;color:inherit;font-size:13.5px;">' +
+      '<button class="fleet-copy-btn" data-copy="' + escHtml(url) + '" style="flex:none;width:38px;border-radius:8px;border:1px solid var(--line,#333);background:var(--surface-2,#222);color:inherit;cursor:pointer;font-size:15px;">⧉</button></div></div>' +
+      '<div style="margin-bottom:20px;"><label style="display:block;font-size:11.5px;font-weight:700;color:var(--ink-faint,#999);margin-bottom:5px;">Password temporanea</label>' +
+      '<div style="display:flex;gap:8px;"><input readonly value="' + escHtml(password) + '" style="flex:1;background:var(--surface-2,#222);border:1px solid var(--line,#333);border-radius:8px;padding:9px 12px;color:inherit;font-size:13.5px;">' +
+      '<button class="fleet-copy-btn" data-copy="' + escHtml(password) + '" style="flex:none;width:38px;border-radius:8px;border:1px solid var(--line,#333);background:var(--surface-2,#222);color:inherit;cursor:pointer;font-size:15px;">⧉</button></div></div>' +
+      '<button id="fleet-cred-close" class="btn-block" style="background:var(--accent);">Fatto</button>' +
+      '</div>';
+    document.body.appendChild(overlay);
+    overlay.querySelectorAll('.fleet-copy-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () { copyToClipboard(btn.dataset.copy, btn); });
+    });
+    overlay.querySelector('#fleet-cred-close').addEventListener('click', function () { document.body.removeChild(overlay); });
+  }
+
   document.getElementById('flotte-add-btn').addEventListener('click', function () {
     var name = prompt('Nome azienda (es. Rossi Trasporti SRL):');
     if (!name || !name.trim()) return;
@@ -963,12 +1010,7 @@
     fleetCall({ action: 'admin_create_fleet', name: name.trim(), owner_email: ownerEmail.trim() }).then(function (res) {
       if (!res.ok || !res.data.ok) { alert('Errore: ' + (res.data && res.data.error || 'impossibile creare la flotta')); return; }
       var fleet = res.data.fleet;
-      alert(
-        'Flotta creata!\n\n' +
-        'Indirizzo: adbsmart.it/' + fleet.slug + '\n' +
-        'Password temporanea: ' + res.data.temp_password + '\n\n' +
-        'Passa queste informazioni al titolare — non verranno mostrate di nuovo qui.'
-      );
+      showFleetCredentialsModal('adbsmart.it/' + fleet.slug, res.data.temp_password);
       loadFlotte();
     });
   });
