@@ -49,8 +49,13 @@
     --ink: #1A1B1E; --ink-soft: #6B6D74; --green: #1F8A57; --green-soft: rgba(31,138,87,.10); --amber: #A9752A;
   }
   * { box-sizing: border-box; }
-  body {
+  html, body {
     margin: 0;
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  body {
     background: var(--bg);
     color: var(--ink);
     font-family: 'Inter', sans-serif;
@@ -147,7 +152,7 @@
 
   /* ---------- Fleet login page ---------- */
   .login-wrap {
-    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    min-height: 100vh; max-height: 100vh; overflow-y: auto; display: flex; align-items: center; justify-content: center;
     background: radial-gradient(ellipse at top, #1a1310 0%, #0E0E0F 55%);
     padding: 24px;
   }
