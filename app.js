@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v511"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v512"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -8354,6 +8354,15 @@
       var g = d <= n ? sheet.giorni[d] : null;
       if (!g) { body.push([d <= n ? d : '', '', '', '', '', '', '', '', '']); continue; }
       var kmTot = (g.kmInizio !== "" && g.kmFine !== "" && !isNaN(g.kmFine - g.kmInizio)) ? (Number(g.kmFine) - Number(g.kmInizio)) : '';
+      // REAL BUG, same family as above (see buildPdfPage's own
+      // classic template, right below, for the fuller explanation):
+      // safety net for a sheet that started as "due giri" and was
+      // later switched to this template — its saved kmFine2 would
+      // otherwise silently vanish from this printed total while the
+      // app's own on-screen total (sheetKmAndTrips) still includes it.
+      if (g.kmInizio2 !== "" && g.kmInizio2 !== undefined && g.kmFine2 !== "" && g.kmFine2 !== undefined && !isNaN(g.kmFine2 - g.kmInizio2)) {
+        kmTot = (kmTot === '' ? 0 : kmTot) + (Number(g.kmFine2) - Number(g.kmInizio2));
+      }
       body.push([d, g.da || '', g.provDa || '', g.a || '', g.provA || '', g.ddt || '', g.kmInizio !== "" ? g.kmInizio : '', g.kmFine !== "" ? g.kmFine : '', kmTot !== '' ? kmTot : '']);
     }
     doc.autoTable({
@@ -8526,6 +8535,22 @@
         var g = d <= n ? sheet.giorni[d] : null;
         if (!g) { body.push([d <= n ? d : '', '', '', '', '', '', '', '', '']); continue; }
         var kmTot = (g.kmInizio !== "" && g.kmFine !== "" && !isNaN(g.kmFine - g.kmInizio)) ? (Number(g.kmFine) - Number(g.kmInizio)) : '';
+        // REAL BUG, same family as the two already fixed elsewhere
+        // (home screen totals, foglio day list): this table normally
+        // only ever shows Giro 1 fields — this template's own day
+        // form has no second-giro inputs at all, so kmFine2 should
+        // stay empty here in ordinary use. But it's NOT actually
+        // impossible: if a sheet started as "due giri" (where those
+        // fields are entered), then got switched to this template
+        // afterward, the already-saved kmFine2 data would otherwise
+        // go completely missing from this printed total — while the
+        // app's own on-screen "KM totali" (sheetKmAndTrips, fixed
+        // separately) would still correctly include it, silently
+        // disagreeing with what's printed on paper. Added here purely
+        // as a safety net for that edge case, not a normal-use path.
+        if (g.kmInizio2 !== "" && g.kmInizio2 !== undefined && g.kmFine2 !== "" && g.kmFine2 !== undefined && !isNaN(g.kmFine2 - g.kmInizio2)) {
+          kmTot = (kmTot === '' ? 0 : kmTot) + (Number(g.kmFine2) - Number(g.kmInizio2));
+        }
         body.push([
           d,
           g.da || '',
