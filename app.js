@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v509"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v510"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -627,10 +627,25 @@
 
   // Finds the last KM FINE value at/before `beforeDay` (exclusive) in `sheet`,
   // falling back to the previous month's sheet if nothing found.
+  // Requested directly: on a "due giri" (two-round) day, ION types
+  // km fine for Giro 1 and it correctly carries into Giro 2's own km
+  // inizio, live, the same day. But the NEXT day's own km inizio was
+  // always pulling from that day's kmFine (Giro 1 specifically) —
+  // never kmFine2 — so a day that actually ended with a second round
+  // silently lost those extra kilometers, restarting the next day's
+  // count from wherever Giro 1 had left off instead of where the
+  // vehicle really was. Checked here in the correct real-world
+  // order: whichever giro was genuinely LAST for that day (kmFine2 if
+  // it exists — a second round happened — falling back to kmFine
+  // only when there wasn't one).
   function findLastKmFine(sheet, beforeDay) {
     for (var d = beforeDay - 1; d >= 1; d--) {
       var g = sheet.giorni[d];
-      if (g && g.kmFine !== "" && g.kmFine !== null && g.kmFine !== undefined) {
+      if (!g) continue;
+      if (g.kmFine2 !== "" && g.kmFine2 !== null && g.kmFine2 !== undefined) {
+        return { value: g.kmFine2, source: 'same' };
+      }
+      if (g.kmFine !== "" && g.kmFine !== null && g.kmFine !== undefined) {
         return { value: g.kmFine, source: 'same' };
       }
     }
@@ -641,7 +656,11 @@
     if (prev) {
       for (var d2 = 31; d2 >= 1; d2--) {
         var g2 = prev.giorni[d2];
-        if (g2 && g2.kmFine !== "" && g2.kmFine !== null && g2.kmFine !== undefined) {
+        if (!g2) continue;
+        if (g2.kmFine2 !== "" && g2.kmFine2 !== null && g2.kmFine2 !== undefined) {
+          return { value: g2.kmFine2, source: 'prev' };
+        }
+        if (g2.kmFine !== "" && g2.kmFine !== null && g2.kmFine !== undefined) {
           return { value: g2.kmFine, source: 'prev' };
         }
       }
