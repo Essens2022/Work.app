@@ -4,37 +4,261 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ADB Smart Flotte</title>
-<script>
-  // Applied here, before anything else renders, so switching to light
-  // mode earlier doesn't show a flash of the dark theme first on
-  // every reload.
-  (function () {
-    if (localStorage.getItem('adb_fleet_theme') === 'light') document.documentElement.setAttribute('data-theme', 'light');
-  })();
-</script>
+<!--
+  Requested directly: rebuilt starting from the EXACT approved mockup
+  code (demo-sistem-flotte.html) — same CSS classes, same HTML
+  structure, same visual details — instead of an independent
+  reconstruction that kept drifting from it in small ways. Real
+  backend functionality (login, data loading, uploads) is wired onto
+  this exact markup afterward.
+
+  Elements the mockup shows with invented numbers, with no real data
+  behind them yet — live delivery status per driver, "Riscosso oggi",
+  document expiry alerts, delivery photos, per-fleet branding, default
+  new-driver settings, automatic email reports, the live map — are
+  deliberately left out rather than filled with fabricated values;
+  each is a real feature that would need its own backend work. What
+  the mockup groups under "Autisti" (a separate nav item, never
+  wired to any screen even in the mockup itself) already lives on
+  Panoramica's own driver table below, so that nav item is dropped
+  here rather than pointing nowhere.
+
+  Static-host routing note (unchanged from the previous build):
+  served via GitHub Pages' "any unknown path shows 404.html"
+  mechanism, since there's no real per-fleet routing on this host.
+-->
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700;800&display=swap');
+
   :root {
-    --bg: #0E0E0F; --surface: #17181A; --surface-2: #1F2023; --line: #2A2B2E;
-    --accent: #E8542B; --accent-soft: rgba(232,84,43,.14);
-    --ink: #F5F3EF; --ink-soft: #8B8D93; --green: #34A874; --green-soft: rgba(52,168,116,.14); --amber: #D9A441;
+    --bg: #0E0E0F;
+    --surface: #17181A;
+    --surface-2: #1F2023;
+    --line: #2A2B2E;
+    --accent: #E8542B;
+    --accent-soft: rgba(232,84,43,.14);
+    --ink: #F5F3EF;
+    --ink-soft: #8B8D93;
+    --green: #34A874;
+    --green-soft: rgba(52,168,116,.14);
+    --amber: #D9A441;
   }
-  /* Requested directly: light theme option ("sfondo scuro e uno bianco")
-     — same palette logic (same accent, same relative contrast), just
-     inverted for a light background instead of redesigning colors
-     from scratch. Toggled via a data-theme attribute on <html>, so it
-     applies instantly, everywhere, without needing a page reload. */
   html[data-theme="light"] {
     --bg: #FFFFFF; --surface: #F6F6F7; --surface-2: #EDEDF0; --line: #DCDCE1;
     --accent: #E8542B; --accent-soft: rgba(232,84,43,.10);
     --ink: #1A1B1E; --ink-soft: #6B6D74; --green: #1F8A57; --green-soft: rgba(31,138,87,.10); --amber: #A9752A;
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; min-height: 100vh; }
-  h1, h3 { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; letter-spacing: -.01em; margin: 0; }
-  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: none; cursor: pointer; font-family: 'Inter', sans-serif; font-weight: 700; font-size: 14px; border-radius: 10px; padding: 12px 18px; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Inter', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, .display {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 800;
+    letter-spacing: -.01em;
+  }
+
+  .screen { display: none; height: 100vh; }
+  .screen.active { display: block; }
+
+  /* ---------- Shared shell ---------- */
+  .shell { display: flex; height: 100vh; }
+  .rail {
+    width: 232px; flex: none; background: var(--surface);
+    border-right: 1px solid var(--line); padding: 24px 16px;
+    display: flex; flex-direction: column; gap: 4px; overflow-y: auto;
+  }
+  .rail-brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 22px; }
+  .rail-brand img { width: 30px; height: 30px; border-radius: 8px; }
+  .rail-brand-text { font-size: 15px; font-weight: 800; line-height: 1.15; }
+  .rail-brand-text span { display: block; font-size: 10.5px; font-weight: 600; color: var(--ink-soft); letter-spacing: .02em; }
+  .rail-item {
+    display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 10px;
+    color: var(--ink-soft); font-size: 14px; font-weight: 600; cursor: pointer;
+  }
+  .rail-item svg { width: 18px; height: 18px; flex: none; }
+  .rail-item.on { background: var(--accent-soft); color: var(--accent); }
+  .rail-divider { height: 1px; background: var(--line); margin: 14px 4px; }
+  .main { flex: 1; min-width: 0; height: 100vh; overflow-y: auto; }
+  .main-inner { padding: 30px 40px 90px; }
+  .topline {
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap;
+    position: sticky; top: 0; z-index: 10; background: var(--bg); padding: 30px 40px 20px; margin: 0 -40px 8px;
+  }
+  .eyebrow { font-size: 13px; color: var(--ink-soft); font-weight: 600; margin-bottom: 6px; }
+  .page-title { font-size: 34px; line-height: 1; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px; border: none; cursor: pointer;
+    font-family: 'Inter', sans-serif; font-weight: 700; font-size: 14px; border-radius: 10px;
+    padding: 12px 18px;
+  }
   .btn-accent { background: var(--accent); color: #fff; }
   .btn-ghost { background: var(--surface-2); color: var(--ink); border: 1px solid var(--line); }
+
+  /* ---------- Stats + table ---------- */
+  .fleet-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 28px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
+  .stat-num { font-family: 'Barlow Condensed', sans-serif; font-size: 32px; font-weight: 800; }
+  .stat-label { font-size: 12.5px; color: var(--ink-soft); margin-top: 2px; }
+
+  .fleet-table { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  .fleet-name-cell { display: flex; align-items: center; gap: 12px; }
+  .fleet-logo {
+    width: 40px; height: 40px; border-radius: 10px; background: var(--accent-soft); color: var(--accent);
+    display: flex; align-items: center; justify-content: center; font-family: 'Barlow Condensed'; font-weight: 800; font-size: 16px; flex: none;
+  }
+  .fleet-name { font-weight: 700; font-size: 15px; }
+  .fleet-url { font-size: 12.5px; color: var(--ink-soft); }
+  .row-menu { color: var(--ink-soft); font-size: 20px; cursor: pointer; text-align: right; }
+
+  /* ---------- Modals ---------- */
+  .modal-backdrop {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6);
+    align-items: center; justify-content: center; z-index: 100; padding: 20px;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 18px;
+    width: 100%; max-width: 440px; padding: 28px; max-height: 90vh; overflow-y: auto;
+  }
+  .modal h3 { font-size: 24px; margin: 0 0 6px; }
+  .modal p.sub { color: var(--ink-soft); font-size: 13.5px; margin: 0 0 22px; line-height: 1.5; }
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); margin-bottom: 7px; }
+  .field input, .field select {
+    width: 100%; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 14px; color: var(--ink); font-size: 16px; font-family: 'Inter', sans-serif;
+  }
+  .modal-actions { display: flex; gap: 10px; margin-top: 22px; }
+  .modal-actions .btn { flex: 1; justify-content: center; }
+  .error-msg { color: var(--accent); font-size: 13px; margin-top: 10px; display: none; }
+
+  /* ---------- Fleet login page ---------- */
+  .login-wrap {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at top, #1a1310 0%, #0E0E0F 55%);
+    padding: 24px;
+  }
+  html[data-theme="light"] .login-wrap { background: radial-gradient(ellipse at top, #fbeee8 0%, #FFFFFF 55%); }
+  .login-card { width: 100%; max-width: 380px; text-align: center; }
+  .login-card h1 { font-size: 30px; margin: 0 0 4px; }
+  .login-card p.sub { color: var(--ink-soft); font-size: 14px; margin: 0 0 30px; }
+  .login-card .field { text-align: left; }
+  .login-btn { width: 100%; justify-content: center; margin-top: 6px; padding: 14px; font-size: 15px; }
+  .login-foot { margin-top: 24px; font-size: 12.5px; color: var(--ink-soft); }
+
+  /* ---------- Fleet dashboard ---------- */
+  .driver-toolbar { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+  .driver-search {
+    flex: 1; min-width: 200px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 11px 16px; color: var(--ink); font-size: 16px; font-family: 'Inter', sans-serif;
+  }
+  .driver-card {
+    display: grid; grid-template-columns: auto 1.6fr 1fr 1fr 1fr auto; align-items: center; gap: 16px;
+    padding: 16px 20px; border-bottom: 1px solid var(--line);
+  }
+  .driver-card.head { color: var(--ink-soft); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 13px 20px; }
+  .driver-card:last-child { border-bottom: none; }
+  .avatar {
+    width: 40px; height: 40px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; color: var(--ink-soft); flex: none;
+  }
+  .driver-name { font-weight: 700; font-size: 14.5px; }
+  .driver-sub { font-size: 12px; color: var(--ink-soft); margin-top: 1px; }
+  .empty-note { text-align: center; color: var(--ink-soft); padding: 40px 20px; font-size: 14px; }
+
+  @media (max-width: 860px) {
+    .rail { display: none; }
+    .fleet-stats { grid-template-columns: repeat(2, 1fr); }
+    .driver-card { grid-template-columns: 1fr; gap: 4px; }
+    .driver-card.head { display: none; }
+    .driver-card:not(.head) { padding: 16px; border-radius: 12px; margin: 0 0 10px; border: 1px solid var(--line); }
+    .main-inner { padding: 20px 16px 90px; }
+    .topline { padding: 20px 16px; margin: 0 -16px 8px; }
+    .driver-toolbar { flex-direction: column; }
+    body.app-shown .bottom-nav { display: flex; }
+  }
+
+  /* ---------- Storico consegne ---------- */
+  .filter-row { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+  .filter-select, .filter-row input {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+    padding: 11px 16px; color: var(--ink); font-size: 16px; font-family: 'Inter', sans-serif; font-weight: 600;
+  }
+  .delivery-row {
+    display: grid; grid-template-columns: 1.4fr 1fr 1fr; align-items: center; gap: 16px;
+    padding: 14px 20px; border-bottom: 1px solid var(--line);
+  }
+  .delivery-row.head { color: var(--ink-soft); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 13px 20px; }
+  .delivery-row:last-child { border-bottom: none; }
+  .delivery-client { font-weight: 700; font-size: 14px; }
+  .delivery-addr { font-size: 12px; color: var(--ink-soft); margin-top: 1px; }
+  .delivery-time { font-size: 13.5px; font-weight: 600; }
+  .delivery-date { font-size: 11.5px; color: var(--ink-soft); margin-top: 1px; }
+  @media (max-width: 700px) {
+    .delivery-row { grid-template-columns: 1fr; gap: 3px; }
+    .delivery-row.head { display: none; }
+    .delivery-row:not(.head) { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; }
+  }
+
+  /* ---------- Documenti ---------- */
+  .doc-scope-tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+  .doc-scope-tab {
+    padding: 9px 16px; border-radius: 100px; font-size: 13px; font-weight: 700; cursor: pointer;
+    background: var(--surface); color: var(--ink-soft); border: 1px solid var(--line);
+  }
+  .doc-scope-tab.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+  .doc-row {
+    display: grid; grid-template-columns: auto 1.6fr 1fr 1fr auto; align-items: center; gap: 16px;
+    padding: 15px 20px; border-bottom: 1px solid var(--line);
+  }
+  .doc-row.head { color: var(--ink-soft); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 13px 20px; }
+  .doc-row:last-child { border-bottom: none; }
+  .doc-icon {
+    width: 38px; height: 38px; border-radius: 9px; background: var(--surface-2); border: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: center; color: var(--accent); flex: none;
+  }
+  .doc-name { font-weight: 700; font-size: 14px; }
+  .doc-sub { font-size: 12px; color: var(--ink-soft); margin-top: 1px; }
+  .scope-pill { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 100px; display: inline-block; }
+  .scope-pill.fleet { background: var(--green-soft); color: var(--green); }
+  .scope-pill.driver { background: rgba(139,141,147,.16); color: var(--ink-soft); }
+  .doc-actions { display: flex; gap: 12px; justify-content: flex-end; }
+  .doc-actions button { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 13px; font-weight: 700; padding: 0; }
+
+  .upload-scope-choice { display: flex; gap: 10px; margin-bottom: 4px; }
+  .scope-option {
+    flex: 1; border: 1.5px solid var(--line); border-radius: 12px; padding: 14px; cursor: pointer;
+  }
+  .scope-option.chosen { border-color: var(--accent); background: var(--accent-soft); }
+  .scope-option-title { font-weight: 700; font-size: 14px; margin-bottom: 3px; }
+  .scope-option-sub { font-size: 12px; color: var(--ink-soft); line-height: 1.4; }
+  @media (max-width: 700px) {
+    .doc-row { grid-template-columns: auto 1fr; row-gap: 6px; }
+    .doc-row.head { display: none; }
+    .doc-row:not(.head) { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; }
+  }
+
+  /* ---------- Impostazioni (fleet settings) ---------- */
+  .settings-section { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px; margin-bottom: 20px; }
+  .settings-section h3 { font-size: 19px; margin: 0 0 4px; }
+  .settings-section p.sub { color: var(--ink-soft); font-size: 13px; margin: 0 0 20px; }
+  .team-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line); gap: 10px; }
+  .team-row:last-child { border-bottom: none; }
+  .team-info { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .team-role { font-size: 12px; color: var(--ink-soft); background: var(--surface-2); padding: 4px 10px; border-radius: 100px; font-weight: 600; white-space: nowrap; }
+  .team-remove { background: none; border: none; color: var(--ink-soft); cursor: pointer; font-size: 12.5px; }
+
+  /* ---------- Add driver / upload modal: tabs ---------- */
+  .add-driver-tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+  .add-driver-tab { flex: 1; text-align: center; padding: 10px; border-radius: 10px; font-size: 13.5px; font-weight: 700; cursor: pointer; background: var(--surface-2); color: var(--ink-soft); border: 1px solid var(--line); }
+  .add-driver-tab.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+
+  /* ---------- Theme toggle ---------- */
   .theme-toggle {
     position: fixed; top: 16px; right: 16px; z-index: 300;
     width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line);
@@ -44,290 +268,221 @@
   .theme-toggle svg { width: 19px; height: 19px; }
   html[data-theme="light"] .theme-toggle .icon-moon { display: none; }
   html:not([data-theme="light"]) .theme-toggle .icon-sun { display: none; }
-  .center-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
-  .login-card { width: 100%; max-width: 380px; text-align: center; }
-  .fleet-badge { width: 56px; height: 56px; border-radius: 14px; background: var(--accent-soft); color: var(--accent); font-family: 'Barlow Condensed'; font-weight: 800; font-size: 22px; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; flex: none; }
-  .login-card h1 { font-size: 28px; margin-bottom: 4px; }
-  .login-card p.sub { color: var(--ink-soft); font-size: 14px; margin: 0 0 26px; }
-  .field { margin-bottom: 14px; text-align: left; }
-  .field label { display: block; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); margin-bottom: 6px; }
-  .field input { width: 100%; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; color: var(--ink); font-size: 16px; font-family: 'Inter', sans-serif; }
-  .login-btn { width: 100%; margin-top: 6px; }
-  .error-msg { color: var(--accent); font-size: 13px; margin-top: 10px; display: none; }
-  .foot-note { margin-top: 22px; font-size: 12.5px; color: var(--ink-soft); }
-  .shell { display: none; height: 100vh; }
-  .shell.active { display: flex; }
-  .rail { width: 232px; flex: none; background: var(--surface); border-right: 1px solid var(--line); padding: 24px 16px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
-  .rail-brand { display: flex; align-items: center; gap: 10px; padding: 0 8px 22px; }
-  .rail-brand-text { font-size: 15px; font-weight: 800; line-height: 1.15; }
-  .rail-brand-text span { display: block; font-size: 10.5px; font-weight: 600; color: var(--ink-soft); letter-spacing: .02em; }
-  .rail-item { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 10px; color: var(--ink-soft); font-size: 14px; font-weight: 600; cursor: pointer; }
-  .rail-item svg { width: 18px; height: 18px; flex: none; }
-  .rail-item.on { background: var(--accent-soft); color: var(--accent); }
-  .rail-divider { height: 1px; background: var(--line); margin: 14px 4px; }
-  .main { flex: 1; min-width: 0; max-width: 1100px; height: 100vh; overflow-y: auto; }
-  .main-inner { padding: 0 40px 90px; }
-  /* Requested directly: the rail should stay in place ("ferma") while
-     scrolling the content, and the top header bar should stay pinned
-     too — .shell is now a fixed-height flex row (100vh) with .rail
-     and .main each scrolling independently, instead of the whole
-     page scrolling together as one. .topline sticks to the top of
-     .main's own scroll area; the negative side margins let its
-     background span the full width, covering .main-inner's own side
-     padding so content scrolling underneath is never visible through
-     the edges. */
-  .topline {
-    display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap;
-    position: sticky; top: 0; z-index: 10; background: var(--bg); padding: 30px 40px 20px; margin: 0 -40px 8px;
-  }
-  .eyebrow { font-size: 13px; color: var(--ink-soft); font-weight: 600; margin-bottom: 6px; }
-  .page-title { font-size: 30px; line-height: 1; }
+
+  /* ---------- Bottom nav (phone only — mockup has no equivalent,
+       since it simply hides .rail below 860px with no replacement;
+       added here so navigation still exists on a phone). ---------- */
   .bottom-nav { display: none; }
   @media (max-width: 860px) {
-    .rail { display: none; }
-    .main-inner { padding: 20px 16px 90px; }
-    .topline { padding: 20px 16px; margin: 0 -16px 8px; }
-    body.app-shown .bottom-nav { display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--line); z-index: 40; padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); }
+    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--line); z-index: 40; padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); }
     .bottom-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 2px; color: var(--ink-soft); font-size: 10.5px; font-weight: 700; cursor: pointer; }
     .bottom-nav-item svg { width: 20px; height: 20px; }
     .bottom-nav-item.on { color: var(--accent); }
   }
   body.role-viewer .owner-only { display: none !important; }
   body:not(.role-viewer) .viewer-only { display: none !important; }
-  .fleet-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 22px; }
-  .stat-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; }
-  .stat-num { font-family: 'Barlow Condensed', sans-serif; font-size: 30px; font-weight: 800; }
-  .stat-label { font-size: 12.5px; color: var(--ink-soft); margin-top: 2px; }
-  .note-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin-bottom: 22px; }
-  .note-card textarea { width: 100%; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; color: var(--ink); font-size: 16px; font-family: 'Inter', sans-serif; resize: vertical; }
-  #driverNoteReadonly { font-size: 13.5px; color: var(--ink-soft); }
-  .add-driver-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
-  .add-driver-tab { padding: 9px 16px; border-radius: 100px; font-size: 13px; font-weight: 700; cursor: pointer; background: var(--surface); color: var(--ink-soft); border: 1px solid var(--line); }
-  .add-driver-tab.on, .doc-scope-filter-tab.on, .upload-scope-tab.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
-  .doc-scope-filter-tab, .upload-scope-tab { padding: 9px 16px; border-radius: 100px; font-size: 13px; font-weight: 700; cursor: pointer; background: var(--surface); color: var(--ink-soft); border: 1px solid var(--line); }
-  .add-row { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; align-items: flex-start; }
-  .add-row input, .add-row select { flex: 1; min-width: 180px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 11px 16px; color: var(--ink); font-size: 16px; font-family: 'Inter', sans-serif; }
-  .add-row .btn { width: auto; flex: none; }
-  .fleet-table { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
-  .driver-row { display: grid; grid-template-columns: auto 1.6fr 1fr 1fr 1fr auto; align-items: center; gap: 14px; padding: 15px 20px; border-bottom: 1px solid var(--line); }
-  .avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--surface-2); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; color: var(--ink-soft); flex: none; }
-  .driver-row.head { color: var(--ink-soft); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
-  .driver-row:last-child { border-bottom: none; }
-  .driver-name { font-weight: 700; font-size: 14.5px; }
-  .driver-sub { font-size: 12px; color: var(--ink-soft); }
-  .empty-note { text-align: center; color: var(--ink-soft); padding: 40px 20px; font-size: 14px; }
-  .remove-btn { background: none; border: none; color: var(--ink-soft); cursor: pointer; font-size: 13px; }
-  @media (max-width: 700px) {
-    .fleet-stats { grid-template-columns: repeat(2, 1fr); }
-    .driver-row { grid-template-columns: 1fr; gap: 4px; }
-    .driver-row.head { display: none; }
-    .driver-row:not(.head) { border: 1px solid var(--line); border-radius: 12px; margin: 0 0 10px; padding: 14px 16px; }
-  }
-  .storico-filters { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
-  .storico-filters select, .storico-filters input { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; color: var(--ink); font-size: 16px; font-family: 'Inter', sans-serif; }
-  .delivery-row { display: grid; grid-template-columns: 1.6fr 1.2fr 1fr; gap: 14px; padding: 13px 16px; border-bottom: 1px solid var(--line); font-size: 13.5px; }
-  .delivery-row.head { color: var(--ink-soft); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
-  .delivery-row:last-child { border-bottom: none; }
-  .delivery-client-name { font-weight: 700; }
-  .delivery-addr { color: var(--ink-soft); font-size: 12px; margin-top: 1px; }
-  @media (max-width: 600px) {
-    .delivery-row { grid-template-columns: 1fr; gap: 3px; }
-    .delivery-row.head { display: none; }
-    .delivery-row:not(.head) { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; padding: 12px 14px; }
-  }
-  .document-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 16px; border-bottom: 1px solid var(--line); font-size: 13.5px; }
-  .document-icon { width: 34px; height: 34px; border-radius: 8px; background: var(--accent-soft); color: var(--accent); display: flex; align-items: center; justify-content: center; flex: none; }
-  .document-icon svg { width: 16px; height: 16px; }
-  .document-row:last-child { border-bottom: none; }
-  .document-name { font-weight: 700; }
-  .document-meta { color: var(--ink-soft); font-size: 12px; margin-top: 1px; }
-  .document-actions { display: flex; gap: 10px; flex: none; }
-  .document-actions a, .document-actions button { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 13px; font-weight: 700; }
-  .settings-section { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 22px 24px; margin-bottom: 20px; }
-  .settings-section h3 { font-size: 19px; margin-bottom: 4px; }
-  .settings-section p.sub { color: var(--ink-soft); font-size: 13px; margin: 0 0 18px; line-height: 1.5; }
-  .team-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
-  .team-row:last-child { border-bottom: none; }
-  .team-role-pill { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 100px; background: var(--surface-2); color: var(--ink-soft); }
-  .team-remove { background: none; border: none; color: var(--ink-soft); cursor: pointer; font-size: 12.5px; }
 </style>
 </head>
 <body>
 
-<!-- Requested directly: switch between dark and light background,
-     one button, visible everywhere (login screen and all four
-     screens after login) — fixed position, so it doesn't need to be
-     duplicated inside every rail/screen. -->
 <button class="theme-toggle" id="themeToggle" aria-label="Cambia tema" type="button">
   <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
   <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>
 </button>
 
-<div class="center-wrap" id="loginScreen">
-  <div class="login-card">
-    <div class="fleet-badge" id="loginBadge">··</div>
-    <h1 id="loginTitle">ADB Smart Flotte</h1>
-    <p class="sub" id="loginSub">Caricamento…</p>
-    <div id="loginFormArea" style="display:none;">
-      <div class="field">
-        <label>Password</label>
-        <input type="password" id="passwordInput" placeholder="••••••••">
+<!-- SCREEN: Fleet login (copied from mockup's fleet-login) -->
+<div class="screen active" id="fleet-login">
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="fleet-logo" id="loginBadge" style="width:56px;height:56px;border-radius:14px;font-size:22px;margin:0 auto 18px;">··</div>
+      <h1 id="loginTitle">ADB Smart Flotte</h1>
+      <p class="sub" id="loginSub">Caricamento…</p>
+      <div id="loginFormArea" style="display:none;">
+        <div class="field">
+          <label>Password</label>
+          <input type="password" id="passwordInput" placeholder="••••••••">
+        </div>
+        <button class="btn btn-accent login-btn" id="loginBtn">Accedi</button>
+        <div class="error-msg" id="loginError"></div>
       </div>
-      <button class="btn btn-accent login-btn" id="loginBtn">Accedi</button>
-      <div class="error-msg" id="loginError"></div>
-    </div>
-    <div class="foot-note">Gestito su ADB Smart · Assistenza: supporto@adbsmart.it</div>
-  </div>
-</div>
-
-<div class="shell" id="shell-panoramica" data-screen="panoramica">
-  <div class="rail">
-    <div class="rail-brand">
-      <div class="fleet-badge" id="dashBadge" style="width:36px;height:36px;font-size:14px;margin:0;">··</div>
-      <div class="rail-brand-text"><span id="dashName">—</span><span>ADB Smart Flotte</span></div>
-    </div>
-    <div class="rail-item on" data-goto="panoramica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Panoramica</div>
-    <div class="rail-item" data-goto="documenti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Documenti</div>
-    <div class="rail-item" data-goto="consegne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><path d="M9 11l2 2 4-4"/></svg>Consegne</div>
-    <div class="rail-divider"></div>
-    <div class="rail-item owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
-  </div>
-  <div class="main">
-    <div class="topline">
-      <div>
-        <div class="eyebrow" id="dashSub">Pannello flotta · ADB Smart</div>
-        <h1 class="page-title">Panoramica</h1>
-      </div>
-      <button class="btn btn-accent owner-only" id="openAddDriverModalBtn" style="width:auto;">+ Aggiungi autista</button>
-    </div>
-
-    <div class="main-inner">
-    <div class="fleet-stats" id="statsRow"></div>
-
-    <div class="note-card owner-only">
-      <label style="display:block;font-size:11.5px;font-weight:700;color:var(--ink-soft);margin-bottom:6px;">Promemoria per i nuovi autisti</label>
-      <textarea id="driverNoteInput" placeholder="Es. Veicolo: furgone. Consegna entro le 07:00." rows="2"></textarea>
-      <button class="btn btn-ghost" id="driverNoteSaveBtn" style="width:auto;margin-top:8px;">Salva promemoria</button>
-      <span id="driverNoteSaved" style="font-size:12.5px;color:var(--green);margin-left:10px;display:none;">Salvato ✓</span>
-    </div>
-    <div class="note-card viewer-only" id="driverNoteReadonly" style="display:none;"></div>
-
-    <div class="add-row" style="margin-bottom:14px;">
-      <input type="text" id="driverSearchInput" placeholder="Cerca autista per nome…">
-    </div>
-
-    <div class="fleet-table" id="driverTable"></div>
+      <div class="login-foot">Gestito su ADB Smart · Assistenza: supporto@adbsmart.it</div>
     </div>
   </div>
 </div>
 
-<div class="shell" id="shell-documenti" data-screen="documenti">
-  <div class="rail">
-    <div class="rail-brand">
-      <div class="fleet-badge" style="width:36px;height:36px;font-size:14px;margin:0;" id="dashBadge2">··</div>
-      <div class="rail-brand-text"><span id="dashName2">—</span><span>ADB Smart Flotte</span></div>
-    </div>
-    <div class="rail-item" data-goto="panoramica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Panoramica</div>
-    <div class="rail-item on" data-goto="documenti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Documenti</div>
-    <div class="rail-item" data-goto="consegne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><path d="M9 11l2 2 4-4"/></svg>Consegne</div>
-    <div class="rail-divider"></div>
-    <div class="rail-item owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
-  </div>
-  <div class="main">
-    <div class="topline">
-      <div>
-        <div class="eyebrow">Listini, contratti e anagrafiche clienti</div>
-        <h1 class="page-title">Documenti</h1>
+<!-- SCREEN: Panoramica (mockup's fleet-dashboard) -->
+<div class="screen" id="fleet-dashboard" data-screen="panoramica">
+  <div class="shell">
+    <div class="rail">
+      <div class="rail-brand">
+        <div class="fleet-logo" id="dashBadge" style="margin:0;">··</div>
+        <div class="rail-brand-text"><span id="dashName">—</span><span>ADB Smart Flotte</span></div>
       </div>
-      <button class="btn btn-accent owner-only" id="openUploadModalBtn" style="width:auto;">+ Carica documento</button>
+      <div class="rail-item on" data-goto="panoramica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Panoramica</div>
+      <div class="rail-item" data-goto="documenti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Documenti</div>
+      <div class="rail-item" data-goto="consegne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><path d="M9 11l2 2 4-4"/></svg>Consegne</div>
+      <div class="rail-divider"></div>
+      <div class="rail-item owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
     </div>
+    <div class="main">
+      <div class="topline">
+        <div>
+          <div class="eyebrow" id="dashSub">Pannello flotta · ADB Smart</div>
+          <h1 class="page-title">Panoramica flotta</h1>
+        </div>
+        <button class="btn btn-accent owner-only" id="openAddDriverModalBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+          Aggiungi autista
+        </button>
+      </div>
 
-    <div class="main-inner">
-    <div class="add-driver-tabs">
-      <div class="doc-scope-filter-tab on" data-scope="">Tutti</div>
-      <div class="doc-scope-filter-tab" data-scope="fleet">Condivisi con la flotta</div>
-      <div class="doc-scope-filter-tab" data-scope="driver">Per singolo autista</div>
-    </div>
+      <div class="main-inner">
+      <div class="fleet-stats" id="statsRow"></div>
 
-    <div class="fleet-table" id="documentiList" style="margin-top:0;"></div>
+      <div class="settings-section owner-only" style="padding:16px 18px;">
+        <label style="display:block;font-size:11.5px;font-weight:700;color:var(--ink-soft);margin-bottom:6px;">Promemoria per i nuovi autisti</label>
+        <textarea id="driverNoteInput" placeholder="Es. Veicolo: furgone. Consegna entro le 07:00." rows="2" style="width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--ink);font-size:16px;font-family:'Inter',sans-serif;resize:vertical;"></textarea>
+        <button class="btn btn-ghost" id="driverNoteSaveBtn" style="margin-top:8px;">Salva promemoria</button>
+        <span id="driverNoteSaved" style="font-size:12.5px;color:var(--green);margin-left:10px;display:none;">Salvato ✓</span>
+      </div>
+      <div class="settings-section viewer-only" id="driverNoteReadonly" style="display:none;padding:16px 18px;font-size:13.5px;color:var(--ink-soft);"></div>
+
+      <div class="driver-toolbar">
+        <input class="driver-search" id="driverSearchInput" placeholder="Cerca autista per nome...">
+      </div>
+
+      <div class="fleet-table" id="driverTable"></div>
+      </div>
     </div>
   </div>
 </div>
 
-<div class="shell" id="shell-consegne" data-screen="consegne">
-  <div class="rail">
-    <div class="rail-brand">
-      <div class="fleet-badge" style="width:36px;height:36px;font-size:14px;margin:0;" id="dashBadge3">··</div>
-      <div class="rail-brand-text"><span id="dashName3">—</span><span>ADB Smart Flotte</span></div>
-    </div>
-    <div class="rail-item" data-goto="panoramica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Panoramica</div>
-    <div class="rail-item" data-goto="documenti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Documenti</div>
-    <div class="rail-item on" data-goto="consegne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><path d="M9 11l2 2 4-4"/></svg>Consegne</div>
-    <div class="rail-divider"></div>
-    <div class="rail-item owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
-  </div>
-  <div class="main">
-    <div class="topline">
-      <div>
-        <div class="eyebrow">Tutte le consegne effettuate</div>
-        <h1 class="page-title">Consegne</h1>
+<!-- SCREEN: Storico consegne (mockup's fleet-consegne) -->
+<div class="screen" id="fleet-consegne" data-screen="consegne">
+  <div class="shell">
+    <div class="rail">
+      <div class="rail-brand">
+        <div class="fleet-logo" id="dashBadge2" style="margin:0;">··</div>
+        <div class="rail-brand-text"><span id="dashName2">—</span><span>ADB Smart Flotte</span></div>
       </div>
-      <button class="btn btn-ghost" id="exportCsvBtn" style="width:auto;">↓ Esporta CSV</button>
+      <div class="rail-item" data-goto="panoramica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Panoramica</div>
+      <div class="rail-item" data-goto="documenti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Documenti</div>
+      <div class="rail-item on" data-goto="consegne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><path d="M9 11l2 2 4-4"/></svg>Consegne</div>
+      <div class="rail-divider"></div>
+      <div class="rail-item owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
     </div>
-
-    <div class="main-inner">
-    <div class="storico-filters">
-      <select id="storicoDriverFilter"><option value="">Tutti gli autisti</option></select>
-      <select id="storicoPeriodFilter">
-        <option value="7">Ultimi 7 giorni</option>
-        <option value="30" selected>Ultimi 30 giorni</option>
-        <option value="">Tutti</option>
-      </select>
-      <input type="text" id="storicoSearchInput" placeholder="Cerca cliente o indirizzo…" style="flex:1;min-width:200px;">
-    </div>
-    <div class="fleet-table" id="storicoList"></div>
-    </div>
-  </div>
-</div>
-
-<div class="shell" id="shell-impostazioni" data-screen="impostazioni">
-  <div class="rail">
-    <div class="rail-brand">
-      <div class="fleet-badge" style="width:36px;height:36px;font-size:14px;margin:0;" id="dashBadge4">··</div>
-      <div class="rail-brand-text"><span id="dashName4">—</span><span>ADB Smart Flotte</span></div>
-    </div>
-    <div class="rail-item" data-goto="panoramica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Panoramica</div>
-    <div class="rail-item" data-goto="documenti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Documenti</div>
-    <div class="rail-item" data-goto="consegne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><path d="M9 11l2 2 4-4"/></svg>Consegne</div>
-    <div class="rail-divider"></div>
-    <div class="rail-item on owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
-  </div>
-  <div class="main">
-    <div class="topline">
-      <div>
-        <div class="eyebrow">Il tuo account flotta</div>
-        <h1 class="page-title">Impostazioni</h1>
+    <div class="main">
+      <div class="topline">
+        <div>
+          <div class="eyebrow">Tutti gli autisti · ultimi 30 giorni</div>
+          <h1 class="page-title">Storico consegne</h1>
+        </div>
+        <button class="btn btn-ghost" id="exportCsvBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+          Esporta CSV
+        </button>
       </div>
-    </div>
 
-    <div class="main-inner" style="max-width:720px;">
-    <div class="settings-section">
-      <h3>Persone con accesso</h3>
-      <p class="sub">Invita colleghi al tuo account, con permessi diversi in base al loro ruolo.</p>
-      <div id="teamMembersList"></div>
-      <div class="add-row" style="margin-top:16px;margin-bottom:0;">
-        <input type="email" id="teamEmailInput" placeholder="Email del collega">
-        <select id="teamRoleInput" style="min-width:170px;">
-          <option value="viewer">Sola lettura (es. contabilità)</option>
-          <option value="owner">Accesso completo</option>
+      <div class="main-inner">
+      <div class="filter-row">
+        <select class="filter-select" id="storicoDriverFilter"><option value="">Tutti gli autisti</option></select>
+        <select class="filter-select" id="storicoPeriodFilter">
+          <option value="7">Ultimi 7 giorni</option>
+          <option value="30" selected>Ultimi 30 giorni</option>
+          <option value="">Tutti</option>
         </select>
-        <button class="btn btn-accent" id="teamAddBtn">Invita</button>
+        <input class="driver-search" id="storicoSearchInput" style="max-width:260px;" placeholder="Cerca cliente o indirizzo...">
       </div>
-    </div>
+
+      <div class="fleet-table" id="storicoList"></div>
+      </div>
     </div>
   </div>
 </div>
 
+<!-- SCREEN: Documenti (mockup's fleet-docs) -->
+<div class="screen" id="fleet-docs" data-screen="documenti">
+  <div class="shell">
+    <div class="rail">
+      <div class="rail-brand">
+        <div class="fleet-logo" id="dashBadge3" style="margin:0;">··</div>
+        <div class="rail-brand-text"><span id="dashName3">—</span><span>ADB Smart Flotte</span></div>
+      </div>
+      <div class="rail-item" data-goto="panoramica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Panoramica</div>
+      <div class="rail-item on" data-goto="documenti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Documenti</div>
+      <div class="rail-item" data-goto="consegne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><path d="M9 11l2 2 4-4"/></svg>Consegne</div>
+      <div class="rail-divider"></div>
+      <div class="rail-item owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
+    </div>
+    <div class="main">
+      <div class="topline">
+        <div>
+          <div class="eyebrow">Listini, contratti e anagrafiche clienti</div>
+          <h1 class="page-title">Documenti</h1>
+        </div>
+        <button class="btn btn-accent owner-only" id="openUploadModalBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+          Carica documento
+        </button>
+      </div>
+
+      <div class="main-inner">
+      <div class="doc-scope-tabs">
+        <div class="doc-scope-tab on" data-scope="">Tutti</div>
+        <div class="doc-scope-tab" data-scope="fleet">Condivisi con la flotta</div>
+        <div class="doc-scope-tab" data-scope="driver">Per singolo autista</div>
+      </div>
+
+      <div class="fleet-table" id="documentiList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN: Impostazioni (mockup's fleet-settings — only "Persone con
+     accesso" is wired to real data; branding/default-settings/reports
+     sections from the mockup are left out, not fabricated) -->
+<div class="screen" id="fleet-settings" data-screen="impostazioni">
+  <div class="shell">
+    <div class="rail">
+      <div class="rail-brand">
+        <div class="fleet-logo" id="dashBadge4" style="margin:0;">··</div>
+        <div class="rail-brand-text"><span id="dashName4">—</span><span>ADB Smart Flotte</span></div>
+      </div>
+      <div class="rail-item" data-goto="panoramica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Panoramica</div>
+      <div class="rail-item" data-goto="documenti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Documenti</div>
+      <div class="rail-item" data-goto="consegne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><path d="M9 11l2 2 4-4"/></svg>Consegne</div>
+      <div class="rail-divider"></div>
+      <div class="rail-item on owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
+    </div>
+    <div class="main" style="max-width:720px;">
+      <div class="topline">
+        <div>
+          <div class="eyebrow">Il tuo account flotta</div>
+          <h1 class="page-title">Impostazioni</h1>
+        </div>
+      </div>
+
+      <div class="main-inner">
+      <div class="settings-section">
+        <h3>Persone con accesso</h3>
+        <p class="sub">Invita colleghi al tuo account, con permessi diversi in base al loro ruolo.</p>
+        <div id="teamMembersList"></div>
+        <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
+          <input type="email" id="teamEmailInput" placeholder="Email del collega" style="flex:1;min-width:180px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:11px 16px;color:var(--ink);font-size:16px;font-family:'Inter',sans-serif;">
+          <select id="teamRoleInput" style="min-width:170px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:11px 16px;color:var(--ink);font-size:14px;font-family:'Inter',sans-serif;">
+            <option value="viewer">Sola lettura (es. contabilità)</option>
+            <option value="owner">Accesso completo</option>
+          </select>
+          <button class="btn btn-accent" id="teamAddBtn">+ Invita collega</button>
+        </div>
+      </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add-driver modal (copied from mockup's modal2) -->
 <div class="modal-backdrop" id="addDriverModalBackdrop">
   <div class="modal">
     <h3>Aggiungi autista</h3>
@@ -336,14 +491,14 @@
       <div class="add-driver-tab on" data-tab="existing">Autista esistente</div>
       <div class="add-driver-tab" data-tab="invite">Invita nuovo autista</div>
     </div>
-    <div id="addExistingArea">
+    <div id="addDriverExisting">
       <div class="field">
         <label>Email o ID autista</label>
         <input type="text" id="addDriverInput" placeholder="Es. mario.b@email.it oppure IB-01">
       </div>
       <div class="error-msg" id="addDriverError"></div>
     </div>
-    <div id="addInviteArea" style="display:none;">
+    <div id="addDriverInvite" style="display:none;">
       <div class="field">
         <label>Nome e cognome</label>
         <input type="text" id="inviteNameInput" placeholder="Es. Paolo Neri">
@@ -352,7 +507,7 @@
         <label>Numero di telefono</label>
         <input type="text" id="invitePhoneInput" placeholder="Es. 333 1234567">
       </div>
-      <p class="sub" style="margin-bottom:0;">Si aprirà WhatsApp con un messaggio già pronto — dopo che l'autista scarica l'app e crea il suo account, aggiungilo qui, nella scheda "Autista esistente".</p>
+      <p class="sub" style="margin-bottom:0;">Gli invieremo un link via WhatsApp per scaricare l'app — dopo che l'autista crea il suo account, aggiungilo qui sopra con la sua email, nella scheda "Autista esistente".</p>
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" id="addDriverModalClose">Annulla</button>
@@ -361,19 +516,26 @@
   </div>
 </div>
 
+<!-- Upload document modal (copied from mockup's modal3) -->
 <div class="modal-backdrop" id="uploadModalBackdrop">
   <div class="modal">
     <h3>Carica documento</h3>
     <p class="sub">Scegli se il documento vale per tutta la flotta o solo per un autista specifico.</p>
-    <div class="add-driver-tabs">
-      <div class="upload-scope-tab on" data-scope="fleet">Tutta la flotta</div>
-      <div class="upload-scope-tab" data-scope="driver">Un autista</div>
+    <div class="upload-scope-choice">
+      <div class="scope-option chosen" data-scope="fleet">
+        <div class="scope-option-title">Tutta la flotta</div>
+        <div class="scope-option-sub">Visibile a tutti gli autisti — es. listino prezzi, anagrafica clienti comune.</div>
+      </div>
+      <div class="scope-option" data-scope="driver">
+        <div class="scope-option-title">Un autista</div>
+        <div class="scope-option-sub">Visibile solo a chi scegli — es. clienti di una zona specifica.</div>
+      </div>
     </div>
-    <div class="field" id="documentoDriverField" style="display:none;">
+    <div class="field" id="documentoDriverField" style="display:none;margin-top:14px;">
       <label>Autista</label>
       <select id="documentoDriverInput"></select>
     </div>
-    <div class="field">
+    <div class="field" style="margin-top:14px;">
       <label>File</label>
       <input type="file" id="documentoFileInput">
     </div>
@@ -391,6 +553,12 @@
   <div class="bottom-nav-item" data-goto="consegne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><path d="M9 11l2 2 4-4"/></svg>Consegne</div>
   <div class="bottom-nav-item owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
 </div>
+
+<script>
+  (function () {
+    if (localStorage.getItem('adb_fleet_theme') === 'light') document.documentElement.setAttribute('data-theme', 'light');
+  })();
+</script>
 
 <script>
 (function () {
@@ -480,15 +648,17 @@
   }
 
   function showApp(fleetName, password, role) {
-    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('fleet-login').classList.remove('active');
     document.body.classList.add('app-shown');
     ['dashName', 'dashName2', 'dashName3', 'dashName4'].forEach(function (id) { document.getElementById(id).textContent = fleetName; });
     ['dashBadge', 'dashBadge2', 'dashBadge3', 'dashBadge4'].forEach(function (id) { document.getElementById(id).textContent = badgeInitials(fleetName); });
     if (role === 'viewer') document.body.classList.add('role-viewer');
 
+    var SCREEN_ID_BY_NAME = { panoramica: 'fleet-dashboard', documenti: 'fleet-docs', consegne: 'fleet-consegne', impostazioni: 'fleet-settings' };
+
     function goToScreen(name) {
-      document.querySelectorAll('.shell').forEach(function (s) { s.classList.remove('active'); });
-      var target = document.getElementById('shell-' + name);
+      document.querySelectorAll('.screen').forEach(function (s) { s.classList.remove('active'); });
+      var target = document.getElementById(SCREEN_ID_BY_NAME[name]);
       if (target) target.classList.add('active');
       document.querySelectorAll('[data-goto]').forEach(function (el) {
         el.classList.toggle('on', el.dataset.goto === name);
@@ -511,6 +681,7 @@
         currentDrivers = res.drivers;
         renderStats(res.drivers, res.period);
         renderDrivers(res.drivers);
+        populateDriverDropdowns();
         document.getElementById('driverNoteInput').value = res.driver_note || '';
         var readonlyNote = document.getElementById('driverNoteReadonly');
         readonlyNote.textContent = res.driver_note ? ('Promemoria: ' + res.driver_note) : '';
@@ -518,8 +689,26 @@
       });
     }
 
+    function populateDriverDropdowns() {
+      [document.getElementById('storicoDriverFilter'), document.getElementById('documentoDriverInput')].forEach(function (sel) {
+        if (!sel) return;
+        var keepFirstOption = sel.id === 'storicoDriverFilter';
+        var currentValue = sel.value;
+        sel.innerHTML = keepFirstOption ? '<option value="">Tutti gli autisti</option>' : '';
+        currentDrivers.forEach(function (d) {
+          sel.innerHTML += '<option value="' + esc(d.account_email) + '">' + esc(d.nome || d.account_email) + '</option>';
+        });
+        if (currentValue) sel.value = currentValue;
+      });
+    }
+
     var MONTH_NAMES_IT = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
 
+    // Requested directly: the mockup's own 6-stat grid includes
+    // figures with no real data behind them yet (live delivery
+    // status, cash collected today, expiring documents) — shown here
+    // as the 3 stats that ARE real, at the mockup's own 3-column
+    // grid, rather than inventing the other 3.
     function renderStats(drivers, period) {
       var totalKm = drivers.reduce(function (s, d) { return s + (d.total_km || 0); }, 0);
       var totalGiorni = drivers.reduce(function (s, d) { return s + (d.total_giorni || 0); }, 0);
@@ -536,15 +725,15 @@
         el.innerHTML = '<div class="empty-note">Nessun autista collegato ancora — aggiungine uno sopra, usando la sua email o il suo ID.</div>';
         return;
       }
-      var html = '<div class="driver-row head"><div></div><div>Autista</div><div>Targa</div><div>Km totali</div><div>Ultima attività</div><div></div></div>';
+      var html = '<div class="driver-card head"><div></div><div>Autista</div><div>Targa</div><div>Km totali</div><div>Ultima attività</div><div></div></div>';
       drivers.forEach(function (d) {
-        html += '<div class="driver-row">' +
+        html += '<div class="driver-card">' +
           '<div class="avatar">' + esc(badgeInitials(d.nome || d.account_email)) + '</div>' +
           '<div><div class="driver-name">' + esc(d.nome || d.account_email) + '</div><div class="driver-sub">' + esc(d.account_email) + '</div></div>' +
           '<div>' + esc(d.targa || '—') + '</div>' +
           '<div>' + Math.round(d.total_km || 0) + ' km</div>' +
           '<div>' + timeAgoLabel(d.last_active) + '</div>' +
-          '<div><button class="remove-btn owner-only" data-email="' + esc(d.account_email) + '" data-name="' + esc(d.nome || d.account_email) + '">Rimuovi</button></div>' +
+          '<div><button class="doc-actions-btn owner-only remove-btn" data-email="' + esc(d.account_email) + '" data-name="' + esc(d.nome || d.account_email) + '" style="background:none;border:none;color:var(--ink-soft);cursor:pointer;font-size:13px;">Rimuovi</button></div>' +
           '</div>';
       });
       el.innerHTML = html;
@@ -555,6 +744,14 @@
         });
       });
     }
+
+    document.getElementById('driverSearchInput').addEventListener('input', function () {
+      var query = this.value.trim().toLowerCase();
+      var filtered = !query ? currentDrivers : currentDrivers.filter(function (d) {
+        return (d.nome || d.account_email).toLowerCase().indexOf(query) !== -1;
+      });
+      renderDrivers(filtered);
+    });
 
     document.getElementById('openAddDriverModalBtn').addEventListener('click', function () {
       document.getElementById('addDriverModalBackdrop').classList.add('open');
@@ -570,8 +767,8 @@
         tab.classList.add('on');
         addDriverMode = tab.dataset.tab;
         var isInvite = addDriverMode === 'invite';
-        document.getElementById('addExistingArea').style.display = isInvite ? 'none' : 'block';
-        document.getElementById('addInviteArea').style.display = isInvite ? 'block' : 'none';
+        document.getElementById('addDriverExisting').style.display = isInvite ? 'none' : 'block';
+        document.getElementById('addDriverInvite').style.display = isInvite ? 'block' : 'none';
         document.getElementById('addDriverSubmitBtn').textContent = isInvite ? 'Invia invito WhatsApp' : 'Invia richiesta';
       });
     });
@@ -608,17 +805,6 @@
       });
     });
 
-    // Requested directly: search box above the driver table, matching
-    // the mockup — filters the already-loaded list purely client-side
-    // (currentDrivers), no extra server call needed.
-    document.getElementById('driverSearchInput').addEventListener('input', function () {
-      var query = this.value.trim().toLowerCase();
-      var filtered = !query ? currentDrivers : currentDrivers.filter(function (d) {
-        return (d.nome || d.account_email).toLowerCase().indexOf(query) !== -1;
-      });
-      renderDrivers(filtered);
-    });
-
     document.getElementById('driverNoteSaveBtn').addEventListener('click', function () {
       var note = document.getElementById('driverNoteInput').value;
       call({ action: 'fleet_set_driver_note', slug: slug, password: password, note: note }).then(function (res) {
@@ -630,13 +816,15 @@
     });
 
     function loadTeam() {
+      document.getElementById('teamMembersList').innerHTML = '<div class="empty-note">Caricamento…</div>';
       call({ action: 'fleet_list_team', slug: slug, password: password }).then(function (res) {
         if (!res.ok) return;
         var el = document.getElementById('teamMembersList');
-        var html = '<div class="team-row"><div>' + esc(res.owner_email) + '</div><span class="team-role-pill">Titolare</span></div>';
+        var html = '<div class="team-row"><div class="team-info"><div class="avatar" style="width:34px;height:34px;font-size:12px;">' + esc(badgeInitials(res.owner_email)) + '</div><div>' + esc(res.owner_email) + '</div></div><span class="team-role">Titolare</span></div>';
         (res.members || []).forEach(function (m) {
-          html += '<div class="team-row"><div>' + esc(m.email) + '</div><div style="display:flex;gap:8px;align-items:center;">' +
-            '<span class="team-role-pill">' + (m.role === 'owner' ? 'Accesso completo' : 'Sola lettura') + '</span>' +
+          html += '<div class="team-row"><div class="team-info"><div class="avatar" style="width:34px;height:34px;font-size:12px;">' + esc(badgeInitials(m.email)) + '</div><div>' + esc(m.email) + '</div></div>' +
+            '<div style="display:flex;gap:8px;align-items:center;">' +
+            '<span class="team-role">' + (m.role === 'owner' ? 'Accesso completo' : 'Sola lettura') + '</span>' +
             '<button class="team-remove" data-id="' + esc(m.id) + '">Rimuovi</button></div></div>';
         });
         el.innerHTML = html;
@@ -648,24 +836,22 @@
       });
     }
 
+    document.getElementById('teamAddBtn').addEventListener('click', function () {
+      var email = document.getElementById('teamEmailInput').value.trim();
+      var role = document.getElementById('teamRoleInput').value;
+      if (!email) return;
+      call({ action: 'fleet_add_team_member', slug: slug, password: password, email: email, role: role }).then(function (res) {
+        if (!res.ok) { alert(res.reason === 'already_added' ? 'Questa persona ha già accesso.' : 'Impossibile aggiungere.'); return; }
+        alert('Invitato! Password temporanea per ' + email + ': ' + res.temp_password + '\n\nCondividila con loro — non verrà mostrata di nuovo.');
+        document.getElementById('teamEmailInput').value = '';
+        loadTeam();
+      });
+    });
+
     var lastDeliveries = [];
 
     function loadStorico() {
-      var driverSelect = document.getElementById('storicoDriverFilter');
-      if (!driverSelect.dataset.populated) {
-        currentDrivers.forEach(function (d) {
-          driverSelect.innerHTML += '<option value="' + esc(d.account_email) + '">' + esc(d.nome || d.account_email) + '</option>';
-        });
-        driverSelect.dataset.populated = '1';
-      }
-      var driverFilter = driverSelect.value;
-      // Requested directly, matching the mockup exactly: a period
-      // dropdown (Ultimi 7/30 giorni, Tutti) instead of a native date
-      // range picker — the picker's own calendar popup couldn't be
-      // restyled to match the rest of this dark page (a separate,
-      // real complaint fixed earlier with color-scheme, but this
-      // simpler control avoids the mismatch entirely, as the mockup
-      // already did).
+      var driverFilter = document.getElementById('storicoDriverFilter').value;
       var periodDays = document.getElementById('storicoPeriodFilter').value;
       var payload = { action: 'fleet_get_deliveries', slug: slug, password: password };
       if (driverFilter) payload.driver_email = driverFilter;
@@ -684,9 +870,6 @@
       });
     }
 
-    // Requested directly: text search over client name/address,
-    // matching the mockup — filters the already-loaded batch
-    // client-side, same spirit as the driver search on Panoramica.
     function renderStorico() {
       var el = document.getElementById('storicoList');
       var query = document.getElementById('storicoSearchInput').value.trim().toLowerCase();
@@ -700,7 +883,7 @@
         var when = new Date(d.completed_at);
         var whenLabel = when.toLocaleDateString('it-IT') + ' · ' + when.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
         html += '<div class="delivery-row">' +
-          '<div><div class="delivery-client-name">' + esc(d.client_nome) + '</div><div class="delivery-addr">' + esc(d.client_indirizzo || '') + '</div></div>' +
+          '<div><div class="delivery-client">' + esc(d.client_nome) + '</div><div class="delivery-addr">' + esc(d.client_indirizzo || '') + '</div></div>' +
           '<div>' + esc(d.driver_nome) + '</div>' +
           '<div>' + whenLabel + '</div>' +
           '</div>';
@@ -712,11 +895,6 @@
     document.getElementById('storicoPeriodFilter').addEventListener('change', loadStorico);
     document.getElementById('storicoSearchInput').addEventListener('input', renderStorico);
 
-    // Requested directly ("Esporta CSV", matching the mockup): built
-    // entirely client-side, from whatever's already loaded (including
-    // the current search filter) — no new backend endpoint needed,
-    // this is just formatting already-fetched data and triggering a
-    // browser download.
     document.getElementById('exportCsvBtn').addEventListener('click', function () {
       var query = document.getElementById('storicoSearchInput').value.trim().toLowerCase();
       var rows = !query ? lastDeliveries : lastDeliveries.filter(function (d) {
@@ -738,16 +916,8 @@
 
     var lastDocuments = [];
     var docFilterScope = '';
-    var DOC_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
 
     function loadDocumenti() {
-      var driverSelect = document.getElementById('documentoDriverInput');
-      if (!driverSelect.dataset.populated) {
-        currentDrivers.forEach(function (d) {
-          driverSelect.innerHTML += '<option value="' + esc(d.account_email) + '">' + esc(d.nome || d.account_email) + '</option>';
-        });
-        driverSelect.dataset.populated = '1';
-      }
       var el = document.getElementById('documentiList');
       el.innerHTML = '<div class="empty-note">Caricamento…</div>';
       call({ action: 'fleet_list_documents', slug: slug, password: password }).then(function (res) {
@@ -757,25 +927,22 @@
       });
     }
 
-    // Requested directly, matching the mockup: visual filter tabs
-    // (Tutti / Condivisi con la flotta / Per singolo autista) — pure
-    // client-side filtering of the already-loaded batch, on the same
-    // "scope" field the backend already returns.
     function renderDocumenti() {
       var el = document.getElementById('documentiList');
       var filtered = !docFilterScope ? lastDocuments : lastDocuments.filter(function (d) { return d.scope === docFilterScope; });
-      if (!filtered.length) { el.innerHTML = '<div class="empty-note">Nessun documento trovato per questo filtro.</div>'; return; }
+      if (!filtered.length) { el.innerHTML = '<div class="empty-note">Nessun documento trovato.</div>'; return; }
 
-      var html = '';
+      var html = '<div class="doc-row head"><div></div><div>Documento</div><div>Ambito</div><div>Caricato</div><div></div></div>';
       filtered.forEach(function (d) {
-        var meta = d.scope === 'driver' ? ('Per ' + esc(d.driver_nome)) : 'Tutta la flotta';
-        html += '<div class="document-row">' +
-          '<div class="document-icon">' + DOC_ICON_SVG + '</div>' +
-          '<div style="flex:1;"><div class="document-name">' + esc(d.filename) + '</div><div class="document-meta">' + meta + '</div></div>' +
-          '<div class="document-actions">' +
-          '<button class="doc-download-btn" data-id="' + esc(d.id) + '">Scarica</button>' +
-          '<button class="doc-delete-btn owner-only" data-id="' + esc(d.id) + '">Elimina</button>' +
-          '</div></div>';
+        var scopeLabel = d.scope === 'driver' ? ('<span class="scope-pill driver">' + esc(d.driver_nome) + '</span>') : '<span class="scope-pill fleet">Tutta la flotta</span>';
+        var when = new Date(d.uploaded_at);
+        html += '<div class="doc-row">' +
+          '<div class="doc-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg></div>' +
+          '<div><div class="doc-name">' + esc(d.filename) + '</div></div>' +
+          '<div>' + scopeLabel + '</div>' +
+          '<div style="font-size:13px;color:var(--ink-soft);">' + when.toLocaleDateString('it-IT') + '</div>' +
+          '<div class="doc-actions"><button class="doc-download-btn" data-id="' + esc(d.id) + '">Scarica</button><button class="doc-delete-btn owner-only" data-id="' + esc(d.id) + '">Elimina</button></div>' +
+          '</div>';
       });
       el.innerHTML = html;
 
@@ -794,9 +961,9 @@
       });
     }
 
-    document.querySelectorAll('.doc-scope-filter-tab').forEach(function (tab) {
+    document.querySelectorAll('.doc-scope-tab').forEach(function (tab) {
       tab.addEventListener('click', function () {
-        document.querySelectorAll('.doc-scope-filter-tab').forEach(function (t) { t.classList.remove('on'); });
+        document.querySelectorAll('.doc-scope-tab').forEach(function (t) { t.classList.remove('on'); });
         tab.classList.add('on');
         docFilterScope = tab.dataset.scope;
         renderDocumenti();
@@ -811,11 +978,11 @@
     });
 
     var uploadScope = 'fleet';
-    document.querySelectorAll('.upload-scope-tab').forEach(function (tab) {
-      tab.addEventListener('click', function () {
-        document.querySelectorAll('.upload-scope-tab').forEach(function (t) { t.classList.remove('on'); });
-        tab.classList.add('on');
-        uploadScope = tab.dataset.scope;
+    document.querySelectorAll('.scope-option').forEach(function (opt) {
+      opt.addEventListener('click', function () {
+        document.querySelectorAll('.scope-option').forEach(function (o) { o.classList.remove('chosen'); });
+        opt.classList.add('chosen');
+        uploadScope = opt.dataset.scope;
         document.getElementById('documentoDriverField').style.display = uploadScope === 'driver' ? 'block' : 'none';
       });
     });
@@ -844,18 +1011,6 @@
             loadDocumenti();
           })
           .catch(function () { errEl.textContent = 'Caricamento non riuscito.'; errEl.style.display = 'block'; });
-      });
-    });
-
-    document.getElementById('teamAddBtn').addEventListener('click', function () {
-      var email = document.getElementById('teamEmailInput').value.trim();
-      var role = document.getElementById('teamRoleInput').value;
-      if (!email) return;
-      call({ action: 'fleet_add_team_member', slug: slug, password: password, email: email, role: role }).then(function (res) {
-        if (!res.ok) { alert(res.reason === 'already_added' ? 'Questa persona ha già accesso.' : 'Impossibile aggiungere.'); return; }
-        alert('Invitato! Password temporanea per ' + email + ': ' + res.temp_password + '\n\nCondividila con loro — non verrà mostrata di nuovo.');
-        document.getElementById('teamEmailInput').value = '';
-        loadTeam();
       });
     });
 
