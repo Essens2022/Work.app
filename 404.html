@@ -326,7 +326,7 @@
           '<div>' + esc(d.targa || '—') + '</div>' +
           '<div>' + Math.round(d.total_km || 0) + ' km</div>' +
           '<div>' + timeAgoLabel(d.last_active) + '</div>' +
-          '<div><button class="remove-btn" data-email="' + esc(d.account_email) + '" data-name="' + esc(d.nome || d.account_email) + '">Rimuovi</button></div>' +
+          '<div><button class="remove-btn owner-only" data-email="' + esc(d.account_email) + '" data-name="' + esc(d.nome || d.account_email) + '">Rimuovi</button></div>' +
           '</div>';
       });
       el.innerHTML = html;
