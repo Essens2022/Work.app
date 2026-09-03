@@ -267,6 +267,43 @@
   .admin-modal-fullscreen-inner{
     display:flex;flex-direction:column;height:100%;
   }
+  /* Requested directly: the Flotte screen should look like its own
+     proper page (sidebar, real visual info), matching the approved
+     mockup's own admin screens — not a small modal list. Reuses the
+     same fullscreen overlay mechanism already built for Messaggi,
+     but laid out as a sidebar + scrolling content pair instead of a
+     fixed-header + scrolling list, since this needs its own
+     (deliberately minimal — just Home/Flotte, not a full rebuild of
+     every admin section) internal navigation. */
+  .flotte-shell{display:flex;height:100%;}
+  .flotte-rail{width:200px;flex:none;background:var(--surface);border-right:1px solid var(--line);padding:20px 14px;display:flex;flex-direction:column;gap:4px;}
+  .flotte-rail-brand{padding:0 8px 20px;font-size:14px;font-weight:800;}
+  .flotte-rail-brand span{display:block;font-size:10.5px;font-weight:600;color:var(--ink-faint);}
+  .flotte-rail-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;color:var(--ink-faint);font-size:13.5px;font-weight:600;cursor:pointer;}
+  .flotte-rail-item svg{width:17px;height:17px;flex:none;}
+  .flotte-rail-item.on{background:var(--accent-soft);color:var(--accent);}
+  .flotte-main{flex:1;min-width:0;overflow-y:auto;padding:24px 28px 40px;padding-top:calc(24px + env(safe-area-inset-top));}
+  .flotte-topline{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px;}
+  .flotte-page-title{font-size:26px;font-weight:800;}
+  .flotte-eyebrow{font-size:12.5px;color:var(--ink-faint);font-weight:600;margin-bottom:4px;}
+  .flotte-stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px;}
+  .flotte-stat-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:15px 17px;}
+  .flotte-stat-num{font-size:26px;font-weight:800;}
+  .flotte-stat-label{font-size:11.5px;color:var(--ink-faint);margin-top:2px;}
+  .flotte-table{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;}
+  .flotte-row{display:grid;grid-template-columns:auto 1.6fr 1fr 1fr auto;align-items:center;gap:14px;padding:14px 18px;border-bottom:1px solid var(--line);}
+  .flotte-row.head{color:var(--ink-faint);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
+  .flotte-row:last-child{border-bottom:none;}
+  .flotte-logo{width:38px;height:38px;border-radius:9px;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex:none;}
+  .flotte-name{font-weight:700;font-size:14px;}
+  .flotte-url{font-size:11.5px;color:var(--ink-faint);}
+  @media (max-width:760px){
+    .flotte-rail{display:none;}
+    .flotte-stats-row{grid-template-columns:repeat(1,1fr);}
+    .flotte-row{grid-template-columns:auto 1fr;row-gap:4px;padding:14px;}
+    .flotte-row.head{display:none;}
+    .flotte-row:not(.head){border:1px solid var(--line);border-radius:10px;margin:0 0 10px;}
+  }
   .messaggi-fixed-top{
     flex:none;padding:20px 14px 14px;background:var(--bg);
     padding-top:calc(20px + env(safe-area-inset-top));
@@ -408,13 +445,27 @@
          this static host has no real per-fleet routing. This modal is
          only ION's own management side: create fleets, see the list,
          and get each one's password to pass along. -->
-    <div id="modal-flotte" class="admin-modal">
-      <div class="admin-modal-header">
-        <button class="admin-modal-close" data-close="flotte">×</button>
-        <div class="admin-modal-title">Flotte</div>
+    <div id="modal-flotte" class="admin-modal admin-modal-fullscreen">
+      <div class="admin-modal-fullscreen-inner">
+        <div class="flotte-shell">
+          <div class="flotte-rail">
+            <div class="flotte-rail-brand">ADB Smart<span>Pannello Admin</span></div>
+            <div class="flotte-rail-item" id="flotte-home-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></svg>Home</div>
+            <div class="flotte-rail-item on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21V7l9-4 9 4v14"/><path d="M9 21v-6h6v6"/></svg>Flotte</div>
+          </div>
+          <div class="flotte-main">
+            <div class="flotte-topline">
+              <div>
+                <div class="flotte-eyebrow">Gestione clienti flotta</div>
+                <div class="flotte-page-title">Flotte</div>
+              </div>
+              <button id="flotte-add-btn" class="btn-block" style="width:auto;background:var(--accent);">+ Aggiungi flotta</button>
+            </div>
+            <div class="flotte-stats-row" id="flotte-stats"></div>
+            <div class="flotte-table" id="flotte-list"></div>
+          </div>
+        </div>
       </div>
-      <button id="flotte-add-btn" class="btn-block" style="margin-bottom:16px;background:var(--accent);">+ Aggiungi flotta</button>
-      <div id="flotte-list"></div>
     </div>
 
     <!-- Requested directly: a support chat with drivers, WhatsApp-style,
@@ -926,24 +977,42 @@
     }).then(function (r) { return r.json().then(function (data) { return { ok: r.ok, data: data }; }); });
   }
 
+  document.getElementById('flotte-home-btn').addEventListener('click', function () {
+    document.getElementById('modal-flotte').classList.remove('open');
+    document.getElementById('admin-home').style.display = 'grid';
+  });
+
   function loadFlotte() {
     return fleetCall({ action: 'admin_list_fleets' }).then(function (res) {
       if (res.ok && res.data.ok) { lastFlotte = res.data.fleets; renderFlotteList(); }
     });
   }
 
+  function flotteInitials(name) {
+    return (name || '?').trim().split(/\s+/).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase();
+  }
+
   function renderFlotteList() {
+    var statsEl = document.getElementById('flotte-stats');
+    var totalDrivers = lastFlotte.reduce(function (sum, f) { return sum + f.driver_count; }, 0);
+    statsEl.innerHTML =
+      '<div class="flotte-stat-card"><div class="flotte-stat-num">' + lastFlotte.length + '</div><div class="flotte-stat-label">Flotte attive</div></div>' +
+      '<div class="flotte-stat-card"><div class="flotte-stat-num">' + totalDrivers + '</div><div class="flotte-stat-label">Autisti totali</div></div>' +
+      '<div class="flotte-stat-card"><div class="flotte-stat-num">' + lastFlotte.length + '</div><div class="flotte-stat-label">Account creati</div></div>';
+
     var el = document.getElementById('flotte-list');
     if (!lastFlotte.length) {
-      el.innerHTML = '<div class="novita-card" style="text-align:center;color:var(--ink-faint);">Nessuna flotta creata ancora.</div>';
+      el.innerHTML = '<div style="text-align:center;color:var(--ink-faint);padding:40px 20px;font-size:14px;">Nessuna flotta creata ancora.</div>';
       return;
     }
-    var html = '';
+    var html = '<div class="flotte-row head"><div></div><div>Flotta</div><div>Autisti</div><div>Titolare</div><div></div></div>';
     lastFlotte.forEach(function (f) {
-      html += '<div class="novita-card">' +
-        '<div class="novita-title">' + escHtml(f.name) + '</div>' +
-        '<div class="novita-desc">adbsmart.it/' + escHtml(f.slug) + ' · ' + f.driver_count + ' autist' + (f.driver_count === 1 ? 'a' : 'i') + ' collegat' + (f.driver_count === 1 ? 'o' : 'i') + '</div>' +
-        '<div class="novita-desc" style="opacity:.7;">Titolare: ' + escHtml(f.owner_email) + '</div>' +
+      html += '<div class="flotte-row">' +
+        '<div class="flotte-logo">' + escHtml(flotteInitials(f.name)) + '</div>' +
+        '<div><div class="flotte-name">' + escHtml(f.name) + '</div><div class="flotte-url">adbsmart.it/' + escHtml(f.slug) + '</div></div>' +
+        '<div>' + f.driver_count + '</div>' +
+        '<div style="font-size:12.5px;color:var(--ink-faint);">' + escHtml(f.owner_email) + '</div>' +
+        '<div></div>' +
         '</div>';
     });
     el.innerHTML = html;
