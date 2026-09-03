@@ -182,7 +182,7 @@
       </p>
     </div>
 
-    <div class="fleet-table" id="driverTable"></div>
+    <div class="fleet-table" id="driverTable"><div class="empty-note">Caricamento…</div></div>
   </div>
 </div>
 
@@ -402,10 +402,37 @@
         currentDrivers = res.drivers;
         renderStats(res.drivers, res.period);
         renderDrivers(res.drivers);
+        populateDriverDropdowns();
         document.getElementById('driverNoteInput').value = res.driver_note || '';
         var readonlyNote = document.getElementById('driverNoteReadonly');
         readonlyNote.textContent = res.driver_note ? ('Promemoria: ' + res.driver_note) : '';
         readonlyNote.style.display = res.driver_note ? 'block' : 'none';
+      });
+    }
+
+    // REAL BUG, reported directly ("cam instabile, greu se incarca") —
+    // these two driver-filter dropdowns used to populate themselves
+    // ONLY the first time their own screen was visited, guarded by a
+    // "populated" flag — but that first visit could easily happen
+    // BEFORE refresh() above had gotten its answer back yet (its own
+    // fetch hadn't resolved), especially on a slower connection or a
+    // quick tap right after logging in. Once marked "populated" with
+    // an empty list, the dropdown stayed empty forever, even after
+    // refresh() later got the real drivers — exactly the kind of
+    // silent, hard-to-notice stall being described. Centralized here
+    // instead: called every time refresh() actually has fresh,
+    // confirmed data, so the dropdowns can never freeze on a stale
+    // empty state.
+    function populateDriverDropdowns() {
+      [document.getElementById('storicoDriverFilter'), document.getElementById('documentoDriverInput')].forEach(function (sel) {
+        if (!sel) return;
+        var keepFirstOption = sel.id === 'storicoDriverFilter';
+        var currentValue = sel.value;
+        sel.innerHTML = keepFirstOption ? '<option value="">Tutti gli autisti</option>' : '';
+        currentDrivers.forEach(function (d) {
+          sel.innerHTML += '<option value="' + esc(d.account_email) + '">' + esc(d.nome || d.account_email) + '</option>';
+        });
+        if (currentValue) sel.value = currentValue;
       });
     }
 
@@ -498,6 +525,7 @@
     });
 
     function loadTeam() {
+      document.getElementById('teamMembersList').innerHTML = '<div class="empty-note">Caricamento…</div>';
       call({ action: 'fleet_list_team', slug: slug, password: password }).then(function (res) {
         if (!res.ok) return;
         var el = document.getElementById('teamMembersList');
@@ -517,13 +545,8 @@
     }
 
     function loadStorico() {
+      document.getElementById('storicoList').innerHTML = '<div class="empty-note">Caricamento…</div>';
       var driverSelect = document.getElementById('storicoDriverFilter');
-      if (!driverSelect.dataset.populated) {
-        currentDrivers.forEach(function (d) {
-          driverSelect.innerHTML += '<option value="' + esc(d.account_email) + '">' + esc(d.nome || d.account_email) + '</option>';
-        });
-        driverSelect.dataset.populated = '1';
-      }
       var driverFilter = driverSelect.value;
       var dateFrom = document.getElementById('storicoDateFrom').value;
       var dateTo = document.getElementById('storicoDateTo').value;
@@ -553,13 +576,7 @@
     document.getElementById('storicoFilterBtn').addEventListener('click', loadStorico);
 
     function loadDocumenti() {
-      var driverSelect = document.getElementById('documentoDriverInput');
-      if (!driverSelect.dataset.populated) {
-        currentDrivers.forEach(function (d) {
-          driverSelect.innerHTML += '<option value="' + esc(d.account_email) + '">' + esc(d.nome || d.account_email) + '</option>';
-        });
-        driverSelect.dataset.populated = '1';
-      }
+      document.getElementById('documentiList').innerHTML = '<div class="empty-note">Caricamento…</div>';
       call({ action: 'fleet_list_documents', slug: slug, password: password }).then(function (res) {
         var el = document.getElementById('documentiList');
         if (!res.ok) { el.innerHTML = '<div class="empty-note">Impossibile caricare i documenti.</div>'; return; }
