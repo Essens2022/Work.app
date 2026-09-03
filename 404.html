@@ -98,6 +98,12 @@
   .delivery-row:last-child { border-bottom: none; }
   .delivery-client-name { font-weight: 700; }
   .delivery-addr { color: var(--ink-soft); font-size: 12px; margin-top: 1px; }
+  .document-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 16px; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+  .document-row:last-child { border-bottom: none; }
+  .document-name { font-weight: 700; }
+  .document-meta { color: var(--ink-soft); font-size: 12px; margin-top: 1px; }
+  .document-actions { display: flex; gap: 10px; flex: none; }
+  .document-actions a, .document-actions button { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 13px; font-weight: 700; }
   @media (max-width: 600px) {
     .delivery-row { grid-template-columns: 1fr; gap: 3px; }
     .delivery-row.head { display: none; }
@@ -140,6 +146,7 @@
     </div>
     <div style="display:flex;gap:10px;">
       <button class="btn btn-ghost" id="storicoBtn" style="width:auto;">Storico consegne</button>
+      <button class="btn btn-ghost" id="documentiBtn" style="width:auto;">Documenti</button>
       <button class="btn btn-ghost owner-only" id="teamBtn" style="width:auto;">Gestione team</button>
     </div>
   </div>
@@ -218,6 +225,29 @@
     <div id="storicoList"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" id="storicoModalClose">Chiudi</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="documentiModalBackdrop">
+  <div class="modal modal-wide">
+    <h3>Documenti</h3>
+    <p class="sub">Documenti condivisi con tutta la flotta, o specifici per un autista.</p>
+
+    <div class="add-row owner-only" style="align-items:flex-start;">
+      <input type="file" id="documentoFileInput" style="flex:1;min-width:200px;padding:9px 0;">
+      <select id="documentoScopeInput" style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:11px 14px;color:var(--ink);font-size:14px;">
+        <option value="fleet">Tutta la flotta</option>
+        <option value="driver">Un autista specifico</option>
+      </select>
+      <select id="documentoDriverInput" style="display:none;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:11px 14px;color:var(--ink);font-size:14px;"></select>
+      <button class="btn btn-accent" id="documentoUploadBtn" style="width:auto;">Carica</button>
+    </div>
+    <div class="error-msg" id="documentoError"></div>
+
+    <div id="documentiList" style="margin-top:16px;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="documentiModalClose">Chiudi</button>
     </div>
   </div>
 </div>
@@ -516,6 +546,91 @@
       document.getElementById('storicoModalBackdrop').classList.remove('open');
     });
     document.getElementById('storicoFilterBtn').addEventListener('click', loadStorico);
+
+    // Requested directly: shared or per-driver document uploads
+    // (price lists, client rosters, etc). Files themselves go
+    // straight from this page to Supabase Storage via a short-lived
+    // signed URL (fleet_get_upload_url) — the file bytes never pass
+    // through fleet-data itself, only the small JSON requests before
+    // and after do. Download works the same way, in reverse: a fresh
+    // signed URL generated on demand, valid a few minutes, never a
+    // permanent public link.
+    function loadDocumenti() {
+      call({ action: 'fleet_list_documents', slug: slug, password: password }).then(function (res) {
+        var el = document.getElementById('documentiList');
+        if (!res.ok) { el.innerHTML = '<div class="empty-note">Impossibile caricare i documenti.</div>'; return; }
+        if (!res.documents.length) { el.innerHTML = '<div class="empty-note">Nessun documento caricato ancora.</div>'; return; }
+
+        var html = '';
+        res.documents.forEach(function (d) {
+          var meta = d.scope === 'driver' ? ('Per ' + esc(d.driver_nome)) : 'Tutta la flotta';
+          html += '<div class="document-row">' +
+            '<div><div class="document-name">' + esc(d.filename) + '</div><div class="document-meta">' + meta + '</div></div>' +
+            '<div class="document-actions">' +
+            '<button class="doc-download-btn" data-id="' + esc(d.id) + '">Scarica</button>' +
+            '<button class="doc-delete-btn owner-only" data-id="' + esc(d.id) + '">Elimina</button>' +
+            '</div></div>';
+        });
+        el.innerHTML = html;
+
+        el.querySelectorAll('.doc-download-btn').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            call({ action: 'fleet_get_download_url', slug: slug, password: password, document_id: btn.dataset.id }).then(function (r) {
+              if (r.ok) window.open(r.url, '_blank');
+            });
+          });
+        });
+        el.querySelectorAll('.doc-delete-btn').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            if (!confirm('Eliminare questo documento?')) return;
+            call({ action: 'fleet_delete_document', slug: slug, password: password, document_id: btn.dataset.id }).then(loadDocumenti);
+          });
+        });
+      });
+    }
+
+    document.getElementById('documentiBtn').addEventListener('click', function () {
+      var driverSelect = document.getElementById('documentoDriverInput');
+      driverSelect.innerHTML = '';
+      currentDrivers.forEach(function (d) {
+        driverSelect.innerHTML += '<option value="' + esc(d.account_email) + '">' + esc(d.nome || d.account_email) + '</option>';
+      });
+      document.getElementById('documentiModalBackdrop').classList.add('open');
+      loadDocumenti();
+    });
+    document.getElementById('documentiModalClose').addEventListener('click', function () {
+      document.getElementById('documentiModalBackdrop').classList.remove('open');
+    });
+    document.getElementById('documentoScopeInput').addEventListener('change', function () {
+      document.getElementById('documentoDriverInput').style.display = this.value === 'driver' ? 'block' : 'none';
+    });
+
+    document.getElementById('documentoUploadBtn').addEventListener('click', function () {
+      var fileInput = document.getElementById('documentoFileInput');
+      var errEl = document.getElementById('documentoError');
+      errEl.style.display = 'none';
+      var file = fileInput.files[0];
+      if (!file) return;
+      var scope = document.getElementById('documentoScopeInput').value;
+      var driverEmail = scope === 'driver' ? document.getElementById('documentoDriverInput').value : null;
+      if (scope === 'driver' && !driverEmail) { errEl.textContent = 'Seleziona un autista.'; errEl.style.display = 'block'; return; }
+
+      call({ action: 'fleet_get_upload_url', slug: slug, password: password, filename: file.name }).then(function (res) {
+        if (!res.ok) { errEl.textContent = 'Impossibile ottenere il link di caricamento.'; errEl.style.display = 'block'; return; }
+
+        fetch(res.upload_url, { method: 'PUT', body: file, headers: { 'Content-Type': file.type || 'application/octet-stream' } })
+          .then(function (uploadRes) {
+            if (!uploadRes.ok) throw new Error('upload failed');
+            return call({ action: 'fleet_confirm_upload', slug: slug, password: password, filename: file.name, storage_path: res.storage_path, scope: scope, driver_email: driverEmail });
+          })
+          .then(function (confirmRes) {
+            if (!confirmRes || !confirmRes.ok) { errEl.textContent = 'Caricamento non riuscito.'; errEl.style.display = 'block'; return; }
+            fileInput.value = '';
+            loadDocumenti();
+          })
+          .catch(function () { errEl.textContent = 'Caricamento non riuscito.'; errEl.style.display = 'block'; });
+      });
+    });
 
     document.getElementById('teamBtn').addEventListener('click', function () {
       document.getElementById('teamModalBackdrop').classList.add('open');
