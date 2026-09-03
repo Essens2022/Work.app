@@ -226,7 +226,20 @@
      defensive addition, ruling out any inherited or implicit
      animation on this property entirely. */
   html{will-change:transform;}
-  @media screen and (orientation:landscape){
+  /* REAL BUG, reported directly: on a PC ("pagina e intoarsa pe una
+     parte" — flipped onto its side), the whole page appeared rotated
+     -90deg. Root cause: `orientation:landscape` alone is true for
+     ANY screen wider than it is tall — that's every ordinary desktop
+     monitor, not just a phone actually being held sideways. Added
+     `max-height:500px` as an extra condition: a phone in landscape is
+     always short (roughly 320–450px tall), while even a small desktop
+     window is comfortably taller than that — so this now fires only
+     for real phones, never for a PC. This is a deliberate side effect
+     for tablets too (an iPad in landscape is 768px+ tall, well over
+     this threshold) — the portrait-lock workaround this whole block
+     exists for is an iOS-phone-specific issue to begin with, not
+     something a tablet-sized screen needs forced onto it. */
+  @media screen and (orientation:landscape) and (max-height:500px){
     html{
       width:100vh;height:100vw;
       transform:rotate(-90deg);
