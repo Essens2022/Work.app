@@ -66,6 +66,9 @@
   .add-row { display: flex; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
   .add-row input { flex: 1; min-width: 200px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 11px 16px; color: var(--ink); font-size: 14px; font-family: 'Inter', sans-serif; }
   .add-row .btn { width: auto; }
+  .add-driver-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
+  .add-driver-tab { padding: 9px 16px; border-radius: 100px; font-size: 13px; font-weight: 700; cursor: pointer; background: var(--surface); color: var(--ink-soft); border: 1px solid var(--line); }
+  .add-driver-tab.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
   @media (max-width: 700px) {
     .driver-row { grid-template-columns: 1fr; gap: 4px; }
     .driver-row.head { display: none; }
@@ -102,11 +105,30 @@
 
   <div class="stats-row" id="statsRow"></div>
 
-  <div class="add-row">
-    <input type="text" id="addDriverInput" placeholder="Email o ID autista (es. mario.b@email.it oppure IB-01)">
-    <button class="btn btn-accent" id="addDriverBtn">+ Aggiungi autista</button>
+  <div class="add-driver-tabs">
+    <div class="add-driver-tab on" data-tab="existing">Autista esistente</div>
+    <div class="add-driver-tab" data-tab="invite">Invita nuovo autista</div>
   </div>
-  <div class="error-msg" id="addDriverError"></div>
+
+  <div id="addExistingArea">
+    <div class="add-row">
+      <input type="text" id="addDriverInput" placeholder="Email o ID autista (es. mario.b@email.it oppure IB-01)">
+      <button class="btn btn-accent" id="addDriverBtn">+ Aggiungi autista</button>
+    </div>
+    <div class="error-msg" id="addDriverError"></div>
+  </div>
+
+  <div id="addInviteArea" style="display:none;margin-bottom:18px;">
+    <div class="add-row">
+      <input type="text" id="inviteNameInput" placeholder="Nome e cognome">
+      <input type="text" id="invitePhoneInput" placeholder="Numero di telefono (es. 333 1234567)">
+      <button class="btn btn-accent" id="inviteSendBtn">Invia invito WhatsApp</button>
+    </div>
+    <p style="font-size:12.5px;color:var(--ink-soft);margin:0;">
+      Si aprirà WhatsApp con un messaggio già pronto — dopo che l'autista scarica l'app e crea il suo account,
+      aggiungilo qui sopra con la sua email, nella scheda "Autista esistente".
+    </p>
+  </div>
 
   <div class="driver-table" id="driverTable"></div>
 </div>
@@ -273,6 +295,40 @@
         input.value = '';
         refresh();
       });
+    });
+
+    // Requested directly: inviting a driver who doesn't have the app
+    // yet — ION chose the simplest, free option over a paid WhatsApp
+    // Business API integration (which needs Meta approval and a
+    // per-message cost): a wa.me link with the message pre-filled,
+    // opened for the fleet owner to just tap send. No new account
+    // gets auto-linked from this — after the invited driver installs
+    // the app and creates their own account, the owner still adds
+    // them normally, in the "Autista esistente" tab, by their email —
+    // same explicit, deliberate linking already used everywhere else
+    // in this system, just one extra manual step instead of a fragile
+    // auto-link that could silently attach the wrong person.
+    document.querySelectorAll('.add-driver-tab').forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        document.querySelectorAll('.add-driver-tab').forEach(function (t) { t.classList.remove('on'); });
+        tab.classList.add('on');
+        var isInvite = tab.dataset.tab === 'invite';
+        document.getElementById('addExistingArea').style.display = isInvite ? 'none' : 'block';
+        document.getElementById('addInviteArea').style.display = isInvite ? 'block' : 'none';
+      });
+    });
+
+    document.getElementById('inviteSendBtn').addEventListener('click', function () {
+      var name = document.getElementById('inviteNameInput').value.trim();
+      var phoneRaw = document.getElementById('invitePhoneInput').value.trim();
+      if (!name || !phoneRaw) return;
+      // wa.me needs digits only (country code + number, no spaces,
+      // +, or other punctuation) — stripped here rather than asking
+      // the fleet owner to type it in some exact required format.
+      var phoneDigits = phoneRaw.replace(/[^0-9]/g, '');
+      var message = 'Ciao ' + name + '! Ti invito a unirti a ' + fleetName + ' su ADB Smart, l\'app per la gestione delle consegne. Scarica l\'app qui: https://adbsmart.it — dopo aver creato il tuo account, faccelo sapere per collegarti alla flotta.';
+      var waUrl = 'https://wa.me/' + phoneDigits + '?text=' + encodeURIComponent(message);
+      window.open(waUrl, '_blank');
     });
 
     refresh();
