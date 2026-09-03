@@ -74,6 +74,30 @@
     .driver-row.head { display: none; }
     .driver-row:not(.head) { border: 1px solid var(--line); border-radius: 12px; margin: 0 0 10px; }
   }
+
+  /* ---------- Team roles + reminder note + modal ---------- */
+  /* Requested: a "viewer" (read-only) role — everything that WRITES
+     (add/remove driver, edit the reminder note, manage the team) is
+     hidden with this one single class, toggled once at login, rather
+     than hiding each control separately — one source of truth for
+     "can this person change anything here", impossible to
+     accidentally leave one write control visible for a viewer. */
+  body.role-viewer .owner-only { display: none !important; }
+  body:not(.role-viewer) .viewer-only { display: none !important; }
+  .note-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin-bottom: 20px; }
+  .note-card textarea { width: 100%; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; color: var(--ink); font-size: 13.5px; font-family: 'Inter', sans-serif; resize: vertical; }
+  #driverNoteReadonly { font-size: 13.5px; color: var(--ink-soft); }
+  .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 200; align-items: center; justify-content: center; padding: 20px; }
+  .modal-backdrop.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px; max-width: 400px; width: 100%; }
+  .modal h3 { font-size: 21px; margin: 0 0 6px; }
+  .modal p.sub { color: var(--ink-soft); font-size: 13px; margin: 0 0 18px; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 18px; }
+  .modal-actions .btn { flex: 1; justify-content: center; }
+  .team-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+  .team-row:last-child { border-bottom: none; }
+  .team-role-pill { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 100px; background: var(--surface-2); color: var(--ink-soft); }
+  .team-remove { background: none; border: none; color: var(--ink-soft); cursor: pointer; font-size: 12.5px; }
 </style>
 </head>
 <body>
@@ -99,18 +123,27 @@
   <div class="dash-top">
     <div class="dash-brand">
       <div class="fleet-badge" id="dashBadge">··</div>
-      <div><div class="dash-title" id="dashName">—</div><div class="dash-sub">Pannello flotta · ADB Smart</div></div>
+      <div><div class="dash-title" id="dashName">—</div><div class="dash-sub" id="dashSub">Pannello flotta · ADB Smart</div></div>
     </div>
+    <button class="btn btn-ghost owner-only" id="teamBtn" style="width:auto;">Gestione team</button>
   </div>
 
   <div class="stats-row" id="statsRow"></div>
 
-  <div class="add-driver-tabs">
+  <div class="note-card owner-only">
+    <label style="display:block;font-size:11.5px;font-weight:700;color:var(--ink-soft);margin-bottom:6px;">Promemoria per i nuovi autisti</label>
+    <textarea id="driverNoteInput" placeholder="Es. Veicolo: furgone. Consegna entro le 07:00." rows="2"></textarea>
+    <button class="btn btn-ghost" id="driverNoteSaveBtn" style="width:auto;margin-top:8px;">Salva promemoria</button>
+    <span id="driverNoteSaved" style="font-size:12.5px;color:var(--green);margin-left:10px;display:none;">Salvato ✓</span>
+  </div>
+  <div class="note-card viewer-only" id="driverNoteReadonly" style="display:none;"></div>
+
+  <div class="add-driver-tabs owner-only">
     <div class="add-driver-tab on" data-tab="existing">Autista esistente</div>
     <div class="add-driver-tab" data-tab="invite">Invita nuovo autista</div>
   </div>
 
-  <div id="addExistingArea">
+  <div id="addExistingArea" class="owner-only">
     <div class="add-row">
       <input type="text" id="addDriverInput" placeholder="Email o ID autista (es. mario.b@email.it oppure IB-01)">
       <button class="btn btn-accent" id="addDriverBtn">+ Aggiungi autista</button>
@@ -118,7 +151,7 @@
     <div class="error-msg" id="addDriverError"></div>
   </div>
 
-  <div id="addInviteArea" style="display:none;margin-bottom:18px;">
+  <div id="addInviteArea" class="owner-only" style="display:none;margin-bottom:18px;">
     <div class="add-row">
       <input type="text" id="inviteNameInput" placeholder="Nome e cognome">
       <input type="text" id="invitePhoneInput" placeholder="Numero di telefono (es. 333 1234567)">
@@ -131,6 +164,29 @@
   </div>
 
   <div class="driver-table" id="driverTable"></div>
+</div>
+
+<div class="modal-backdrop" id="teamModalBackdrop">
+  <div class="modal">
+    <h3>Gestione team</h3>
+    <p class="sub">Invita colleghi al tuo account, con permessi diversi in base al loro ruolo.</p>
+    <div id="teamMembersList" style="margin-bottom:18px;"></div>
+    <div class="field">
+      <label>Email del collega</label>
+      <input type="email" id="teamEmailInput" placeholder="collega@azienda.it">
+    </div>
+    <div class="field">
+      <label>Ruolo</label>
+      <select id="teamRoleInput" style="width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;color:var(--ink);font-size:14.5px;">
+        <option value="viewer">Sola lettura (es. contabilità)</option>
+        <option value="owner">Accesso completo</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="teamModalClose">Chiudi</button>
+      <button class="btn btn-accent" id="teamAddBtn">Invita</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -200,7 +256,7 @@
           return;
         }
         sessionStorage.setItem('adb_fleet_pw_' + slug, password);
-        showDashboard(fleetName, password);
+        showDashboard(fleetName, password, loginRes.role);
       });
     }
   });
@@ -216,17 +272,22 @@
     return Math.round(hours / 24) + ' giorni fa';
   }
 
-  function showDashboard(fleetName, password) {
+  function showDashboard(fleetName, password, role) {
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('dashScreen').style.display = 'block';
     document.getElementById('dashName').textContent = fleetName;
     document.getElementById('dashBadge').textContent = badgeInitials(fleetName);
+    if (role === 'viewer') document.body.classList.add('role-viewer');
 
     function refresh() {
       call({ action: 'fleet_get_dashboard', slug: slug, password: password }).then(function (res) {
         if (!res.ok) return;
         renderStats(res.drivers, res.period);
         renderDrivers(res.drivers);
+        document.getElementById('driverNoteInput').value = res.driver_note || '';
+        var readonlyNote = document.getElementById('driverNoteReadonly');
+        readonlyNote.textContent = res.driver_note ? ('Promemoria: ' + res.driver_note) : '';
+        readonlyNote.style.display = res.driver_note ? 'block' : 'none';
       });
     }
 
@@ -329,6 +390,58 @@
       var message = 'Ciao ' + name + '! Ti invito a unirti a ' + fleetName + ' su ADB Smart, l\'app per la gestione delle consegne. Scarica l\'app qui: https://adbsmart.it — dopo aver creato il tuo account, faccelo sapere per collegarti alla flotta.';
       var waUrl = 'https://wa.me/' + phoneDigits + '?text=' + encodeURIComponent(message);
       window.open(waUrl, '_blank');
+    });
+
+    document.getElementById('driverNoteSaveBtn').addEventListener('click', function () {
+      var note = document.getElementById('driverNoteInput').value;
+      call({ action: 'fleet_set_driver_note', slug: slug, password: password, note: note }).then(function (res) {
+        if (!res.ok) return;
+        var savedLabel = document.getElementById('driverNoteSaved');
+        savedLabel.style.display = 'inline';
+        setTimeout(function () { savedLabel.style.display = 'none'; }, 2000);
+      });
+    });
+
+    // Requested: multiple people, different permission levels — this
+    // whole modal (and the button that opens it) is owner-only,
+    // hidden entirely for a viewer via the same role-viewer class
+    // used everywhere else in this page.
+    function loadTeam() {
+      call({ action: 'fleet_list_team', slug: slug, password: password }).then(function (res) {
+        if (!res.ok) return;
+        var el = document.getElementById('teamMembersList');
+        var html = '<div class="team-row"><div>' + esc(res.owner_email) + '</div><span class="team-role-pill">Titolare</span></div>';
+        (res.members || []).forEach(function (m) {
+          html += '<div class="team-row"><div>' + esc(m.email) + '</div><div style="display:flex;gap:8px;align-items:center;">' +
+            '<span class="team-role-pill">' + (m.role === 'owner' ? 'Accesso completo' : 'Sola lettura') + '</span>' +
+            '<button class="team-remove" data-id="' + esc(m.id) + '">Rimuovi</button></div></div>';
+        });
+        el.innerHTML = html;
+        el.querySelectorAll('.team-remove').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            call({ action: 'fleet_remove_team_member', slug: slug, password: password, member_id: btn.dataset.id }).then(loadTeam);
+          });
+        });
+      });
+    }
+
+    document.getElementById('teamBtn').addEventListener('click', function () {
+      document.getElementById('teamModalBackdrop').classList.add('open');
+      loadTeam();
+    });
+    document.getElementById('teamModalClose').addEventListener('click', function () {
+      document.getElementById('teamModalBackdrop').classList.remove('open');
+    });
+    document.getElementById('teamAddBtn').addEventListener('click', function () {
+      var email = document.getElementById('teamEmailInput').value.trim();
+      var role = document.getElementById('teamRoleInput').value;
+      if (!email) return;
+      call({ action: 'fleet_add_team_member', slug: slug, password: password, email: email, role: role }).then(function (res) {
+        if (!res.ok) { alert(res.reason === 'already_added' ? 'Questa persona ha già accesso.' : 'Impossibile aggiungere.'); return; }
+        alert('Invitato! Password temporanea per ' + email + ': ' + res.temp_password + '\n\nCondividila con loro — non verrà mostrata di nuovo.');
+        document.getElementById('teamEmailInput').value = '';
+        loadTeam();
+      });
     });
 
     refresh();
