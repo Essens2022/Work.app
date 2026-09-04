@@ -662,6 +662,10 @@
   // those who have (covers the phone that hasn't synced its email yet).
   function groupDrivers(drivers) {
     var groups = {};
+    // Same Europe/Rome local-date logic the increment_daily_open RPC
+    // itself uses server-side, so "today" here always means the same
+    // day the counter was actually incremented against.
+    var todayLocalDateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Rome' });
     (drivers || []).forEach(function (d) {
       // Prefer the confirmed email as the identifying key — it's the one
       // truly stable signal for a real person (only the actual account
@@ -708,7 +712,16 @@
       g.devices.push({ device_id: d.device_id, nome: d.nome || '(senza nome)', targa: d.targa || '—', last_active: d.last_active });
       if (d.account_email) g.emails[d.account_email] = true;
       if (d.driver_id && !g.driverId) g.driverId = d.driver_id;
-      g.opensToday += Number(d.opens_today) || 0;
+      // REAL BUG, found while investigating a direct request to verify
+      // this counter works properly: opens_today from EVERY device was
+      // summed unconditionally, with no check that opens_today_date is
+      // actually today — a device that opened the app 5 times
+      // yesterday, then not at all today, still contributes that
+      // stale 5 to "Aperture app oggi" forever, until its next real
+      // open overwrites it. Compared against the same Europe/Rome
+      // local date the RPC itself uses to decide same-day vs new-day,
+      // so this only ever counts opens that genuinely happened today.
+      if (d.opens_today_date === todayLocalDateStr) g.opensToday += Number(d.opens_today) || 0;
       if (d.is_installed) g.anyInstalled = true;
       // Requested directly: ION wants visibility into who has push
       // notifications actively enabled, to be able to reach drivers
