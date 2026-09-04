@@ -329,6 +329,25 @@
     width:36px;height:36px;flex:none;font-size:18px;color:var(--ink);cursor:pointer;
     display:flex;align-items:center;justify-content:center;font-family:inherit;
   }
+  /* Requested directly: Autisti/Novità/Video's own "×" should sit in
+     the screen's true top-left corner, not wherever it happened to
+     land inside .wrap (max-width:640px, centered) — on any desktop
+     screen wider than that, the centered box (and its "×" inside it)
+     sat well away from the actual corner, a different distance on
+     every screen width. Fixed positioning pins it to the same real
+     corner regardless. Flotte and Messaggi are excluded on purpose —
+     both are their OWN fullscreen layout with a sidebar of their own,
+     where the "×" already sits correctly, right next to that
+     specific page's own title; forcing the same fixed corner there
+     would land it on top of their sidebar instead. z-index above
+     everything else in this file (highest previous was 999, the
+     photo-zoom overlay) so it's never covered. */
+  #modal-autisti .admin-modal-close, #modal-novita .admin-modal-close, #modal-video .admin-modal-close {
+    position:fixed;top:16px;left:16px;z-index:1001;
+  }
+  #modal-autisti .admin-modal-header, #modal-novita .admin-modal-header, #modal-video .admin-modal-header {
+    padding-left:46px;
+  }
   /* REAL BUG, found and fixed directly: the Messaggi thread's own
      "back" button reused the .admin-modal-close class purely for its
      visual style, but that class is ALSO what the generic close-
