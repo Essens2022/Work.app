@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v518"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v519"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -1490,25 +1490,27 @@
     return { total: total, completed: completed, remaining: total - completed };
   }
 
-  // REAL BUG, reported directly: "nu chiar la finalul listei, se
-  // muta prima in lista cu cele consegnate — lista de consegnate
-  // trebuie sa mearga asa cum au fost facute". The completed group
-  // was being kept in whatever order it happened to sit in the array
-  // (route/positional order), not the order deliveries actually
-  // finished — so a client completed SECOND could still show up
-  // ahead of one completed FIRST, if it happened to come earlier in
-  // the route. Sorted here by completedAt instead — genuinely
-  // chronological, oldest completion first, matching "as they were
-  // done" exactly. Clients with no completedAt at all (shouldn't
-  // normally happen once actually completed, but never trust that)
-  // sort last within the group rather than crashing or landing in an
-  // arbitrary spot. Shared by every place that builds the completed
-  // tail of the list — dpConfirmReordina's own immediate reorder,
+  // REAL BUG, reported directly, then clarified with a concrete
+  // example after an earlier attempt sorted the wrong direction:
+  // the FIRST delivery done (this morning) must end up LAST in the
+  // whole list; the most recently completed one rises toward the
+  // TOP of the completed section (right after the pending items) —
+  // each new completion "climbs" there as it happens, pushing older
+  // completions further down toward the very end. That's DESCENDING
+  // completedAt within the group, not ascending — the exact opposite
+  // of "as they were done" read literally as sorted-oldest-first;
+  // ION's own worked example (mark A first, then C, then B → wants
+  // B, C, A, not A, C, B) confirmed this reading directly. Clients
+  // with no completedAt at all (shouldn't normally happen once
+  // actually completed, but never trust that) sort last within the
+  // group rather than crashing or landing in an arbitrary spot.
+  // Shared by every place that builds the completed tail of the
+  // list — dpConfirmReordina's own immediate reorder,
   // dpRunAutoOptimization, and applyOrder — so all three always agree
   // on the same order.
   function dpSortByCompletionOrder(completedClients) {
     return completedClients.slice().sort(function (a, b) {
-      return (a.completedAt || Infinity) - (b.completedAt || Infinity);
+      return (b.completedAt || -Infinity) - (a.completedAt || -Infinity);
     });
   }
 
@@ -3974,6 +3976,21 @@
     state.deliveryRun.clients = state.deliveryRun.clients.filter(function (c) { return c.status !== 'completed'; })
       .concat(dpSortByCompletionOrder(state.deliveryRun.clients.filter(function (c) { return c.status === 'completed'; })));
     saveDeliveryRun(state.deliveryRun);
+    // REAL BUG, reported directly ("functioneaza cu intarzieri, nu
+    // este instant"): the reorder right above already happens in
+    // memory instantly, but nothing on screen reflected it until the
+    // ENTIRE async route optimization below (a real network round
+    // trip to ORS, which can take a genuinely noticeable couple of
+    // seconds) finished and called applyOrder/closed this modal — so
+    // the driver saw the modal just sit there, unchanged, for that
+    // whole stretch, looking exactly like nothing had happened yet.
+    // Closing the modal and re-rendering right here instead means the
+    // completed/pending split is visible the instant it actually
+    // happens; the optimization below still runs the same as before,
+    // refining the PENDING section's own route order a little later
+    // once ORS actually replies, and re-renders again then.
+    dpCloseModal('modal-dp-reordina');
+    renderDeliveryPlanner();
     // REAL BUG, reported directly: a fleet owner looking at "Consegne"
     // during the day saw nothing from today, because deliveries were
     // only ever pushed to the server when the whole day got archived —
