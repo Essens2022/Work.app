@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v517"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v518"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -1488,6 +1488,28 @@
     var total = run.clients.length;
     var completed = run.clients.filter(function (c) { return c.status === 'completed'; }).length;
     return { total: total, completed: completed, remaining: total - completed };
+  }
+
+  // REAL BUG, reported directly: "nu chiar la finalul listei, se
+  // muta prima in lista cu cele consegnate — lista de consegnate
+  // trebuie sa mearga asa cum au fost facute". The completed group
+  // was being kept in whatever order it happened to sit in the array
+  // (route/positional order), not the order deliveries actually
+  // finished — so a client completed SECOND could still show up
+  // ahead of one completed FIRST, if it happened to come earlier in
+  // the route. Sorted here by completedAt instead — genuinely
+  // chronological, oldest completion first, matching "as they were
+  // done" exactly. Clients with no completedAt at all (shouldn't
+  // normally happen once actually completed, but never trust that)
+  // sort last within the group rather than crashing or landing in an
+  // arbitrary spot. Shared by every place that builds the completed
+  // tail of the list — dpConfirmReordina's own immediate reorder,
+  // dpRunAutoOptimization, and applyOrder — so all three always agree
+  // on the same order.
+  function dpSortByCompletionOrder(completedClients) {
+    return completedClients.slice().sort(function (a, b) {
+      return (a.completedAt || Infinity) - (b.completedAt || Infinity);
+    });
   }
 
   function dpFormatTime(ts) {
@@ -3413,7 +3435,7 @@
       var addedDuringRun = state.deliveryRun.clients.filter(function (c) { return c.status !== 'completed' && !knownIds[c.id]; });
       var finalOrder = optimized.concat(unverified).concat(droppedByOrs).concat(addedDuringRun)
         .filter(function (c) { return !completedNowIds[c.id]; })
-        .concat(completedNow);
+        .concat(dpSortByCompletionOrder(completedNow));
       dpAnimateListReorder(function () {
         state.deliveryRun.clients = finalOrder;
         saveDeliveryRun(state.deliveryRun);
@@ -3950,7 +3972,7 @@
     // ones by route afterward, exactly as before; this only fixes
     // where the completed ones sit relative to them, immediately.
     state.deliveryRun.clients = state.deliveryRun.clients.filter(function (c) { return c.status !== 'completed'; })
-      .concat(state.deliveryRun.clients.filter(function (c) { return c.status === 'completed'; }));
+      .concat(dpSortByCompletionOrder(state.deliveryRun.clients.filter(function (c) { return c.status === 'completed'; })));
     saveDeliveryRun(state.deliveryRun);
     // REAL BUG, reported directly: a fleet owner looking at "Consegne"
     // during the day saw nothing from today, because deliveries were
@@ -4087,7 +4109,7 @@
       var knownIds = {};
       orderedRemaining.forEach(function (c) { knownIds[c.id] = true; });
       var addedDuringRun = state.deliveryRun.clients.filter(function (c) { return c.status !== 'completed' && !knownIds[c.id]; });
-      state.deliveryRun.clients = orderedRemaining.concat(addedDuringRun).filter(function (c) { return !completedNowIds[c.id]; }).concat(completedNow);
+      state.deliveryRun.clients = orderedRemaining.concat(addedDuringRun).filter(function (c) { return !completedNowIds[c.id]; }).concat(dpSortByCompletionOrder(completedNow));
       saveDeliveryRun(state.deliveryRun);
       confirmBtn.disabled = false;
       confirmBtn.textContent = 'Ricalcola percorso';
