@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v515"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v516"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -3394,7 +3394,24 @@
       var completedNowIds = {};
       state.deliveryRun.clients.forEach(function (c) { if (c.status === 'completed') completedNowIds[c.id] = true; });
       var completedNow = state.deliveryRun.clients.filter(function (c) { return c.status === 'completed'; });
-      var finalOrder = optimized.concat(unverified).concat(droppedByOrs)
+      // REAL BUG, reported directly ("mi-a eliminat dei clienti dal
+      // percorso di oggi"): the exact same stale-snapshot issue as
+      // "completed" above, just for the opposite direction — a client
+      // added WHILE this optimization's own network round trip was
+      // still in flight (a real request, can genuinely take a few
+      // seconds) exists only in the live state, never in
+      // optimized/unverified/droppedByOrs (all captured from the OLD
+      // list, before this request even started) — so it was silently
+      // erased the instant this stale result overwrote
+      // state.deliveryRun.clients wholesale. Found here the same way
+      // completed-since is found above: anything in the CURRENT list
+      // that isn't completed and wasn't part of what this result
+      // already accounts for is a genuinely new addition, appended
+      // rather than lost.
+      var knownIds = {};
+      optimized.concat(unverified).concat(droppedByOrs).forEach(function (c) { knownIds[c.id] = true; });
+      var addedDuringRun = state.deliveryRun.clients.filter(function (c) { return c.status !== 'completed' && !knownIds[c.id]; });
+      var finalOrder = optimized.concat(unverified).concat(droppedByOrs).concat(addedDuringRun)
         .filter(function (c) { return !completedNowIds[c.id]; })
         .concat(completedNow);
       dpAnimateListReorder(function () {
@@ -4044,7 +4061,15 @@
       var completedNowIds = {};
       state.deliveryRun.clients.forEach(function (c) { if (c.status === 'completed') completedNowIds[c.id] = true; });
       var completedNow = state.deliveryRun.clients.filter(function (c) { return c.status === 'completed'; });
-      state.deliveryRun.clients = orderedRemaining.filter(function (c) { return !completedNowIds[c.id]; }).concat(completedNow);
+      // REAL BUG, reported directly ("mi-a eliminat dei clienti dal
+      // percorso di oggi"): same stale-snapshot issue as "completed"
+      // just above, in the opposite direction — see the identical fix
+      // and full explanation in dpRunAutoOptimization's own applyOrder
+      // equivalent, right above this function.
+      var knownIds = {};
+      orderedRemaining.forEach(function (c) { knownIds[c.id] = true; });
+      var addedDuringRun = state.deliveryRun.clients.filter(function (c) { return c.status !== 'completed' && !knownIds[c.id]; });
+      state.deliveryRun.clients = orderedRemaining.concat(addedDuringRun).filter(function (c) { return !completedNowIds[c.id]; }).concat(completedNow);
       saveDeliveryRun(state.deliveryRun);
       confirmBtn.disabled = false;
       confirmBtn.textContent = 'Ricalcola percorso';
