@@ -96,6 +96,18 @@
   }
   .eyebrow { font-size: 13px; color: var(--ink-soft); font-weight: 600; margin-bottom: 6px; }
   .page-title { font-size: 34px; line-height: 1; }
+  /* Requested directly: the descriptive line under a page title
+     ("Tutti gli autisti · ultimi 30 giorni", etc.) repeated
+     information the title already implied, and just took up extra
+     vertical space. Removed everywhere. Consegne specifically also
+     gets its own compact variant: title + filters share a single
+     slim row, with the filters absorbed directly into the fixed top
+     bar instead of scrolling away with the list below — so only the
+     actual delivery rows ever need to scroll, nothing else. */
+  .topline-compact { align-items: center; gap: 16px; flex-wrap: wrap; padding-top: 18px; padding-bottom: 14px; }
+  .page-title-compact { font-size: 21px; white-space: nowrap; }
+  .filter-row-inline { margin: 0; flex: 1; min-width: 260px; }
+  .filter-row-inline .driver-search { flex: 1; min-width: 160px; max-width: 320px; }
   .btn {
     display: inline-flex; align-items: center; gap: 8px; border: none; cursor: pointer;
     font-family: 'Inter', sans-serif; font-weight: 700; font-size: 14px; border-radius: 10px;
@@ -195,6 +207,11 @@
       position: fixed; top: 0; left: 0; right: 0; z-index: 15;
       padding: calc(16px + env(safe-area-inset-top)) 16px 16px; margin: 0;
     }
+    .topline-compact { flex-direction: column; align-items: stretch; gap: 10px; }
+    .filter-row-inline { flex-direction: column; }
+    .filter-row-inline .driver-search { max-width: none; }
+    .top-actions { top: calc(10px + env(safe-area-inset-top)); right: 12px; }
+    .top-export-btn span, .top-export-btn { padding: 7px 10px; }
     .driver-toolbar { flex-direction: column; }
     body.app-shown .bottom-nav { display: flex; }
   }
@@ -275,8 +292,12 @@
   .add-driver-tab.on { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
 
   /* ---------- Theme toggle ---------- */
-  .theme-toggle {
+  .top-actions {
     position: fixed; top: 16px; right: 16px; z-index: 300;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .top-export-btn { padding: 8px 12px; font-size: 12.5px; gap: 5px; }
+  .theme-toggle {
     width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line);
     background: var(--surface); color: var(--ink); cursor: pointer;
     display: flex; align-items: center; justify-content: center;
@@ -301,10 +322,16 @@
 </head>
 <body>
 
-<button class="theme-toggle" id="themeToggle" aria-label="Cambia tema" type="button">
-  <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
-  <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>
-</button>
+<div class="top-actions">
+  <button class="btn btn-ghost top-export-btn" id="exportCsvBtn" title="Esporta CSV" style="display:none;">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+    CSV
+  </button>
+  <button class="theme-toggle" id="themeToggle" aria-label="Cambia tema" type="button">
+    <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+    <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/></svg>
+  </button>
+</div>
 
 <!-- SCREEN: Fleet login (copied from mockup's fleet-login) -->
 <div class="screen active" id="fleet-login">
@@ -345,7 +372,6 @@
     <div class="main">
       <div class="topline">
         <div>
-          <div class="eyebrow" id="dashSub">Pannello flotta · ADB Smart</div>
           <h1 class="page-title">Panoramica flotta</h1>
         </div>
         <div style="display:flex;gap:10px;">
@@ -403,28 +429,20 @@
       <div class="rail-item owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
     </div>
     <div class="main">
-      <div class="topline">
-        <div>
-          <div class="eyebrow">Tutti gli autisti · ultimi 30 giorni</div>
-          <h1 class="page-title">Storico consegne</h1>
+      <div class="topline topline-compact">
+        <h1 class="page-title page-title-compact">Storico consegne</h1>
+        <div class="filter-row filter-row-inline">
+          <select class="filter-select" id="storicoDriverFilter"><option value="">Tutti gli autisti</option></select>
+          <select class="filter-select" id="storicoPeriodFilter">
+            <option value="7">Ultimi 7 giorni</option>
+            <option value="30" selected>Ultimi 30 giorni</option>
+            <option value="">Tutti</option>
+          </select>
+          <input class="driver-search" id="storicoSearchInput" placeholder="Cerca cliente o indirizzo...">
         </div>
-        <button class="btn btn-ghost" id="exportCsvBtn">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
-          Esporta CSV
-        </button>
       </div>
 
       <div class="main-inner">
-      <div class="filter-row">
-        <select class="filter-select" id="storicoDriverFilter"><option value="">Tutti gli autisti</option></select>
-        <select class="filter-select" id="storicoPeriodFilter">
-          <option value="7">Ultimi 7 giorni</option>
-          <option value="30" selected>Ultimi 30 giorni</option>
-          <option value="">Tutti</option>
-        </select>
-        <input class="driver-search" id="storicoSearchInput" style="max-width:260px;" placeholder="Cerca cliente o indirizzo...">
-      </div>
-
       <div class="fleet-table" id="storicoList"></div>
       </div>
     </div>
@@ -450,7 +468,6 @@
     <div class="main">
       <div class="topline">
         <div>
-          <div class="eyebrow">Listini, contratti e anagrafiche clienti</div>
           <h1 class="page-title">Documenti</h1>
         </div>
         <button class="btn btn-accent owner-only" id="openUploadModalBtn">
@@ -496,7 +513,6 @@
     <div class="main">
       <div class="topline">
         <div>
-          <div class="eyebrow">Posizione in tempo reale — funzionalità in arrivo</div>
           <h1 class="page-title">Mappa flotta</h1>
         </div>
       </div>
@@ -538,7 +554,6 @@
     <div class="main" style="max-width:720px;">
       <div class="topline">
         <div>
-          <div class="eyebrow">Il tuo account flotta</div>
           <h1 class="page-title">Impostazioni</h1>
         </div>
       </div>
@@ -794,6 +809,7 @@
         el.classList.toggle('on', el.dataset.goto === name);
       });
       window.scrollTo(0, 0);
+      document.getElementById('exportCsvBtn').style.display = name === 'consegne' ? 'flex' : 'none';
       if (name === 'consegne') loadStorico();
       if (name === 'documenti') loadDocumenti();
       if (name === 'impostazioni') loadTeam();
