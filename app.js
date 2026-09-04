@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v514"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v515"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -2002,11 +2002,36 @@
     if (autoToggle) autoToggle.addEventListener('click', function () {
       var turningOn = !dpAutoRiordinaEnabled();
       dpSetAutoRiordinaEnabled(turningOn);
+      // REAL BUG, reported directly ("nu se intampla nimic vizibil,
+      // fara mesaj"): turning AUTO on silently does nothing at all in
+      // two genuine, common cases — only 1 delivery left pending
+      // (nothing to reorder), or the list already matches AUTO's own
+      // last-optimized order (e.g. right after using manual
+      // "Ricalcola percorso" on the same, unchanged list) — the
+      // trigger check inside renderDeliveryPlanner below stays quiet
+      // in both, by design, since it also runs on every unrelated
+      // re-render and can't toast every single time. Checked here
+      // instead, ONLY at the moment of turning it on, where a message
+      // is actually warranted — and shown INSTEAD OF the coordinates
+      // info card below, not alongside it, so the driver isn't hit
+      // with two separate messages at once.
+      var alreadyExplained = false;
+      if (turningOn) {
+        var pendingNow = state.deliveryRun.clients.filter(function (c) { return c.status !== 'completed'; });
+        var sigNow = pendingNow.map(function (c) { return c.id; }).join(',');
+        if (pendingNow.length <= 1) {
+          toast(pendingNow.length === 1 ? 'Auto attivo — nulla da riordinare, resta solo una consegna.' : 'Auto attivo — tutte le consegne sono già completate.', 3500);
+          alreadyExplained = true;
+        } else if (sigNow === dpLastAutoOptimizedSignature) {
+          toast('Auto attivo — il percorso è già nell\'ordine ottimale.', 3000);
+          alreadyExplained = true;
+        }
+      }
       renderDeliveryPlanner(); // re-render flips the visual state immediately, and (via the auto-run check at the top of this function) triggers an optimization right away if it was just switched on
       // Requested directly: explain, briefly, each time this is
       // switched ON specifically (not when switching it off) — why
       // coordinates matter for this feature to work reliably.
-      if (turningOn) showAutoRiordinaInfoNotice();
+      if (turningOn && !alreadyExplained) showAutoRiordinaInfoNotice();
     });
     var gmapsBtn = document.getElementById('dp-open-gmaps-btn');
     if (gmapsBtn) gmapsBtn.addEventListener('click', dpOpenInGoogleMaps);
