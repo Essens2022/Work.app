@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v520"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v521"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -394,27 +394,31 @@
   function sheetsForMonth(month, year) {
     return state.sheets.filter(function (s) { return s.month === month && s.year === year; });
   }
+  // Shared by sheetKmAndTrips (whole-month totals) and todayStats
+  // (today's own card) — a single giorno can genuinely be TWO
+  // separate trips (the "due giri" PDF template gives Giro 2 its own
+  // a2/ddt2/kmInizio2/kmFine2, entirely independent of Giro 1's own
+  // fields), so each is checked and counted on its own, never folded
+  // together into a single yes/no for the whole day.
+  function giornoTripsAndKm(g) {
+    var viaggi = 0, km = 0;
+    if (!g) return { viaggi: viaggi, km: km };
+    if (g.a || g.ddt || g.kmFine !== "") {
+      viaggi++;
+      if (g.kmInizio !== "" && g.kmFine !== "" && !isNaN(g.kmFine - g.kmInizio)) km += (Number(g.kmFine) - Number(g.kmInizio));
+    }
+    if (g.a2 || g.ddt2 || g.kmFine2 !== "") {
+      viaggi++;
+      if (g.kmInizio2 !== "" && g.kmInizio2 !== undefined && g.kmFine2 !== "" && g.kmFine2 !== undefined && !isNaN(g.kmFine2 - g.kmInizio2)) km += (Number(g.kmFine2) - Number(g.kmInizio2));
+    }
+    return { viaggi: viaggi, km: km };
+  }
+
   function sheetKmAndTrips(sheet) {
     var viaggi = 0, km = 0;
     Object.keys(sheet.giorni).forEach(function (d) {
-      var g = sheet.giorni[d];
-      if (!g || !(g.a || g.ddt || g.kmFine !== "")) return;
-      viaggi++;
-      if (g.kmInizio !== "" && g.kmFine !== "" && !isNaN(g.kmFine - g.kmInizio)) {
-        km += (Number(g.kmFine) - Number(g.kmInizio));
-      }
-      // REAL BUG, reported directly: on a "due giri" day, only Giro 1's
-      // own km ever made it into "KM totali" on the home screen — the
-      // second round's kilometers were silently dropped from every
-      // total, even though the driver actually drove them. Added here
-      // as its own separate addition (not folded into the check
-      // above), since a day can have Giro 1 complete and Giro 2 still
-      // in progress (or vice versa, right after Giro 2's own fields
-      // finish before Giro 1 for some reason) — each round's km should
-      // count independently, whenever ITS OWN start/end are both filled.
-      if (g.kmInizio2 !== "" && g.kmInizio2 !== undefined && g.kmFine2 !== "" && g.kmFine2 !== undefined && !isNaN(g.kmFine2 - g.kmInizio2)) {
-        km += (Number(g.kmFine2) - Number(g.kmInizio2));
-      }
+      var t = giornoTripsAndKm(sheet.giorni[d]);
+      viaggi += t.viaggi; km += t.km;
     });
     return { viaggi: viaggi, km: km };
   }
@@ -442,10 +446,8 @@
     var day = now.getDate();
     var viaggi = 0, km = 0;
     sheetsForMonth(month, year).forEach(function (s) {
-      var g = s.giorni[day];
-      if (!g || !(g.a || g.ddt || g.kmFine !== "")) return;
-      viaggi++;
-      if (g.kmInizio !== "" && g.kmFine !== "" && !isNaN(g.kmFine - g.kmInizio)) km += (Number(g.kmFine) - Number(g.kmInizio));
+      var t = giornoTripsAndKm(s.giorni[day]);
+      viaggi += t.viaggi; km += t.km;
     });
     return { viaggi: viaggi, km: km };
   }
