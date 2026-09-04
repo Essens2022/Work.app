@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v516"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v517"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -3933,6 +3933,24 @@
       if (client.status !== 'completed') client.completedAt = null; // unchecking a mistaken mark clears the stale timestamp too
       if (client.status === 'completed' && !wasCompleted) newlyCompleted.push(client);
     });
+    // REAL BUG, reported directly ("consegnele facute nu pleaca la
+    // sfarsitul listei"): a client checked off here only actually
+    // moved to the end of the list once the async optimization below
+    // (ORS call, or its own AUTO-off/failure fallback) finished and
+    // called applyOrder — which reorders correctly, but only as a
+    // side effect of that whole round trip. Until then (and if that
+    // round trip is ever slow, or the driver navigates away before it
+    // settles), the just-completed client stayed exactly where it
+    // was, checkmark and all, mid-list — matching a comment further
+    // below in this very file that already assumed, incorrectly, that
+    // "run.clients already keeps completed ones pushed to the end".
+    // Made genuinely, immediately true here instead: reordered the
+    // instant a status actually changes, before anything else runs —
+    // the optimization below still reorders the REMAINING (pending)
+    // ones by route afterward, exactly as before; this only fixes
+    // where the completed ones sit relative to them, immediately.
+    state.deliveryRun.clients = state.deliveryRun.clients.filter(function (c) { return c.status !== 'completed'; })
+      .concat(state.deliveryRun.clients.filter(function (c) { return c.status === 'completed'; }));
     saveDeliveryRun(state.deliveryRun);
     // REAL BUG, reported directly: a fleet owner looking at "Consegne"
     // during the day saw nothing from today, because deliveries were
