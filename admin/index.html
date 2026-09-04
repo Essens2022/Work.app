@@ -330,23 +330,21 @@
     display:flex;align-items:center;justify-content:center;font-family:inherit;
   }
   /* Requested directly: Autisti/Novità/Video's own "×" should sit in
-     the screen's true top-left corner, not wherever it happened to
+     the screen's true top-RIGHT corner, not wherever it happened to
      land inside .wrap (max-width:640px, centered) — on any desktop
      screen wider than that, the centered box (and its "×" inside it)
      sat well away from the actual corner, a different distance on
      every screen width. Fixed positioning pins it to the same real
      corner regardless. Flotte and Messaggi are excluded on purpose —
-     both are their OWN fullscreen layout with a sidebar of their own,
-     where the "×" already sits correctly, right next to that
-     specific page's own title; forcing the same fixed corner there
-     would land it on top of their sidebar instead. z-index above
-     everything else in this file (highest previous was 999, the
-     photo-zoom overlay) so it's never covered. */
+     both are their OWN fullscreen layout with a sidebar and other
+     content already occupying that exact corner (Aggiungi flotta,
+     search+refresh); their own "×" is moved into that same row
+     instead, as its last element, rather than risking it overlapping
+     something already there. z-index above everything else in this
+     file (highest previous was 999, the photo-zoom overlay) so it's
+     never covered. */
   #modal-autisti .admin-modal-close, #modal-novita .admin-modal-close, #modal-video .admin-modal-close {
-    position:fixed;top:16px;left:16px;z-index:1001;
-  }
-  #modal-autisti .admin-modal-header, #modal-novita .admin-modal-header, #modal-video .admin-modal-header {
-    padding-left:46px;
+    position:fixed;top:16px;right:16px;z-index:1001;
   }
   /* REAL BUG, found and fixed directly: the Messaggi thread's own
      "back" button reused the .admin-modal-close class purely for its
@@ -483,14 +481,14 @@
           </div>
           <div class="flotte-main">
             <div class="flotte-topline">
-              <div style="display:flex;align-items:center;gap:12px;">
-                <button class="admin-modal-close" data-close="flotte">×</button>
-                <div>
-                  <div class="flotte-eyebrow">Gestione clienti flotta</div>
-                  <div class="flotte-page-title">Flotte</div>
-                </div>
+              <div>
+                <div class="flotte-eyebrow">Gestione clienti flotta</div>
+                <div class="flotte-page-title">Flotte</div>
               </div>
-              <button id="flotte-add-btn" class="btn-block" style="width:auto;background:var(--accent);">+ Aggiungi flotta</button>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <button id="flotte-add-btn" class="btn-block" style="width:auto;background:var(--accent);">+ Aggiungi flotta</button>
+                <button class="admin-modal-close" data-close="flotte">×</button>
+              </div>
             </div>
             <div class="flotte-stats-row" id="flotte-stats"></div>
             <div class="flotte-table" id="flotte-list"></div>
@@ -509,12 +507,12 @@
       <div id="messaggi-list-view" class="admin-modal-fullscreen-inner">
         <div class="messaggi-fixed-top">
           <div class="admin-modal-header">
-            <button class="admin-modal-close" data-close="messaggi">×</button>
             <div class="admin-modal-title">Messaggi</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center;">
             <input id="messaggi-search" type="text" placeholder="Cerca per ID, email, nome o cognome…" class="search-input" autocomplete="off" style="margin-bottom:0;flex:1;">
             <button id="messaggi-refresh-btn" class="btn-ghost" style="flex:none;">↻</button>
+            <button class="admin-modal-close" data-close="messaggi">×</button>
           </div>
         </div>
         <div class="messaggi-scroll-area">
