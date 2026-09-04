@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v519"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v520"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -1667,6 +1667,24 @@
   function dpGeoRecentlyDenied() { return dpGeoDeniedAt !== null && (Date.now() - dpGeoDeniedAt) < 60000; }
   var dpLastAutoOptimizedSignature = null; // exact ORDER of pending client ids last successfully applied by auto-riordina — see the auto-riordina check at the top of renderDeliveryPlanner
   var dpAutoOptimizationInFlight = false; // guards against a second auto-riordina call firing while one is still waiting on a network response
+  // REAL BUG, found through a deliberate stress test (15 clients,
+  // checking several off within one Riordina session): completedAt
+  // was only ever stamped inside dpConfirmReordina's own
+  // checkboxes.forEach loop, which runs ONCE, all at once, only when
+  // "Ricalcola percorso" is actually pressed. Checking three boxes in
+  // one sitting and THEN confirming gave all three nearly-identical
+  // timestamps (or worse, ties), so the completed-order sort added
+  // earlier could never actually reflect which one the driver
+  // genuinely tapped first, second, third — it was really just
+  // replaying checkboxes.forEach's own DOM order, not real check
+  // order, defeating the whole point of that sort. Tracked here
+  // instead, the moment each checkbox is actually toggled ON in the
+  // UI (a real 'change' event, not deferred to confirm time) — an
+  // ever-increasing counter, reset fresh every time this modal opens,
+  // used at confirm time as the real completedAt instead of a
+  // same-instant Date.now() for the whole batch.
+  var dpReordinaCheckOrder = {};
+  var dpReordinaCheckCounter = 0;
   var dpAutoOptimizationSafetyTimer = null; // independent 20s safety net — force-clears dpAutoOptimizationInFlight no matter what, so a single failure can never permanently disable auto-riordina for the rest of the session
 
   // Auto-archives the previous day's run the moment a new calendar day
@@ -3163,10 +3181,21 @@
   }
 
   function dpBackgroundGeocodeForOrdering(savedClientId, indirizzo) {
-    // Coordinates typed directly need no network geocoding at all —
-    // applied immediately, synchronously, with the exact same
-    // downstream effect (writes into the saved client AND any
-    // matching today's-run entry) as a successful geocode result.
+    // REAL BUG, found through the same deliberate stress test: once
+    // this background geocode actually succeeds (either instantly,
+    // for pasted coordinates, or after the real network round trip
+    // below), the client gets real lat/lon — but nothing here ever
+    // told the screen, or AUTO, that anything had changed. A newly
+    // added client sat as "unverified" (pushed to the very end,
+    // unplaced) forever, even minutes after it genuinely had valid
+    // coordinates, until the driver happened to open Riordina again
+    // by hand. Re-rendering here (only if this screen is actually the
+    // one showing) both refreshes the visible position note AND, via
+    // the AUTO check built into every render, lets AUTO immediately
+    // re-optimize the client into its real geographic place the
+    // moment coordinates genuinely become available — exactly what
+    // ION asked for directly ("cand se adauga un nou client, in
+    // automat se pune la locul care el trebuie sa fie in lista").
     var directCoords = dpParseCoordinatesFromText(indirizzo);
     if (directCoords) {
       var savedDirect = state.deliveryClients.find(function (c) { return c.id === savedClientId; });
@@ -3175,6 +3204,7 @@
         if (c.clientId === savedClientId && c.lat == null) { c.lat = directCoords.lat; c.lon = directCoords.lon; }
       });
       saveDeliveryRun(state.deliveryRun);
+      if (currentScreen === 'navigatore') renderDeliveryPlanner();
       return;
     }
     geocodeAddress(indirizzo).then(function (result) {
@@ -3185,6 +3215,7 @@
         if (c.clientId === savedClientId && c.lat == null) { c.lat = result.lat; c.lon = result.lon; }
       });
       saveDeliveryRun(state.deliveryRun);
+      if (currentScreen === 'navigatore') renderDeliveryPlanner();
     }).catch(function () { /* silent, best-effort only — Reordina simply treats this one as non-geolocatable if it fails, see dpConfirmReordina */ });
   }
 
@@ -3507,6 +3538,28 @@
     });
     pinnedEl.innerHTML = pinnedHtml;
     listEl.innerHTML = html || '<div style="color:var(--ink-soft);">Nessun cliente in elenco.</div>';
+    // Requested directly, as the other half of the fix above: reset
+    // the real check-order tracker fresh each time this modal opens,
+    // and wire a 'change' listener onto every checkbox (both the
+    // pinned "next" one and the scrolling list) so the moment each is
+    // actually toggled ON gets recorded — genuinely, individually —
+    // rather than everything being stamped at once, later, when
+    // "Ricalcola percorso" is pressed.
+    dpReordinaCheckOrder = {};
+    dpReordinaCheckCounter = 0;
+    document.querySelectorAll('#modal-dp-reordina input[type=checkbox]').forEach(function (cb) {
+      // Real Date.now(), not just an abstract counter — completedAt
+      // still needs to be a genuine timestamp elsewhere (the "~18:45"
+      // shown on a delivered client, and the ISO string sent to the
+      // server) — the tiny counter fraction added on top only breaks
+      // ties between two checks landing in the exact same
+      // millisecond, invisible at the minute-level precision anything
+      // else actually displays or sends.
+      if (cb.checked) dpReordinaCheckOrder[cb.dataset.clientId] = Date.now() + (++dpReordinaCheckCounter / 1e6);
+      cb.addEventListener('change', function () {
+        if (cb.checked) dpReordinaCheckOrder[cb.dataset.clientId] = Date.now() + (++dpReordinaCheckCounter / 1e6);
+      });
+    });
     document.getElementById('dp-reordina-close-x').onclick = function () { dpCloseModal('modal-dp-reordina'); };
     document.getElementById('dp-reordina-confirm-btn').onclick = dpConfirmReordina;
     document.getElementById('dp-reordina-confirm-btn').disabled = false;
@@ -3952,8 +4005,14 @@
       // could be minutes after the actual delivery) — stamped once,
       // the first time a client transitions TO completed, and never
       // overwritten if it's already set (so re-opening Reordina
-      // later doesn't keep bumping the time forward).
-      if (client.status === 'completed' && !wasCompleted && !client.completedAt) client.completedAt = Date.now();
+      // later doesn't keep bumping the time forward). Uses
+      // dpReordinaCheckOrder's own real-check-time record (see the
+      // 'change' listener wired in dpOpenReordinaModal) instead of a
+      // fresh Date.now() here — this whole loop runs all at once, at
+      // confirm time, so a plain Date.now() here would give every box
+      // checked in this same sitting a near-identical stamp,
+      // regardless of which was actually tapped first.
+      if (client.status === 'completed' && !wasCompleted && !client.completedAt) client.completedAt = dpReordinaCheckOrder[client.id] || Date.now();
       if (client.status !== 'completed') client.completedAt = null; // unchecking a mistaken mark clears the stale timestamp too
       if (client.status === 'completed' && !wasCompleted) newlyCompleted.push(client);
     });
