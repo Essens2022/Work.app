@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v522"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v523"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -429,12 +429,22 @@
   }
 
   function sheetKmAndTrips(sheet) {
-    var viaggi = 0, km = 0;
+    var viaggi = 0, km = 0, workedDays = 0;
     Object.keys(sheet.giorni).forEach(function (d) {
       var t = giornoTripsAndKm(sheet.giorni[d]);
       viaggi += t.viaggi; km += t.km;
+      // REAL BUG, reported directly (a driver's admin-shown earnings
+      // came out to 3850 at a €110 daily rate — 35, not the driver's
+      // real number of worked days): "viaggi" genuinely counts each
+      // giro separately (a due-giri day correctly shows 2, matching
+      // the app's own "X giri" label) — but pay is owed per WORKED
+      // DAY, not per trip, so a day with two giri should still only
+      // ever add ONE day toward the daily rate. workedDays counts
+      // that instead — per calendar day on THIS sheet, at most 1,
+      // regardless of how many giri (1 or 2) it had.
+      if (t.viaggi > 0) workedDays++;
     });
-    return { viaggi: viaggi, km: km };
+    return { viaggi: viaggi, km: km, workedDays: workedDays };
   }
   // Aggregates every client sheet that shares the same month+year — this is
   // what lets the app show "this month, across all clients" totals, plus a
@@ -11768,6 +11778,7 @@
         device_id: deviceId, sheet_id: sheet.id, month: sheet.month, year: sheet.year, client: client,
         total_km: kt.km || 0,
         giorni_count: kt.viaggi || 0,
+        worked_days_count: kt.workedDays || 0,
         daily_rate: dailyRate,
         account_email: currentAccountEmail(),
         updated_at: new Date().toISOString()
