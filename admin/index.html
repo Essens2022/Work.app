@@ -402,29 +402,43 @@
        nothing was actually scrolling internally at all. */
     flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 14px 20px;
   }
+  /* REAL BUG, reported directly ("autistii nu se scroleaza... este
+     legata de intreaga pagina, ar trebui sa fie fixa si doar
+     autistii ar trebui sa se scroleze"): Autisti, Novità and Video
+     never had this fixed-header/scrollable-content split Messaggi
+     already has — everything (title, stats, search, the list itself)
+     just flowed together in normal document scroll, so scrolling the
+     list dragged the header/toolbar/search away with it too. Same
+     exact mechanism as Messaggi's own messaggi-fixed-top/scroll-area,
+     under a generic name so all three (and anything added later) can
+     share it without any risk to Messaggi's own already-working
+     version. */
+  .admin-modal-fixed-top{
+    flex:none;padding:20px 14px 14px;background:var(--bg);
+    padding-top:calc(20px + env(safe-area-inset-top));
+  }
+  .admin-modal-fixed-top .admin-modal-header{margin-bottom:14px;}
+  .admin-modal-scroll-area{
+    flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 14px 20px;
+  }
   .admin-modal-header{display:flex;align-items:center;gap:10px;margin-bottom:18px;}
   .admin-modal-close{
     background:var(--surface);border:1px solid var(--line);border-radius:10px;
     width:36px;height:36px;flex:none;font-size:18px;color:var(--ink);cursor:pointer;
     display:flex;align-items:center;justify-content:center;font-family:inherit;
   }
-  /* Requested directly: Autisti/Novità/Video's own "×" should sit in
-     the screen's true top-RIGHT corner, not wherever it happened to
-     land inside .wrap (max-width:640px, centered) — on any desktop
-     screen wider than that, the centered box (and its "×" inside it)
-     sat well away from the actual corner, a different distance on
-     every screen width. Fixed positioning pins it to the same real
-     corner regardless.
-     Flotte was added here too, per a direct follow-up request for
-     full consistency across every admin page — its own topline now
-     reserves right-side padding so "+ Aggiungi flotta" never sits
-     under this fixed button. Messaggi remains excluded on purpose —
-     its own search+refresh row already occupies that exact corner;
-     its own "×" stays moved into that row instead, as its last
-     element, rather than risking an overlap there. z-index above
-     everything else in this file (highest previous was 999, the
-     photo-zoom overlay) so it's never covered. */
-  #modal-autisti .admin-modal-close, #modal-novita .admin-modal-close, #modal-video .admin-modal-close, #modal-flotte .admin-modal-close {
+  /* Requested directly, originally: Autisti/Novità/Video's own "×"
+     needed pinning to the screen's true top-right corner when these
+     were still centered inside .wrap (max-width:640px) — no longer
+     needed now that all three were rebuilt as their own fullscreen
+     layout (matching Flotte/Messaggi), where "×" already sits
+     correctly inside its own fixed header, in the section's own real
+     corner. Flotte alone is kept here — its own "×" is placed
+     separately, after the "+ Aggiungi flotta" button, not inside a
+     standard admin-modal-header, so it still needs pinning
+     explicitly. z-index above everything else in this file (highest
+     previous was 999, the photo-zoom overlay) so it's never covered. */
+  #modal-flotte .admin-modal-close {
     position:fixed;top:16px;right:16px;z-index:1001;
   }
   /* REAL BUG, found and fixed directly: the Messaggi thread's own
@@ -545,46 +559,64 @@
       </button>
     </div>
 
-    <div id="modal-autisti" class="admin-modal">
-      <div class="admin-modal-header">
-        <button class="admin-modal-close" data-close="autisti">×</button>
-        <div class="admin-modal-title">Autisti</div>
+    <div id="modal-autisti" class="admin-modal admin-modal-fullscreen">
+      <div class="admin-modal-fullscreen-inner">
+        <div class="admin-modal-fixed-top">
+          <div class="admin-modal-header">
+            <button class="admin-modal-close" data-close="autisti">×</button>
+            <div class="admin-modal-title">Autisti</div>
+          </div>
+          <div class="stat-strip">
+            <div class="stat-box"><div class="stat-num" id="stat-total">—</div><div class="stat-label">Autisti registrati</div></div>
+            <div class="stat-box"><div class="stat-num" id="stat-live">—</div><div class="stat-label">Live ora</div></div>
+          </div>
+          <div class="toolbar">
+            <button id="refresh-btn" class="btn-ghost">↻ Aggiorna</button>
+            <button id="toggle-hidden-btn" class="btn-ghost">Mostra nascosti</button>
+          </div>
+          <input id="driver-search" type="text" placeholder="Cerca per ID, email, nome o cognome…" class="search-input" autocomplete="off">
+        </div>
+        <div class="admin-modal-scroll-area">
+          <div id="drivers-list"></div>
+        </div>
       </div>
-    <div class="stat-strip">
-      <div class="stat-box"><div class="stat-num" id="stat-total">—</div><div class="stat-label">Autisti registrati</div></div>
-      <div class="stat-box"><div class="stat-num" id="stat-live">—</div><div class="stat-label">Live ora</div></div>
-    </div>
-    <div class="toolbar">
-      <button id="refresh-btn" class="btn-ghost">↻ Aggiorna</button>
-      <button id="toggle-hidden-btn" class="btn-ghost">Mostra nascosti</button>
-    </div>
-    <input id="driver-search" type="text" placeholder="Cerca per ID, email, nome o cognome…" class="search-input" autocomplete="off">
-    <div id="drivers-list"></div>
     </div>
 
-    <div id="modal-novita" class="admin-modal">
-      <div class="admin-modal-header">
-        <button class="admin-modal-close" data-close="novita">×</button>
-        <div class="admin-modal-title">Novità nell'app</div>
+    <div id="modal-novita" class="admin-modal admin-modal-fullscreen">
+      <div class="admin-modal-fullscreen-inner">
+        <div class="admin-modal-fixed-top">
+          <div class="admin-modal-header">
+            <button class="admin-modal-close" data-close="novita">×</button>
+            <div class="admin-modal-title">Novità nell'app</div>
+          </div>
+          <button id="novita-add-btn" class="btn-block" style="background:var(--accent);">+ Aggiungi novità</button>
+        </div>
+        <div class="admin-modal-scroll-area">
+          <div id="novita-list"></div>
+        </div>
       </div>
-      <button id="novita-add-btn" class="btn-block" style="margin-bottom:16px;background:var(--accent);">+ Aggiungi novità</button>
-      <div id="novita-list"></div>
     </div>
 
-    <div id="modal-video" class="admin-modal">
-      <div class="admin-modal-header">
-        <button class="admin-modal-close" data-close="video">×</button>
-        <div class="admin-modal-title">Video sul sito ufficiale</div>
-      </div>
-      <div class="novita-card">
-        <div class="novita-card-top"><span class="novita-type-badge video">Sito ufficiale</span></div>
-        <div class="novita-title">Video tutorial su adbsmart.it/official</div>
-        <div class="novita-desc">Questo è il video mostrato pubblicamente sulla pagina di presentazione — cambialo qui quando ne registri uno nuovo, senza bisogno di modificare il codice.</div>
-        <label style="display:block;font-size:11.5px;font-weight:700;color:var(--ink-faint);text-transform:uppercase;margin:14px 0 6px;">Link o ID YouTube</label>
-        <input id="official-video-input" type="text" placeholder="https://youtu.be/... oppure solo l'ID" style="width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:10px 12px;font-size:16px;font-family:inherit;">
-        <div class="novita-actions" style="margin-top:12px;">
-          <button id="official-video-save" class="btn-ghost">Salva</button>
-          <span id="official-video-status" style="font-size:12px;color:var(--ink-faint);align-self:center;"></span>
+    <div id="modal-video" class="admin-modal admin-modal-fullscreen">
+      <div class="admin-modal-fullscreen-inner">
+        <div class="admin-modal-fixed-top">
+          <div class="admin-modal-header">
+            <button class="admin-modal-close" data-close="video">×</button>
+            <div class="admin-modal-title">Video sul sito ufficiale</div>
+          </div>
+        </div>
+        <div class="admin-modal-scroll-area">
+          <div class="novita-card">
+            <div class="novita-card-top"><span class="novita-type-badge video">Sito ufficiale</span></div>
+            <div class="novita-title">Video tutorial su adbsmart.it/official</div>
+            <div class="novita-desc">Questo è il video mostrato pubblicamente sulla pagina di presentazione — cambialo qui quando ne registri uno nuovo, senza bisogno di modificare il codice.</div>
+            <label style="display:block;font-size:11.5px;font-weight:700;color:var(--ink-faint);text-transform:uppercase;margin:14px 0 6px;">Link o ID YouTube</label>
+            <input id="official-video-input" type="text" placeholder="https://youtu.be/... oppure solo l'ID" style="width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:10px 12px;font-size:16px;font-family:inherit;">
+            <div class="novita-actions" style="margin-top:12px;">
+              <button id="official-video-save" class="btn-ghost">Salva</button>
+              <span id="official-video-status" style="font-size:12px;color:var(--ink-faint);align-self:center;"></span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
