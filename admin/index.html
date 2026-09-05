@@ -805,7 +805,19 @@
 
   function sheetDetailHtml(s, dailyRate) {
     var monthLabel = MESI[s.month - 1] + ' ' + s.year;
-    var earnings = dailyRate ? (s.giorni_count * dailyRate) : null;
+    // REAL BUG, reported directly (a driver's shown earnings came out
+    // wildly inflated — 3850 at a €110 daily rate, when the driver
+    // hadn't worked 35 days that month): pay is owed per WORKED DAY,
+    // but this multiplied the daily rate by giorni_count — which is
+    // actually the number of TRIPS (correctly 2 on a "due giri" day),
+    // not days. Uses worked_days_count instead — the real,
+    // once-per-calendar-day count, synced separately since this fix.
+    // Falls back to giorni_count only for a sheet synced from a
+    // device that hasn't opened the app since this fix shipped (so
+    // this new column is still null there) — an approximation until
+    // that device's own next sync sends the real number.
+    var workedDays = (s.worked_days_count != null) ? s.worked_days_count : s.giorni_count;
+    var earnings = dailyRate ? (workedDays * dailyRate) : null;
     var html = '<div class="sheet-item">';
     html += '<div class="sheet-item-top"><span>' + s.client + '</span><span>' + monthLabel + '</span></div>';
     html += '<div class="sheet-item-meta">';
@@ -846,9 +858,20 @@
     // what the driver's own app shows on its Home screen) — summed
     // across every client that month, not an all-time total across
     // every month ever worked.
+    //
+    // REAL BUG, reported directly: this used giorni_count (each
+    // sheet's own TRIP count — correctly 2 on a "due giri" day,
+    // matching that same label elsewhere) as if it were a day count,
+    // inflating a driver's shown earnings well past their real
+    // number of worked days whenever any due-giri days existed that
+    // month. Uses worked_days_count instead (falling back to
+    // giorni_count only for a sheet whose device hasn't synced since
+    // this fix shipped) — summed across a driver's different client
+    // sheets that month, same as before, just counting the right
+    // thing per sheet now.
     if (g.dailyRate && g.activeMonth && g.activeYear) {
       var currentMonthSheets = g.sheets.filter(function (s) { return s.month === g.activeMonth && s.year === g.activeYear; });
-      var currentMonthDays = currentMonthSheets.reduce(function (sum, s) { return sum + (Number(s.giorni_count) || 0); }, 0);
+      var currentMonthDays = currentMonthSheets.reduce(function (sum, s) { return sum + (Number(s.worked_days_count != null ? s.worked_days_count : s.giorni_count) || 0); }, 0);
       var currentMonthEarnings = currentMonthDays * g.dailyRate;
       html += '<div class="detail-row"><span class="detail-label">Guadagno ' + MESI[g.activeMonth - 1] + '</span><span class="detail-value" style="color:#3CB878;">€' + currentMonthEarnings.toFixed(0) + '</span></div>';
     }
