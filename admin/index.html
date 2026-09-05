@@ -335,15 +335,17 @@
      screen wider than that, the centered box (and its "×" inside it)
      sat well away from the actual corner, a different distance on
      every screen width. Fixed positioning pins it to the same real
-     corner regardless. Flotte and Messaggi are excluded on purpose —
-     both are their OWN fullscreen layout with a sidebar and other
-     content already occupying that exact corner (Aggiungi flotta,
-     search+refresh); their own "×" is moved into that same row
-     instead, as its last element, rather than risking it overlapping
-     something already there. z-index above everything else in this
-     file (highest previous was 999, the photo-zoom overlay) so it's
-     never covered. */
-  #modal-autisti .admin-modal-close, #modal-novita .admin-modal-close, #modal-video .admin-modal-close {
+     corner regardless.
+     Flotte was added here too, per a direct follow-up request for
+     full consistency across every admin page — its own topline now
+     reserves right-side padding so "+ Aggiungi flotta" never sits
+     under this fixed button. Messaggi remains excluded on purpose —
+     its own search+refresh row already occupies that exact corner;
+     its own "×" stays moved into that row instead, as its last
+     element, rather than risking an overlap there. z-index above
+     everything else in this file (highest previous was 999, the
+     photo-zoom overlay) so it's never covered. */
+  #modal-autisti .admin-modal-close, #modal-novita .admin-modal-close, #modal-video .admin-modal-close, #modal-flotte .admin-modal-close {
     position:fixed;top:16px;right:16px;z-index:1001;
   }
   /* REAL BUG, found and fixed directly: the Messaggi thread's own
@@ -480,15 +482,13 @@
             <div class="flotte-rail-item" id="flotte-novita-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 3v18M15 3v18"/></svg>Video / Novità</div>
           </div>
           <div class="flotte-main">
-            <div class="flotte-topline">
+            <div class="flotte-topline" style="padding-right:56px;">
               <div>
                 <div class="flotte-eyebrow">Gestione clienti flotta</div>
                 <div class="flotte-page-title">Flotte</div>
               </div>
-              <div style="display:flex;align-items:center;gap:10px;">
-                <button id="flotte-add-btn" class="btn-block" style="width:auto;background:var(--accent);">+ Aggiungi flotta</button>
-                <button class="admin-modal-close" data-close="flotte">×</button>
-              </div>
+              <button id="flotte-add-btn" class="btn-block" style="width:auto;background:var(--accent);">+ Aggiungi flotta</button>
+              <button class="admin-modal-close" data-close="flotte">×</button>
             </div>
             <div class="flotte-stats-row" id="flotte-stats"></div>
             <div class="flotte-table" id="flotte-list"></div>
