@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v525"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v526"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -4348,70 +4348,74 @@
   // position — and this sandbox has no network access to
   // openrouteservice.org to verify such a change against the real
   // API).
-  // REAL BUG, reported directly and reproduced exactly with ION's own
-  // 7-client test list: "entro" (scadenza) clients were already
-  // correctly pulled to the front — but "non prima delle" (nonPrimaDi)
-  // was never looked at anywhere in this function, so those clients
-  // just stayed wherever the pure-geography optimization happened to
-  // place them. Reproduced precisely: MARBET (07:30) ended up LAST,
-  // behind CAME (08:00) and ESSEGI (08:50) — both genuinely meant to
-  // be visited LATER — purely because MARBET was geographically
-  // farther from the rest of the group, with its actual time
-  // completely ignored.
+  // Requested directly, after a lot of back-and-forth trying to patch
+  // the SYMPTOMS of this one after the fact (post-hoc reordering by
+  // scadenza, then by nonPrimaDi, then a careful extract-and-reinsert
+  // to avoid disturbing unconstrained clients — each fix uncovering a
+  // new edge case the previous one didn't handle): the actual, correct
+  // fix is VROOM's own native feature for exactly this class of
+  // problem — time windows, sent as real input to the solver itself,
+  // so it optimizes geography AND timing simultaneously, rather than
+  // optimizing geography alone and trying to patch the result
+  // afterward. Confirmed directly against VROOM's own documented API
+  // (github.com/VROOM-Project/vroom/docs/API.md): a job's time_windows
+  // can use RELATIVE seconds from an arbitrary reference point (not
+  // real-world timestamps) as long as everything — every job, and the
+  // vehicle's own time_window — shares that same reference; omitting
+  // time_windows entirely on a job (not an artificially wide window)
+  // is VROOM's own documented way of saying "no constraint at all",
+  // so a client with neither scadenza nor nonPrimaDi is left
+  // completely unconstrained, never nudged toward some arbitrary
+  // default time.
   //
-  // SECOND bug, reported directly right after the first fix: a plain
-  // sort-by-nonPrimaDi (with no-constraint clients sorting to
-  // Infinity) fixed the chronological ordering, but pushed EVERY
-  // client with no time constraint at all to the very end of the
-  // list — disconnecting them from their own naturally-optimized
-  // geographic neighbors. A no-constraint stop that VROOM had
-  // sensibly placed right next to its nearest neighbor ended up torn
-  // away to the back of the whole route instead.
-  //
-  // Fixed properly this time: only clients that actually violate the
-  // nonPrimaDi ordering relative to another timed client get moved —
-  // extracted and reinserted just before the earliest timed client
-  // they need to precede, jumping OVER any no-constraint clients in
-  // between (their own relative position never changes, since they're
-  // never themselves extracted) rather than a global sort that
-  // disturbs everyone.
+  // Seconds-since-midnight is used as that shared reference (0 =
+  // 00:00 today) — arbitrary but consistent, which is all VROOM
+  // requires for relative windows.
+  function dpTimeStringToSeconds(hhmm) {
+    var parts = hhmm.split(':');
+    return Number(parts[0]) * 3600 + Number(parts[1]) * 60;
+  }
+  var DP_DAY_SECONDS = 27 * 3600; // slightly past 24h, so a stray very-late "non prima delle" (e.g. 23:xx) still has a valid, non-inverted window to its own end-of-horizon
+
   function dpCallOrsOptimizationWithDeadlines(startPos, clients) {
-    var hasTimingClient = clients.some(function (c) { return c.scadenza || c.nonPrimaDi; });
-    if (!hasTimingClient) return dpCallOrsOptimization(startPos, clients);
-
-    function toMinutes(hhmm) {
-      if (!hhmm) return null;
-      var parts = hhmm.split(':');
-      return Number(parts[0]) * 60 + Number(parts[1]);
-    }
-
-    // Moves only the clients that actually need to move (those with a
-    // nonPrimaDi earlier than some timed client already placed before
-    // them) — everyone else, timed or not, keeps their exact position.
-    function fixNonPrimaDiOrder(list) {
-      var arr = list.slice();
-      for (var i = 1; i < arr.length; i++) {
-        var myTime = toMinutes(arr[i].nonPrimaDi);
-        if (myTime === null) continue;
-        var targetIndex = i;
-        for (var j = i - 1; j >= 0; j--) {
-          var t = toMinutes(arr[j].nonPrimaDi);
-          if (t === null) continue; // no constraint — skip past it, keep looking
-          if (t > myTime) targetIndex = j; // must go ahead of this one too
-          else break; // found an already-earlier timed client — stop here
-        }
-        if (targetIndex < i) {
-          var item = arr.splice(i, 1)[0];
-          arr.splice(targetIndex, 0, item);
-        }
-      }
-      return arr;
-    }
-
-    return dpCallOrsOptimization(startPos, clients).then(function (fullyOptimized) {
-      var withDeadline = fullyOptimized.filter(function (c) { return c.scadenza; });
-      var withoutDeadline = fullyOptimized.filter(function (c) { return !c.scadenza; });
-      return withDeadline.concat(fixNonPrimaDiOrder(withoutDeadline));
+    var v = state.vehicle;
+    var profile = v.tipo === 'auto' ? 'driving-car' : 'driving-hgv';
+    var jobs = clients.map(function (c, i) {
+      var job = { id: i + 1, location: [c.lon, c.lat] };
+      var windowStart = c.nonPrimaDi ? dpTimeStringToSeconds(c.nonPrimaDi) : 0;
+      var windowEnd = c.scadenza ? dpTimeStringToSeconds(c.scadenza) : DP_DAY_SECONDS;
+      // Only attach a time_windows key at all if this client actually
+      // has SOME real constraint — matching VROOM's own documented
+      // "absence means unconstrained", rather than sending every
+      // client an artificially wide [0, DAY] window that would work
+      // out the same in practice but obscures which clients genuinely
+      // have no constraint at all.
+      if (c.scadenza || c.nonPrimaDi) job.time_windows = [[windowStart, windowEnd]];
+      return job;
+    });
+    var body = {
+      jobs: jobs,
+      vehicles: [{ id: 1, profile: profile, start: [startPos.lon, startPos.lat], time_window: [0, DP_DAY_SECONDS] }]
+    };
+    return dpFetchOrsOptimization(body).then(function (r) {
+      dpTrackOrsQuota(r, 'optimization');
+      if (!r.ok) throw new Error('ORS ' + r.status);
+      return r.json();
+    }).then(function (data) {
+      if (!data.routes || !data.routes[0] || !data.routes[0].steps) throw new Error('risposta non valida');
+      var orderedIds = data.routes[0].steps
+        .filter(function (s) { return s.type === 'job'; })
+        .map(function (s) { return s.id; });
+      var ordered = orderedIds.map(function (jobId) { return clients[jobId - 1]; }).filter(Boolean);
+      // A client whose time constraint made it genuinely impossible to
+      // fit into any route (documented VROOM behavior: such jobs are
+      // reported in "unassigned" instead of silently dropped) is
+      // appended at the end here — visible and still in the list,
+      // never lost, matching how droppedByOrs already gets handled
+      // for the AUTO-off/geography-only path elsewhere in this file.
+      var unassignedIds = (data.unassigned || []).map(function (u) { return u.id; });
+      var unassignedClients = unassignedIds.map(function (jobId) { return clients[jobId - 1]; }).filter(Boolean);
+      return ordered.concat(unassignedClients);
     });
   }
 
@@ -4454,26 +4458,6 @@
       // exactly as before.
       if (!(err instanceof TypeError)) throw err;
       return new Promise(function (resolve) { setTimeout(resolve, 1200); }).then(attempt);
-    });
-  }
-
-  function dpCallOrsOptimization(startPos, clients) {
-    var v = state.vehicle;
-    var profile = v.tipo === 'auto' ? 'driving-car' : 'driving-hgv';
-    var body = {
-      jobs: clients.map(function (c, i) { return { id: i + 1, location: [c.lon, c.lat] }; }),
-      vehicles: [{ id: 1, profile: profile, start: [startPos.lon, startPos.lat] }]
-    };
-    return dpFetchOrsOptimization(body).then(function (r) {
-      dpTrackOrsQuota(r, 'optimization');
-      if (!r.ok) throw new Error('ORS ' + r.status);
-      return r.json();
-    }).then(function (data) {
-      if (!data.routes || !data.routes[0] || !data.routes[0].steps) throw new Error('risposta non valida');
-      var orderedIds = data.routes[0].steps
-        .filter(function (s) { return s.type === 'job'; })
-        .map(function (s) { return s.id; });
-      return orderedIds.map(function (jobId) { return clients[jobId - 1]; }).filter(Boolean);
     });
   }
 
@@ -12132,7 +12116,7 @@
   // happened to notice it, meaning some drivers may never have
   // discovered they could switch off the default HGV-restricted
   // routing profile (which meaningfully changes how routes get
-  // calculated — see dpCallOrsOptimization) even when their real
+  // calculated — see dpCallOrsOptimizationWithDeadlines) even when their real
   // vehicle doesn't need those restrictions. Added here too, in
   // Impostazioni's own "Altre opzioni" menu — a place any driver
   // already knows to check for settings, independent of whether
