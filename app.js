@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v523"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v524"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -4348,13 +4348,39 @@
   // position — and this sandbox has no network access to
   // openrouteservice.org to verify such a change against the real
   // API).
+  // REAL BUG, reported directly and reproduced exactly with ION's own
+  // 7-client test list: "entro" (scadenza) clients were already
+  // correctly pulled to the front — but "non prima delle" (nonPrimaDi)
+  // was never looked at anywhere in this function, so those clients
+  // just stayed wherever the pure-geography optimization happened to
+  // place them. Reproduced precisely: MARBET (07:30) ended up LAST,
+  // behind CAME (08:00) and ESSEGI (08:50) — both genuinely meant to
+  // be visited LATER — purely because MARBET was geographically
+  // farther from the rest of the group, with its actual time
+  // completely ignored.
+  //
+  // Fixed the same way scadenza already works — a real per-client
+  // time window sent to VROOM itself would be the more thorough fix,
+  // but this matches the existing, already-working pattern exactly:
+  // after the geography-only optimization comes back, the
+  // non-deadline group is re-sorted by nonPrimaDi ascending (earliest
+  // allowed time first) — clients with neither scadenza nor
+  // nonPrimaDi (no time constraint at all) keep their relative
+  // geographic order at the end of that group, since sort() is stable
+  // and Infinity always sorts after every real time.
   function dpCallOrsOptimizationWithDeadlines(startPos, clients) {
-    var hasDeadlineClient = clients.some(function (c) { return c.scadenza; });
-    if (!hasDeadlineClient) return dpCallOrsOptimization(startPos, clients);
+    var hasTimingClient = clients.some(function (c) { return c.scadenza || c.nonPrimaDi; });
+    if (!hasTimingClient) return dpCallOrsOptimization(startPos, clients);
 
     return dpCallOrsOptimization(startPos, clients).then(function (fullyOptimized) {
       var withDeadline = fullyOptimized.filter(function (c) { return c.scadenza; });
       var withoutDeadline = fullyOptimized.filter(function (c) { return !c.scadenza; });
+      function toMinutes(hhmm) {
+        if (!hhmm) return Infinity;
+        var parts = hhmm.split(':');
+        return Number(parts[0]) * 60 + Number(parts[1]);
+      }
+      withoutDeadline.sort(function (a, b) { return toMinutes(a.nonPrimaDi) - toMinutes(b.nonPrimaDi); });
       return withDeadline.concat(withoutDeadline);
     });
   }
