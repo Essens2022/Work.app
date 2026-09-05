@@ -226,14 +226,29 @@
     .desktop-sidebar-item.disabled { opacity: .5; cursor: default; }
     .desktop-sidebar-divider { height: 1px; background: #2a2828; margin: 10px 4px; }
 
-    /* Every "screen" this sidebar can switch to needs to sit in the
-       remaining space to its right, never underneath it — a plain
-       margin-left on admin-home (normal document flow) and a
-       matching left offset on both modal variants (position:fixed,
-       where margin has no effect) achieve the same visual result
-       through whichever mechanism each already uses. */
-    #admin-home { margin-left: 240px; }
-    .admin-modal.open:not(.admin-modal-fullscreen) { margin-left: 240px; }
+    /* REAL BUG, reported directly, seen as both the sidebar AND the
+       old page content ("ADB Smart — Autisti" title, the push-
+       notification button) visibly overlapping: .wrap is ONE single
+       container around the ENTIRE page (the static header, the push
+       button, admin-home, and every modal together) — moving admin-
+       home and each modal individually, as done here originally, left
+       .wrap ITSELF still centered across the full viewport, still
+       sitting underneath — and, worse, still overlapping — the new
+       fixed sidebar, since nothing had ever told .wrap itself to
+       shift right. Moving .wrap as a whole fixes this at the actual
+       root, rather than nudging its children individually while the
+       parent stayed put. */
+    .wrap { margin-left: 240px; max-width: calc(100% - 240px); }
+    /* The static "ADB Smart — Autisti" title (a leftover from when
+       this admin had only that one section, never updated since to
+       reflect whichever section is actually open) and the push-
+       notification button both sat, on every screen, above
+       literally everything else — home, any modal, and now the new
+       sidebar too — which is exactly the confusing "I see both"
+       overlap being reported. The sidebar already has its own
+       branding and navigation, so both are simply redundant on
+       desktop; hidden there, left completely untouched on mobile. */
+    .header, #admin-push-btn { display: none; }
     /* .admin-modal-fullscreen's own left:240px lives right after its
        base "position:fixed;inset:0" rule further down this file —
        inset:0 already sets left:0, so this override has to come
@@ -326,6 +341,21 @@
      every admin section) internal navigation. */
   .flotte-shell{display:flex;height:100%;}
   .flotte-rail{width:200px;flex:none;background:var(--surface);border-right:1px solid var(--line);padding:20px 14px;display:flex;flex-direction:column;gap:4px;}
+  /* Requested directly, once it became visible after fixing the
+     wrap-overlap bug above: Flotte's OWN internal sidebar (built
+     earlier, before this global one existed) sat right next to the
+     new global sidebar — same styling, largely the same items (Home,
+     Messaggi, Flotte itself) — genuinely redundant, not a real second
+     navigation level. Hidden here on desktop only; placed AFTER the
+     base rule above (same selector, same specificity — later wins),
+     since that base rule's own "display:flex" would otherwise win
+     instead if this came first in the file. Flotte's content area is
+     already flex:1, so it fills the freed space automatically. Left
+     completely untouched on mobile (below 860px), where Flotte's own
+     sidebar is still the only navigation it has. */
+  @media (min-width: 860px) {
+    .flotte-rail { display: none; }
+  }
   .flotte-rail-brand{padding:0 8px 20px;font-size:14px;font-weight:800;}
   .flotte-rail-brand span{display:block;font-size:10.5px;font-weight:600;color:var(--ink-faint);}
   .flotte-rail-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;color:var(--ink-faint);font-size:13.5px;font-weight:600;cursor:pointer;}
