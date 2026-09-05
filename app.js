@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v526"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v527"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -4348,6 +4348,18 @@
   // position — and this sandbox has no network access to
   // openrouteservice.org to verify such a change against the real
   // API).
+  // ============================================================
+  // ION CONFIRMED, DIRECTLY, AFTER REAL ON-PHONE TESTING: this logic
+  // (dpTimeStringToSeconds, DP_DAY_SECONDS, dpCallOrsOptimizationWithDeadlines
+  // below) now works excellently for scadenza/nonPrimaDi ordering — a
+  // real confirmation, not just a passing test. ION explicitly asked
+  // for this to be LOCKED: do not change any part of this logic for
+  // any reason — not a "small cleanup", not an "obvious improvement",
+  // not a refactor while touching nearby code — unless ION explicitly
+  // asks for it to change because something is actually broken. If a
+  // future request seems to need a tweak here, treat that as a signal
+  // to ask first, not to just make the edit.
+  // ============================================================
   // Requested directly, after a lot of back-and-forth trying to patch
   // the SYMPTOMS of this one after the fact (post-hoc reordering by
   // scadenza, then by nonPrimaDi, then a careful extract-and-reinsert
