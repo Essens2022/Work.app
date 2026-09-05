@@ -1841,9 +1841,7 @@
   document.querySelectorAll('.admin-modal-close').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var closedModal = document.getElementById('modal-' + btn.dataset.close);
-      closedModal.classList.remove('open');
-      document.getElementById('admin-home').style.display = 'grid';
-      dpSetDesktopSidebarActive('home');
+      dpSwitchToSection('home');
       if (btn.dataset.close === 'messaggi') {
         unlockBodyScroll();
         // Requested directly: clears the explicit pixel height AND
@@ -1857,29 +1855,46 @@
       }
     });
   });
-  // Requested directly: the desktop sidebar's own highlighted item
-  // (which section is "on") needs to track whichever way a section
-  // was actually opened or closed — the generic mobile tap-to-open
-  // handler above, the sidebar's own click handler below, or the ×
-  // close button just above — so it's called from every one of those
-  // three paths rather than duplicated three times.
+  // REAL BUG, reported directly: on desktop specifically, clicking a
+  // sidebar item while a DIFFERENT section was already open (opened
+  // either via a mobile-style icon tap or via the sidebar itself)
+  // just added 'open' onto the new target, leaving whatever was
+  // already open still open underneath — two screens genuinely both
+  // 'open' at once, either stacking visually (two non-fullscreen
+  // modals like Autisti/Novità/Video sitting directly on top of each
+  // other, no z-index separating them) or hiding one behind the
+  // other's fullscreen overlay (Messaggi/Flotte), invisibly wrong
+  // either way. This could never happen on mobile before the sidebar
+  // existed, since admin-home's own icons — the only way to open
+  // anything there — get hidden (display:none) the instant one modal
+  // opens, physically preventing a second tap. The new sidebar,
+  // being a separate element that stays visible and clickable
+  // regardless of admin-home's own display state, bypassed that
+  // built-in protection entirely.
+  //
+  // Fixed with one shared function — closes every OTHER open modal
+  // first, always, no matter which of the two entry points (a mobile
+  // icon tap, or a sidebar click) triggered the switch — so exactly
+  // one section is ever open at a time, on both mobile and desktop.
+  function dpSwitchToSection(key) {
+    document.querySelectorAll('.admin-modal.open').forEach(function (m) { m.classList.remove('open'); });
+    if (key === 'home') {
+      document.getElementById('admin-home').style.display = 'grid';
+    } else {
+      document.getElementById('admin-home').style.display = 'none';
+      document.getElementById('modal-' + key).classList.add('open');
+      if (key === 'messaggi') dpOpenMessaggiModal();
+    }
+    dpSetDesktopSidebarActive(key);
+  }
   function dpSetDesktopSidebarActive(key) {
     document.querySelectorAll('.desktop-sidebar-item').forEach(function (el) {
       el.classList.toggle('on', (key === 'home' ? el.id === 'desktop-home-btn' : el.dataset.open === key));
     });
   }
-  document.getElementById('desktop-home-btn').addEventListener('click', function () {
-    document.querySelectorAll('.admin-modal.open').forEach(function (m) { m.classList.remove('open'); });
-    document.getElementById('admin-home').style.display = 'grid';
-    dpSetDesktopSidebarActive('home');
-  });
+  document.getElementById('desktop-home-btn').addEventListener('click', function () { dpSwitchToSection('home'); });
   document.querySelectorAll('.desktop-sidebar-item[data-open]').forEach(function (item) {
-    item.addEventListener('click', function () {
-      document.getElementById('admin-home').style.display = 'none';
-      document.getElementById('modal-' + item.dataset.open).classList.add('open');
-      dpSetDesktopSidebarActive(item.dataset.open);
-      if (item.dataset.open === 'messaggi') dpOpenMessaggiModal();
-    });
+    item.addEventListener('click', function () { dpSwitchToSection(item.dataset.open); });
   });
   document.getElementById('novita-add-btn').addEventListener('click', function () { openNovitaForm(null); });
 
@@ -2097,9 +2112,6 @@
         dragging = false;
       } else if (!moved) {
         // A genuine quick tap — same behavior as always, open that function.
-        document.getElementById('admin-home').style.display = 'none';
-        document.getElementById('modal-' + icon.dataset.open).classList.add('open');
-        dpSetDesktopSidebarActive(icon.dataset.open);
         // REAL BUG, reported directly: Messaggi's own data-loading used
         // to live in a SEPARATE 'click' listener on this same icon —
         // which, on a real phone, raced against this shared long-press/
@@ -2108,8 +2120,12 @@
         // race, leaving the list empty until the (unrelated) refresh
         // button was tapped by hand. Moved the load to fire from
         // exactly this ONE proven, reliable "it was a genuine tap"
-        // path instead of a second, independently-timed listener.
-        if (icon.dataset.open === 'messaggi') dpOpenMessaggiModal();
+        // path instead of a second, independently-timed listener —
+        // now handled inside dpSwitchToSection itself, alongside the
+        // exact same close-everything-else-first logic used by the
+        // desktop sidebar, so a tap here can never leave two sections
+        // open at once either.
+        dpSwitchToSection(icon.dataset.open);
       }
     }
     icon.addEventListener('pointerup', finishDrag);
