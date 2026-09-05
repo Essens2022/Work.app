@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v524"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v525"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -4359,29 +4359,59 @@
   // farther from the rest of the group, with its actual time
   // completely ignored.
   //
-  // Fixed the same way scadenza already works — a real per-client
-  // time window sent to VROOM itself would be the more thorough fix,
-  // but this matches the existing, already-working pattern exactly:
-  // after the geography-only optimization comes back, the
-  // non-deadline group is re-sorted by nonPrimaDi ascending (earliest
-  // allowed time first) — clients with neither scadenza nor
-  // nonPrimaDi (no time constraint at all) keep their relative
-  // geographic order at the end of that group, since sort() is stable
-  // and Infinity always sorts after every real time.
+  // SECOND bug, reported directly right after the first fix: a plain
+  // sort-by-nonPrimaDi (with no-constraint clients sorting to
+  // Infinity) fixed the chronological ordering, but pushed EVERY
+  // client with no time constraint at all to the very end of the
+  // list — disconnecting them from their own naturally-optimized
+  // geographic neighbors. A no-constraint stop that VROOM had
+  // sensibly placed right next to its nearest neighbor ended up torn
+  // away to the back of the whole route instead.
+  //
+  // Fixed properly this time: only clients that actually violate the
+  // nonPrimaDi ordering relative to another timed client get moved —
+  // extracted and reinserted just before the earliest timed client
+  // they need to precede, jumping OVER any no-constraint clients in
+  // between (their own relative position never changes, since they're
+  // never themselves extracted) rather than a global sort that
+  // disturbs everyone.
   function dpCallOrsOptimizationWithDeadlines(startPos, clients) {
     var hasTimingClient = clients.some(function (c) { return c.scadenza || c.nonPrimaDi; });
     if (!hasTimingClient) return dpCallOrsOptimization(startPos, clients);
 
+    function toMinutes(hhmm) {
+      if (!hhmm) return null;
+      var parts = hhmm.split(':');
+      return Number(parts[0]) * 60 + Number(parts[1]);
+    }
+
+    // Moves only the clients that actually need to move (those with a
+    // nonPrimaDi earlier than some timed client already placed before
+    // them) — everyone else, timed or not, keeps their exact position.
+    function fixNonPrimaDiOrder(list) {
+      var arr = list.slice();
+      for (var i = 1; i < arr.length; i++) {
+        var myTime = toMinutes(arr[i].nonPrimaDi);
+        if (myTime === null) continue;
+        var targetIndex = i;
+        for (var j = i - 1; j >= 0; j--) {
+          var t = toMinutes(arr[j].nonPrimaDi);
+          if (t === null) continue; // no constraint — skip past it, keep looking
+          if (t > myTime) targetIndex = j; // must go ahead of this one too
+          else break; // found an already-earlier timed client — stop here
+        }
+        if (targetIndex < i) {
+          var item = arr.splice(i, 1)[0];
+          arr.splice(targetIndex, 0, item);
+        }
+      }
+      return arr;
+    }
+
     return dpCallOrsOptimization(startPos, clients).then(function (fullyOptimized) {
       var withDeadline = fullyOptimized.filter(function (c) { return c.scadenza; });
       var withoutDeadline = fullyOptimized.filter(function (c) { return !c.scadenza; });
-      function toMinutes(hhmm) {
-        if (!hhmm) return Infinity;
-        var parts = hhmm.split(':');
-        return Number(parts[0]) * 60 + Number(parts[1]);
-      }
-      withoutDeadline.sort(function (a, b) { return toMinutes(a.nonPrimaDi) - toMinutes(b.nonPrimaDi); });
-      return withDeadline.concat(withoutDeadline);
+      return withDeadline.concat(fixNonPrimaDiOrder(withoutDeadline));
     });
   }
 
