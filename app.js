@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v521"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v522"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -407,7 +407,21 @@
       viaggi++;
       if (g.kmInizio !== "" && g.kmFine !== "" && !isNaN(g.kmFine - g.kmInizio)) km += (Number(g.kmFine) - Number(g.kmInizio));
     }
-    if (g.a2 || g.ddt2 || g.kmFine2 !== "") {
+    // REAL BUG, reported directly (wrong "Viaggi totali"/"Viaggi
+    // oggi", right after this very function was introduced): the
+    // "due giri" fields (a2/ddt2/kmInizio2/kmFine2) only exist on
+    // giorni created after that feature was added — any OLDER giorno
+    // never has them at all, so g.kmFine2 there is genuinely
+    // undefined, not "". The trigger check compared it only against
+    // "" (`g.kmFine2 !== ""`), and undefined !== "" is TRUE in
+    // JavaScript — so every single pre-existing day in a driver's
+    // whole history silently counted a phantom second trip that
+    // never happened, inflating both the monthly and today's trip
+    // counts. Now requires the field to actually be a genuine,
+    // non-empty value (matching the already-correct check used for
+    // the km calculation just below), not merely "not exactly an
+    // empty string".
+    if (g.a2 || g.ddt2 || (g.kmFine2 !== "" && g.kmFine2 !== undefined && g.kmFine2 !== null)) {
       viaggi++;
       if (g.kmInizio2 !== "" && g.kmInizio2 !== undefined && g.kmFine2 !== "" && g.kmFine2 !== undefined && !isNaN(g.kmFine2 - g.kmInizio2)) km += (Number(g.kmFine2) - Number(g.kmInizio2));
     }
