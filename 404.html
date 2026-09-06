@@ -226,7 +226,14 @@
     .main-inner { padding: 20px 16px 90px; padding-top: calc(var(--topline-h, 90px) + 12px); }
     .topline {
       position: fixed; top: 0; left: 0; right: 0; z-index: 15;
-      padding: calc(16px + env(safe-area-inset-top)) 16px 16px; margin: 0;
+      /* REAL BUG, reported directly and confirmed visually: the title
+         actually overlapped the fixed top-right buttons on mobile —
+         worst on "Storico consegne" (CSV + bell + theme, 3 buttons),
+         but risky on every screen once the bell button joined the
+         theme toggle. Reserves enough right-side room for the widest
+         combination so no title, on any screen, can grow into that
+         same space. */
+      padding: calc(16px + env(safe-area-inset-top)) 190px 16px 16px; margin: 0;
     }
     .topline-compact { gap: 10px; }
     .filter-row-inline { flex-direction: column; }
