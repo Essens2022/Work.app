@@ -104,9 +104,16 @@
      slim row, with the filters absorbed directly into the fixed top
      bar instead of scrolling away with the list below — so only the
      actual delivery rows ever need to scroll, nothing else. */
-  .topline-compact { align-items: center; gap: 16px; flex-wrap: wrap; padding-top: 18px; padding-bottom: 14px; }
-  .page-title-compact { font-size: 21px; white-space: nowrap; }
-  .filter-row-inline { margin: 0; flex: 1; min-width: 260px; }
+  /* Requested directly, after the earlier same-row fix still left
+     things feeling cramped/colliding: title always sits on its own
+     row at the top, filters always sit in their own row below it —
+     a permanent stacked layout, not a row that only wraps once space
+     runs out. Simpler and more predictable at any desktop width,
+     instead of the exact wrap point depending on how many drivers
+     happen to be in the dropdown that day. */
+  .topline-compact { flex-direction: column; align-items: stretch; gap: 12px; padding-top: 18px; padding-bottom: 14px; }
+  .page-title-compact { font-size: 21px; }
+  .filter-row-inline { margin: 0; }
   .filter-row-inline .driver-search { flex: 1; min-width: 160px; max-width: 320px; }
   .btn {
     display: inline-flex; align-items: center; gap: 8px; border: none; cursor: pointer;
@@ -207,7 +214,7 @@
       position: fixed; top: 0; left: 0; right: 0; z-index: 15;
       padding: calc(16px + env(safe-area-inset-top)) 16px 16px; margin: 0;
     }
-    .topline-compact { flex-direction: column; align-items: stretch; gap: 10px; }
+    .topline-compact { gap: 10px; }
     .filter-row-inline { flex-direction: column; }
     .filter-row-inline .driver-search { max-width: none; }
     .top-actions { top: calc(10px + env(safe-area-inset-top)); right: 12px; }
@@ -692,10 +699,11 @@
     </div>
     <div id="addDriverExisting">
       <div class="field">
-        <label>Email o ID autista</label>
-        <input type="text" id="addDriverInput" placeholder="Es. mario.b@email.it oppure IB-01">
+        <label>Email, ID o nome autista</label>
+        <input type="text" id="addDriverInput" placeholder="Es. mario.b@email.it, IB-01, oppure il nome">
       </div>
       <div class="error-msg" id="addDriverError"></div>
+      <div id="addDriverCandidates" style="display:none;margin-top:10px;"></div>
     </div>
     <div id="addDriverInvite" style="display:none;">
       <div class="field">
@@ -1051,24 +1059,53 @@
       }
       var input = document.getElementById('addDriverInput');
       var errEl = document.getElementById('addDriverError');
-      errEl.style.display = 'none';
       var identifier = input.value.trim();
       if (!identifier) return;
+      tryAddDriver(identifier);
+    });
+
+    // Requested directly: the identifier field's own placeholder says
+    // "email, ID, oppure il nome" — so a name that matches more than
+    // one real driver needs to let the fleet owner pick exactly who
+    // was meant, rather than either guessing or refusing outright.
+    // Pulled out on its own so both the initial submit AND clicking a
+    // specific candidate from that list can share this exact same
+    // call + same error handling, instead of duplicating it.
+    function tryAddDriver(identifier) {
+      var errEl = document.getElementById('addDriverError');
+      var candidatesEl = document.getElementById('addDriverCandidates');
+      errEl.style.display = 'none';
+      candidatesEl.style.display = 'none';
       call({ action: 'fleet_add_driver', slug: slug, password: password, identifier: identifier }).then(function (res) {
         if (!res.ok) {
+          if (res.reason === 'multiple_matches') {
+            var html = '<div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:8px;">Più autisti corrispondono — scegli quello giusto:</div>';
+            res.candidates.forEach(function (c) {
+              html += '<div class="add-driver-candidate" data-email="' + c.account_email + '" style="padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;cursor:pointer;">' +
+                '<div style="font-weight:700;font-size:14px;">' + c.nome + '</div>' +
+                '<div style="font-size:12px;color:var(--ink-soft);">' + c.account_email + '</div>' +
+                '</div>';
+            });
+            candidatesEl.innerHTML = html;
+            candidatesEl.style.display = 'block';
+            candidatesEl.querySelectorAll('.add-driver-candidate').forEach(function (row) {
+              row.addEventListener('click', function () { tryAddDriver(row.dataset.email); });
+            });
+            return;
+          }
           var messages = {
-            driver_not_found: 'Nessun autista trovato con questa email o ID.',
+            driver_not_found: 'Nessun autista trovato con questa email, ID o nome.',
             already_linked: 'Questo autista è già collegato alla flotta.'
           };
           errEl.textContent = messages[res.reason] || 'Impossibile aggiungere questo autista.';
           errEl.style.display = 'block';
           return;
         }
-        input.value = '';
+        document.getElementById('addDriverInput').value = '';
         document.getElementById('addDriverModalBackdrop').classList.remove('open');
         refresh();
       });
-    });
+    }
 
     document.getElementById('driverNoteSaveBtn').addEventListener('click', function () {
       var note = document.getElementById('driverNoteInput').value;
