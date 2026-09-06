@@ -222,20 +222,30 @@
     background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
     padding: 11px 16px; color: var(--ink); font-size: 16px; font-family: 'Inter', sans-serif; font-weight: 600;
   }
-  .delivery-row {
-    display: grid; grid-template-columns: 1.4fr 1fr 1fr; align-items: center; gap: 16px;
-    padding: 14px 20px; border-bottom: 1px solid var(--line);
+  /* Requested directly: Storico consegne grouped by day, matching the
+     driver app's own history screen exactly — a day header, then each
+     delivered client styled the same "done" way as there (green
+     background, checkmark badge), instead of a flat table. */
+  .consegne-day-header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-weight: 700; font-size: 15px; padding: 18px 4px 8px;
   }
-  .delivery-row.head { color: var(--ink-soft); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 13px 20px; }
-  .delivery-row:last-child { border-bottom: none; }
-  .delivery-client { font-weight: 700; font-size: 14px; }
-  .delivery-addr { font-size: 12px; color: var(--ink-soft); margin-top: 1px; }
-  .delivery-time { font-size: 13.5px; font-weight: 600; }
-  .delivery-date { font-size: 11.5px; color: var(--ink-soft); margin-top: 1px; }
+  .consegne-day-header:first-child { padding-top: 2px; }
+  .consegne-day-count { font-size: 12.5px; font-weight: 600; color: var(--ink-soft); }
+  .consegne-client-row {
+    display: flex; align-items: center; gap: 12px; padding: 14px 16px; margin-bottom: 8px; border-radius: 14px;
+  }
+  .consegne-client-done { background: var(--green-soft); }
+  .consegne-client-badge {
+    flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%;
+    background: var(--green-soft); color: var(--green); font-weight: 800; font-size: 13px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .consegne-client-name { font-weight: 700; font-size: 14px; }
+  .consegne-client-addr { font-size: 12px; color: var(--ink-soft); margin-top: 1px; }
+  .consegne-client-meta { font-size: 12.5px; font-weight: 700; color: var(--green); margin-top: 3px; }
   @media (max-width: 700px) {
-    .delivery-row { grid-template-columns: 1fr; gap: 3px; }
-    .delivery-row.head { display: none; }
-    .delivery-row:not(.head) { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; }
+    .consegne-day-header { padding-left: 0; padding-right: 0; }
   }
 
   /* ---------- Documenti ---------- */
@@ -1066,6 +1076,24 @@
       });
     }
 
+    // Requested directly ("storicul de consegne trebuie sa se salveze
+    // frumos pe zile exact cum se salveaza si la soferi... cu verde si
+    // frumos"): matches the driver app's own Storico exactly — each
+    // day gets its own header (same Italian weekday+date format,
+    // dpFormatDateIt in app.js), and each delivered client underneath
+    // gets the same "done" treatment (green background, checkmark,
+    // delivery time) instead of a flat, ungrouped table. Reusing this
+    // portal's own --green/--green-soft (already defined for both
+    // dark and light themes here) rather than introducing a new color
+    // that might not match the rest of this file's own palette.
+    function fleetFormatDateIt(dateStr) {
+      var parts = dateStr.split('-');
+      var d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      var giorni = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
+      var mesi = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+      return giorni[d.getDay()] + ' ' + d.getDate() + ' ' + mesi[d.getMonth()];
+    }
+
     function renderStorico() {
       var el = document.getElementById('storicoList');
       var query = document.getElementById('storicoSearchInput').value.trim().toLowerCase();
@@ -1074,15 +1102,32 @@
       });
       if (!filtered.length) { el.innerHTML = '<div class="empty-note">Nessuna consegna trovata per questo filtro.</div>'; return; }
 
-      var html = '<div class="delivery-row head"><div>Cliente</div><div>Autista</div><div>Quando</div></div>';
+      // Deliveries already arrive newest-first from the server, so
+      // grouping preserves that same order — no separate re-sort needed.
+      var dayKeys = [];
+      var byDay = {};
       filtered.forEach(function (d) {
-        var when = new Date(d.completed_at);
-        var whenLabel = when.toLocaleDateString('it-IT') + ' · ' + when.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-        html += '<div class="delivery-row">' +
-          '<div><div class="delivery-client">' + esc(d.client_nome) + '</div><div class="delivery-addr">' + esc(d.client_indirizzo || '') + '</div></div>' +
-          '<div>' + esc(d.driver_nome) + '</div>' +
-          '<div>' + whenLabel + '</div>' +
-          '</div>';
+        var dayKey = new Date(d.completed_at).toISOString().slice(0, 10);
+        if (!byDay[dayKey]) { byDay[dayKey] = []; dayKeys.push(dayKey); }
+        byDay[dayKey].push(d);
+      });
+
+      var html = '';
+      dayKeys.forEach(function (dayKey) {
+        var dayDeliveries = byDay[dayKey];
+        html += '<div class="consegne-day-header">' + esc(fleetFormatDateIt(dayKey)) + '<span class="consegne-day-count">' + dayDeliveries.length + ' consegn' + (dayDeliveries.length === 1 ? 'a' : 'e') + '</span></div>';
+        dayDeliveries.forEach(function (d) {
+          var when = new Date(d.completed_at);
+          var timeLabel = when.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+          html += '<div class="consegne-client-row consegne-client-done">' +
+            '<div class="consegne-client-badge">✓</div>' +
+            '<div class="consegne-client-info">' +
+            '<div class="consegne-client-name">' + esc(d.client_nome) + '</div>' +
+            '<div class="consegne-client-addr">' + esc(d.client_indirizzo || '') + '</div>' +
+            '<div class="consegne-client-meta">' + esc(d.driver_nome) + ' · Consegnato alle ' + timeLabel + '</div>' +
+            '</div>' +
+            '</div>';
+        });
       });
       el.innerHTML = html;
     }
