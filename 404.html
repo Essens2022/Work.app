@@ -322,7 +322,7 @@
     .panoramica-btn-label { display: none; }
 
     /* Requested directly: the whole block above the driver list
-       (alert, stats, promemoria toggle, search) stays fixed at the
+       (stats, search) stays fixed at the
        top of the screen — only the driver list itself scrolls below
        it, so this fixed area can never grow to swallow half the
        screen the way each large element did individually before. */
@@ -592,8 +592,8 @@
 
       <div class="main-inner">
       <!-- Requested directly: on mobile, everything except the driver
-           list itself stays fixed at the top (compact stats, the
-           promemoria toggle, search) — only the driver list below
+           list itself stays fixed at the top (compact stats,
+           search) — only the driver list below
            scrolls, so the fixed area never grows to take up half the
            screen the way individually-large elements did before.
            The stats now start right below the title — the alert
@@ -603,22 +603,6 @@
            sits between title and stats any more. -->
       <div id="panoramicaFixedTop">
       <div class="fleet-stats fleet-stats-6" id="statsRow"></div>
-
-      <!-- Requested directly: not always visible — a small toggle
-           button that reveals the promemoria editor only when actually
-           needed, instead of a permanently-open textarea taking up
-           space on every visit. -->
-      <button type="button" class="btn btn-ghost owner-only" id="promemoriaToggleBtn" style="width:100%;justify-content:space-between;margin-bottom:14px;">
-        <span>Promemoria per i nuovi autisti</span>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
-      </button>
-      <div class="settings-section owner-only" id="promemoriaPanel" style="display:none;padding:16px 18px;">
-        <label style="display:block;font-size:11.5px;font-weight:700;color:var(--ink-soft);margin-bottom:6px;">Promemoria per i nuovi autisti</label>
-        <textarea id="driverNoteInput" placeholder="Es. Veicolo: furgone. Consegna entro le 07:00." rows="2" style="width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--ink);font-size:16px;font-family:'Inter',sans-serif;resize:vertical;"></textarea>
-        <button class="btn btn-ghost" id="driverNoteSaveBtn" style="margin-top:8px;">Salva promemoria</button>
-        <span id="driverNoteSaved" style="font-size:12.5px;color:var(--green);margin-left:10px;display:none;">Salvato ✓</span>
-      </div>
-      <div class="settings-section viewer-only" id="driverNoteReadonly" style="display:none;padding:16px 18px;font-size:13.5px;color:var(--ink-soft);"></div>
 
       <div class="driver-toolbar">
         <input class="driver-search" id="driverSearchInput" placeholder="Cerca autista per nome...">
@@ -1195,10 +1179,6 @@
         if (!res.ok) return;
         currentDrivers = res.drivers;
         populateDriverDropdowns();
-        document.getElementById('driverNoteInput').value = res.driver_note || '';
-        var readonlyNote = document.getElementById('driverNoteReadonly');
-        readonlyNote.textContent = res.driver_note ? ('Promemoria: ' + res.driver_note) : '';
-        readonlyNote.style.display = res.driver_note ? 'block' : 'none';
 
         // Requested directly, matching the mockup's own "Consegne
         // oggi" figure: a real count IS available here — today's
@@ -1470,21 +1450,6 @@
         refresh();
       });
     }
-
-    document.getElementById('promemoriaToggleBtn').addEventListener('click', function () {
-      var panel = document.getElementById('promemoriaPanel');
-      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-    });
-
-    document.getElementById('driverNoteSaveBtn').addEventListener('click', function () {
-      var note = document.getElementById('driverNoteInput').value;
-      call({ action: 'fleet_set_driver_note', slug: slug, password: password, note: note }).then(function (res) {
-        if (!res.ok) return;
-        var savedLabel = document.getElementById('driverNoteSaved');
-        savedLabel.style.display = 'inline';
-        setTimeout(function () { savedLabel.style.display = 'none'; }, 2000);
-      });
-    });
 
     var lastTeamData = null;
 
