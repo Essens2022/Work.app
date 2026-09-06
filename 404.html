@@ -615,6 +615,10 @@
         </div>
       </div>
       <div class="main-inner">
+        <div id="pushEnableBanner" style="display:none;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+          <div style="font-size:13.5px;color:var(--ink-soft);">Attiva le notifiche push per essere avvisato subito sul telefono, anche a schermo spento.</div>
+          <button type="button" class="btn btn-accent" id="pushEnableBtn" style="flex:none;">Attiva notifiche</button>
+        </div>
         <div id="notificheList"></div>
       </div>
     </div>
@@ -840,6 +844,31 @@
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     }).then(function (r) { return r.json(); }).catch(function () { return { error: 'network' }; });
+  }
+
+  // Requested directly ("la flota notificarea nu se cede de pe
+  // telefon"): the portal had no push channel of its own until now —
+  // this file lives at the same site root as sw.js, so registering
+  // it here gives this page the exact same push+notificationclick
+  // handling already built and working for the driver app, no
+  // separate service worker file needed. Registered unconditionally,
+  // before login, same as any other one-time setup — actually
+  // subscribing still only happens once the fleet owner explicitly
+  // asks for it, from the Notifiche screen.
+  var VAPID_PUBLIC_KEY = 'BE8wkq3SQmoE8L8x0pFVwYaLym1EYB14_NABB1qEiVOi0VvOpUDYAODObA5Lirh9Kfy6C97ExU5btOYLG7uHvgk';
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(function () { /* offline first load — a later visit will retry */ });
+
+  function urlBase64ToUint8Array(base64String) {
+    var padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    var rawData = atob(base64);
+    var outputArray = new Uint8Array(rawData.length);
+    for (var i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+    return outputArray;
+  }
+
+  function fleetPushSupported() {
+    return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
   }
 
   var pathParts = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
@@ -1277,6 +1306,7 @@
     function loadNotifiche() {
       var el = document.getElementById('notificheList');
       el.innerHTML = '<div class="empty-note">Caricamento…</div>';
+      refreshPushBanner();
       call({ action: 'fleet_list_notifications', slug: slug, password: password }).then(function (res) {
         if (!res.ok) { el.innerHTML = '<div class="empty-note">Impossibile caricare le notifiche.</div>'; return; }
         if (!res.notifications.length) { el.innerHTML = '<div class="empty-note">Nessuna notifica per ora.</div>'; return; }
@@ -1297,6 +1327,42 @@
         call({ action: 'fleet_mark_notifications_read', slug: slug, password: password }).then(refreshNotifDot);
       });
     }
+
+    // Requested directly ("la flota notificarea nu se cede de pe
+    // telefon"): the banner only shows when push is genuinely
+    // available AND not yet turned on for THIS specific browser
+    // subscription — checked via the real pushManager subscription,
+    // not just a locally-remembered flag, since granting the
+    // permission is per-origin but the actual subscription can still
+    // be missing (a fresh browser profile, cleared site data, etc).
+    function refreshPushBanner() {
+      var banner = document.getElementById('pushEnableBanner');
+      if (!fleetPushSupported() || Notification.permission === 'denied') { banner.style.display = 'none'; return; }
+      navigator.serviceWorker.ready.then(function (reg) {
+        return reg.pushManager.getSubscription();
+      }).then(function (sub) {
+        banner.style.display = sub ? 'none' : 'flex';
+      }).catch(function () { banner.style.display = 'none'; });
+    }
+
+    document.getElementById('pushEnableBtn').addEventListener('click', function () {
+      var btn = document.getElementById('pushEnableBtn');
+      btn.disabled = true;
+      Notification.requestPermission().then(function (perm) {
+        if (perm !== 'granted') { btn.disabled = false; return; }
+        navigator.serviceWorker.ready.then(function (reg) {
+          return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) });
+        }).then(function (sub) {
+          return call({ action: 'fleet_subscribe_push', slug: slug, password: password, subscription: sub.toJSON() });
+        }).then(function () {
+          btn.disabled = false;
+          document.getElementById('pushEnableBanner').style.display = 'none';
+        }).catch(function () {
+          btn.disabled = false;
+          alert('Non è stato possibile attivare le notifiche su questo dispositivo.');
+        });
+      });
+    });
 
     var lastDeliveries = [];
     // Which days are expanded in Storico's accordion — persists across

@@ -148,7 +148,12 @@ self.addEventListener('fetch', (event) => {
 // Real phone push notifications — requested directly, kept entirely
 // separate from the in-app "Novità" red-dot indicator (which stays
 // unconditional for everyone). A driver only ever gets here if they
-// explicitly turned this on from Impostazioni.
+// explicitly turned this on from Impostazioni. Requested directly,
+// separately: the fleet portal (404.html) now sends its own pushes
+// too ("la flota notificarea nu se cede de pe telefon") — those
+// arrive with type:'fleet' and their own `slug`, handled distinctly
+// below since they need to open a completely different page (the
+// fleet's own portal at /{slug}, not this driver app at all).
 self.addEventListener('push', (event) => {
   var data = { title: 'ADB Smart', body: 'Novità disponibile' };
   try { data = event.data.json(); } catch (e) { /* fall back to the generic text above */ }
@@ -179,7 +184,7 @@ self.addEventListener('push', (event) => {
       // every notification this app can currently send, and still
       // leaves room for the backend to specify a different type
       // explicitly later, if a second kind of push ever gets added.
-      data: { type: data.type || 'chat' }
+      data: { type: data.type || 'chat', slug: data.slug || null }
     })
   );
 });
@@ -187,6 +192,36 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   var notificationType = (event.notification.data && event.notification.data.type) || 'generic';
+
+  // Requested directly ("la flota notificarea nu se cede de pe
+  // telefon... trebuie sa-l duca direct la notificare"): a fleet
+  // notification opens THAT fleet's own portal page directly, at
+  // /{slug} — a completely separate destination from this driver
+  // app, so it's handled as its own, simpler branch, without the
+  // driver-app-specific handoff/postMessage machinery below (404.html
+  // has no matching read-side code for any of that — it doesn't need
+  // it, since a fresh load of /{slug} already IS the right page,
+  // nothing further to navigate to once there).
+  if (notificationType === 'fleet') {
+    var fleetSlug = event.notification.data && event.notification.data.slug;
+    var fleetUrl = fleetSlug ? './' + fleetSlug : './';
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window' }).then(function (clientList) {
+        for (var i = 0; i < clientList.length; i++) {
+          // Only reuses an already-open window if it's genuinely
+          // already on this exact fleet's own page — focusing some
+          // unrelated open tab (a driver's own app, or a different
+          // fleet entirely) would silently strand the person there
+          // instead of taking them to the notification.
+          if (clientList[i].url.indexOf(fleetSlug || '\u0000') !== -1 && 'focus' in clientList[i]) {
+            return clientList[i].focus();
+          }
+        }
+        if (self.clients.openWindow) return self.clients.openWindow(fleetUrl);
+      })
+    );
+    return;
+  }
   // REAL BUG, reported directly and confirmed: works correctly on
   // Android, but on iOS, tapping the notification always just opened
   // the app generically — this is a well-documented WebKit/iOS
