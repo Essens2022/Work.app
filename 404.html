@@ -225,12 +225,19 @@
   /* Requested directly: Storico consegne grouped by day, matching the
      driver app's own history screen exactly — a day header, then each
      delivered client styled the same "done" way as there (green
-     background, checkmark badge), instead of a flat table. */
+     background, checkmark badge), instead of a flat table.
+     Requested directly, right after: also matching the app's own
+     tap-a-day-to-open behavior — days start collapsed (chevron
+     pointing right), and clicking one rotates the chevron down and
+     reveals that day's deliveries underneath, rather than showing
+     every day's clients all at once. */
   .consegne-day-header {
-    display: flex; justify-content: space-between; align-items: baseline;
-    font-weight: 700; font-size: 15px; padding: 18px 4px 8px;
+    display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
+    font-weight: 700; font-size: 15px; padding: 18px 4px 8px; cursor: pointer; user-select: none;
   }
   .consegne-day-header:first-child { padding-top: 2px; }
+  .consegne-day-chevron { display: inline-block; margin-right: 8px; color: var(--ink-soft); transition: transform .15s ease; }
+  .consegne-day-header.open .consegne-day-chevron { transform: rotate(90deg); }
   .consegne-day-count { font-size: 12.5px; font-weight: 600; color: var(--ink-soft); }
   .consegne-client-row {
     display: flex; align-items: center; gap: 12px; padding: 14px 16px; margin-bottom: 8px; border-radius: 14px;
@@ -1055,6 +1062,10 @@
     });
 
     var lastDeliveries = [];
+    // Which days are expanded in Storico's accordion — persists across
+    // re-renders (e.g. after a filter change) within the same visit,
+    // reset fresh whenever the screen re-fetches from scratch.
+    var storicoOpenDays = {};
 
     function loadStorico() {
       var driverFilter = document.getElementById('storicoDriverFilter').value;
@@ -1112,10 +1123,23 @@
         byDay[dayKey].push(d);
       });
 
+      // Requested directly ("apesi pe o zi si se deschide toate
+      // consegnele din acea zi, asa trebuie sa fie si aici"): matches
+      // the driver app's own Storico exactly — days start collapsed,
+      // showing just the date and a count, and tapping one reveals
+      // that day's deliveries underneath (an accordion, in place,
+      // rather than every day's clients all shown at once). A search
+      // in progress auto-expands every day that still has a match,
+      // so results are visible immediately without an extra tap.
       var html = '';
       dayKeys.forEach(function (dayKey) {
         var dayDeliveries = byDay[dayKey];
-        html += '<div class="consegne-day-header">' + esc(fleetFormatDateIt(dayKey)) + '<span class="consegne-day-count">' + dayDeliveries.length + ' consegn' + (dayDeliveries.length === 1 ? 'a' : 'e') + '</span></div>';
+        var isOpen = !!query || !!storicoOpenDays[dayKey];
+        html += '<div class="consegne-day-header' + (isOpen ? ' open' : '') + '" data-day-key="' + dayKey + '">' +
+          '<span class="consegne-day-chevron">›</span>' + esc(fleetFormatDateIt(dayKey)) +
+          '<span class="consegne-day-count">' + dayDeliveries.length + ' consegn' + (dayDeliveries.length === 1 ? 'a' : 'e') + '</span>' +
+          '</div>';
+        html += '<div class="consegne-day-body" style="' + (isOpen ? '' : 'display:none;') + '">';
         dayDeliveries.forEach(function (d) {
           var when = new Date(d.completed_at);
           var timeLabel = when.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
@@ -1128,8 +1152,19 @@
             '</div>' +
             '</div>';
         });
+        html += '</div>';
       });
       el.innerHTML = html;
+      el.querySelectorAll('.consegne-day-header').forEach(function (header) {
+        header.addEventListener('click', function () {
+          var dayKey = header.getAttribute('data-day-key');
+          storicoOpenDays[dayKey] = !storicoOpenDays[dayKey];
+          var body = header.nextElementSibling;
+          var nowOpen = !!storicoOpenDays[dayKey];
+          header.classList.toggle('open', nowOpen);
+          body.style.display = nowOpen ? '' : 'none';
+        });
+      });
     }
 
     document.getElementById('storicoDriverFilter').addEventListener('change', loadStorico);
