@@ -1143,6 +1143,28 @@
     document.querySelectorAll('[data-goto]').forEach(function (el) {
       el.addEventListener('click', function () { goToScreen(el.dataset.goto); });
     });
+
+    // Requested directly: live-ish auto-refresh, but only where it
+    // genuinely matters (Panoramica's stats/alerts, Consegne's
+    // delivery list) — Documenti/Notifiche/team change rarely, so
+    // polling them too would just burn battery/bandwidth for no real
+    // benefit. Uses the exact same quiet cache-refresh already built
+    // for navigation (refresh()/loadStorico() only ever replace
+    // content once the fresh data is ready — no flash, no
+    // "Caricamento" in between). Checks which screen is active right
+    // when the timer fires, rather than starting/stopping timers per
+    // screen — simpler, and self-correcting if the active screen
+    // changed since the last tick. Skips entirely while the tab/app
+    // is backgrounded (Page Visibility API) — resumes on its own the
+    // next tick after coming back, no separate wake-up logic needed.
+    setInterval(function () {
+      if (document.hidden) return;
+      var activeScreen = document.querySelector('.screen.active');
+      if (!activeScreen) return;
+      var name = activeScreen.dataset.screen;
+      if (name === 'panoramica') refresh();
+      else if (name === 'consegne') loadStorico();
+    }, 20000);
     document.getElementById('topNotifBtn').addEventListener('click', function () { goToScreen('notifiche'); });
     goToScreen('panoramica');
     refreshNotifDot();
