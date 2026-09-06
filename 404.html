@@ -1147,6 +1147,19 @@
     goToScreen('panoramica');
     refreshNotifDot();
 
+    // Requested directly ("informatiile urmatoare sa fie prefetch-uite
+    // inainte ca utilizatorul sa apese"): quietly warms the cache for
+    // every other screen right after login, in the background — none
+    // of these touch anything currently visible (Panoramica is the
+    // active screen; these write into other screens' own hidden
+    // elements), so by the time the driver actually taps into
+    // Documenti, Consegne, Notifiche or Impostazioni, the data is
+    // usually already sitting there, ready to render instantly.
+    loadDocumenti();
+    loadStorico();
+    loadNotifiche();
+    loadTeam();
+
     var currentDrivers = [];
 
     var todayDeliveryCountByEmail = {};
@@ -1436,24 +1449,32 @@
       });
     });
 
+    var lastTeamData = null;
+
+    function renderTeamList(res) {
+      var el = document.getElementById('teamMembersList');
+      var html = '<div class="team-row"><div class="team-info"><div class="avatar" style="width:34px;height:34px;font-size:12px;">' + esc(badgeInitials(res.owner_email)) + '</div><div>' + esc(res.owner_email) + '</div></div><span class="team-role">Titolare</span></div>';
+      (res.members || []).forEach(function (m) {
+        html += '<div class="team-row"><div class="team-info"><div class="avatar" style="width:34px;height:34px;font-size:12px;">' + esc(badgeInitials(m.email)) + '</div><div>' + esc(m.email) + '</div></div>' +
+          '<div style="display:flex;gap:8px;align-items:center;">' +
+          '<span class="team-role">' + (m.role === 'owner' ? 'Accesso completo' : 'Sola lettura') + '</span>' +
+          '<button class="team-remove" data-id="' + esc(m.id) + '">Rimuovi</button></div></div>';
+      });
+      el.innerHTML = html;
+      el.querySelectorAll('.team-remove').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          call({ action: 'fleet_remove_team_member', slug: slug, password: password, member_id: btn.dataset.id }).then(loadTeam);
+        });
+      });
+    }
+
     function loadTeam() {
-      document.getElementById('teamMembersList').innerHTML = '<div class="empty-note">Caricamento…</div>';
+      if (lastTeamData) renderTeamList(lastTeamData);
+      else document.getElementById('teamMembersList').innerHTML = '<div class="empty-note">Caricamento…</div>';
       call({ action: 'fleet_list_team', slug: slug, password: password }).then(function (res) {
         if (!res.ok) return;
-        var el = document.getElementById('teamMembersList');
-        var html = '<div class="team-row"><div class="team-info"><div class="avatar" style="width:34px;height:34px;font-size:12px;">' + esc(badgeInitials(res.owner_email)) + '</div><div>' + esc(res.owner_email) + '</div></div><span class="team-role">Titolare</span></div>';
-        (res.members || []).forEach(function (m) {
-          html += '<div class="team-row"><div class="team-info"><div class="avatar" style="width:34px;height:34px;font-size:12px;">' + esc(badgeInitials(m.email)) + '</div><div>' + esc(m.email) + '</div></div>' +
-            '<div style="display:flex;gap:8px;align-items:center;">' +
-            '<span class="team-role">' + (m.role === 'owner' ? 'Accesso completo' : 'Sola lettura') + '</span>' +
-            '<button class="team-remove" data-id="' + esc(m.id) + '">Rimuovi</button></div></div>';
-        });
-        el.innerHTML = html;
-        el.querySelectorAll('.team-remove').forEach(function (btn) {
-          btn.addEventListener('click', function () {
-            call({ action: 'fleet_remove_team_member', slug: slug, password: password, member_id: btn.dataset.id }).then(loadTeam);
-          });
-        });
+        lastTeamData = res;
+        renderTeamList(res);
       });
     }
 
@@ -1531,23 +1552,32 @@
       });
     }
 
+    var lastNotifications = null;
+
+    function renderNotificheList(notifications) {
+      var el = document.getElementById('notificheList');
+      if (!notifications.length) { el.innerHTML = '<div class="empty-note">Nessuna notifica per ora.</div>'; return; }
+      var html = '';
+      notifications.forEach(function (n) {
+        var when = new Date(n.created_at);
+        var whenLabel = when.toLocaleDateString('it-IT') + ' · ' + when.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+        html += '<div style="padding:14px 16px;margin-bottom:8px;border:1px solid var(--line);border-radius:12px;' + (n.read ? '' : 'border-left:3px solid var(--accent);') + '">' +
+          '<div style="font-size:14px;">' + esc(n.message) + '</div>' +
+          '<div style="font-size:12px;color:var(--ink-soft);margin-top:4px;">' + whenLabel + '</div>' +
+          '</div>';
+      });
+      el.innerHTML = html;
+    }
+
     function loadNotifiche() {
       var el = document.getElementById('notificheList');
-      el.innerHTML = '<div class="empty-note">Caricamento…</div>';
+      if (lastNotifications) renderNotificheList(lastNotifications);
+      else el.innerHTML = '<div class="empty-note">Caricamento…</div>';
       refreshPushBanner();
       call({ action: 'fleet_list_notifications', slug: slug, password: password }).then(function (res) {
-        if (!res.ok) { el.innerHTML = '<div class="empty-note">Impossibile caricare le notifiche.</div>'; return; }
-        if (!res.notifications.length) { el.innerHTML = '<div class="empty-note">Nessuna notifica per ora.</div>'; return; }
-        var html = '';
-        res.notifications.forEach(function (n) {
-          var when = new Date(n.created_at);
-          var whenLabel = when.toLocaleDateString('it-IT') + ' · ' + when.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-          html += '<div style="padding:14px 16px;margin-bottom:8px;border:1px solid var(--line);border-radius:12px;' + (n.read ? '' : 'border-left:3px solid var(--accent);') + '">' +
-            '<div style="font-size:14px;">' + esc(n.message) + '</div>' +
-            '<div style="font-size:12px;color:var(--ink-soft);margin-top:4px;">' + whenLabel + '</div>' +
-            '</div>';
-        });
-        el.innerHTML = html;
+        if (!res.ok) { if (!lastNotifications) el.innerHTML = '<div class="empty-note">Impossibile caricare le notifiche.</div>'; return; }
+        lastNotifications = res.notifications;
+        renderNotificheList(lastNotifications);
         // Marking read happens only after the notifications have
         // actually been shown — reading the list itself is what
         // counts as "seen", same as opening the driver app's own
@@ -1593,6 +1623,12 @@
     });
 
     var lastDeliveries = [];
+    // Requested directly ("totul instant... datele deja cunoscute sa
+    // fie pastrate in memorie/cache si afisate imediat"): tracks
+    // whether a real fetch has EVER completed here, independent of
+    // whether the result was empty — [] alone can't tell "never
+    // loaded" apart from "loaded, genuinely nothing to show".
+    var deliveriesEverLoaded = false;
     // Which days are expanded in Storico's accordion — persists across
     // re-renders (e.g. after a filter change) within the same visit,
     // reset fresh whenever the screen re-fetches from scratch.
@@ -1610,9 +1646,11 @@
       }
 
       var el = document.getElementById('storicoList');
-      el.innerHTML = '<div class="empty-note">Caricamento…</div>';
+      if (!deliveriesEverLoaded) el.innerHTML = '<div class="empty-note">Caricamento…</div>';
+      else renderStorico();
       call(payload).then(function (res) {
-        if (!res.ok) { el.innerHTML = '<div class="empty-note">Impossibile caricare lo storico.</div>'; return; }
+        if (!res.ok) { if (!deliveriesEverLoaded) el.innerHTML = '<div class="empty-note">Impossibile caricare lo storico.</div>'; return; }
+        deliveriesEverLoaded = true;
         lastDeliveries = res.deliveries;
         renderStorico();
       });
@@ -1722,13 +1760,16 @@
     });
 
     var lastDocuments = [];
+    var documentsEverLoaded = false;
     var docFilterScope = '';
 
     function loadDocumenti() {
       var el = document.getElementById('documentiList');
-      el.innerHTML = '<div class="empty-note">Caricamento…</div>';
+      if (!documentsEverLoaded) el.innerHTML = '<div class="empty-note">Caricamento…</div>';
+      else renderDocumenti();
       call({ action: 'fleet_list_documents', slug: slug, password: password }).then(function (res) {
-        if (!res.ok) { el.innerHTML = '<div class="empty-note">Impossibile caricare i documenti.</div>'; return; }
+        if (!res.ok) { if (!documentsEverLoaded) el.innerHTML = '<div class="empty-note">Impossibile caricare i documenti.</div>'; return; }
+        documentsEverLoaded = true;
         lastDocuments = res.documents;
         renderDocumenti();
       });
