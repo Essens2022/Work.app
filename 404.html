@@ -87,6 +87,11 @@
   }
   .rail-item svg { width: 18px; height: 18px; flex: none; }
   .rail-item.on { background: var(--accent-soft); color: var(--accent); }
+  /* Requested directly ("o sectiune noua, dedicata notificarilor, in
+     portal"): a small red dot next to "Notifiche" in the sidebar,
+     shown only while at least one notification is still unread —
+     same visual language as the driver app's own unread indicators. */
+  .notif-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-left: auto; flex: none; }
   .rail-divider { height: 1px; background: var(--line); margin: 14px 4px; }
   .main { flex: 1; min-width: 0; height: 100vh; overflow-y: auto; }
   .main-inner { padding: 30px 40px 90px; }
@@ -417,6 +422,7 @@
       <div class="rail-item" data-goto="documenti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Documenti</div>
       <div class="rail-item" data-goto="consegne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><path d="M9 11l2 2 4-4"/></svg>Consegne</div>
       <div class="rail-item" data-goto="mappa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4z"/><path d="M8 2v16M16 6v16"/></svg>Mappa</div>
+      <div class="rail-item" data-goto="notifiche"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notifiche<span class="notif-dot" id="notifDot" style="display:none;"></span></div>
       <div class="rail-divider"></div>
       <div class="rail-item owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
     </div>
@@ -476,6 +482,7 @@
       <div class="rail-item" data-goto="documenti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Documenti</div>
       <div class="rail-item on" data-goto="consegne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><path d="M9 11l2 2 4-4"/></svg>Consegne</div>
       <div class="rail-item" data-goto="mappa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4z"/><path d="M8 2v16M16 6v16"/></svg>Mappa</div>
+      <div class="rail-item" data-goto="notifiche"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notifiche<span class="notif-dot" id="notifDot2" style="display:none;"></span></div>
       <div class="rail-divider"></div>
       <div class="rail-item owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
     </div>
@@ -513,6 +520,7 @@
       <div class="rail-item on" data-goto="documenti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Documenti</div>
       <div class="rail-item" data-goto="consegne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><path d="M9 11l2 2 4-4"/></svg>Consegne</div>
       <div class="rail-item" data-goto="mappa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4z"/><path d="M8 2v16M16 6v16"/></svg>Mappa</div>
+      <div class="rail-item" data-goto="notifiche"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notifiche<span class="notif-dot" id="notifDot3" style="display:none;"></span></div>
       <div class="rail-divider"></div>
       <div class="rail-item owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
     </div>
@@ -558,6 +566,7 @@
       <div class="rail-item" data-goto="documenti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Documenti</div>
       <div class="rail-item" data-goto="consegne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><path d="M9 11l2 2 4-4"/></svg>Consegne</div>
       <div class="rail-item on" data-goto="mappa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4z"/><path d="M8 2v16M16 6v16"/></svg>Mappa</div>
+      <div class="rail-item" data-goto="notifiche"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notifiche<span class="notif-dot" id="notifDot5" style="display:none;"></span></div>
       <div class="rail-divider"></div>
       <div class="rail-item owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
     </div>
@@ -574,6 +583,39 @@
           <div style="font-size:14px;">La mappa live sarà disponibile qui, una volta che i tuoi autisti avranno attivato la condivisione della posizione.</div>
         </div>
       </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN: Notifiche — requested directly ("o sectiune noua, dedicata
+     notificarilor, in portal"): the portal has no push channel of its
+     own, so this is where the fleet owner learns things like a driver
+     having left their fleet, checked the next time they open it. -->
+<div class="screen" id="fleet-notifiche" data-screen="notifiche">
+  <div class="shell">
+    <div class="rail">
+      <div class="rail-brand">
+        <div class="fleet-logo" id="dashBadge6" style="margin:0;">··</div>
+        <div class="rail-brand-text"><span id="dashName6">—</span><span>ADB Smart Fleet</span></div>
+      </div>
+      <div class="rail-item" data-goto="panoramica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Panoramica</div>
+      <div class="rail-item" data-goto="panoramica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Autisti</div>
+      <div class="rail-item" data-goto="documenti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Documenti</div>
+      <div class="rail-item" data-goto="consegne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><path d="M9 11l2 2 4-4"/></svg>Consegne</div>
+      <div class="rail-item" data-goto="mappa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4z"/><path d="M8 2v16M16 6v16"/></svg>Mappa</div>
+      <div class="rail-item on" data-goto="notifiche"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notifiche<span class="notif-dot" id="notifDot6" style="display:none;"></span></div>
+      <div class="rail-divider"></div>
+      <div class="rail-item owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
+    </div>
+    <div class="main">
+      <div class="topline">
+        <div>
+          <h1 class="page-title">Notifiche</h1>
+        </div>
+      </div>
+      <div class="main-inner">
+        <div id="notificheList"></div>
       </div>
     </div>
   </div>
@@ -599,6 +641,7 @@
       <div class="rail-item" data-goto="documenti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Documenti</div>
       <div class="rail-item" data-goto="consegne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><path d="M9 11l2 2 4-4"/></svg>Consegne</div>
       <div class="rail-item" data-goto="mappa"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4z"/><path d="M8 2v16M16 6v16"/></svg>Mappa</div>
+      <div class="rail-item" data-goto="notifiche"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>Notifiche<span class="notif-dot" id="notifDot4" style="display:none;"></span></div>
       <div class="rail-divider"></div>
       <div class="rail-item on owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
     </div>
@@ -866,11 +909,11 @@
   function showApp(fleetName, password, role) {
     document.getElementById('fleet-login').classList.remove('active');
     document.body.classList.add('app-shown');
-    ['dashName', 'dashName2', 'dashName3', 'dashName4', 'dashName5'].forEach(function (id) { document.getElementById(id).textContent = fleetName; });
-    ['dashBadge', 'dashBadge2', 'dashBadge3', 'dashBadge4', 'dashBadge5', 'brandLogoPreview'].forEach(function (id) { document.getElementById(id).textContent = badgeInitials(fleetName); });
+    ['dashName', 'dashName2', 'dashName3', 'dashName4', 'dashName5', 'dashName6'].forEach(function (id) { document.getElementById(id).textContent = fleetName; });
+    ['dashBadge', 'dashBadge2', 'dashBadge3', 'dashBadge4', 'dashBadge5', 'dashBadge6', 'brandLogoPreview'].forEach(function (id) { document.getElementById(id).textContent = badgeInitials(fleetName); });
     if (role === 'viewer') document.body.classList.add('role-viewer');
 
-    var SCREEN_ID_BY_NAME = { panoramica: 'fleet-dashboard', documenti: 'fleet-docs', consegne: 'fleet-consegne', mappa: 'fleet-mappa', impostazioni: 'fleet-settings' };
+    var SCREEN_ID_BY_NAME = { panoramica: 'fleet-dashboard', documenti: 'fleet-docs', consegne: 'fleet-consegne', mappa: 'fleet-mappa', notifiche: 'fleet-notifiche', impostazioni: 'fleet-settings' };
 
     // Requested directly: the top bar should be fully fixed on
     // mobile, exactly like the bottom nav bar (not just "sticky",
@@ -898,6 +941,7 @@
       document.getElementById('exportCsvBtn').style.display = name === 'consegne' ? 'flex' : 'none';
       if (name === 'consegne') loadStorico();
       if (name === 'documenti') loadDocumenti();
+      if (name === 'notifiche') loadNotifiche();
       if (name === 'impostazioni') loadTeam();
       requestAnimationFrame(updateToplineHeight);
     }
@@ -905,6 +949,7 @@
       el.addEventListener('click', function () { goToScreen(el.dataset.goto); });
     });
     goToScreen('panoramica');
+    refreshNotifDot();
 
     var currentDrivers = [];
 
@@ -1104,7 +1149,9 @@
           }
           var messages = {
             driver_not_found: 'Nessun autista trovato con questa email, ID o nome.',
-            already_linked: 'Questo autista è già collegato alla flotta.'
+            already_linked: 'Questo autista è già collegato alla tua flotta.',
+            already_in_other_fleet: 'Questo autista appartiene già a un\'altra flotta — deve prima lasciarla dalle sue Impostazioni.',
+            invitation_already_pending: 'Hai già inviato un invito a questo autista — in attesa di risposta.'
           };
           errEl.textContent = messages[res.reason] || 'Impossibile aggiungere questo autista.';
           errEl.style.display = 'block';
@@ -1112,6 +1159,12 @@
         }
         document.getElementById('addDriverInput').value = '';
         document.getElementById('addDriverModalBackdrop').classList.remove('open');
+        // Requested directly, security concern: a driver is no longer
+        // added straight to the fleet — an invitation is sent instead,
+        // and nothing is linked until they accept it from their own
+        // app. This confirms that clearly, rather than implying the
+        // driver is already part of the fleet right away.
+        alert('Invito inviato! L\'autista lo troverà in Novità, sulla sua app — apparirà nella tua lista di autisti solo dopo averlo accettato.');
         refresh();
       });
     }
@@ -1206,6 +1259,44 @@
         successEl.style.display = 'block';
       });
     });
+
+    // Requested directly ("o sectiune noua, dedicata notificarilor, in
+    // portal"): checked once on login (so the sidebar dot reflects
+    // reality right away, without needing to visit the screen first),
+    // and again whenever the Notifiche screen itself is opened.
+    function refreshNotifDot() {
+      call({ action: 'fleet_list_notifications', slug: slug, password: password }).then(function (res) {
+        if (!res.ok) return;
+        var hasUnread = res.notifications.some(function (n) { return !n.read; });
+        ['notifDot', 'notifDot2', 'notifDot3', 'notifDot4', 'notifDot5', 'notifDot6'].forEach(function (id) {
+          document.getElementById(id).style.display = hasUnread ? 'block' : 'none';
+        });
+      });
+    }
+
+    function loadNotifiche() {
+      var el = document.getElementById('notificheList');
+      el.innerHTML = '<div class="empty-note">Caricamento…</div>';
+      call({ action: 'fleet_list_notifications', slug: slug, password: password }).then(function (res) {
+        if (!res.ok) { el.innerHTML = '<div class="empty-note">Impossibile caricare le notifiche.</div>'; return; }
+        if (!res.notifications.length) { el.innerHTML = '<div class="empty-note">Nessuna notifica per ora.</div>'; return; }
+        var html = '';
+        res.notifications.forEach(function (n) {
+          var when = new Date(n.created_at);
+          var whenLabel = when.toLocaleDateString('it-IT') + ' · ' + when.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+          html += '<div style="padding:14px 16px;margin-bottom:8px;border:1px solid var(--line);border-radius:12px;' + (n.read ? '' : 'border-left:3px solid var(--accent);') + '">' +
+            '<div style="font-size:14px;">' + esc(n.message) + '</div>' +
+            '<div style="font-size:12px;color:var(--ink-soft);margin-top:4px;">' + whenLabel + '</div>' +
+            '</div>';
+        });
+        el.innerHTML = html;
+        // Marking read happens only after the notifications have
+        // actually been shown — reading the list itself is what
+        // counts as "seen", same as opening the driver app's own
+        // Novità already does.
+        call({ action: 'fleet_mark_notifications_read', slug: slug, password: password }).then(refreshNotifDot);
+      });
+    }
 
     var lastDeliveries = [];
     // Which days are expanded in Storico's accordion — persists across
