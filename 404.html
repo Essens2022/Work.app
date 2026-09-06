@@ -216,6 +216,7 @@
   .driver-name { font-weight: 700; font-size: 14.5px; }
   .driver-sub { font-size: 12px; color: var(--ink-soft); margin-top: 1px; }
   .empty-note { text-align: center; color: var(--ink-soft); padding: 40px 20px; font-size: 14px; }
+  .driver-mobile-label { display: none; }
 
   @media (max-width: 860px) {
     .rail { display: none; }
@@ -247,8 +248,78 @@
     .filter-row-inline .driver-search { flex: 1 1 100%; max-width: none; }
     .top-actions { top: calc(10px + env(safe-area-inset-top)); right: 12px; }
     .top-export-btn span, .top-export-btn { padding: 7px 10px; }
+
+    /* Requested directly: title alone in the topline now — no
+       buttons squeezed in beside it — and a smaller gap below it,
+       since "Mappa live" / "Aggiungi autista" moved down next to the
+       alert banner's own row instead. */
+    #fleet-dashboard .topline { padding-bottom: 4px; }
+
+    /* Requested directly: "Mappa live" / "Aggiungi autista" sit next
+       to the alert banner's own row, not up by the bell/theme
+       buttons — same row whether or not an alert is actually
+       showing, both children of one flex row. */
+    .panoramica-alert-row { display: flex; align-items: flex-start; justify-content: flex-end; gap: 10px; margin-bottom: 14px; }
+    .panoramica-alert-row .alert-banner { flex: 1 1 auto; margin-bottom: 0; }
+    .panoramica-top-actions { flex: none; margin-left: auto; }
+
     .driver-toolbar { flex-direction: column; }
     body.app-shown .bottom-nav { display: flex; }
+
+    /* Requested directly: "Mappa live" / "Aggiungi autista" were
+       taking up too much room on mobile — shrunk to compact,
+       icon-first buttons (label text hidden, icon + tooltip only),
+       so they no longer dominate the top bar next to the title. */
+    .panoramica-compact-btn { padding: 8px 10px; gap: 0; }
+    .panoramica-btn-label { display: none; }
+
+    /* Requested directly: the whole block above the driver list
+       (alert, stats, promemoria toggle, search) stays fixed at the
+       top of the screen — only the driver list itself scrolls below
+       it, so this fixed area can never grow to swallow half the
+       screen the way each large element did individually before. */
+    #panoramicaFixedTop { flex: none; }
+    #panoramicaScrollArea { flex: 1 1 auto; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    body.app-shown #fleet-dashboard .main-inner {
+      display: flex; flex-direction: column;
+      height: 100dvh;
+      padding-bottom: 90px;
+    }
+
+    /* Requested directly: much smaller, three-per-row stat cards —
+       a fine, compact reference strip rather than large cards that
+       pushed the driver list halfway down the screen. */
+    .fleet-stats-6 { grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+    #panoramicaFixedTop .stat-card { padding: 10px 8px; border-radius: 10px; }
+    #panoramicaFixedTop .stat-num { font-size: 18px; }
+    #panoramicaFixedTop .stat-label { font-size: 9.5px; line-height: 1.25; margin-top: 1px; }
+
+    /* Requested directly: each driver row much slimmer/finer, not a
+       tall stacked card — compact enough that many fit on screen at
+       once inside the scrollable list below the fixed area. */
+    #panoramicaScrollArea .driver-card:not(.head) { padding: 10px 12px; margin: 0 0 6px; }
+    #panoramicaScrollArea .avatar { width: 32px; height: 32px; font-size: 12px; }
+    #panoramicaScrollArea .driver-name { font-size: 13.5px; }
+    #panoramicaScrollArea .driver-sub { font-size: 11px; }
+
+    /* Requested directly: each driver row starts collapsed to just
+       avatar + name + status, on one slim line — tapping it reveals
+       the rest (consegne oggi, veicolo, rimuovi) underneath, instead
+       of every row always showing all 6 fields stacked tall. */
+    #panoramicaScrollArea .driver-card[data-expandable] {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 10px; cursor: pointer;
+    }
+    #panoramicaScrollArea .driver-col-avatar { flex: none; }
+    #panoramicaScrollArea .driver-col-name { flex: 1 1 auto; min-width: 0; }
+    #panoramicaScrollArea .driver-col-status,
+    #panoramicaScrollArea .driver-col-consegne,
+    #panoramicaScrollArea .driver-col-veicolo,
+    #panoramicaScrollArea .driver-col-actions { display: none; flex: 1 1 100%; font-size: 12.5px; color: var(--ink-soft); padding-top: 6px; border-top: 1px solid var(--line); margin-top: 4px; }
+    #panoramicaScrollArea .driver-card.expanded .driver-col-status,
+    #panoramicaScrollArea .driver-card.expanded .driver-col-consegne,
+    #panoramicaScrollArea .driver-card.expanded .driver-col-veicolo,
+    #panoramicaScrollArea .driver-card.expanded .driver-col-actions { display: block; }
+    #panoramicaScrollArea .driver-mobile-label { display: inline; font-weight: 600; color: var(--ink); }
   }
 
   /* ---------- Storico consegne ---------- */
@@ -449,27 +520,48 @@
         <div>
           <h1 class="page-title">Panoramica flotta</h1>
         </div>
-        <div style="display:flex;gap:10px;">
-          <button class="btn btn-ghost" data-goto="mappa">
+      </div>
+
+      <div class="main-inner">
+      <!-- Requested directly: on mobile, everything except the driver
+           list itself stays fixed at the top (alert, compact stats,
+           the promemoria toggle, search) — only the driver list below
+           scrolls, so the fixed area never grows to take up half the
+           screen the way individually-large elements did before. -->
+      <div id="panoramicaFixedTop">
+      <!-- Requested directly: "Mappa live" / "Aggiungi autista" sit
+           next to the ALERT banner's own row (not up by the bell/theme
+           buttons) — same row whether or not an alert is actually
+           showing, since they're both children of this one flex row,
+           not tied to the banner's own visibility. -->
+      <div class="panoramica-alert-row">
+        <div class="alert-banner" id="alertBanner" style="display:none;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+          <div id="alertBannerText"></div>
+        </div>
+        <div class="panoramica-top-actions" style="display:flex;gap:10px;">
+          <button class="btn btn-ghost panoramica-compact-btn" data-goto="mappa">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4z"/><path d="M8 2v16M16 6v16"/></svg>
-            Mappa live
+            <span class="panoramica-btn-label">Mappa live</span>
           </button>
-          <button class="btn btn-accent owner-only" id="openAddDriverModalBtn">
+          <button class="btn btn-accent owner-only panoramica-compact-btn" id="openAddDriverModalBtn">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-            Aggiungi autista
+            <span class="panoramica-btn-label">Aggiungi autista</span>
           </button>
         </div>
       </div>
 
-      <div class="main-inner">
-      <div class="alert-banner" id="alertBanner" style="display:none;">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
-        <div id="alertBannerText"></div>
-      </div>
-
       <div class="fleet-stats fleet-stats-6" id="statsRow"></div>
 
-      <div class="settings-section owner-only" style="padding:16px 18px;">
+      <!-- Requested directly: not always visible — a small toggle
+           button that reveals the promemoria editor only when actually
+           needed, instead of a permanently-open textarea taking up
+           space on every visit. -->
+      <button type="button" class="btn btn-ghost owner-only" id="promemoriaToggleBtn" style="width:100%;justify-content:space-between;margin-bottom:14px;">
+        <span>Promemoria per i nuovi autisti</span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <div class="settings-section owner-only" id="promemoriaPanel" style="display:none;padding:16px 18px;">
         <label style="display:block;font-size:11.5px;font-weight:700;color:var(--ink-soft);margin-bottom:6px;">Promemoria per i nuovi autisti</label>
         <textarea id="driverNoteInput" placeholder="Es. Veicolo: furgone. Consegna entro le 07:00." rows="2" style="width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--ink);font-size:16px;font-family:'Inter',sans-serif;resize:vertical;"></textarea>
         <button class="btn btn-ghost" id="driverNoteSaveBtn" style="margin-top:8px;">Salva promemoria</button>
@@ -480,8 +572,11 @@
       <div class="driver-toolbar">
         <input class="driver-search" id="driverSearchInput" placeholder="Cerca autista per nome...">
       </div>
+      </div>
 
+      <div id="panoramicaScrollArea">
       <div class="fleet-table" id="driverTable"></div>
+      </div>
       </div>
     </div>
   </div>
@@ -1103,21 +1198,32 @@
         // itself isn't tracked anywhere yet, so only the plate half
         // of the mockup's "Fiat Ducato · AB123CD" format is real.
         var todayCount = todayDeliveryCountByEmail[d.account_email] || 0;
-        html += '<div class="driver-card">' +
-          '<div class="avatar">' + esc(badgeInitials(d.nome || d.account_email)) + '</div>' +
-          '<div><div class="driver-name">' + esc(d.nome || d.account_email) + '</div><div class="driver-sub">' + esc(d.account_email) + '</div></div>' +
-          '<div><span class="status-dot" style="background:var(--ink-soft);"></span>—</div>' +
-          '<div>' + todayCount + '</div>' +
-          '<div>' + esc(d.targa || '—') + '</div>' +
-          '<div><button class="doc-actions-btn owner-only remove-btn" data-email="' + esc(d.account_email) + '" data-name="' + esc(d.nome || d.account_email) + '" style="background:none;border:none;color:var(--ink-soft);cursor:pointer;font-size:13px;">Rimuovi</button></div>' +
+        // Requested directly: on mobile, each row starts collapsed to
+        // just avatar + name + status — a single, slim line — and
+        // tapping it reveals the rest (consegne oggi, veicolo,
+        // rimuovi) rather than every row always showing all 6 fields
+        // stacked tall. Desktop is untouched — same grid, same 6
+        // columns, same look as before; only these added classes let
+        // mobile selectively hide/reveal columns.
+        html += '<div class="driver-card" data-expandable>' +
+          '<div class="driver-col-avatar"><div class="avatar">' + esc(badgeInitials(d.nome || d.account_email)) + '</div></div>' +
+          '<div class="driver-col-name"><div class="driver-name">' + esc(d.nome || d.account_email) + '</div><div class="driver-sub">' + esc(d.account_email) + '</div></div>' +
+          '<div class="driver-col-status"><span class="status-dot" style="background:var(--ink-soft);"></span>—</div>' +
+          '<div class="driver-col-consegne"><span class="driver-mobile-label">Consegne oggi: </span>' + todayCount + '</div>' +
+          '<div class="driver-col-veicolo"><span class="driver-mobile-label">Veicolo: </span>' + esc(d.targa || '—') + '</div>' +
+          '<div class="driver-col-actions"><button class="doc-actions-btn owner-only remove-btn" data-email="' + esc(d.account_email) + '" data-name="' + esc(d.nome || d.account_email) + '" style="background:none;border:none;color:var(--ink-soft);cursor:pointer;font-size:13px;">Rimuovi</button></div>' +
           '</div>';
       });
       el.innerHTML = html;
       el.querySelectorAll('.remove-btn').forEach(function (btn) {
-        btn.addEventListener('click', function () {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
           if (!confirm('Rimuovere ' + btn.dataset.name + ' dalla flotta?')) return;
           call({ action: 'fleet_remove_driver', slug: slug, password: password, account_email: btn.dataset.email }).then(refresh);
         });
+      });
+      el.querySelectorAll('.driver-card[data-expandable]').forEach(function (card) {
+        card.addEventListener('click', function () { card.classList.toggle('expanded'); });
       });
     }
 
@@ -1217,6 +1323,11 @@
         refresh();
       });
     }
+
+    document.getElementById('promemoriaToggleBtn').addEventListener('click', function () {
+      var panel = document.getElementById('promemoriaPanel');
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+    });
 
     document.getElementById('driverNoteSaveBtn').addEventListener('click', function () {
       var note = document.getElementById('driverNoteInput').value;
