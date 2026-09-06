@@ -297,6 +297,24 @@
   .settings-section { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px; margin-bottom: 20px; }
   .settings-section h3 { font-size: 19px; margin: 0 0 4px; }
   .settings-section p.sub { color: var(--ink-soft); font-size: 13px; margin: 0 0 20px; }
+  /* Requested directly: an eye toggle on each password field in
+     "Cambia password", to see what's actually typed before
+     submitting. max-width kept here deliberately — settings-section
+     itself now spans the full screen (a separate, direct request),
+     but a password field stretched that wide would look impractical;
+     this keeps just the fields themselves at a sane, readable width
+     regardless of how wide the section around them is. */
+  .pw-field-wrap { position: relative; max-width: 420px; margin-bottom: 10px; }
+  .pw-field-input {
+    width: 100%; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px;
+    padding: 11px 44px 11px 16px; color: var(--ink); font-size: 16px; font-family: 'Inter', sans-serif;
+  }
+  .pw-field-toggle {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    width: 32px; height: 32px; border: none; background: transparent; color: var(--ink-soft);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .pw-field-toggle svg { width: 19px; height: 19px; }
   .team-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line); gap: 10px; }
   .team-row:last-child { border-bottom: none; }
   .team-info { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -576,7 +594,6 @@
       </div>
 
       <div class="main-inner">
-      <div style="max-width:720px;">
       <div class="settings-section">
         <h3>Il tuo marchio</h3>
         <p class="sub">Il logo che carichi qui appare anche nell'app dei tuoi autisti — la vedranno come l'app della loro azienda.</p>
@@ -608,9 +625,27 @@
       <div class="settings-section">
         <h3>Cambia password</h3>
         <p class="sub">Ti serve la password attuale per confermare il cambio.</p>
-        <input type="password" id="changePwCurrentInput" placeholder="Password attuale" autocomplete="current-password" style="width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:11px 16px;color:var(--ink);font-size:16px;font-family:'Inter',sans-serif;margin-bottom:10px;">
-        <input type="password" id="changePwNewInput" placeholder="Nuova password (almeno 6 caratteri)" autocomplete="new-password" style="width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:11px 16px;color:var(--ink);font-size:16px;font-family:'Inter',sans-serif;margin-bottom:10px;">
-        <input type="password" id="changePwConfirmInput" placeholder="Ripeti la nuova password" autocomplete="new-password" style="width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:11px 16px;color:var(--ink);font-size:16px;font-family:'Inter',sans-serif;margin-bottom:12px;">
+        <div class="pw-field-wrap">
+          <input type="password" id="changePwCurrentInput" placeholder="Password attuale" autocomplete="current-password" class="pw-field-input">
+          <button type="button" class="pw-field-toggle" data-target="changePwCurrentInput">
+            <svg class="pw-icon-show" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg class="pw-icon-hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          </button>
+        </div>
+        <div class="pw-field-wrap">
+          <input type="password" id="changePwNewInput" placeholder="Nuova password (almeno 6 caratteri)" autocomplete="new-password" class="pw-field-input">
+          <button type="button" class="pw-field-toggle" data-target="changePwNewInput">
+            <svg class="pw-icon-show" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg class="pw-icon-hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          </button>
+        </div>
+        <div class="pw-field-wrap" style="margin-bottom:12px;">
+          <input type="password" id="changePwConfirmInput" placeholder="Ripeti la nuova password" autocomplete="new-password" class="pw-field-input">
+          <button type="button" class="pw-field-toggle" data-target="changePwConfirmInput">
+            <svg class="pw-icon-show" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>
+            <svg class="pw-icon-hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+          </button>
+        </div>
         <div id="changePwError" style="display:none;color:#E8542B;font-size:13px;margin-bottom:12px;"></div>
         <div id="changePwSuccess" style="display:none;color:var(--green);font-size:13px;margin-bottom:12px;">✓ Password aggiornata</div>
         <button class="btn btn-accent" id="changePwSubmitBtn">Salva nuova password</button>
@@ -640,7 +675,6 @@
           <div><div style="font-weight:700;font-size:14px;">Avviso autista inattivo</div><div style="font-size:12.5px;color:var(--ink-soft);margin-top:2px;">Se un autista non apre l'app da più di 2 giorni</div></div>
           <div style="width:42px;height:24px;border-radius:100px;background:var(--surface-2);border:1px solid var(--line);flex:none;opacity:.5;"></div>
         </div>
-      </div>
       </div>
       </div>
     </div>
@@ -1076,6 +1110,16 @@
         alert('Invitato! Password temporanea per ' + email + ': ' + res.temp_password + '\n\nCondividila con loro — non verrà mostrata di nuovo.');
         document.getElementById('teamEmailInput').value = '';
         loadTeam();
+      });
+    });
+
+    document.querySelectorAll('.pw-field-toggle').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var input = document.getElementById(btn.dataset.target);
+        var showing = input.type === 'text';
+        input.type = showing ? 'password' : 'text';
+        btn.querySelector('.pw-icon-show').style.display = showing ? '' : 'none';
+        btn.querySelector('.pw-icon-hide').style.display = showing ? 'none' : '';
       });
     });
 
