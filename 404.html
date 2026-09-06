@@ -359,14 +359,18 @@
     }
     #panoramicaScrollArea .driver-col-avatar { flex: none; }
     #panoramicaScrollArea .driver-col-name { flex: 1 1 auto; min-width: 0; }
-    #panoramicaScrollArea .driver-col-status,
-    #panoramicaScrollArea .driver-col-consegne,
     #panoramicaScrollArea .driver-col-veicolo,
     #panoramicaScrollArea .driver-col-actions { display: none; flex: 1 1 100%; font-size: 12.5px; color: var(--ink-soft); padding-top: 6px; border-top: 1px solid var(--line); margin-top: 4px; }
-    #panoramicaScrollArea .driver-card.expanded .driver-col-status,
-    #panoramicaScrollArea .driver-card.expanded .driver-col-consegne,
     #panoramicaScrollArea .driver-card.expanded .driver-col-veicolo,
     #panoramicaScrollArea .driver-card.expanded .driver-col-actions { display: block; }
+    /* Requested directly: name + a real activity indicator + today's
+       delivery count are the 3 things worth seeing at a glance,
+       without tapping — shown compact, right under the name, on
+       mobile (desktop keeps its own separate grid columns for these,
+       unchanged). */
+    #panoramicaScrollArea .driver-col-status,
+    #panoramicaScrollArea .driver-col-consegne { display: inline-flex; align-items: center; font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+    #panoramicaScrollArea .driver-col-consegne { margin-left: 10px; }
     #panoramicaScrollArea .driver-mobile-label { display: inline; font-weight: 600; color: var(--ink); }
   }
 
@@ -1321,15 +1325,24 @@
       }
       var html = '<div class="driver-card head"><div></div><div>Autista</div><div>Stato</div><div>Consegne oggi</div><div>Veicolo</div><div></div></div>';
       drivers.forEach(function (d) {
-        // Requested directly: "Stato" (live delivery status) needs
-        // real-time tracking that doesn't exist yet — shown as a
-        // neutral gray dot with "—" rather than a fabricated
-        // in-consegna/in-pausa value. "Consegne oggi" IS real (see
-        // todayDeliveryCountByEmail, built in refresh() above).
+        // Requested directly: "Stato" now reflects real activity
+        // (last_active, same 2-day threshold as the inactivity alert
+        // elsewhere on this screen) instead of a fabricated neutral
+        // dot. "Consegne oggi" IS real (see todayDeliveryCountByEmail,
+        // built in refresh() above).
         // "Veicolo" shows the real plate; the vehicle type/model
         // itself isn't tracked anywhere yet, so only the plate half
         // of the mockup's "Fiat Ducato · AB123CD" format is real.
         var todayCount = todayDeliveryCountByEmail[d.account_email] || 0;
+        // Requested directly ("adauga si recomandarile tale per
+        // sofer"): replaces the always-gray, fake "—" status with a
+        // real indicator built from last_active — green means the
+        // app was opened recently, amber matches the same 2-day
+        // threshold already used for the inactivity toast/alert
+        // elsewhere on this screen, so the two stay consistent.
+        var isInactive = !d.last_active || (Date.now() - new Date(d.last_active).getTime()) > 2 * 24 * 60 * 60 * 1000;
+        var statusColor = isInactive ? 'var(--amber)' : 'var(--green)';
+        var statusLabel = isInactive ? 'Inattivo' : 'Attivo';
         // Requested directly: on mobile, each row starts collapsed to
         // just avatar + name + status — a single, slim line — and
         // tapping it reveals the rest (consegne oggi, veicolo,
@@ -1340,7 +1353,7 @@
         html += '<div class="driver-card" data-expandable>' +
           '<div class="driver-col-avatar"><div class="avatar">' + esc(badgeInitials(d.nome || d.account_email)) + '</div></div>' +
           '<div class="driver-col-name"><div class="driver-name">' + esc(d.nome || d.account_email) + '</div><div class="driver-sub">' + esc(d.account_email) + '</div></div>' +
-          '<div class="driver-col-status"><span class="status-dot" style="background:var(--ink-soft);"></span>—</div>' +
+          '<div class="driver-col-status"><span class="status-dot" style="background:' + statusColor + ';"></span>' + statusLabel + '</div>' +
           '<div class="driver-col-consegne"><span class="driver-mobile-label">Consegne oggi: </span>' + todayCount + '</div>' +
           '<div class="driver-col-veicolo"><span class="driver-mobile-label">Veicolo: </span>' + esc(d.targa || '—') + '</div>' +
           '<div class="driver-col-actions"><button class="doc-actions-btn owner-only remove-btn" data-email="' + esc(d.account_email) + '" data-name="' + esc(d.nome || d.account_email) + '" style="background:none;border:none;color:var(--ink-soft);cursor:pointer;font-size:13px;">Rimuovi</button></div>' +
