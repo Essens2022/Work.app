@@ -226,18 +226,25 @@
     .main-inner { padding: 20px 16px 90px; padding-top: calc(var(--topline-h, 90px) + 12px); }
     .topline {
       position: fixed; top: 0; left: 0; right: 0; z-index: 15;
-      /* REAL BUG, reported directly and confirmed visually: the title
-         actually overlapped the fixed top-right buttons on mobile —
-         worst on "Storico consegne" (CSV + bell + theme, 3 buttons),
-         but risky on every screen once the bell button joined the
-         theme toggle. Reserves enough right-side room for the widest
-         combination so no title, on any screen, can grow into that
-         same space. */
-      padding: calc(16px + env(safe-area-inset-top)) 190px 16px 16px; margin: 0;
+      padding: calc(16px + env(safe-area-inset-top)) 16px 16px; margin: 0;
     }
+    /* REAL BUG, reported directly and confirmed: reserving room for
+       the fixed top-right buttons (CSV + bell + theme) on the WHOLE
+       topline also squeezed everything below the title — the filter
+       row (driver/period/search), which sits well below those
+       buttons and never risked overlapping them, ended up narrow and
+       stuck on the left instead of spanning the full screen. Moved
+       that reserved space onto the title itself only — filters and
+       everything else in this same bar keep the full, normal width. */
+    .page-title { padding-right: 190px; }
     .topline-compact { gap: 10px; }
-    .filter-row-inline { flex-direction: column; }
-    .filter-row-inline .driver-search { max-width: none; }
+    /* Requested directly: driver + period side-by-side, each half
+       width, on the same row, directly above a full-width search bar
+       below them — instead of all 3 filters stacked one under the
+       other, full width, which read as visually messy/ugly. */
+    .filter-row-inline #storicoDriverFilter,
+    .filter-row-inline #storicoPeriodFilter { flex: 1 1 calc(50% - 5px); min-width: 0; }
+    .filter-row-inline .driver-search { flex: 1 1 100%; max-width: none; }
     .top-actions { top: calc(10px + env(safe-area-inset-top)); right: 12px; }
     .top-export-btn span, .top-export-btn { padding: 7px 10px; }
     .driver-toolbar { flex-direction: column; }
