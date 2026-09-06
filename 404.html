@@ -1337,11 +1337,13 @@
         // Requested directly ("adauga si recomandarile tale per
         // sofer"): replaces the always-gray, fake "—" status with a
         // real indicator built from last_active — green means the
-        // app was opened recently, amber matches the same 2-day
-        // threshold already used for the inactivity toast/alert
-        // elsewhere on this screen, so the two stay consistent.
+        // app was opened recently; gray (not amber/red) for inactive,
+        // per direct request, since amber read as more alarming than
+        // intended here. Same 2-day threshold as the inactivity
+        // toast/alert elsewhere on this screen, so the two stay
+        // consistent with each other.
         var isInactive = !d.last_active || (Date.now() - new Date(d.last_active).getTime()) > 2 * 24 * 60 * 60 * 1000;
-        var statusColor = isInactive ? 'var(--amber)' : 'var(--green)';
+        var statusColor = isInactive ? 'var(--ink-soft)' : 'var(--green)';
         var statusLabel = isInactive ? 'Inattivo' : 'Attivo';
         // Requested directly: on mobile, each row starts collapsed to
         // just avatar + name + status — a single, slim line — and
