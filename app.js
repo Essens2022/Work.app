@@ -850,6 +850,11 @@
       // other icon here — no emoji, per direct request.
       home: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9a1 1 0 0 0 1 1h3v-6h4v6h3a1 1 0 0 0 1-1v-9"/></svg>',
       warehouse: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20V9.5l9-5 9 5V20"/><path d="M3 20h18"/><rect x="8" y="13" width="8" height="7"/><path d="M11 13v7M13 13v7"/></svg>',
+      // Requested directly: shown next to the new "Flotta" section in
+      // Impostazioni — two overlapping people, the standard symbol
+      // for a team/group, same stroke style/weight as every other
+      // icon here.
+      team: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
       // Requested directly: "Reordina" didn't read clearly as a
       // button — added this icon (two opposite-direction arrows,
       // the standard sort/reorder symbol) alongside a filled
@@ -9892,7 +9897,10 @@
     if (iconCoin) iconCoin.innerHTML = svgIcon('coin');
     var iconIdBadge = document.getElementById('settings-icon-idbadge');
     if (iconIdBadge) iconIdBadge.innerHTML = svgIcon('idbadge');
+    var iconFleet = document.getElementById('settings-icon-fleet');
+    if (iconFleet) iconFleet.innerHTML = svgIcon('team');
     renderDriverIdRow();
+    refreshFleetStatusRow();
 
     var infoToggle = document.getElementById('settings-info-toggle');
     var infoPanel = document.getElementById('settings-info-panel');
@@ -10232,6 +10240,34 @@
           try { document.execCommand('copy'); toast('ID copiato: ' + id); } catch (e) { /* nothing more to try */ }
           document.body.removeChild(tmp);
         });
+    });
+  }
+
+  // Requested directly: shows which fleet this driver currently
+  // belongs to, if any, with the option to leave — hidden entirely
+  // when they aren't in any fleet.
+  function refreshFleetStatusRow() {
+    var row = document.getElementById('settings-fleet-row');
+    if (!row) return;
+    var email = currentAccountEmail();
+    if (!email) { row.style.display = 'none'; return; }
+    fleetCall({ action: 'driver_get_fleet_status', account_email: email }).then(function (res) {
+      if (!res.ok || !res.in_fleet) { row.style.display = 'none'; return; }
+      row.style.display = 'block';
+      document.getElementById('settings-fleet-name').textContent = res.fleet_name || 'una flotta';
+      var btn = document.getElementById('settings-leave-fleet-btn');
+      if (btn.dataset.wired) return; // listener attached once, ever — same pattern as renderDriverIdRow above
+      btn.dataset.wired = '1';
+      btn.addEventListener('click', function () {
+        if (!window.confirm('Uscire da questa flotta? Il titolare non vedrà più le tue consegne e i tuoi documenti condivisi.')) return;
+        btn.disabled = true;
+        fleetCall({ action: 'driver_leave_fleet', account_email: email }).then(function (res) {
+          btn.disabled = false;
+          if (!res.ok) { toast('Impossibile uscire dalla flotta — riprova.'); return; }
+          row.style.display = 'none';
+          toast('Sei uscito dalla flotta');
+        });
+      });
     });
   }
 
@@ -11005,6 +11041,7 @@
   // bug, which is a nice extra layer of safety for free.
   var LS_NOVITA_LAST_SEEN = 'pt_novita_last_seen_v1';
   var CHAT_EDGE_URL = SUPABASE_URL + '/functions/v1/chat-messages';
+  var FLEET_EDGE_URL = SUPABASE_URL + '/functions/v1/fleet-data';
   var NOVITA_TYPE_LABELS_APP = { video: 'Video', text: 'Novità', announcement: 'Annuncio' };
 
   // Real phone push notifications — entirely separate opt-in, on top
@@ -11357,6 +11394,59 @@
     });
   }
 
+  function fleetCall(payload) {
+    return fetch(FLEET_EDGE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(function (r) { return r.json(); })
+      .catch(function () { return { ok: false }; });
+  }
+
+  // Requested directly, security concern raised by ION: a driver
+  // being added to a fleet is no longer immediate — it's a pending
+  // invitation this driver must actively accept, shown here as its
+  // own section above the regular Novità announcements.
+  function renderInvitationCard(inv) {
+    return '' +
+      '<div class="invite-item-card" data-invitation-id="' + inv.id + '">' +
+      '<div class="novita-item-type">Invito flotta</div>' +
+      '<div class="invite-item-fleet">' + escapeHtml(inv.fleet_name) + ' ti invita a unirti</div>' +
+      '<div class="invite-item-actions">' +
+      '<button type="button" class="invite-btn invite-btn-decline" data-action="decline" data-id="' + inv.id + '">Rifiuta</button>' +
+      '<button type="button" class="invite-btn invite-btn-accept" data-action="accept" data-id="' + inv.id + '">Accetta</button>' +
+      '</div>' +
+      '</div>';
+  }
+
+  function loadFleetInvitations() {
+    var invListEl = document.getElementById('novita-invitations-list');
+    var email = currentAccountEmail();
+    if (!email) { invListEl.innerHTML = ''; return; }
+    fleetCall({ action: 'driver_list_invitations', account_email: email }).then(function (res) {
+      if (!res.ok || !res.invitations || !res.invitations.length) { invListEl.innerHTML = ''; return; }
+      invListEl.innerHTML = res.invitations.map(renderInvitationCard).join('');
+      invListEl.querySelectorAll('.invite-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var invitationId = btn.dataset.id;
+          var action = btn.dataset.action === 'accept' ? 'driver_accept_invitation' : 'driver_decline_invitation';
+          var card = invListEl.querySelector('[data-invitation-id="' + invitationId + '"]');
+          card.querySelectorAll('.invite-btn').forEach(function (b) { b.disabled = true; });
+          fleetCall({ action: action, account_email: email, invitation_id: invitationId }).then(function (res) {
+            if (!res.ok && res.reason === 'already_in_fleet') {
+              alert('Fai già parte di un\'altra flotta — esci prima dalle tue Impostazioni per poter accettare un nuovo invito.');
+            }
+            // Re-fetches regardless of outcome — the card for THIS
+            // invitation disappears either way (accepted, declined,
+            // or turned out stale), and any other pending ones the
+            // driver still has stay correctly in view.
+            loadFleetInvitations();
+          });
+        });
+      });
+    });
+  }
+
   function renderNovitaItem(item) {
     var html = '<div class="novita-item-card">';
     html += '<div class="novita-item-type">' + (NOVITA_TYPE_LABELS_APP[item.type] || item.type) + '</div>';
@@ -11374,6 +11464,7 @@
     var listEl = document.getElementById('novita-app-list');
     modal.classList.add('open');
     listEl.innerHTML = '<div class="novita-empty">Caricamento…</div>';
+    loadFleetInvitations();
 
     fetch(SUPABASE_URL + '/rest/v1/app_novita?select=*&published=eq.true&order=created_at.desc', {
       headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY }

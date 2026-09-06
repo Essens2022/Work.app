@@ -1021,6 +1021,16 @@
   .novita-item-type{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--accent);margin-bottom:6px;}
   .novita-item-title{font-weight:800;font-size:15px;margin-bottom:6px;line-height:1.35;}
   .novita-item-desc{font-size:13.5px;color:var(--ink);line-height:1.5;}
+  /* Requested directly, security concern raised by ION: a driver now
+     has to explicitly accept before landing in a fleet's own list —
+     shown as its own section, above the regular announcements, using
+     the same novita-item-card visual language already used there. */
+  .invite-item-card{background:var(--teal-soft);border-radius:16px;padding:16px;margin-bottom:14px;}
+  .invite-item-fleet{font-weight:800;font-size:15px;margin-bottom:10px;}
+  .invite-item-actions{display:flex;gap:10px;}
+  .invite-btn{flex:1;padding:11px;border-radius:10px;font-weight:700;font-size:14px;border:none;cursor:pointer;font-family:inherit;}
+  .invite-btn-accept{background:var(--teal);color:#fff;}
+  .invite-btn-decline{background:var(--surface);color:var(--ink-soft);border:1px solid var(--line);}
   .novita-item-video{position:relative;width:100%;aspect-ratio:16/9;border-radius:12px;overflow:hidden;margin-top:12px;background:#000;}
   .novita-item-video iframe{position:absolute;inset:0;width:100%;height:100%;border:0;}
   .novita-empty{text-align:center;color:var(--ink-faint);padding:50px 0;font-size:14px;}
@@ -1642,6 +1652,7 @@
       <div class="modal-sub">Aggiornamenti, consigli e video su ADB Smart</div>
     </div>
     <div class="sticky-scroll">
+      <div id="novita-invitations-list"></div>
       <div id="novita-app-list"></div>
     </div>
   </div>
@@ -1683,6 +1694,23 @@
               <button type="button" id="account-logout-btn" class="btn btn-outline btn-sm">Esci</button>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Requested directly: shows which fleet this driver currently
+           belongs to (if any), with the option to leave whenever they
+           want — leaving notifies that fleet's own owner. Hidden
+           entirely when the driver isn't in any fleet, rather than
+           showing an empty/disabled state. -->
+      <div class="settings-section" id="settings-fleet-row" style="display:none;">
+        <div class="settings-section-head">
+          <span class="settings-section-icon" id="settings-icon-fleet"></span>
+          <span>Flotta</span>
+        </div>
+        <div class="card settings-card" style="padding:16px;">
+          <div style="font-weight:700;font-size:14.5px;margin-bottom:2px;">Fai parte di <span id="settings-fleet-name"></span></div>
+          <div style="font-size:12.5px;color:var(--ink-faint);margin-bottom:12px;">Il titolare della flotta vede le tue consegne e i tuoi documenti condivisi.</div>
+          <button type="button" id="settings-leave-fleet-btn" class="btn btn-outline btn-sm" style="color:var(--danger);border-color:var(--danger);">Esci dalla flotta</button>
         </div>
       </div>
 
