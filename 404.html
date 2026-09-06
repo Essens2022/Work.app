@@ -592,6 +592,22 @@
         </div>
       </div>
 
+      <!-- Requested directly: "nu gasesc de unde pot schimba parola...
+           trebuie sa fie posibil sa modifici parola" — the current
+           password is re-verified server-side before allowing any
+           change (fleet_change_password), rather than just trusting
+           the already-active session. -->
+      <div class="settings-section">
+        <h3>Cambia password</h3>
+        <p class="sub">Ti serve la password attuale per confermare il cambio.</p>
+        <input type="password" id="changePwCurrentInput" placeholder="Password attuale" autocomplete="current-password" style="width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:11px 16px;color:var(--ink);font-size:16px;font-family:'Inter',sans-serif;margin-bottom:10px;">
+        <input type="password" id="changePwNewInput" placeholder="Nuova password (almeno 6 caratteri)" autocomplete="new-password" style="width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:11px 16px;color:var(--ink);font-size:16px;font-family:'Inter',sans-serif;margin-bottom:10px;">
+        <input type="password" id="changePwConfirmInput" placeholder="Ripeti la nuova password" autocomplete="new-password" style="width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:11px 16px;color:var(--ink);font-size:16px;font-family:'Inter',sans-serif;margin-bottom:12px;">
+        <div id="changePwError" style="display:none;color:#E8542B;font-size:13px;margin-bottom:12px;"></div>
+        <div id="changePwSuccess" style="display:none;color:var(--green);font-size:13px;margin-bottom:12px;">✓ Password aggiornata</div>
+        <button class="btn btn-accent" id="changePwSubmitBtn">Salva nuova password</button>
+      </div>
+
       <div class="settings-section">
         <h3>Impostazioni predefinite per i nuovi autisti</h3>
         <p class="sub">Applicate automaticamente a ogni nuovo autista aggiunto alla flotta — in arrivo.</p>
@@ -1051,6 +1067,44 @@
         alert('Invitato! Password temporanea per ' + email + ': ' + res.temp_password + '\n\nCondividila con loro — non verrà mostrata di nuovo.');
         document.getElementById('teamEmailInput').value = '';
         loadTeam();
+      });
+    });
+
+    document.getElementById('changePwSubmitBtn').addEventListener('click', function () {
+      var errEl = document.getElementById('changePwError');
+      var successEl = document.getElementById('changePwSuccess');
+      errEl.style.display = 'none';
+      successEl.style.display = 'none';
+
+      var currentPw = document.getElementById('changePwCurrentInput').value;
+      var newPw = document.getElementById('changePwNewInput').value;
+      var confirmPw = document.getElementById('changePwConfirmInput').value;
+
+      if (!currentPw || !newPw) { errEl.textContent = 'Compila tutti i campi.'; errEl.style.display = 'block'; return; }
+      if (newPw.length < 6) { errEl.textContent = 'La nuova password deve avere almeno 6 caratteri.'; errEl.style.display = 'block'; return; }
+      if (newPw !== confirmPw) { errEl.textContent = 'Le due password non coincidono.'; errEl.style.display = 'block'; return; }
+
+      // Requested directly: the current password is verified against
+      // this specific account server-side (fleet_change_password
+      // reuses the same requireFleet check every other action here
+      // does) — the field the driver types isn't just decorative.
+      call({ action: 'fleet_change_password', slug: slug, password: currentPw, new_password: newPw }).then(function (res) {
+        if (!res.ok) {
+          errEl.textContent = res.reason === 'password_too_short' ? 'La nuova password deve avere almeno 6 caratteri.' : 'Password attuale non corretta.';
+          errEl.style.display = 'block';
+          return;
+        }
+        // Updates the SAME `password` closure variable every other
+        // call in this screen already uses — without this, the very
+        // next action (e.g. adding a driver) would silently send the
+        // now-stale old password and fail, right after confirming the
+        // change actually worked.
+        password = newPw;
+        sessionStorage.setItem('adb_fleet_pw_' + slug, newPw);
+        document.getElementById('changePwCurrentInput').value = '';
+        document.getElementById('changePwNewInput').value = '';
+        document.getElementById('changePwConfirmInput').value = '';
+        successEl.style.display = 'block';
       });
     });
 
