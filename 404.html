@@ -104,7 +104,17 @@
      slim row, with the filters absorbed directly into the fixed top
      bar instead of scrolling away with the list below — so only the
      actual delivery rows ever need to scroll, nothing else. */
-  .topline-compact { align-items: center; gap: 16px; flex-wrap: wrap; padding-top: 18px; padding-bottom: 14px; }
+  /* Requested directly, reported as a real visual conflict at
+     in-between desktop widths (reproduced exactly: confirmed the CSV
+     button sitting fixed in the top-right corner directly overlapping
+     the search field's own text at ~1024px — worked fine wider, and
+     switches to a stacked column below the mobile breakpoint, but
+     nothing reserved room for those fixed corner buttons in this
+     specific middle range). Reserves enough right-side padding for
+     the CSV export button + theme toggle + their own gaps/margins
+     (measured: ~150px combined), so the filter row's own search
+     field never grows into that same space, at any desktop width. */
+  .topline-compact { align-items: center; gap: 16px; flex-wrap: wrap; padding-top: 18px; padding-bottom: 14px; padding-right: 170px; }
   .page-title-compact { font-size: 21px; white-space: nowrap; }
   .filter-row-inline { margin: 0; flex: 1; min-width: 260px; }
   .filter-row-inline .driver-search { flex: 1; min-width: 160px; max-width: 320px; }
@@ -207,7 +217,7 @@
       position: fixed; top: 0; left: 0; right: 0; z-index: 15;
       padding: calc(16px + env(safe-area-inset-top)) 16px 16px; margin: 0;
     }
-    .topline-compact { flex-direction: column; align-items: stretch; gap: 10px; }
+    .topline-compact { flex-direction: column; align-items: stretch; gap: 10px; padding-right: 16px; }
     .filter-row-inline { flex-direction: column; }
     .filter-row-inline .driver-search { max-width: none; }
     .top-actions { top: calc(10px + env(safe-area-inset-top)); right: 12px; }
