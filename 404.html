@@ -143,18 +143,23 @@
   /* Requested directly: WhatsApp-style push toast for the driver-
      inactivity alert — starts translated fully above the viewport
      (hidden), slides down into view when .toast-show is added, and
-     back up when .toast-hide replaces it. Reuses the exact same
-     colors/look the old permanent banner had. */
+     back up when .toast-hide replaces it.
+     Requested directly, right after: the company's own orange
+     (--accent, #E8542B) as the base, with a diagonal gradient toward
+     a much darker shade of the same tone for depth ("sfumatura
+     scura"), slightly translucent rather than flat/opaque, and a
+     warm shadow to lift it off the page. */
   .toast-notification {
     position: fixed; top: calc(12px + env(safe-area-inset-top)); left: 16px; right: 16px; z-index: 250;
-    display: flex; align-items: center; gap: 12px; background: rgba(217,164,65,.97);
-    border: 1px solid rgba(217,164,65,.3); color: #1a1408; border-radius: 12px;
-    padding: 13px 18px; font-size: 13.5px; box-shadow: 0 8px 24px rgba(0,0,0,.35);
-    transform: translateY(-140%); transition: transform .35s ease;
+    display: flex; align-items: center; gap: 12px;
+    background: linear-gradient(135deg, rgba(232,84,43,.94) 0%, rgba(122,38,17,.96) 100%);
+    border: 1px solid rgba(255,255,255,.14); color: #fff; border-radius: 14px;
+    padding: 14px 18px; font-size: 13.5px; box-shadow: 0 10px 28px rgba(122,38,17,.4), 0 2px 6px rgba(0,0,0,.25);
+    transform: translateY(-140%); transition: transform .4s cubic-bezier(.22,1,.36,1);
     pointer-events: none;
   }
   .toast-notification.toast-show { transform: translateY(0); pointer-events: auto; }
-  .toast-notification b { color: #000; }
+  .toast-notification b { color: #fff; font-weight: 800; }
   /* Requested for mobile specifically — on desktop, keeps the toast
      within the content area (right of the sidebar) instead of
      stretching across the whole screen including the rail. */
