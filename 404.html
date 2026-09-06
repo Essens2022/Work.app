@@ -179,12 +179,12 @@
     visibility: hidden; opacity: 0;
     /* Requested directly: entrance/exit "twice as smooth" — doubled
        from .65s to 1.3s, same gentle easing both ways. */
-    transform: translateY(-140%); transition: transform 1.3s cubic-bezier(.16,1,.3,1), opacity .5s ease, visibility 0s linear 1.3s;
+    transform: translateY(-140%); transition: transform 2.6s cubic-bezier(.16,1,.3,1), opacity .8s ease, visibility 0s linear 2.6s;
     pointer-events: none;
   }
   .toast-notification.toast-show {
     visibility: visible; opacity: 1; transform: translateY(0); pointer-events: auto;
-    transition: transform 1.3s cubic-bezier(.16,1,.3,1), opacity .5s ease, visibility 0s linear 0s;
+    transition: transform 2.6s cubic-bezier(.16,1,.3,1), opacity .8s ease, visibility 0s linear 0s;
   }
   .toast-notification svg { color: var(--accent); flex: none; }
   .toast-notification b { color: #fff; font-weight: 700; }
