@@ -110,9 +110,18 @@
      a permanent stacked layout, not a row that only wraps once space
      runs out. Simpler and more predictable at any desktop width,
      instead of the exact wrap point depending on how many drivers
-     happen to be in the dropdown that day. */
-  .topline-compact { flex-direction: column; align-items: stretch; gap: 12px; padding-top: 18px; padding-bottom: 14px; }
-  .page-title-compact { font-size: 21px; }
+     happen to be in the dropdown that day.
+     REAL BUG, reported directly right after: this had its OWN
+     padding-top/bottom and its own smaller title font-size, both
+     different from the shared .topline/.page-title every other
+     screen (Panoramica, Documenti, Mappa) already uses — so the
+     title visibly jumped to a different size, at a different height,
+     the moment Consegne was opened, then jumped back on any other
+     screen. Neither is overridden here any more — this now inherits
+     the exact same padding and title size as every other screen,
+     with only the column layout (title row, then filters row below
+     it) staying specific to Consegne. */
+  .topline-compact { flex-direction: column; align-items: stretch; gap: 12px; }
   .filter-row-inline { margin: 0; }
   .filter-row-inline .driver-search { flex: 1; min-width: 160px; max-width: 320px; }
   .btn {
@@ -472,7 +481,7 @@
     </div>
     <div class="main">
       <div class="topline topline-compact">
-        <h1 class="page-title page-title-compact">Storico consegne</h1>
+        <h1 class="page-title">Storico consegne</h1>
         <div class="filter-row filter-row-inline">
           <select class="filter-select" id="storicoDriverFilter"><option value="">Tutti gli autisti</option></select>
           <select class="filter-select" id="storicoPeriodFilter">
