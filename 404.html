@@ -148,18 +148,44 @@
      (--accent, #E8542B) as the base, with a diagonal gradient toward
      a much darker shade of the same tone for depth ("sfumatura
      scura"), slightly translucent rather than flat/opaque, and a
-     warm shadow to lift it off the page. */
+     warm shadow to lift it off the page.
+     REAL BUG, found and confirmed: .top-actions (bell/mappa/theme,
+     z-index 300) sat ABOVE this toast (z-index 250) — those buttons
+     rendered visibly on top of the notification instead of being
+     covered by it. Raised well past 300 so the toast now genuinely
+     sits above everything on screen, exactly as asked.
+     Requested directly, right after: a complete restyle — dark,
+     refined glass instead of the flat orange fill; the company's own
+     orange kept only as a slim accent (left edge + icon), not the
+     whole background; backdrop blur and a soft glow for a premium
+     feel; a slower, gentler entrance for elegance. */
   .toast-notification {
-    position: fixed; top: calc(12px + env(safe-area-inset-top)); left: 16px; right: 16px; z-index: 250;
-    display: flex; align-items: center; gap: 12px;
-    background: linear-gradient(135deg, rgba(232,84,43,.94) 0%, rgba(122,38,17,.96) 100%);
-    border: 1px solid rgba(255,255,255,.14); color: #fff; border-radius: 14px;
-    padding: 14px 18px; font-size: 13.5px; box-shadow: 0 10px 28px rgba(122,38,17,.4), 0 2px 6px rgba(0,0,0,.25);
-    transform: translateY(-140%); transition: transform .4s cubic-bezier(.22,1,.36,1);
+    position: fixed; top: calc(12px + env(safe-area-inset-top)); left: 16px; right: 16px; z-index: 500;
+    display: flex; align-items: center; gap: 14px;
+    background: linear-gradient(165deg, rgba(28,26,30,.92) 0%, rgba(14,13,16,.94) 100%);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,.08); border-left: 3px solid var(--accent);
+    color: #f5f3ef; border-radius: 16px;
+    padding: 15px 20px; font-size: 13.5px; letter-spacing: .01em;
+    box-shadow: 0 20px 40px rgba(0,0,0,.45), 0 4px 14px rgba(232,84,43,.18), inset 0 1px 0 rgba(255,255,255,.06);
+    /* REAL BUG, reported directly and confirmed: translateY(-140%) is
+       relative to the element's OWN height — while empty (no alert
+       text set yet, or no alert at all this visit), that height is
+       small, so -140% wasn't actually enough to fully clear the
+       viewport, leaving a sliver of the orange left-accent visible at
+       the very top. visibility+opacity added on top of the transform
+       so the hidden state is truly invisible regardless of height —
+       transform still drives the actual slide motion once shown. */
+    visibility: hidden; opacity: 0;
+    transform: translateY(-140%); transition: transform .65s cubic-bezier(.16,1,.3,1), opacity .3s ease, visibility 0s linear .65s;
     pointer-events: none;
   }
-  .toast-notification.toast-show { transform: translateY(0); pointer-events: auto; }
-  .toast-notification b { color: #fff; font-weight: 800; }
+  .toast-notification.toast-show {
+    visibility: visible; opacity: 1; transform: translateY(0); pointer-events: auto;
+    transition: transform .65s cubic-bezier(.16,1,.3,1), opacity .3s ease, visibility 0s linear 0s;
+  }
+  .toast-notification svg { color: var(--accent); flex: none; }
+  .toast-notification b { color: #fff; font-weight: 700; }
   /* Requested for mobile specifically — on desktop, keeps the toast
      within the content area (right of the sidebar) instead of
      stretching across the whole screen including the rail. */
