@@ -177,12 +177,14 @@
        so the hidden state is truly invisible regardless of height —
        transform still drives the actual slide motion once shown. */
     visibility: hidden; opacity: 0;
-    transform: translateY(-140%); transition: transform .65s cubic-bezier(.16,1,.3,1), opacity .3s ease, visibility 0s linear .65s;
+    /* Requested directly: entrance/exit "twice as smooth" — doubled
+       from .65s to 1.3s, same gentle easing both ways. */
+    transform: translateY(-140%); transition: transform 2.6s cubic-bezier(.16,1,.3,1), opacity .8s ease, visibility 0s linear 2.6s;
     pointer-events: none;
   }
   .toast-notification.toast-show {
     visibility: visible; opacity: 1; transform: translateY(0); pointer-events: auto;
-    transition: transform .65s cubic-bezier(.16,1,.3,1), opacity .3s ease, visibility 0s linear 0s;
+    transition: transform 2.6s cubic-bezier(.16,1,.3,1), opacity .8s ease, visibility 0s linear 0s;
   }
   .toast-notification svg { color: var(--accent); flex: none; }
   .toast-notification b { color: #fff; font-weight: 700; }
@@ -1183,27 +1185,47 @@
     // (an expiring document) has no real data behind it yet, so it's
     // simply not shown rather than faked — the banner only appears
     // when there's a genuine driver-inactivity alert to show.
-    // Requested directly: behaves like a WhatsApp-style push toast —
-    // slides in once, right when the fleet portal is opened (never
-    // again on later refreshes within the same visit, tracked here),
-    // stays up ~6s, then slides back out on its own. Swiping it
-    // upward dismisses it immediately instead of waiting out the timer.
-    var toastAlreadyShownThisVisit = false;
+    // Requested directly: shown at most 3 times total per visit,
+    // timed from when the fleet portal was opened: right away (once
+    // the driver data is ready), again at the 25s mark, and a third
+    // time at the 45s mark — never again after that. Each appearance
+    // stays up 9s, then slides back out with the same slow, gentle
+    // motion. Swiping it upward dismisses that one appearance
+    // immediately instead of waiting out the 9s timer (any later
+    // scheduled appearance still happens on its own schedule).
+    var toastShowCount = 0;
     var toastHideTimer = null;
+    var latestInactiveText = null;
+
+    function showToastNow() {
+      if (toastShowCount >= 3 || !latestInactiveText) return;
+      toastShowCount++;
+      var banner = document.getElementById('alertBanner');
+      document.getElementById('alertBannerText').innerHTML = latestInactiveText;
+      requestAnimationFrame(function () { banner.classList.add('toast-show'); });
+      toastHideTimer = setTimeout(function () { banner.classList.remove('toast-show'); }, 9000);
+    }
 
     function renderAlertBanner(drivers) {
-      if (toastAlreadyShownThisVisit) return;
-      var banner = document.getElementById('alertBanner');
       var inactive = drivers.filter(function (d) {
         if (!d.last_active) return true;
         return (Date.now() - new Date(d.last_active).getTime()) > 2 * 24 * 60 * 60 * 1000;
       });
-      if (!inactive.length) { return; }
-      toastAlreadyShownThisVisit = true;
-      document.getElementById('alertBannerText').innerHTML = '<b>' + esc(inactive[0].nome || inactive[0].account_email) + '</b> non ha aperto l\'app da almeno 2 giorni' + (inactive.length > 1 ? (' · altri ' + (inactive.length - 1) + ' autisti nella stessa situazione') : '');
-      requestAnimationFrame(function () { banner.classList.add('toast-show'); });
-      toastHideTimer = setTimeout(function () { banner.classList.remove('toast-show'); }, 6000);
+      latestInactiveText = inactive.length
+        ? ('<b>' + esc(inactive[0].nome || inactive[0].account_email) + '</b> non ha aperto l\'app da almeno 2 giorni' + (inactive.length > 1 ? (' · altri ' + (inactive.length - 1) + ' autisti nella stessa situazione') : ''))
+        : null;
+      // The very first appearance happens as soon as real data is
+      // ready — the two later ones are scheduled once, separately,
+      // from portal-open time (see the setTimeout calls below).
+      if (toastShowCount === 0) showToastNow();
     }
+
+    // Requested directly: the 2nd and 3rd appearances are timed from
+    // the moment the fleet portal itself was opened, not from
+    // whenever data happens to finish loading — scheduled once, here,
+    // at module load time.
+    setTimeout(showToastNow, 25000);
+    setTimeout(showToastNow, 45000);
 
     (function () {
       var banner = document.getElementById('alertBanner');
