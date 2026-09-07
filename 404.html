@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ADB Smart Fleet</title>
 <!--
   Requested directly: rebuilt starting from the EXACT approved mockup
@@ -692,7 +692,10 @@
     .settings-inline-form .field { flex: 1 1 100%; }
     .settings-inline-form .field-role { flex: 1 1 100%; }
     .settings-inline-form .btn { width: 100%; height: 42px; }
-    .field input, .field select, .pw-field-wrap .pw-field-input { padding: 10px 12px; font-size: 15px; }
+    /* font-size:16px pastrat aici intentionat, desi restul e comprimat
+       pentru mobil - sub 16px, iOS face automat zoom la atingerea
+       campului, exact genul de zoom nedorit pe care il tot reparam. */
+    .field input, .field select, .pw-field-wrap .pw-field-input { padding: 10px 12px; font-size: 16px; }
     .pw-field-wrap .pw-field-input { padding-right: 40px; }
   }
   /* Requested directly: an eye toggle on each password field in
