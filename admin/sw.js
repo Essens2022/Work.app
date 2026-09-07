@@ -11,8 +11,12 @@ self.addEventListener('push', (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title || 'ADB Smart', {
       body: data.body || '',
-      icon: 'icon-192.png',
-      badge: 'icon-192.png',
+      // REAL BUG, gasit in timp ce actualizam iconitele: fisierul
+      // 'icon-192.png' nu a existat niciodata in folderul admin/ (aici
+      // iconita e 'icon.png') - notificarile push isi cereau propria
+      // iconita de la o cale gresita de la inceput.
+      icon: 'icon.png',
+      badge: 'icon.png',
       // Requested directly: tapping a notification here used to just
       // open (or focus) the admin panel generically — ION had to go
       // find the new message himself from the home screen. Every
