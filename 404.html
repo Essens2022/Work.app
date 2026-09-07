@@ -1366,11 +1366,16 @@
     // elements), so by the time the driver actually taps into
     // Documenti, Consegne, Notifiche or Impostazioni, the data is
     // usually already sitting there, ready to render instantly.
+    var bilancioMonth = new Date().getUTCMonth() + 1;
+    var bilancioYear = new Date().getUTCFullYear();
+    var bilancioPeriod = 'month';
+    var lastBilancioData = null;
     loadDocumenti();
     loadStorico();
     loadNotifiche();
     loadTeam();
     loadVehicles();
+    loadBilancio();
 
     var currentDrivers = [];
 
@@ -1769,10 +1774,6 @@
     // it, since driver_sheets_summary only ever syncs a monthly
     // total (per direct decision earlier), so those two stay
     // month-only everywhere on this screen, clearly labelled as such.
-    var bilancioMonth = new Date().getUTCMonth() + 1;
-    var bilancioYear = new Date().getUTCFullYear();
-    var bilancioPeriod = 'month';
-    var lastBilancioData = null;
     var MESI_IT = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
 
     function periodFilteredCount(dates) {
@@ -1819,6 +1820,14 @@
     }
 
     function loadBilancio() {
+      // Requested directly ("verifica si la aceste doua pagini... sa
+      // se incarce totul instant, la fel cum ai sistematizat si la
+      // celelalte"): same stale-while-revalidate pattern as
+      // Documenti/Consegne/Notifiche/team/Veicoli — shows whatever
+      // was last loaded (even for a different month, briefly) instead
+      // of a blank screen, while fresh data for the current
+      // month/year loads quietly underneath.
+      if (lastBilancioData) renderBilancio();
       call({ action: 'fleet_get_report', slug: slug, password: password, month: bilancioMonth, year: bilancioYear }).then(function (res) {
         if (!res.ok) return;
         lastBilancioData = res;
