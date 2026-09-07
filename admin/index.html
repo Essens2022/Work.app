@@ -182,7 +182,17 @@
   .novita-actions{display:flex;gap:8px;}
   .novita-actions button{font-size:12px;padding:5px 11px;}
 
-  .novita-form-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;z-index:100;}
+  /* REAL BUG, gasit direct in cod: modalul Novità in care traieste
+     acest buton e el insusi un .admin-modal-fullscreen, deschis la
+     z-index:500. Acest formular (adaugat/desenat DUPA ce modalul e
+     deja deschis, direct in document.body) avea z-index:100 -
+     mai mic decat modalul de dedesubt, deci se desena, exista cu
+     adevarat in pagina, dar complet ASCUNS in spatele modalului deja
+     deschis. Ridicat peste orice alt modal din fisier (care ajunge
+     pana la 500) SI peste sidebar-ul fix de desktop (z-index:600), la
+     fel ca celelalte popup-uri similare (ex. showFleetCredentialsModal,
+     z-index:999). */
+  .novita-form-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;z-index:700;}
   .novita-form-card{background:var(--surface);border-radius:18px 18px 0 0;padding:22px 20px 28px;width:100%;max-width:480px;max-height:85vh;overflow-y:auto;}
   .novita-form-card label{display:block;font-size:11.5px;font-weight:700;color:var(--ink-faint);text-transform:uppercase;margin:14px 0 6px;}
   .novita-form-card select, .novita-form-card input, .novita-form-card textarea{
