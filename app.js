@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v529"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v530"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -3697,12 +3697,14 @@
   // logo (loading here, once, well before the actual photo capture,
   // since Image loading is asynchronous — the capture itself draws
   // synchronously and can't wait on a network request mid-shot).
-  // REAL BUG, reported directly: icon-96.png (only 96x96 source
-  // pixels) looked visibly blurry once drawn at watermark size on a
-  // high-resolution photo — that's upscaling a small source image,
-  // not downscaling a large one. icon-512.png is large enough to
-  // stay sharp even scaled up somewhat, and only ever gets scaled
-  // DOWN to the small watermark size, never up.
+  // Pachetul de logo nou (v529+): watermark-ul foloseste acum logo-ul
+  // orizontal COMPLET (simbol + "ADB Smart" intr-o singura imagine,
+  // varianta "inverse" - alb cu "Smart" portocaliu, aleasa de ION
+  // special pentru fundalul semi-transparent negru de aici), in loc
+  // de combinatia veche (doar simbolul patrat, cu textul desenat
+  // separat, manual, pe canvas). O sursa suficient de mare (1920px
+  // latime) ca sa ramana clara chiar si pe fotografii de rezolutie
+  // mare, la fel ca motivul din spatele lui icon-512.png inainte.
   var dpWatermarkLogoImg = null;
   var dpPreviewZoomSetupDone = false;
   function dpOpenCameraForClient(client) {
@@ -3710,7 +3712,7 @@
     if (!dpWatermarkLogoImg) {
       var logoImg = new Image();
       logoImg.onload = function () { dpWatermarkLogoImg = logoImg; };
-      logoImg.src = 'icon-512.png';
+      logoImg.src = 'assets/adb-smart/png/horizontal-inverse-1920.png';
     }
     if (!dpPreviewZoomSetupDone) { dpSetupPreviewZoom(); dpPreviewZoomSetupDone = true; }
     // Fresh photo, fresh zoom — never starts already magnified from
@@ -3939,82 +3941,46 @@
     // Requested directly, ION's own marketing idea: a small, tasteful
     // watermark on every delivery photo — since these get shared
     // straight to WhatsApp/clients, each one becomes a tiny bit of
-    // free advertising for the app itself. Moved to the top-right
-    // (ION's own follow-up: clearer up there, away from the green
-    // card's own text) with a small translucent dark backing behind
-    // it, so it stays readable regardless of what's actually in the
-    // photo at that corner — a plain sky or light-colored background
-    // would otherwise wash out white text with nothing behind it. The
-    // app's own logo sits just to the left of the text, both drawn at
-    // FULL opacity now (ION found the previous semi-transparent
-    // version too soft) for a cleaner, sharper look, even though it
-    // reads slightly smaller than the first attempt. "Smart" in the
-    // brand accent orange, "ADB " in white, right up against it —
-    // canvas fillText can't mix colors in one call, so it's drawn as
-    // two adjoining pieces, right-aligned, with "Smart"'s own width
-    // measured first to place "ADB " flush against its left edge.
+    // free advertising for the app itself. Top-right (ION's own
+    // follow-up: clearer up there, away from the green card's own
+    // text), with a small translucent dark backing behind it, so it
+    // stays readable regardless of what's actually in the photo at
+    // that corner.
+    // Pachetul de logo nou (v529+): inainte, simbolul (patrat) si
+    // textul "ADB Smart" erau desenate separat (simbol dintr-o
+    // imagine, text manual pe canvas, ca sa poata avea doua culori).
+    // Acum e o singura imagine, logo-ul orizontal complet gata facut
+    // (varianta "inverse"), care are deja "Smart" in portocaliu inclus
+    // in ea — mai simplu, si intotdeauna perfect aliniat intre simbol
+    // si text, indiferent de font-ul disponibil pe telefonul cu care
+    // se face poza.
     var wmPad = w * 0.035;
-    var wmFontSize = Math.round(w * 0.023);
-    ctx.font = '800 ' + wmFontSize + 'px sans-serif';
-    ctx.textAlign = 'right';
-    var smartWidth = ctx.measureText('Smart').width;
-    var adbWidth = ctx.measureText('ADB ').width;
-    var textWidth = smartWidth + adbWidth;
-    var logoSize = wmFontSize * 1.6;
-    var logoGap = wmFontSize * 0.35;
+    var wmLogoHeight = Math.round(w * 0.023) * 1.6;
     var groupRight = w - wmPad;
     var groupTop = cardTop + wmPad + h * 0.063;
-    var groupWidth = logoSize + logoGap + textWidth;
-    var groupHeight = logoSize;
-
-    // Backing plate, rounded corners, behind both the logo and text.
-    var bgPad = wmFontSize * 0.3;
-    ctx.globalAlpha = 0.4;
-    ctx.fillStyle = '#000';
-    var bx = groupRight - groupWidth - bgPad, by = groupTop - bgPad, bw = groupWidth + bgPad * 2, bh = groupHeight + bgPad * 2, br = bh * 0.25;
-    ctx.beginPath();
-    ctx.moveTo(bx + br, by);
-    ctx.arcTo(bx + bw, by, bx + bw, by + bh, br);
-    ctx.arcTo(bx + bw, by + bh, bx, by + bh, br);
-    ctx.arcTo(bx, by + bh, bx, by, br);
-    ctx.arcTo(bx, by, bx + bw, by, br);
-    ctx.closePath();
-    ctx.fill();
-    ctx.globalAlpha = 1;
 
     if (dpWatermarkLogoImg) {
-      var logoX = groupRight - textWidth - logoGap - logoSize;
-      var logoR = logoSize * 0.22;
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(logoX + logoR, groupTop);
-      ctx.arcTo(logoX + logoSize, groupTop, logoX + logoSize, groupTop + logoSize, logoR);
-      ctx.arcTo(logoX + logoSize, groupTop + logoSize, logoX, groupTop + logoSize, logoR);
-      ctx.arcTo(logoX, groupTop + logoSize, logoX, groupTop, logoR);
-      ctx.arcTo(logoX, groupTop, logoX + logoSize, groupTop, logoR);
-      ctx.closePath();
-      ctx.clip();
-      // Requested directly: at this small size the logo's own photo
-      // (already somewhat dark/moody by design) read as muted — a
-      // punch of extra saturation and brightness, applied only here,
-      // makes it pop clearly at watermark scale without touching the
-      // source image file itself or its look anywhere else in the app.
-      ctx.filter = 'saturate(1.6) brightness(1.2) contrast(1.1)';
-      ctx.drawImage(dpWatermarkLogoImg, logoX, groupTop, logoSize, logoSize);
-      ctx.filter = 'none';
-      ctx.restore();
-    }
+      var logoRatio = dpWatermarkLogoImg.naturalWidth / dpWatermarkLogoImg.naturalHeight;
+      var logoW = wmLogoHeight * logoRatio;
+      var logoX = groupRight - logoW;
 
-    var wmY = groupTop + logoSize / 2 + wmFontSize * 0.35;
-    // Requested directly: a brighter, more saturated orange than the
-    // app's own brand accent (#E8542B) specifically for this
-    // watermark — at this small size, the standard brand color read
-    // as a little dull; a punchier tone pops more clearly.
-    ctx.fillStyle = '#FF6A2E';
-    ctx.fillText('Smart', groupRight, wmY);
-    ctx.fillStyle = '#fff';
-    ctx.fillText('ADB ', groupRight - smartWidth, wmY);
-    ctx.textAlign = 'center'; // restored — other drawing code after this point may rely on the default
+      // Backing plate, rounded corners, behind the logo.
+      var bgPad = wmLogoHeight * 0.1875;
+      ctx.globalAlpha = 0.4;
+      ctx.fillStyle = '#000';
+      var bx = logoX - bgPad, by = groupTop - bgPad, bw = logoW + bgPad * 2, bh = wmLogoHeight + bgPad * 2, br = bh * 0.25;
+      ctx.beginPath();
+      ctx.moveTo(bx + br, by);
+      ctx.arcTo(bx + bw, by, bx + bw, by + bh, br);
+      ctx.arcTo(bx + bw, by + bh, bx, by + bh, br);
+      ctx.arcTo(bx, by + bh, bx, by, br);
+      ctx.arcTo(bx, by, bx + bw, by, br);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      ctx.drawImage(dpWatermarkLogoImg, logoX, groupTop, logoW, wmLogoHeight);
+    }
 
     dpStopCameraStream(); // frame is captured — no need to keep the live feed running while previewing
     // Requested directly: quality raised for a sharper final photo,
