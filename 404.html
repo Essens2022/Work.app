@@ -1784,14 +1784,29 @@
       // separate message per expiring document AND per expiring
       // vehicle date, so each gets its own visibility, none merged
       // or dropped silently.
+      // REAL BUG, raportat direct ("daca ramane o zi... se zice
+      // domani, daca azi se zice azi, daca deja a scazut se zice
+      // scazut... alertele sa aiba o logica corecta"): mesajul spunea
+      // mereu doar data bruta ("scade il 15/09/2026"), niciodata
+      // "domani"/"oggi", si "e scaduto" aparea gresit calculat -
+      // compara direct STRINGuri de date (ok din intamplare aici),
+      // dar fara nicio distinctie de "azi/maine". Acum foloseste
+      // numarul REAL de zile ramase pana la scadenta.
+      function zileRamasePanaLa(dataStr) {
+        var azi = new Date(); azi.setHours(0, 0, 0, 0);
+        var tinta = new Date(dataStr + 'T00:00:00');
+        return Math.round((tinta - azi) / 86400000);
+      }
       (res.expiring_documents || []).forEach(function (d) {
-        var isPast = d.expiry_date < new Date().toISOString().slice(0, 10);
-        queue.push('<b>' + esc(d.filename) + '</b> ' + (isPast ? 'è scaduto' : 'scade il ' + new Date(d.expiry_date).toLocaleDateString('it-IT')));
+        var zile = zileRamasePanaLa(d.expiry_date);
+        var cand = zile < 0 ? 'è scaduto' : zile === 0 ? 'scade oggi' : zile === 1 ? 'scade domani' : 'scade il ' + new Date(d.expiry_date).toLocaleDateString('it-IT');
+        queue.push('<b>' + esc(d.filename) + '</b> ' + cand);
       });
       (res.expiring_vehicles || []).forEach(function (v) {
-        var isPast = v.date < new Date().toISOString().slice(0, 10);
+        var zile = zileRamasePanaLa(v.date);
         var typeLabel = v.type === 'assicurazione' ? 'assicurazione' : 'revisione';
-        queue.push('Veicolo <b>' + esc(v.targa) + '</b> — ' + typeLabel + ' ' + (isPast ? 'scaduta' : 'scade il ' + new Date(v.date).toLocaleDateString('it-IT')));
+        var cand = zile < 0 ? typeLabel + ' scaduta' : zile === 0 ? typeLabel + ' scade oggi' : zile === 1 ? typeLabel + ' scade domani' : typeLabel + ' scade il ' + new Date(v.date).toLocaleDateString('it-IT');
+        queue.push('Veicolo <b>' + esc(v.targa) + '</b> — ' + cand);
       });
       // Only reset the show-counts if the SET of messages actually
       // changed (e.g. a new alert appeared) — refresh() re-runs this
