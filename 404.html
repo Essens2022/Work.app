@@ -1638,6 +1638,22 @@
       el.addEventListener('click', function () { goToScreen(el.dataset.goto); });
     });
 
+    // Requested directly: fiecare paginuta care se deschide (Aggiungi
+    // veicolo, Carica documento, etc.) trebuie sa se poata inchide si
+    // cu un clic in exteriorul ei, nu doar din butonul Annulla. Un
+    // singur listener, pe toate .modal-backdrop deodata, in loc de
+    // cablaj repetat pentru fiecare modal — se aplica automat si la
+    // orice modal nou adaugat pe viitor, cu aceeasi clasa. Verifica
+    // ca clicul a lovit EXACT fundalul (event.target === backdrop-ul
+    // insusi), nu un descendent al lui (.modal si tot ce e in el) -
+    // altfel orice clic normal, in interiorul formularului, ar
+    // inchide modalul din greseala.
+    document.querySelectorAll('.modal-backdrop').forEach(function (backdrop) {
+      backdrop.addEventListener('click', function (e) {
+        if (e.target === backdrop) backdrop.classList.remove('open');
+      });
+    });
+
     // Requested directly: live-ish auto-refresh, but only where it
     // genuinely matters (Panoramica's stats/alerts, Consegne's
     // delivery list) — Documenti/Notifiche/team change rarely, so
