@@ -902,7 +902,14 @@
     position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;
   }
   #dp-camera-video{transform-origin:center;transition:transform .15s ease;}
-  #dp-camera-preview-img{display:none;object-fit:contain;}
+  /* REAL BUG, reported directly and confirmed: native browser pinch-
+     zoom on this 4K preview photo (uncapped, whatever scale the OS
+     lets the user reach) could exhaust memory on weaker phones and
+     crash/restart the whole app. touch-action:none stops the browser
+     from handling pinch gestures here at all — replaced below with a
+     controlled zoom (own transform, capped at a safe max) that gives
+     the same "check if the photo is sharp" ability without the risk. */
+  #dp-camera-preview-img{display:none;object-fit:contain;touch-action:none;transform-origin:center;}
   #dp-camera-close-btn{
     position:absolute;top:calc(16px + var(--safe-top,0px));right:16px;z-index:2;
     width:38px;height:38px;border-radius:50%;border:none;background:rgba(0,0,0,.5);color:#fff;
