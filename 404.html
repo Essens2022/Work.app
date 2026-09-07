@@ -371,7 +371,12 @@
     #panoramicaScrollArea .driver-col-status,
     #panoramicaScrollArea .driver-col-consegne { display: inline-flex; align-items: center; font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
     #panoramicaScrollArea .driver-col-consegne { margin-left: 10px; }
-    #panoramicaScrollArea .driver-mobile-label { display: inline; font-weight: 600; color: var(--ink); }
+    #panoramicaScrollArea .driver-mobile-label { display: inline; font-weight: 400; color: var(--ink-soft); }
+    /* Requested directly: the count itself was less visible than its
+       own label (backwards) — the label stays muted/secondary, the
+       number now stands out (bold, full-contrast color), with real
+       spacing between them instead of sitting right against the colon. */
+    #panoramicaScrollArea .driver-consegne-value { font-weight: 700; color: var(--ink); margin-left: 6px; }
   }
 
   /* ---------- Storico consegne ---------- */
@@ -1569,7 +1574,7 @@
           '<div class="driver-col-avatar"><div class="avatar">' + esc(badgeInitials(d.nome || d.account_email)) + '</div></div>' +
           '<div class="driver-col-name"><div class="driver-name">' + esc(d.nome || d.account_email) + '</div><div class="driver-sub">' + esc(d.account_email) + '</div></div>' +
           '<div class="driver-col-status"><span class="status-dot" style="background:' + statusColor + ';"></span>' + statusLabel + '</div>' +
-          '<div class="driver-col-consegne"><span class="driver-mobile-label">Consegne oggi: </span>' + todayCount + '</div>' +
+          '<div class="driver-col-consegne"><span class="driver-mobile-label">Consegne oggi:</span><span class="driver-consegne-value">' + todayCount + '</span></div>' +
           '<div class="driver-col-veicolo"><span class="driver-mobile-label">Veicolo: </span>' + esc(d.targa || '—') + '</div>' +
           '<div class="driver-col-actions"><button class="doc-actions-btn owner-only remove-btn" data-email="' + esc(d.account_email) + '" data-name="' + esc(d.nome || d.account_email) + '" style="background:none;border:none;color:var(--ink-soft);cursor:pointer;font-size:13px;">Rimuovi</button></div>' +
           '</div>';
