@@ -200,6 +200,24 @@
   .stat-label { font-size: 12.5px; color: var(--ink-soft); margin-top: 2px; }
 
   .fleet-table { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+
+  /* Requested directly ("arata numarul 4, arata numarul 5, dar nu are
+     sens... trebuie numarul sa fie frumos pus, scrisul cumva sa aiba
+     locul lui"): Bilancio's own card — the shared .driver-card grid
+     (built for Autisti) stacked km/giorni/consegne bare, with no
+     label at all on mobile, into an unlabeled column of numbers.
+     Dedicated layout instead, so Autisti's own card stays untouched. */
+  .bilancio-driver-card {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 16px 18px; border-bottom: 1px solid var(--line);
+  }
+  .bilancio-driver-card:last-child { border-bottom: none; }
+  .bilancio-driver-name-col { display: flex; align-items: center; gap: 10px; flex: 1 1 180px; min-width: 0; }
+  .bilancio-driver-stats { display: flex; gap: 22px; flex-wrap: wrap; }
+  .bilancio-stat-block { text-align: left; }
+  .bilancio-stat-num { font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 19px; color: var(--ink); line-height: 1.1; }
+  .bilancio-stat-label { font-size: 10.5px; color: var(--ink-soft); margin-top: 2px; white-space: nowrap; }
+
   .fleet-name-cell { display: flex; align-items: center; gap: 12px; }
   .fleet-logo {
     width: 40px; height: 40px; border-radius: 10px; background: var(--accent-soft); color: var(--accent);
@@ -455,6 +473,37 @@
     .doc-row.head { display: none; }
     .doc-row:not(.head) { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; }
   }
+
+  /* Requested directly: Veicoli's own card — the shared .doc-row grid
+     (built for Documenti) stacked everything on top of each other on
+     mobile with no real organization (plate repeated, driver name,
+     dates, "Modifica"/"Elimina" as plain text links all crammed into
+     one narrow column). This is a dedicated layout instead, so fixing
+     it here can't disturb Documenti's own card, which keeps using
+     .doc-row exactly as before. */
+  .vehicle-card {
+    display: flex; align-items: flex-start; gap: 14px;
+    padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 10px;
+    background: var(--surface);
+  }
+  .vehicle-card-icon {
+    width: 40px; height: 40px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: center; color: var(--accent); flex: none;
+  }
+  .vehicle-card-main { flex: 1 1 auto; min-width: 0; }
+  .vehicle-card-title-row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .vehicle-card-targa { font-weight: 800; font-size: 15.5px; letter-spacing: .02em; }
+  .vehicle-card-driver { font-size: 12.5px; color: var(--ink-soft); }
+  .vehicle-card-dates { display: flex; gap: 18px; margin-top: 8px; flex-wrap: wrap; }
+  .vehicle-card-date-block { font-size: 12.5px; }
+  .vehicle-card-date-label { color: var(--ink-soft); margin-bottom: 1px; }
+  .vehicle-card-actions { display: flex; flex-direction: column; gap: 10px; flex: none; }
+  .vehicle-card-actions button {
+    width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2);
+    color: var(--ink-soft); cursor: pointer; display: flex; align-items: center; justify-content: center;
+  }
+  .vehicle-card-actions button.vehicle-delete-btn:hover { color: #E8542B; border-color: #E8542B; }
+  .vehicle-card-actions button.vehicle-edit-btn:hover { color: var(--accent); border-color: var(--accent); }
 
   /* ---------- Impostazioni (fleet settings) ---------- */
   .settings-section { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px; margin-bottom: 20px; }
@@ -962,15 +1011,6 @@
 
       <div class="main-inner">
       <div class="settings-section">
-        <h3>Il tuo marchio</h3>
-        <p class="sub">Il logo che carichi qui appare anche nell'app dei tuoi autisti — la vedranno come l'app della loro azienda.</p>
-        <div style="display:flex;align-items:center;gap:16px;">
-          <div class="fleet-logo" id="brandLogoPreview" style="width:64px;height:64px;border-radius:14px;margin:0;font-size:20px;">··</div>
-          <button class="btn btn-ghost" disabled title="In arrivo">Cambia logo</button>
-        </div>
-      </div>
-
-      <div class="settings-section">
         <h3>Persone con accesso</h3>
         <p class="sub">Invita colleghi al tuo account, con permessi diversi in base al loro ruolo.</p>
         <div id="teamMembersList"></div>
@@ -1252,7 +1292,7 @@
     document.body.classList.add('app-shown');
     document.getElementById('topNotifBtn').style.display = 'flex';
     ['dashName', 'dashName2', 'dashName3', 'dashName4', 'dashName5', 'dashName6', 'dashName7', 'dashName8'].forEach(function (id) { document.getElementById(id).textContent = fleetName; });
-    ['dashBadge', 'dashBadge2', 'dashBadge3', 'dashBadge4', 'dashBadge5', 'dashBadge6', 'dashBadge7', 'dashBadge8', 'brandLogoPreview'].forEach(function (id) { document.getElementById(id).textContent = badgeInitials(fleetName); });
+    ['dashBadge', 'dashBadge2', 'dashBadge3', 'dashBadge4', 'dashBadge5', 'dashBadge6', 'dashBadge7', 'dashBadge8'].forEach(function (id) { document.getElementById(id).textContent = badgeInitials(fleetName); });
     if (role === 'viewer') document.body.classList.add('role-viewer');
 
     // Requested directly ("de ce nu folosesti acelasi instrument pe
@@ -1402,7 +1442,8 @@
           todayDeliveryCountByEmail = {};
           var deliveriesToday = (delRes.ok ? delRes.deliveries : []);
           deliveriesToday.forEach(function (d) { todayDeliveryCountByEmail[d.driver_email] = (todayDeliveryCountByEmail[d.driver_email] || 0) + 1; });
-          renderStats(res.drivers, res.period, deliveriesToday.length);
+          var expiringCount = (res.expiring_documents || []).length + (res.expiring_vehicles || []).length;
+          renderStats(res.drivers, res.period, deliveriesToday.length, expiringCount);
           renderDrivers(res.drivers);
           renderAlertBanner(res);
         });
@@ -1424,22 +1465,45 @@
     // motion. Swiping it upward dismisses that one appearance
     // immediately instead of waiting out the 9s timer (any later
     // scheduled appearance still happens on its own schedule).
-    var toastShowCount = 0;
+    //
+    // Requested directly ("pot fi mai multe alerte... trebuie de facut
+    // sa fie totul bine... daca e necesar sa apara chiar si de mai
+    // multe ori"): REAL BUG, confirmed — the old logic capped at 3
+    // appearances TOTAL, no matter how many distinct alerts existed
+    // (an inactive driver + 2 expiring documents + a vehicle would
+    // only ever show 3 of those 4 messages, ever, ONE of them never
+    // appearing at all). Now every message in the queue gets its OWN
+    // 3 appearances, tracked individually — a periodic timer keeps
+    // showing whichever message still has appearances left, cycling
+    // through all of them, and stops entirely once every single one
+    // has been shown its full 3 times.
     var toastHideTimer = null;
     var alertQueue = [];
+    var alertShowCounts = [];
     var alertRotationIndex = 0;
+    var alertIntervalTimer = null;
 
     function showToastNow() {
-      if (toastShowCount >= 3 || !alertQueue.length) return;
-      toastShowCount++;
+      if (!alertQueue.length) return;
+      // Find the next message (starting from the rotation cursor)
+      // that still has appearances remaining — skips over any
+      // message that's already reached its own limit of 3.
+      var startIndex = alertRotationIndex;
+      var foundIndex = -1;
+      for (var i = 0; i < alertQueue.length; i++) {
+        var idx = (startIndex + i) % alertQueue.length;
+        if (alertShowCounts[idx] < 3) { foundIndex = idx; break; }
+      }
+      if (foundIndex === -1) {
+        // Every message has been shown 3 times already — nothing
+        // left to do, stop the periodic timer for good.
+        if (alertIntervalTimer) { clearInterval(alertIntervalTimer); alertIntervalTimer = null; }
+        return;
+      }
+      alertShowCounts[foundIndex]++;
+      alertRotationIndex = foundIndex + 1;
       var banner = document.getElementById('alertBanner');
-      // Requested directly: rotates through whatever alerts exist
-      // (driver inactivity, document expiry, vehicle expiry) — each
-      // of the 3 appearances shows the next one in line, wrapping
-      // around, rather than always repeating the same single message.
-      var message = alertQueue[alertRotationIndex % alertQueue.length];
-      alertRotationIndex++;
-      document.getElementById('alertBannerText').innerHTML = message;
+      document.getElementById('alertBannerText').innerHTML = alertQueue[foundIndex];
       requestAnimationFrame(function () { banner.classList.add('toast-show'); });
       toastHideTimer = setTimeout(function () { banner.classList.remove('toast-show'); }, 9000);
     }
@@ -1456,7 +1520,10 @@
       }
       // Requested directly ("documentele scadente trebuie sa apara si
       // in alerta... notificarea interna push"): document/vehicle
-      // expiry alerts feed into this exact same toast queue.
+      // expiry alerts feed into this exact same toast queue — one
+      // separate message per expiring document AND per expiring
+      // vehicle date, so each gets its own visibility, none merged
+      // or dropped silently.
       (res.expiring_documents || []).forEach(function (d) {
         var isPast = d.expiry_date < new Date().toISOString().slice(0, 10);
         queue.push('<b>' + esc(d.filename) + '</b> ' + (isPast ? 'è scaduto' : 'scade il ' + new Date(d.expiry_date).toLocaleDateString('it-IT')));
@@ -1466,19 +1533,22 @@
         var typeLabel = v.type === 'assicurazione' ? 'assicurazione' : 'revisione';
         queue.push('Veicolo <b>' + esc(v.targa) + '</b> — ' + typeLabel + ' ' + (isPast ? 'scaduta' : 'scade il ' + new Date(v.date).toLocaleDateString('it-IT')));
       });
-      alertQueue = queue;
-      // The very first appearance happens as soon as real data is
-      // ready — the two later ones are scheduled once, separately,
-      // from portal-open time (see the setTimeout calls below).
-      if (toastShowCount === 0) showToastNow();
+      // Only reset the show-counts if the SET of messages actually
+      // changed (e.g. a new alert appeared) — refresh() re-runs this
+      // periodically, and resetting on every single call would let an
+      // already-fully-shown message start over from zero forever,
+      // defeating the whole "3 times, then stop" idea.
+      var queueKey = queue.join('|');
+      if (queueKey !== alertQueue.join('|')) {
+        alertQueue = queue;
+        alertShowCounts = queue.map(function () { return 0; });
+        alertRotationIndex = 0;
+      }
+      if (!alertIntervalTimer && alertQueue.length) {
+        showToastNow();
+        alertIntervalTimer = setInterval(showToastNow, 20000);
+      }
     }
-
-    // Requested directly: the 2nd and 3rd appearances are timed from
-    // the moment the fleet portal itself was opened, not from
-    // whenever data happens to finish loading — scheduled once, here,
-    // at module load time.
-    setTimeout(showToastNow, 25000);
-    setTimeout(showToastNow, 45000);
 
     (function () {
       var banner = document.getElementById('alertBanner');
@@ -1509,24 +1579,14 @@
 
     var MONTH_NAMES_IT = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
 
-    // Requested directly: kept at the mockup's own 6-card layout.
-    // Three of these ARE real data (Autisti totali, Consegne oggi —
-    // computed above from today's real deliveries — and Percorsi
-    // questo mese, the closest real equivalent to the mockup's
-    // per-day figure, since no per-day km tracking exists yet).
-    // The other three (In consegna ora, Documenti in scadenza,
-    // Riscosso oggi) need functionality that doesn't exist yet —
-    // live GPS status, document expiry dates, collected-cash
-    // tracking — so they show "—", never a fabricated number, until
-    // each is genuinely built.
-    function renderStats(drivers, period, todayDeliveryTotal) {
+    function renderStats(drivers, period, todayDeliveryTotal, expiringCount) {
       var totalKm = drivers.reduce(function (s, d) { return s + (d.total_km || 0); }, 0);
       var monthLabel = period ? MONTH_NAMES_IT[period.month - 1] : '';
       document.getElementById('statsRow').innerHTML =
         '<div class="stat-card"><div class="stat-num">' + drivers.length + '</div><div class="stat-label">Autisti totali</div></div>' +
         '<div class="stat-card"><div class="stat-num">—</div><div class="stat-label">In consegna ora</div></div>' +
         '<div class="stat-card"><div class="stat-num">' + todayDeliveryTotal + '</div><div class="stat-label">Consegne oggi</div></div>' +
-        '<div class="stat-card"><div class="stat-num">—</div><div class="stat-label">Documenti in scadenza</div></div>' +
+        '<div class="stat-card"><div class="stat-num">' + expiringCount + '</div><div class="stat-label">Documenti in scadenza</div></div>' +
         '<div class="stat-card"><div class="stat-num">—</div><div class="stat-label">Riscosso oggi</div></div>' +
         '<div class="stat-card"><div class="stat-num">' + Math.round(totalKm) + ' km</div><div class="stat-label">Percorsi a ' + monthLabel + '</div></div>';
     }
@@ -1730,22 +1790,29 @@
       if (!vehicles.length) { el.innerHTML = '<div class="empty-note">Nessun veicolo registrato ancora — aggiungine uno sopra.</div>'; return; }
       var todayStr = new Date().toISOString().slice(0, 10);
       function expiryLabel(dateStr) {
-        if (!dateStr) return '<span style="color:var(--ink-soft);">—</span>';
+        if (!dateStr) return '<span style="color:var(--ink-soft);">Non impostata</span>';
         var isPast = dateStr < todayStr;
         var soon = !isPast && dateStr <= new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
         var color = isPast ? '#E8542B' : (soon ? 'var(--amber)' : 'var(--ink)');
         var when = new Date(dateStr).toLocaleDateString('it-IT');
         return '<span style="color:' + color + ';font-weight:' + (isPast || soon ? '700' : '400') + ';">' + when + '</span>';
       }
-      var html = '<div class="doc-row head"><div></div><div>Targa</div><div>Autista</div><div>Assicurazione</div><div>Revisione</div><div></div></div>';
+      var html = '';
       vehicles.forEach(function (v) {
-        html += '<div class="doc-row">' +
-          '<div class="doc-icon"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="7" width="15" height="10" rx="2"/><path d="M16 10h3l3 3v4h-6"/><circle cx="6" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></div>' +
-          '<div><div class="doc-name">' + esc(v.targa) + '</div>' + (v.note ? '<div style="font-size:12px;color:var(--ink-soft);margin-top:2px;">' + esc(v.note) + '</div>' : '') + '</div>' +
-          '<div>' + (v.assigned_driver_nome ? esc(v.assigned_driver_nome) : '<span style="color:var(--ink-soft);">Non assegnato</span>') + '</div>' +
-          '<div>' + expiryLabel(v.insurance_expiry) + '</div>' +
-          '<div>' + expiryLabel(v.revisione_expiry) + '</div>' +
-          '<div class="doc-actions"><button class="doc-download-btn vehicle-edit-btn" data-id="' + esc(v.id) + '">Modifica</button><button class="doc-delete-btn owner-only vehicle-delete-btn" data-id="' + esc(v.id) + '" data-targa="' + esc(v.targa) + '">Elimina</button></div>' +
+        html += '<div class="vehicle-card">' +
+          '<div class="vehicle-card-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="7" width="15" height="10" rx="2"/><path d="M16 10h3l3 3v4h-6"/><circle cx="6" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg></div>' +
+          '<div class="vehicle-card-main">' +
+            '<div class="vehicle-card-title-row"><span class="vehicle-card-targa">' + esc(v.targa) + '</span><span class="vehicle-card-driver">' + (v.assigned_driver_nome ? esc(v.assigned_driver_nome) : 'Non assegnato') + '</span></div>' +
+            (v.note ? '<div style="font-size:12px;color:var(--ink-soft);margin-top:3px;">' + esc(v.note) + '</div>' : '') +
+            '<div class="vehicle-card-dates">' +
+              '<div class="vehicle-card-date-block"><div class="vehicle-card-date-label">Assicurazione</div>' + expiryLabel(v.insurance_expiry) + '</div>' +
+              '<div class="vehicle-card-date-block"><div class="vehicle-card-date-label">Revisione</div>' + expiryLabel(v.revisione_expiry) + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="vehicle-card-actions owner-only">' +
+            '<button class="vehicle-edit-btn" data-id="' + esc(v.id) + '" aria-label="Modifica" title="Modifica"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg></button>' +
+            '<button class="vehicle-delete-btn" data-id="' + esc(v.id) + '" data-targa="' + esc(v.targa) + '" aria-label="Elimina" title="Elimina"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14Z"/></svg></button>' +
+          '</div>' +
           '</div>';
       });
       el.innerHTML = html;
@@ -1809,16 +1876,18 @@
         '<div class="stat-card"><div class="stat-num">' + Math.round(totalKm) + ' km</div><div class="stat-label">Km totali (mese)</div></div>';
 
       var maxConsegne = Math.max.apply(null, drivers.map(function (d) { return periodFilteredCount(d.consegne_dates); }).concat([0]));
-      var html = '<div class="driver-card head"><div></div><div>Autista</div><div>Km (mese)</div><div>Giorni lavorati</div><div>Consegne (' + periodLabel + ')</div></div>';
+      var html = '';
       drivers.forEach(function (d) {
         var myCount = periodFilteredCount(d.consegne_dates);
         var isTop = myCount > 0 && myCount === maxConsegne;
-        html += '<div class="driver-card">' +
-          '<div class="avatar">' + esc(badgeInitials(d.nome)) + '</div>' +
-          '<div><div class="driver-name">' + esc(d.nome) + (isTop ? ' <span style="background:var(--green-soft);color:var(--green);font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:100px;margin-left:6px;">Top consegne</span>' : '') + '</div></div>' +
-          '<div>' + Math.round(d.total_km) + ' km</div>' +
-          '<div>' + d.total_giorni + '</div>' +
-          '<div>' + myCount + '</div>' +
+        html += '<div class="bilancio-driver-card">' +
+          '<div class="bilancio-driver-name-col"><div class="avatar">' + esc(badgeInitials(d.nome)) + '</div>' +
+          '<div class="driver-name">' + esc(d.nome) + (isTop ? ' <span style="background:var(--green-soft);color:var(--green);font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:100px;margin-left:6px;">Top consegne</span>' : '') + '</div></div>' +
+          '<div class="bilancio-driver-stats">' +
+            '<div class="bilancio-stat-block"><div class="bilancio-stat-num">' + Math.round(d.total_km) + ' km</div><div class="bilancio-stat-label">Km (mese)</div></div>' +
+            '<div class="bilancio-stat-block"><div class="bilancio-stat-num">' + d.total_giorni + '</div><div class="bilancio-stat-label">Giorni lavorati</div></div>' +
+            '<div class="bilancio-stat-block"><div class="bilancio-stat-num">' + myCount + '</div><div class="bilancio-stat-label">Consegne (' + periodLabel + ')</div></div>' +
+          '</div>' +
           '</div>';
       });
       document.getElementById('bilancioDriverRows').innerHTML = html;

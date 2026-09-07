@@ -123,6 +123,7 @@
   var LS_DELIVERY_CLIENTS = "pt_delivery_clients_v1";
   var LS_DELIVERY_RUN = "pt_delivery_run_v1";
   var LS_DELIVERY_HISTORY = "pt_delivery_history_v1"; // archived past days' runs — {date: 'YYYY-MM-DD', clients: [...]}[]
+  var LS_FLEET_STATUS_CACHE = "pt_fleet_status_cache_v1";
 
   var MESI = ["Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
     "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre"];
@@ -10320,8 +10321,24 @@
     if (!row) return;
     var email = currentAccountEmail();
     if (!email) { row.style.display = 'none'; return; }
+    // Requested directly ("se incarca putin asa, cam cu intarziere...
+    // e o informatie deja stiuta"): same stale-while-revalidate
+    // pattern already used across the fleet portal — shows whatever
+    // was last known instantly (no blank/hidden flash while the
+    // network call is in flight), then quietly confirms or corrects
+    // it once the real answer comes back.
+    var cached = loadJSON(LS_FLEET_STATUS_CACHE, null);
+    if (cached && cached.in_fleet) {
+      row.style.display = 'block';
+      document.getElementById('settings-fleet-name').textContent = cached.fleet_name || 'una flotta';
+    }
     fleetCall({ action: 'driver_get_fleet_status', account_email: email }).then(function (res) {
-      if (!res.ok || !res.in_fleet) { row.style.display = 'none'; return; }
+      if (!res.ok || !res.in_fleet) {
+        row.style.display = 'none';
+        saveJSON(LS_FLEET_STATUS_CACHE, { in_fleet: false });
+        return;
+      }
+      saveJSON(LS_FLEET_STATUS_CACHE, { in_fleet: true, fleet_name: res.fleet_name });
       row.style.display = 'block';
       document.getElementById('settings-fleet-name').textContent = res.fleet_name || 'una flotta';
       var btn = document.getElementById('settings-leave-fleet-btn');
@@ -10334,6 +10351,7 @@
           btn.disabled = false;
           if (!res.ok) { toast('Impossibile uscire dalla flotta — riprova.'); return; }
           row.style.display = 'none';
+          saveJSON(LS_FLEET_STATUS_CACHE, { in_fleet: false });
           toast('Sei uscito dalla flotta');
         });
       });
