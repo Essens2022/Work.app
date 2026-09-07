@@ -1122,6 +1122,8 @@
   <div class="bottom-nav-item owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
 </div>
 
+<script src="./vendor/supabase.js"></script>
+
 <script>
   (function () {
     if (localStorage.getItem('adb_fleet_theme') === 'light') document.documentElement.setAttribute('data-theme', 'light');
@@ -1247,6 +1249,50 @@
     ['dashName', 'dashName2', 'dashName3', 'dashName4', 'dashName5', 'dashName6', 'dashName7', 'dashName8'].forEach(function (id) { document.getElementById(id).textContent = fleetName; });
     ['dashBadge', 'dashBadge2', 'dashBadge3', 'dashBadge4', 'dashBadge5', 'dashBadge6', 'dashBadge7', 'dashBadge8', 'brandLogoPreview'].forEach(function (id) { document.getElementById(id).textContent = badgeInitials(fleetName); });
     if (role === 'viewer') document.body.classList.add('role-viewer');
+
+    // Requested directly ("de ce nu folosesti acelasi instrument pe
+    // care il folosesti in admin"): reuses the EXACT same live
+    // presence mechanism admin/index.html already relies on — the
+    // same shared Supabase Realtime channel every driver's phone
+    // joins the moment app.js opens (see startPresence() there), not
+    // a new heartbeat or any invented polling. The instant a phone's
+    // connection drops, this channel removes it automatically — true
+    // live status, not a timestamp interpreted as "recent enough".
+    var SUPABASE_URL_RT = 'https://chboalgzigdglygnnist.supabase.co';
+    var SUPABASE_ANON_KEY_RT = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoYm9hbGd6aWdkZ2x5Z25uaXN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1NTc4MjMsImV4cCI6MjEwMjEzMzgyM30.vorEiww3SvVAadgnAqFH42M-MjbpXOojAlhNm-cIeMI';
+    var presenceSupabaseClient = (typeof supabase !== 'undefined' && supabase.createClient)
+      ? supabase.createClient(SUPABASE_URL_RT, SUPABASE_ANON_KEY_RT, { realtime: { heartbeatIntervalMs: 10000 } })
+      : null;
+    var liveEmails = {};
+    function startFleetPresenceWatch() {
+      if (!presenceSupabaseClient) return;
+      var channel = presenceSupabaseClient.channel('drivers-presence');
+      channel.on('presence', { event: 'sync' }, function () {
+        var state = channel.presenceState();
+        var next = {};
+        Object.keys(state).forEach(function (key) {
+          (state[key] || []).forEach(function (entry) {
+            if (entry.account_email) next[entry.account_email.toLowerCase()] = true;
+          });
+        });
+        liveEmails = next;
+        // Re-render immediately wherever driver status is currently
+        // shown, so a driver going live/offline reflects instantly —
+        // not just on the next 20s auto-refresh.
+        if (currentDrivers.length) renderDrivers(currentDrivers);
+      });
+      // Same reconnect-on-stale-connection fix already applied in
+      // admin, for the same reason: this page can realistically stay
+      // open for a long stretch, exactly the situation most prone to
+      // a silently-stale connection freezing liveEmails forever.
+      channel.subscribe(function (status) {
+        if (status === 'TIMED_OUT' || status === 'CLOSED') {
+          presenceSupabaseClient.removeChannel(channel);
+          setTimeout(startFleetPresenceWatch, 1000);
+        }
+      });
+    }
+    startFleetPresenceWatch();
 
     var SCREEN_ID_BY_NAME = { panoramica: 'fleet-dashboard', documenti: 'fleet-docs', consegne: 'fleet-consegne', mappa: 'fleet-mappa', veicoli: 'fleet-vehicles', bilancio: 'fleet-bilancio', notifiche: 'fleet-notifiche', impostazioni: 'fleet-settings' };
 
@@ -1483,11 +1529,10 @@
       }
       var html = '<div class="driver-card head"><div></div><div>Autista</div><div>Stato</div><div>Consegne oggi</div><div>Veicolo</div><div></div></div>';
       drivers.forEach(function (d) {
-        // Requested directly: "Stato" now reflects real activity
-        // (last_active, same 2-day threshold as the inactivity alert
-        // elsewhere on this screen) instead of a fabricated neutral
-        // dot. "Consegne oggi" IS real (see todayDeliveryCountByEmail,
-        // built in refresh() above).
+        // Requested directly: "Stato" now reflects real live presence
+        // (see below) instead of a fabricated neutral dot. "Consegne
+        // oggi" IS real (see todayDeliveryCountByEmail, built in
+        // refresh() above).
         // "Veicolo" shows the real plate; the vehicle type/model
         // itself isn't tracked anywhere yet, so only the plate half
         // of the mockup's "Fiat Ducato · AB123CD" format is real.
@@ -1496,13 +1541,18 @@
         // sofer"): replaces the always-gray, fake "—" status with a
         // real indicator built from last_active — green means the
         // app was opened recently; gray (not amber/red) for inactive,
-        // per direct request, since amber read as more alarming than
-        // intended here. Same 2-day threshold as the inactivity
-        // toast/alert elsewhere on this screen, so the two stay
-        // consistent with each other.
-        var isInactive = !d.last_active || (Date.now() - new Date(d.last_active).getTime()) > 2 * 24 * 60 * 60 * 1000;
-        var statusColor = isInactive ? 'var(--ink-soft)' : 'var(--green)';
-        var statusLabel = isInactive ? 'Inattivo' : 'Attivo';
+        // Requested directly ("aici la modalitatea live... aceleasi
+        // instrument pe care il folosesti in admin"): "Attivo" now
+        // reflects the SAME real-time WebSocket presence admin
+        // already uses — true live/offline, not a last_active
+        // timestamp interpreted as "recent enough". The 2-day
+        // threshold stays, unchanged, for the separate inactivity
+        // toast/alert elsewhere on this screen — a different
+        // question ("hasn't opened the app in days") from this one
+        // ("is live right now").
+        var isLive = !!liveEmails[(d.account_email || '').toLowerCase()];
+        var statusColor = isLive ? 'var(--green)' : 'var(--ink-soft)';
+        var statusLabel = isLive ? 'Attivo' : 'Inattivo';
         // Requested directly: on mobile, each row starts collapsed to
         // just avatar + name + status — a single, slim line — and
         // tapping it reveals the rest (consegne oggi, veicolo,
