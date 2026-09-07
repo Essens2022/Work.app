@@ -270,7 +270,19 @@
     padding: 11px 16px; color: var(--ink); font-size: 16px; font-family: 'Inter', sans-serif;
   }
   .driver-card {
-    display: grid; grid-template-columns: auto 1.6fr 1fr 1fr 1fr auto; align-items: center; gap: 16px;
+    /* Fixed pixel widths on the first/last columns (avatar, actions)
+       instead of "auto" — requested directly ("numarul de consegne
+       nu este exact sub scrisul Consegne oggi... la fel si vehicul"):
+       each .driver-card div (header row and every driver row) is its
+       OWN independent CSS grid, not shared rows of one grid, so an
+       "auto" column sizes itself per-div, based on THAT div's own
+       content. The header row's first/last cells are empty, so their
+       "auto" columns collapsed to 0 width there, while driver rows
+       have a real 40px avatar and a "Rimuovi" button in those same
+       slots — shifting every column after them out of alignment with
+       the header labels above. Fixed widths make every row (header
+       included) size those two columns identically. */
+    display: grid; grid-template-columns: 40px 1.6fr 1fr 1fr 1fr 70px; align-items: center; gap: 16px;
     padding: 16px 20px; border-bottom: 1px solid var(--line);
   }
   .driver-card.head { color: var(--ink-soft); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 13px 20px; }
