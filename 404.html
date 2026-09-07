@@ -101,6 +101,27 @@
      sub acest prag (aproape toate telefoanele/laptopurile) nu are
      niciun efect, deci nimic nu se schimba acolo. */
   .main-inner { padding: 30px 40px 90px; max-width: 1600px; margin: 0 auto; }
+  /* REAL BUG, motivul pentru care fixul anterior nu se vedea deloc pe
+     desktop/PC/TV: tot mecanismul de "sus fix, doar lista scroleaza"
+     (panoramicaFixedTop/ScrollArea, bilancioFixedTop/ScrollArea) era
+     legat DOAR de media query-ul de mobil de mai jos — pe orice ecran
+     mai lat (laptop, monitor, TV), nimic din asta nu se aplica deloc,
+     deci toata pagina (inclusiv "antetul" care trebuia sa ramana fix)
+     se scrola la un loc, ca o pagina obisnuita. Acum se aplica
+     universal, la orice latime de ecran — .topline aici e sticky (nu
+     fixed, ca pe mobil), deci RAMANE in fluxul normal si isi ocupa
+     propriul spatiu; inaltimea lui .main-inner scade cu exact
+     inaltimea reala a lui .topline (masurata deja de JS, in variabila
+     --topline-h), ca nu impreuna sa depaseasca inaltimea ecranului —
+     asa .main insusi nu mai are nimic de scrolat, iar singura
+     scrolare ramane cea din interiorul listei. */
+  body.app-shown #fleet-dashboard .main-inner,
+  body.app-shown #fleet-bilancio .main-inner {
+    display: flex; flex-direction: column;
+    height: calc(100dvh - var(--topline-h, 90px));
+  }
+  #panoramicaFixedTop, #bilancioFixedTop { flex: none; }
+  #panoramicaScrollArea, #bilancioScrollArea { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .topline {
     display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap;
     position: sticky; top: 0; z-index: 10; background: var(--bg); padding: 30px 40px 20px; margin: 0 0 8px;
@@ -426,27 +447,14 @@
        top of the screen — only the driver list itself scrolls below
        it, so this fixed area can never grow to swallow half the
        screen the way each large element did individually before. */
-    #panoramicaFixedTop { flex: none; }
-    /* REAL BUG, gasit direct: lipsea min-height:0 pe acest element
-       flex — fara ea, un flex-child nu are voie sa se micsoreze sub
-       inaltimea propriului continut, deci overflow-y:auto nu apuca
-       niciodata sa intre in functiune — in loc sa scroleze DOAR lista
-       de soferi pe interior, tot elementul crestea peste ecran,
-       impingand tot blocul (inclusiv partea care trebuia sa ramana
-       fixa) sa se miste la scroll, in loc sa ramana pe loc. */
-    #panoramicaScrollArea { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-    body.app-shown #fleet-dashboard .main-inner {
-      display: flex; flex-direction: column;
-      height: 100dvh;
-      padding-bottom: 90px;
-    }
-    /* Requested directly: acelasi tratament si la Bilancio — antetul,
-       toggle-ul si cardurile raman fixe sus, ca un display, doar
-       lista de soferi de dedesubt se scroleaza. */
-    #bilancioFixedTop { flex: none; }
-    #bilancioScrollArea { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    /* Pe mobil, .topline devine position:fixed mai jos (scos complet
+       din flux) — deci aici .main-inner trebuie sa fie EXACT 100dvh
+       (nu 100dvh minus inaltimea lui .topline, ca la desktop unde
+       topline ramane in flux, sticky) - regula universala de mai sus
+       ramane, doar inaltimea se suprascrie aici, diferit, pentru
+       acest caz specific. */
+    body.app-shown #fleet-dashboard .main-inner,
     body.app-shown #fleet-bilancio .main-inner {
-      display: flex; flex-direction: column;
       height: 100dvh;
       padding-bottom: 90px;
     }
