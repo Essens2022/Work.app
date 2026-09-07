@@ -427,7 +427,14 @@
        it, so this fixed area can never grow to swallow half the
        screen the way each large element did individually before. */
     #panoramicaFixedTop { flex: none; }
-    #panoramicaScrollArea { flex: 1 1 auto; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    /* REAL BUG, gasit direct: lipsea min-height:0 pe acest element
+       flex — fara ea, un flex-child nu are voie sa se micsoreze sub
+       inaltimea propriului continut, deci overflow-y:auto nu apuca
+       niciodata sa intre in functiune — in loc sa scroleze DOAR lista
+       de soferi pe interior, tot elementul crestea peste ecran,
+       impingand tot blocul (inclusiv partea care trebuia sa ramana
+       fixa) sa se miste la scroll, in loc sa ramana pe loc. */
+    #panoramicaScrollArea { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
     body.app-shown #fleet-dashboard .main-inner {
       display: flex; flex-direction: column;
       height: 100dvh;
@@ -437,7 +444,7 @@
        toggle-ul si cardurile raman fixe sus, ca un display, doar
        lista de soferi de dedesubt se scroleaza. */
     #bilancioFixedTop { flex: none; }
-    #bilancioScrollArea { flex: 1 1 auto; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    #bilancioScrollArea { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
     body.app-shown #fleet-bilancio .main-inner {
       display: flex; flex-direction: column;
       height: 100dvh;
@@ -617,7 +624,22 @@
   .vehicle-card-actions button.vehicle-edit-btn:hover { color: var(--accent); border-color: var(--accent); }
 
   /* ---------- Impostazioni (fleet settings) ---------- */
-  .settings-section { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px; margin-bottom: 20px; }
+  /* REAL BUG, raportat direct ("impostazioni... fara sa ramana mult
+     spatiu gol inutil"): o decizie anterioara facuse aceste sectiuni
+     sa se intinda pe toata latimea ecranului — corect pe un laptop
+     obisnuit, dar pe un monitor mare sau un TV (mai ales acum, cu
+     latimea maxima de 1600px introdusa mai sus) ramanea enorm de mult
+     spatiu gol in dreapta unui singur formular ingust. Doua coloane,
+     unul langa altul, pe ecrane suficient de late — fiecare sectiune
+     ramane la fel de lata si de "premium" ca inainte (nu devine o
+     coloana ingusta, centrata), doar ca acum sunt DOUA alaturi,
+     folosind spatiul in loc sa il lase gol. Pe mobil/tableta, raman
+     stivuite, exact ca inainte. */
+  .settings-grid { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: start; }
+  @media (min-width: 1000px) {
+    .settings-grid { grid-template-columns: 1fr 1fr; }
+  }
+  .settings-section { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px; margin-bottom: 0; }
   .settings-section h3 { font-size: 19px; margin: 0 0 4px; }
   .settings-section p.sub { color: var(--ink-soft); font-size: 13px; margin: 0 0 20px; }
   /* Requested directly: an eye toggle on each password field in
@@ -1129,6 +1151,7 @@
       </div>
 
       <div class="main-inner">
+      <div class="settings-grid">
       <div class="settings-section">
         <h3>Persone con accesso</h3>
         <p class="sub">Invita colleghi al tuo account, con permessi diversi in base al loro ruolo.</p>
@@ -1175,6 +1198,7 @@
         <div id="changePwError" style="display:none;color:#E8542B;font-size:13px;margin-bottom:12px;"></div>
         <div id="changePwSuccess" style="display:none;color:var(--green);font-size:13px;margin-bottom:12px;">✓ Password aggiornata</div>
         <button class="btn btn-accent" id="changePwSubmitBtn">Salva nuova password</button>
+      </div>
       </div>
 
       </div>
