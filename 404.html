@@ -649,25 +649,32 @@
      coloana ingusta, centrata), doar ca acum sunt DOUA alaturi,
      folosind spatiul in loc sa il lase gol. Pe mobil/tableta, raman
      stivuite, exact ca inainte. */
-  .settings-grid { display: grid; grid-template-columns: 1fr; gap: 20px; align-items: start; }
+  .settings-grid { display: grid; grid-template-columns: 1fr; gap: 44px; align-items: start; }
   @media (min-width: 1000px) {
-    .settings-grid { grid-template-columns: 1fr 1fr; }
+    .settings-grid { grid-template-columns: 1fr 1fr; gap: 64px; }
   }
-  /* Requested directly, dupa ce a vazut mai multe variante si a ales
-     aceasta: fara chenar complet in jurul sectiunii (arata "ca doua
-     patrate") - doar o linie de accent, colorata, in stanga, care
-     marcheaza inceputul fiecarei sectiuni si le distinge clar una de
-     alta, fara sa le "incarce" intr-o cutie vizibila. Fara fundal
-     propriu (se aseaza direct pe fundalul paginii). */
-  .settings-section { border-left: 3px solid var(--accent); padding: 4px 0 4px 22px; margin-bottom: 0; }
-  .settings-section h3 { font-size: 18px; margin: 0 0 4px; }
-  .settings-section p.sub { color: var(--ink-soft); font-size: 13px; margin: 0 0 22px; line-height: 1.4; }
+  /* REAL BUG, raportat direct ("prea agresiv, prea greu pentru ochi,
+     totul unul peste altul"): linia colorata din stanga, oricat de
+     subtire, tot competea vizual cu continutul, iar spatiile dintre
+     titlu/text/campuri erau prea stranse, dand senzatia de aglomerare.
+     Eliminata complet linia — nicio culoare, niciun chenar, nimic care
+     sa traga ochiul — ramane doar o eticheta mica, discreta, cu
+     majuscule si spatiere, deasupra titlului (acelasi limbaj vizual
+     "eyebrow" folosit de dashboard-uri premium ca sa separe sectiuni
+     fara linii sau culori). Spatiu mult mai generos peste tot -
+     distanta intre coloane marita (20px -> 44/64px), distanta dupa
+     titlu/subtitlu marita, distanta intre randurile din lista marita -
+     "aerul" dintre elemente e ceea ce da senzatia de calm si premium,
+     nu decoratii suplimentare. */
+  .settings-section-eyebrow { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-soft); margin-bottom: 10px; opacity: .7; }
+  .settings-section h3 { font-size: 19px; font-weight: 700; margin: 0 0 8px; }
+  .settings-section p.sub { color: var(--ink-soft); font-size: 13.5px; margin: 0 0 28px; line-height: 1.5; max-width: 380px; }
   /* Separa vizual lista existenta (cine are deja acces) de formularul
-     de adaugat pe cineva nou - inainte erau lipite direct, fara nicio
-     distinctie intre "ce exista" si "ce adaugi". */
-  .settings-subsection { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
-  .settings-subsection-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft); margin-bottom: 12px; }
-  .settings-inline-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+     de adaugat pe cineva nou — doar spatiu si o eticheta, fara linie
+     apasata. */
+  .settings-subsection { margin-top: 30px; }
+  .settings-subsection-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft); opacity: .7; margin-bottom: 14px; }
+  .settings-inline-form { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
   .settings-inline-form .field { margin-bottom: 0; flex: 1 1 200px; }
   .settings-inline-form .field-role { flex: 0 1 170px; }
   .settings-inline-form .btn { height: 44px; white-space: nowrap; }
@@ -677,10 +684,11 @@
      mai mici) - fara el, aceasta sectiune ramanea cu marimile mari,
      de desktop, chiar si pe un ecran ingust de telefon. */
   @media (max-width: 860px) {
-    .settings-section { padding-left: 16px; }
-    .settings-section h3 { font-size: 16px; }
-    .settings-section p.sub { font-size: 12px; margin-bottom: 16px; }
-    .settings-inline-form { gap: 8px; }
+    .settings-grid { gap: 36px; }
+    .settings-section h3 { font-size: 16.5px; }
+    .settings-section p.sub { font-size: 12.5px; margin-bottom: 20px; }
+    .settings-subsection { margin-top: 24px; }
+    .settings-inline-form { gap: 10px; }
     .settings-inline-form .field { flex: 1 1 100%; }
     .settings-inline-form .field-role { flex: 1 1 100%; }
     .settings-inline-form .btn { width: 100%; height: 42px; }
@@ -711,7 +719,7 @@
     cursor: pointer; display: flex; align-items: center; justify-content: center;
   }
   .pw-field-toggle svg { width: 19px; height: 19px; }
-  .team-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--line); gap: 10px; }
+  .team-row { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--line); gap: 10px; }
   .team-row:last-child { border-bottom: none; }
   .team-info { display: flex; align-items: center; gap: 12px; min-width: 0; }
   .team-role { font-size: 12px; color: var(--ink-soft); background: var(--surface-2); padding: 4px 10px; border-radius: 100px; font-weight: 600; white-space: nowrap; }
@@ -1204,6 +1212,7 @@
       <div class="main-inner">
       <div class="settings-grid">
       <div class="settings-section">
+        <div class="settings-section-eyebrow">Account</div>
         <h3>Persone con accesso</h3>
         <p class="sub">Invita colleghi al tuo account, con permessi diversi in base al loro ruolo.</p>
         <div id="teamMembersList"></div>
@@ -1232,6 +1241,7 @@
            change (fleet_change_password), rather than just trusting
            the already-active session. -->
       <div class="settings-section">
+        <div class="settings-section-eyebrow">Sicurezza</div>
         <h3>Cambia password</h3>
         <p class="sub">Ti serve la password attuale per confermare il cambio.</p>
         <div class="field">
@@ -1536,10 +1546,37 @@
     // to avoid being hidden underneath it — measured here for real,
     // since its height isn't constant (a long fleet name, or the
     // action button wrapping to its own line, both change it).
+    // REAL BUG, raportat direct ("imediat ce intru, se scroleaza
+    // instabil... cand mai umblu prin pagini, se stabilizeaza"):
+    // aceasta masuratoare rula o SINGURA data, la schimbarea
+    // ecranului (goToScreen). Dar continutul antetului pe unele
+    // ecrane (ex. Bilancio: eticheta lunii, toggle-ul de perioada) se
+    // populeaza putin mai tarziu, dupa ce datele sosesc de la server -
+    // moment in care inaltimea REALA a antetului se poate schimba
+    // (text mai lung, ceva trece pe alt rand), dar nimic nu mai
+    // remasura dupa aceea. --topline-h ramanea "inghetata" la
+    // inaltimea de dinainte de incarcarea datelor, gresita, pana la
+    // urmatoarea schimbare de ecran (care, din intamplare, putea
+    // masura la un moment mai bun) - de-aia parea ca "se stabilizeaza
+    // singura" cand mai navighezi. ResizeObserver rezolva asta din
+    // radacina: remasoara automat de fiecare data cand antetul isi
+    // schimba cu adevarat dimensiunea, indiferent de motiv (date
+    // sosite mai tarziu, font incarcat, orice), nu doar la schimbarea
+    // de ecran sau la redimensionarea ferestrei.
     function updateToplineHeight() {
       var activeTopline = document.querySelector('.screen.active .topline');
       if (!activeTopline) return;
       document.documentElement.style.setProperty('--topline-h', activeTopline.offsetHeight + 'px');
+      if (window.ResizeObserver) {
+        if (!updateToplineHeight._observer) {
+          updateToplineHeight._observer = new ResizeObserver(function () {
+            document.documentElement.style.setProperty('--topline-h', activeTopline.offsetHeight + 'px');
+          });
+        } else {
+          updateToplineHeight._observer.disconnect();
+        }
+        updateToplineHeight._observer.observe(activeTopline);
+      }
     }
     window.addEventListener('resize', updateToplineHeight);
 
