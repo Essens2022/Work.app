@@ -279,10 +279,16 @@
      (built for Autisti) stacked km/giorni/consegne bare, with no
      label at all on mobile, into an unlabeled column of numbers.
      Dedicated layout instead, so Autisti's own card stays untouched. */
+  /* Requested directly: randurile intre soferi (in Bilancio) erau
+     despartite doar de o linie foarte subtire, aproape imperceptibila
+     - putin mai mult "aer" intre ele, plus un fundal usor alternant
+     (zebra), ca ochiul sa urmareasca mai usor randul corect intr-o
+     lista lunga, fara sa arate ca un bloc continuu de text. */
   .bilancio-driver-card {
     display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-    padding: 16px 18px; border-bottom: 1px solid var(--line);
+    padding: 18px; border-bottom: 1px solid var(--line);
   }
+  .bilancio-driver-card:nth-child(even) { background: var(--surface-2); }
   .bilancio-driver-card:last-child { border-bottom: none; }
   .bilancio-driver-name-col { display: flex; align-items: center; gap: 10px; flex: 1 1 180px; min-width: 0; }
   .bilancio-driver-stats { display: flex; gap: 14px; flex-wrap: wrap; }
@@ -648,8 +654,25 @@
     .settings-grid { grid-template-columns: 1fr 1fr; }
   }
   .settings-section { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px; margin-bottom: 0; }
-  .settings-section h3 { font-size: 19px; margin: 0 0 4px; }
-  .settings-section p.sub { color: var(--ink-soft); font-size: 13px; margin: 0 0 20px; }
+  /* Requested directly ("nu se schimba nimic... trebuie sa fie totul
+     mai elegant, mai fin, mai profesional"): titlul fiecarei sectiuni
+     avea doar text simplu, fara nicio identitate vizuala proprie -
+     acum are o iconita dedicata, intr-un cerc discret, care ajuta
+     ochiul sa distinga imediat cele doua functii diferite ale
+     paginii, fara sa arate ca "doua cutii la fel". */
+  .settings-section-head { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 22px; }
+  .settings-section-head svg { width: 20px; height: 20px; flex: none; padding: 10px; box-sizing: content-box; background: var(--surface-2); border-radius: 12px; color: var(--accent); }
+  .settings-section h3 { font-size: 18px; margin: 0 0 3px; }
+  .settings-section p.sub { color: var(--ink-soft); font-size: 13px; margin: 0; line-height: 1.4; }
+  /* Separa vizual lista existenta (cine are deja acces) de formularul
+     de adaugat pe cineva nou - inainte erau lipite direct, fara nicio
+     distinctie intre "ce exista" si "ce adaugi". */
+  .settings-subsection { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--line); }
+  .settings-subsection-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft); margin-bottom: 12px; }
+  .settings-inline-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; }
+  .settings-inline-form .field { margin-bottom: 0; flex: 1 1 200px; }
+  .settings-inline-form .field-role { flex: 0 1 170px; }
+  .settings-inline-form .btn { height: 44px; white-space: nowrap; }
   /* Requested directly: an eye toggle on each password field in
      "Cambia password", to see what's actually typed before
      submitting. max-width kept here deliberately — settings-section
@@ -658,7 +681,13 @@
      this keeps just the fields themselves at a sane, readable width
      regardless of how wide the section around them is. */
   .pw-field-wrap { position: relative; max-width: 420px; margin-bottom: 10px; }
-  .pw-field-input {
+  /* REAL BUG, aparut acum ca aceste campuri sunt imbricate in .field
+     (pentru etichete): ".field input" (o clasa + un tip, mai
+     specifica) ar fi castigat peste ".pw-field-input" (o singura
+     clasa) si i-ar fi stricat padding-ul din dreapta rezervat pentru
+     iconita de ochi, suprapunand textul scris peste ea. Selector mai
+     specific aici, ca sa castige de fapt regula corecta. */
+  .pw-field-wrap .pw-field-input {
     width: 100%; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px;
     padding: 11px 44px 11px 16px; color: var(--ink); font-size: 16px; font-family: 'Inter', sans-serif;
   }
@@ -1161,16 +1190,27 @@
       <div class="main-inner">
       <div class="settings-grid">
       <div class="settings-section">
-        <h3>Persone con accesso</h3>
-        <p class="sub">Invita colleghi al tuo account, con permessi diversi in base al loro ruolo.</p>
+        <div class="settings-section-head">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <div><h3>Persone con accesso</h3><p class="sub">Invita colleghi al tuo account, con permessi diversi in base al loro ruolo.</p></div>
+        </div>
         <div id="teamMembersList"></div>
-        <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
-          <input type="email" id="teamEmailInput" placeholder="Email del collega" style="flex:1;min-width:180px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:11px 16px;color:var(--ink);font-size:16px;font-family:'Inter',sans-serif;">
-          <select id="teamRoleInput" style="min-width:170px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:11px 16px;color:var(--ink);font-size:14px;font-family:'Inter',sans-serif;">
-            <option value="viewer">Sola lettura (es. contabilità)</option>
-            <option value="owner">Accesso completo</option>
-          </select>
-          <button class="btn btn-accent" id="teamAddBtn">+ Invita collega</button>
+        <div class="settings-subsection">
+          <div class="settings-subsection-label">Invita un nuovo collega</div>
+          <div class="settings-inline-form">
+            <div class="field">
+              <label for="teamEmailInput">Email</label>
+              <input type="email" id="teamEmailInput" placeholder="es. mario@esempio.it">
+            </div>
+            <div class="field field-role">
+              <label for="teamRoleInput">Ruolo</label>
+              <select id="teamRoleInput">
+                <option value="viewer">Sola lettura</option>
+                <option value="owner">Accesso completo</option>
+              </select>
+            </div>
+            <button class="btn btn-accent" id="teamAddBtn">+ Invita</button>
+          </div>
         </div>
       </div>
 
@@ -1180,28 +1220,39 @@
            change (fleet_change_password), rather than just trusting
            the already-active session. -->
       <div class="settings-section">
-        <h3>Cambia password</h3>
-        <p class="sub">Ti serve la password attuale per confermare il cambio.</p>
-        <div class="pw-field-wrap">
-          <input type="password" id="changePwCurrentInput" placeholder="Password attuale" autocomplete="current-password" class="pw-field-input">
-          <button type="button" class="pw-field-toggle" data-target="changePwCurrentInput">
-            <svg class="pw-icon-show" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>
-            <svg class="pw-icon-hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-          </button>
+        <div class="settings-section-head">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <div><h3>Cambia password</h3><p class="sub">Ti serve la password attuale per confermare il cambio.</p></div>
         </div>
-        <div class="pw-field-wrap">
-          <input type="password" id="changePwNewInput" placeholder="Nuova password (almeno 6 caratteri)" autocomplete="new-password" class="pw-field-input">
-          <button type="button" class="pw-field-toggle" data-target="changePwNewInput">
-            <svg class="pw-icon-show" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>
-            <svg class="pw-icon-hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-          </button>
+        <div class="field">
+          <label for="changePwCurrentInput">Password attuale</label>
+          <div class="pw-field-wrap">
+            <input type="password" id="changePwCurrentInput" placeholder="••••••••" autocomplete="current-password" class="pw-field-input">
+            <button type="button" class="pw-field-toggle" data-target="changePwCurrentInput">
+              <svg class="pw-icon-show" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg class="pw-icon-hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+          </div>
         </div>
-        <div class="pw-field-wrap" style="margin-bottom:12px;">
-          <input type="password" id="changePwConfirmInput" placeholder="Ripeti la nuova password" autocomplete="new-password" class="pw-field-input">
-          <button type="button" class="pw-field-toggle" data-target="changePwConfirmInput">
-            <svg class="pw-icon-show" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>
-            <svg class="pw-icon-hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-          </button>
+        <div class="field">
+          <label for="changePwNewInput">Nuova password</label>
+          <div class="pw-field-wrap">
+            <input type="password" id="changePwNewInput" placeholder="Almeno 6 caratteri" autocomplete="new-password" class="pw-field-input">
+            <button type="button" class="pw-field-toggle" data-target="changePwNewInput">
+              <svg class="pw-icon-show" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg class="pw-icon-hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:12px;">
+          <label for="changePwConfirmInput">Ripeti la nuova password</label>
+          <div class="pw-field-wrap">
+            <input type="password" id="changePwConfirmInput" placeholder="••••••••" autocomplete="new-password" class="pw-field-input">
+            <button type="button" class="pw-field-toggle" data-target="changePwConfirmInput">
+              <svg class="pw-icon-show" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg class="pw-icon-hide" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a18.6 18.6 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+            </button>
+          </div>
         </div>
         <div id="changePwError" style="display:none;color:#E8542B;font-size:13px;margin-bottom:12px;"></div>
         <div id="changePwSuccess" style="display:none;color:var(--green);font-size:13px;margin-bottom:12px;">✓ Password aggiornata</div>
