@@ -1485,6 +1485,20 @@
   }
 
   function showApp(fleetName, password, role) {
+    // REAL BUG, raportat direct ("el este putin zoomat... de-asta imi
+    // da toata pagina putin in sus si in jos"): campul de parola era
+    // inca FOCALIZAT exact in momentul in care ecranul de login se
+    // ascunde. iOS Safari poate ramane "prins" in nivelul de zoom
+    // aparut la focalizarea acelui camp, chiar daca elementul insusi
+    // dispare imediat dupa - browserul nu reseteaza intotdeauna
+    // singur zoom-ul cand elementul focalizat e ascuns brusc, in loc
+    // de a fi lasat sa piarda focus-ul normal, printr-un tap in alta
+    // parte. Blur explicit pe orice ar fi focalizat in acel moment
+    // (nu doar campul de parola, ca sa ramana valabil si daca se mai
+    // adauga vreun camp pe ecranul de login), chiar inainte de a
+    // ascunde ecranul de login, ca iOS sa elibereze zoom-ul inainte
+    // sa apara noul ecran.
+    if (document.activeElement) document.activeElement.blur();
     document.getElementById('fleet-login').classList.remove('active');
     document.body.classList.add('app-shown');
     document.getElementById('topNotifBtn').style.display = 'flex';
