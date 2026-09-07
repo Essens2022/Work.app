@@ -73,13 +73,29 @@ fbq('track', 'PageView');
      televizor — indiferent de proportia reala a imaginii. Opacitate
      redusa si position:fixed (neschimbat) — se vede, dar discret, in
      spatele continutului, static, fara sa se miste la scroll. */
+  /* REAL BUG, raportat direct ("cand scrolez, schimba forma"): pe
+     mobil, bara de adrese a browserului se restrange sau se extinde
+     LIVE, in timp ce scrolezi — iar asta schimba, tot live, inaltimea
+     reala disponibila pentru un element position:fixed;inset:0 ca
+     acesta, fara nicio unitate explicita de inaltime. background-
+     size:cover recalculeaza decuparea/zoom-ul imaginii dupa exact
+     acea inaltime, de fiecare data cand se schimba — de-aia parea ca
+     "isi schimba forma" la scroll. Inaltime explicita, stabila, in
+     100lvh ("largest viewport height" — cea mai mare inaltime pe care
+     o poate avea vreodata ecranul, cu bara ascunsa complet) rezolva
+     asta: cutia ramane mereu aceeasi marime, indiferent ce face bara
+     de sus in timp real, deci decuparea nu mai are niciun motiv sa se
+     recalculeze la scroll. 100vh ramane ca rezerva, pentru browsere
+     mai vechi care nu inteleg inca lvh. Opacitate scazuta si mai mult
+     (0.32 -> 0.16), fiindca a fost semnalata ca fiind prea vizibila. */
   .streaks-field{
     position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;
+    height:100vh;height:100lvh;
     background-image:url('traseu-fundal.webp');
     background-size:cover;
     background-position:center;
     background-repeat:no-repeat;
-    opacity:0.32;
+    opacity:0.16;
   }
   /* Neschimbat, nelegat de fundalul de mai sus: shadow-ul mare de pe
      mockup-urile de telefon tot costa scump la recompunere in timpul
