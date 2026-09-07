@@ -1577,14 +1577,33 @@
     // schimba cu adevarat dimensiunea, indiferent de motiv (date
     // sosite mai tarziu, font incarcat, orice), nu doar la schimbarea
     // de ecran sau la redimensionarea ferestrei.
+    /* REAL BUG, raportat direct ("documenti, veicoli, bilancio -
+       toate datele se ascund sub bara de sus"): observator-ul de mai
+       sus (ResizeObserver) avea o eroare reala — functia lui de callback
+       era creata O SINGURA data, la PRIMA rulare (pe Panoramica, primul
+       ecran aratat dupa login), si ramanea "inchisa" pe variabila
+       activeTopline din ACEL moment. La orice ecran ulterior (Documenti,
+       Veicoli, Bilancio), .observe() pe un element NOU declanseaza
+       imediat o prima masuratoare din partea observator-ului — dar acea
+       masuratoare tot citea, gresit, inaltimea vechiului antet
+       (Panoramica), nu a celui nou observat, suprascriind valoarea
+       corecta scrisa cu o clipa inainte. Panoramica are cel mai scund
+       antet dintre toate ecranele — de-aia valoarea gresita (prea mica)
+       facea ca padding-ul de sus sa fie insuficient pe orice alt ecran,
+       ascunzand continutul sub bara de sus, mai inalta acolo. Reparat:
+       callback-ul citeste acum elementul REAL din eveniment
+       (entries[0].target), nu o variabila prinsa din exterior — asa
+       masoara mereu antetul care chiar s-a schimbat, indiferent care
+       ecran e activ. */
     function updateToplineHeight() {
       var activeTopline = document.querySelector('.screen.active .topline');
       if (!activeTopline) return;
       document.documentElement.style.setProperty('--topline-h', activeTopline.offsetHeight + 'px');
       if (window.ResizeObserver) {
         if (!updateToplineHeight._observer) {
-          updateToplineHeight._observer = new ResizeObserver(function () {
-            document.documentElement.style.setProperty('--topline-h', activeTopline.offsetHeight + 'px');
+          updateToplineHeight._observer = new ResizeObserver(function (entries) {
+            var el = entries[0] && entries[0].target;
+            if (el) document.documentElement.style.setProperty('--topline-h', el.offsetHeight + 'px');
           });
         } else {
           updateToplineHeight._observer.disconnect();
