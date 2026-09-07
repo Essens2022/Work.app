@@ -653,17 +653,15 @@
   @media (min-width: 1000px) {
     .settings-grid { grid-template-columns: 1fr 1fr; }
   }
-  .settings-section { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px; margin-bottom: 0; }
-  /* Requested directly ("nu se schimba nimic... trebuie sa fie totul
-     mai elegant, mai fin, mai profesional"): titlul fiecarei sectiuni
-     avea doar text simplu, fara nicio identitate vizuala proprie -
-     acum are o iconita dedicata, intr-un cerc discret, care ajuta
-     ochiul sa distinga imediat cele doua functii diferite ale
-     paginii, fara sa arate ca "doua cutii la fel". */
-  .settings-section-head { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 22px; }
-  .settings-section-head svg { width: 20px; height: 20px; flex: none; padding: 10px; box-sizing: content-box; background: var(--surface-2); border-radius: 12px; color: var(--accent); }
-  .settings-section h3 { font-size: 18px; margin: 0 0 3px; }
-  .settings-section p.sub { color: var(--ink-soft); font-size: 13px; margin: 0; line-height: 1.4; }
+  /* Requested directly, dupa ce a vazut mai multe variante si a ales
+     aceasta: fara chenar complet in jurul sectiunii (arata "ca doua
+     patrate") - doar o linie de accent, colorata, in stanga, care
+     marcheaza inceputul fiecarei sectiuni si le distinge clar una de
+     alta, fara sa le "incarce" intr-o cutie vizibila. Fara fundal
+     propriu (se aseaza direct pe fundalul paginii). */
+  .settings-section { border-left: 3px solid var(--accent); padding: 4px 0 4px 22px; margin-bottom: 0; }
+  .settings-section h3 { font-size: 18px; margin: 0 0 4px; }
+  .settings-section p.sub { color: var(--ink-soft); font-size: 13px; margin: 0 0 22px; line-height: 1.4; }
   /* Separa vizual lista existenta (cine are deja acces) de formularul
      de adaugat pe cineva nou - inainte erau lipite direct, fara nicio
      distinctie intre "ce exista" si "ce adaugi". */
@@ -673,6 +671,22 @@
   .settings-inline-form .field { margin-bottom: 0; flex: 1 1 200px; }
   .settings-inline-form .field-role { flex: 0 1 170px; }
   .settings-inline-form .btn { height: 44px; white-space: nowrap; }
+  /* Requested directly ("pe telefon trebuie sa arate marimi asa cum
+     in panorama"): acelasi principiu de "fin, nu masiv" aplicat deja
+     pe mobil la cardurile din Panoramica/Bilancio (padding si font
+     mai mici) - fara el, aceasta sectiune ramanea cu marimile mari,
+     de desktop, chiar si pe un ecran ingust de telefon. */
+  @media (max-width: 860px) {
+    .settings-section { padding-left: 16px; }
+    .settings-section h3 { font-size: 16px; }
+    .settings-section p.sub { font-size: 12px; margin-bottom: 16px; }
+    .settings-inline-form { gap: 8px; }
+    .settings-inline-form .field { flex: 1 1 100%; }
+    .settings-inline-form .field-role { flex: 1 1 100%; }
+    .settings-inline-form .btn { width: 100%; height: 42px; }
+    .field input, .field select, .pw-field-wrap .pw-field-input { padding: 10px 12px; font-size: 15px; }
+    .pw-field-wrap .pw-field-input { padding-right: 40px; }
+  }
   /* Requested directly: an eye toggle on each password field in
      "Cambia password", to see what's actually typed before
      submitting. max-width kept here deliberately — settings-section
@@ -1190,10 +1204,8 @@
       <div class="main-inner">
       <div class="settings-grid">
       <div class="settings-section">
-        <div class="settings-section-head">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          <div><h3>Persone con accesso</h3><p class="sub">Invita colleghi al tuo account, con permessi diversi in base al loro ruolo.</p></div>
-        </div>
+        <h3>Persone con accesso</h3>
+        <p class="sub">Invita colleghi al tuo account, con permessi diversi in base al loro ruolo.</p>
         <div id="teamMembersList"></div>
         <div class="settings-subsection">
           <div class="settings-subsection-label">Invita un nuovo collega</div>
@@ -1220,10 +1232,8 @@
            change (fleet_change_password), rather than just trusting
            the already-active session. -->
       <div class="settings-section">
-        <div class="settings-section-head">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          <div><h3>Cambia password</h3><p class="sub">Ti serve la password attuale per confermare il cambio.</p></div>
-        </div>
+        <h3>Cambia password</h3>
+        <p class="sub">Ti serve la password attuale per confermare il cambio.</p>
         <div class="field">
           <label for="changePwCurrentInput">Password attuale</label>
           <div class="pw-field-wrap">
