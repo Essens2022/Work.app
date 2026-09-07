@@ -3617,6 +3617,59 @@
   var dpCameraZoomLevel = 1;
   var dpCameraZoomCaps = null; // {min,max,step} if the device's own hardware zoom is controllable; null falls back to a CSS-based digital zoom that works on any device
   var dpCameraFlashOn = false;
+  // Requested directly ("am incercat sa o maresc... a iesit din
+  // aplicatie, s-a facut restart"): a safe, app-controlled zoom for
+  // the captured preview photo — same "check if it's sharp" ability
+  // the native pinch-zoom gave, but capped at a scale that can't
+  // exhaust memory on a weaker phone. Two fingers moving apart/together
+  // adjust dpPreviewZoomLevel; CSS transform:scale does the rest,
+  // never asking the browser to render the underlying 4K image any
+  // larger than the screen itself.
+  var dpPreviewZoomLevel = 1;
+  var dpPreviewZoomStartDistance = null;
+  var dpPreviewZoomStartLevel = 1;
+  var DP_PREVIEW_ZOOM_MAX = 3;
+
+  function dpPreviewTouchDistance(touches) {
+    var dx = touches[0].clientX - touches[1].clientX;
+    var dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function dpSetupPreviewZoom() {
+    var img = document.getElementById('dp-camera-preview-img');
+    img.addEventListener('touchstart', function (e) {
+      if (e.touches.length === 2) {
+        dpPreviewZoomStartDistance = dpPreviewTouchDistance(e.touches);
+        dpPreviewZoomStartLevel = dpPreviewZoomLevel;
+      }
+    }, { passive: true });
+    img.addEventListener('touchmove', function (e) {
+      if (e.touches.length === 2 && dpPreviewZoomStartDistance) {
+        e.preventDefault();
+        var newDistance = dpPreviewTouchDistance(e.touches);
+        var ratio = newDistance / dpPreviewZoomStartDistance;
+        dpPreviewZoomLevel = Math.min(DP_PREVIEW_ZOOM_MAX, Math.max(1, dpPreviewZoomStartLevel * ratio));
+        img.style.transform = 'scale(' + dpPreviewZoomLevel + ')';
+      }
+    }, { passive: false });
+    img.addEventListener('touchend', function (e) {
+      if (e.touches.length < 2) dpPreviewZoomStartDistance = null;
+    }, { passive: true });
+    // A quick double-tap is the fastest way to check sharpness —
+    // toggles between 1x and a fixed, safe 2x rather than requiring
+    // a deliberate pinch every time.
+    var lastTapTime = 0;
+    img.addEventListener('touchend', function (e) {
+      if (e.touches.length > 0) return;
+      var now = Date.now();
+      if (now - lastTapTime < 300) {
+        dpPreviewZoomLevel = dpPreviewZoomLevel > 1 ? 1 : 2;
+        img.style.transform = 'scale(' + dpPreviewZoomLevel + ')';
+      }
+      lastTapTime = now;
+    }, { passive: true });
+  }
 
   function dpStartCameraSequence(clients) {
     dpCameraQueue = clients.slice();
@@ -3649,6 +3702,7 @@
   // stay sharp even scaled up somewhat, and only ever gets scaled
   // DOWN to the small watermark size, never up.
   var dpWatermarkLogoImg = null;
+  var dpPreviewZoomSetupDone = false;
   function dpOpenCameraForClient(client) {
     dpCameraCurrentClient = client;
     if (!dpWatermarkLogoImg) {
@@ -3656,6 +3710,11 @@
       logoImg.onload = function () { dpWatermarkLogoImg = logoImg; };
       logoImg.src = 'icon-512.png';
     }
+    if (!dpPreviewZoomSetupDone) { dpSetupPreviewZoom(); dpPreviewZoomSetupDone = true; }
+    // Fresh photo, fresh zoom — never starts already magnified from
+    // whatever the previous photo's preview was left at.
+    dpPreviewZoomLevel = 1;
+    document.getElementById('dp-camera-preview-img').style.transform = 'scale(1)';
     document.getElementById('dp-camera-info-time').textContent = client.completedAt ? dpFormatTime(client.completedAt) : '';
     document.getElementById('dp-camera-info-name').textContent = client.nome || '';
     document.getElementById('dp-camera-info-addr').textContent = client.indirizzo || '';
@@ -3762,6 +3821,16 @@
     dpCameraZoomCaps = null;
     dpCameraFlashOn = false;
   }
+
+  // Requested directly ("dupa aia cand am inceput sa deschid camera,
+  // se deschide cu un tic"): defensive cleanup — if the page ever
+  // closes/reloads unexpectedly while the camera stream is still
+  // open (a crash, or any other abrupt exit), the OS can be left
+  // treating the camera as still in use for a moment, causing a
+  // visible glitch the next time it's requested. pagehide fires even
+  // on an abrupt close, unlike beforeunload, which mobile browsers
+  // don't reliably guarantee.
+  window.addEventListener('pagehide', function () { dpStopCameraStream(); });
 
   function dpCloseCameraModal() {
     dpStopCameraStream();
