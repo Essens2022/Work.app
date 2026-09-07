@@ -867,7 +867,27 @@
      100dvh, locking body scroll a second time on top of the body's
      own permanent lock) all treated the SYMPTOM instead of this
      underlying structural cause. */
-  #modal-chat.open{position:absolute;}
+  /* REAL BUG #2, reported separately: ION saw the bottom nav bar's
+     own buttons peek through under the chat panel right when opening
+     it — no keyboard involved at all. Root cause: #modal-chat is not
+     actually a direct child of <body> — it sits inside #app, which
+     has its OWN position:relative (for #app{max-width:560px;
+     margin:0 auto;height:100%;position:relative;} further up). That
+     makes #app — not body — the real containing block for this
+     modal's position:absolute above, and #app reaches its height via
+     an ordinary height:100% percentage chain, not position:fixed
+     itself. This is a well-documented iOS Safari behavior: elements
+     that get their height from a percentage chain through a fixed
+     ancestor (rather than being position:fixed themselves) don't
+     reliably resize when Safari's own address bar collapses or
+     expands, leaving exactly this kind of gap at the bottom, filled
+     by whatever real content sits underneath. Giving the modal an
+     explicit height in a viewport unit sidesteps the whole chain:
+     dvh always measures the browser's actual, current visible
+     viewport directly, regardless of which ancestor it's nested
+     inside or how that ancestor gets its own height. 100vh stays as
+     the fallback for older browsers without dvh support. */
+  #modal-chat.open{position:absolute;height:100vh;height:100dvh;}
   /* REAL BUG, found and confirmed directly: opening "Nuovo cliente" ON
      TOP of an already-open Archivio clienti (rather than closing it
      first) put them at the SAME z-index — since modal-dp-new-client
