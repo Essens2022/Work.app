@@ -1733,6 +1733,7 @@
   function dpArchiveRunToHistory(run) {
     if (run.date && run.clients && run.clients.length) {
       syncDeliveriesToServer(run.clients);
+      syncLiveConsegnaStatus(false);
       var history = loadDeliveryHistory();
       // REAL BUG, reported directly, with a concrete example: archiving
       // more than once on the SAME calendar day (e.g. manually starting
@@ -4071,6 +4072,30 @@
     }, 'image/jpeg', 0.97);
   }
 
+  // Requested directly ("odata ce face primul client... in automat
+  // recunoaste ca acel sofer este in consegna... termina sa fie in
+  // consegna cand arhiveaza"): a lightweight, single-row-per-driver
+  // live flag, separate from driver_deliveries (which only ever gets
+  // written at ARCHIVE time, too late to reflect "in progress right
+  // now"). Upserted the moment the completed/pending count actually
+  // changes — true as soon as at least one client is completed
+  // today, false again the moment the run is archived (or the driver
+  // un-checks their way back down to zero completed).
+  function syncLiveConsegnaStatus(inConsegna) {
+    var accountEmail = currentAccountEmail();
+    if (!accountEmail) return;
+    fetch(SUPABASE_URL + '/rest/v1/driver_live_status?on_conflict=account_email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+        'Prefer': 'resolution=merge-duplicates,return=minimal'
+      },
+      body: JSON.stringify({ account_email: accountEmail, in_consegna: inConsegna, updated_at: new Date().toISOString() })
+    }).catch(function () { /* offline or blocked — silently skip, same as the other lightweight syncs */ });
+  }
+
   function dpConfirmReordina() {
     // Scoped to the whole modal, not just #dp-reordina-list — the
     // currently-pinned "next" client's checkbox now lives in a
@@ -4117,6 +4142,13 @@
       if (client.status !== 'completed') client.completedAt = null; // unchecking a mistaken mark clears the stale timestamp too
       if (client.status === 'completed' && !wasCompleted) newlyCompleted.push(client);
     });
+    // Live "in consegna" flag: true the moment at least one client is
+    // completed today, false again if the driver un-checks back down
+    // to zero (a genuine correction, not an archive) — computed fresh
+    // from the run's own current state, not just from this one batch,
+    // so it stays correct regardless of how many separate Reordina
+    // sessions it took to get there.
+    syncLiveConsegnaStatus(state.deliveryRun.clients.some(function (c) { return c.status === 'completed'; }));
     // REAL BUG, reported directly ("consegnele facute nu pleaca la
     // sfarsitul listei"): a client checked off here only actually
     // moved to the end of the list once the async optimization below

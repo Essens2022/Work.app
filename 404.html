@@ -1430,7 +1430,7 @@
           var deliveriesToday = (delRes.ok ? delRes.deliveries : []);
           deliveriesToday.forEach(function (d) { todayDeliveryCountByEmail[d.driver_email] = (todayDeliveryCountByEmail[d.driver_email] || 0) + 1; });
           var expiringCount = (res.expiring_documents || []).length + (res.expiring_vehicles || []).length;
-          renderStats(res.drivers, res.period, deliveriesToday.length, expiringCount);
+          renderStats(res.drivers, res.period, deliveriesToday.length, expiringCount, res.in_consegna_count || 0);
           renderDrivers(res.drivers);
           renderAlertBanner(res);
         });
@@ -1566,12 +1566,12 @@
 
     var MONTH_NAMES_IT = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
 
-    function renderStats(drivers, period, todayDeliveryTotal, expiringCount) {
+    function renderStats(drivers, period, todayDeliveryTotal, expiringCount, inConsegnaCount) {
       var totalKm = drivers.reduce(function (s, d) { return s + (d.total_km || 0); }, 0);
       var monthLabel = period ? MONTH_NAMES_IT[period.month - 1] : '';
       document.getElementById('statsRow').innerHTML =
         '<div class="stat-card"><div class="stat-num">' + drivers.length + '</div><div class="stat-label">Autisti totali</div></div>' +
-        '<div class="stat-card"><div class="stat-num">—</div><div class="stat-label">In consegna ora</div></div>' +
+        '<div class="stat-card"><div class="stat-num">' + inConsegnaCount + '</div><div class="stat-label">In consegna ora</div></div>' +
         '<div class="stat-card"><div class="stat-num">' + todayDeliveryTotal + '</div><div class="stat-label">Consegne oggi</div></div>' +
         '<div class="stat-card"><div class="stat-num">' + expiringCount + '</div><div class="stat-label">Documenti in scadenza</div></div>' +
         '<div class="stat-card"><div class="stat-num">—</div><div class="stat-label">Riscosso oggi</div></div>' +
