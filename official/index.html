@@ -63,65 +63,42 @@ fbq('track', 'PageView');
   }
   .grad-text{background:linear-gradient(135deg,var(--accent) 0%,var(--accent-2) 100%);-webkit-background-clip:text;background-clip:text;color:transparent;}
 
-  /* ---------- Light streaks — the signature background element ---------- */
+  /* ---------- Linii de fundal, stil marcaj stradal — cerut direct:
+     statice, fara nicio miscare, mai groase, vizibile mereu (nu doar
+     cand se face zoom), pe orice ecran. Inainte erau niste "raze" de
+     lumina difuze (blur mare), animate continuu, si abia cand blur-ul
+     era scos temporar (ca sa nu se blocheze pagina la zoom pe mobil)
+     deveneau niste linii clare, subtiri — exact ce a placut si a fost
+     semnalat direct. Acum sunt asa dintotdeauna, fara sa mai fie
+     nevoie de niciun truc de performanta legat de zoom: fara blur (nu
+     mai costa nimic la recompunere), fara animatie (nimic de
+     recalculat), deci solutia mai veche pentru crash-ul de zoom nu
+     mai e necesara aici — a disparut o data cu cauza ei. Aceeasi
+     culoare/degrade ca inainte (var(--accent) -> var(--accent-2)),
+     doar ca acum "taiate" intr-un model de liniute-pauza repetate
+     (mask-image), ca niste linii de banda de pe strada, in loc de o
+     bara plina. position:fixed pe container (neschimbat) le tine pe
+     loc la scroll, pe orice ecran, telefon sau calculator. */
   .streaks-field{
     position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;
   }
   .streak{
-    position:absolute;width:180%;height:3px;left:-40%;
+    position:absolute;width:180%;height:8px;left:-40%;
     background:linear-gradient(90deg,transparent,var(--accent),var(--accent-2),transparent);
-    filter:blur(40px);opacity:0.35;border-radius:100px;
+    -webkit-mask-image:repeating-linear-gradient(90deg,#000 0 46px,transparent 46px 84px);
+    mask-image:repeating-linear-gradient(90deg,#000 0 46px,transparent 46px 84px);
+    opacity:0.4;border-radius:100px;
   }
-  /* Requested directly: /official/ crashing entirely on pinch-zoom
-     ("impossibile aprire questa pagina") — confirmed this predates the
-     route/vehicle animation entirely, so the cause sits somewhere
-     older. The streaks were already suspected for exactly this kind
-     of crash (see comment further down) and their CONTINUOUS
-     ANIMATION was already paused during active zoom — but the actual
-     blur filter itself (up to 60px, on position:fixed elements
-     covering the full viewport) was never removed, only its
-     animation. A static blur filter still has to be fully
-     recomposited by the browser at every new scale during a pinch
-     gesture, whether or not the element is animating — pausing the
-     animation alone doesn't reduce that cost at all. Removed
-     entirely, not just paused, for the duration of an active zoom.
-  */
-  body.zoom-active .streak{filter:none!important;}
-  /* REAL BUG, another candidate found on direct code review, after
-     reports narrowed to "happens most while zooming into an image":
-     the phone mockups (both in the hero and in the gallery, five of
-     them across the page) each carry a large, soft box-shadow
-     (0 40px 90px — a 90px blur radius) AND a CSS transform (rotation)
-     on the exact same element — precisely the images someone would
-     naturally pinch-zoom into, to read their screen content more
-     closely. A shadow this size is expensive to rasterize on its
-     own; recomputing it, on multiple rotated elements at once, DURING
-     a native pinch-zoom (which already demands compositor work to
-     rescale everything) is a plausible further contributor. Dropped
-     entirely for the duration of an active zoom, same pattern as the
-     streaks' blur above. */
+  .streak-1{top:8%;transform:rotate(-35deg);}
+  .streak-2{top:38%;transform:rotate(-35deg);height:6px;}
+  .streak-3{top:65%;transform:rotate(-35deg);opacity:0.3;}
+  .streak-4{top:85%;transform:rotate(-35deg);height:6px;}
+  /* Neschimbat, nelegat de liniile de mai sus: shadow-ul mare de pe
+     mockup-urile de telefon tot costa scump la recompunere in timpul
+     unui pinch-zoom activ (motivul crash-ului raportat initial pe
+     mobil) - ramane scos temporar doar cat dureaza zoom-ul, indiferent
+     de schimbarile facute liniilor de fundal de mai sus. */
   body.zoom-active .phone-frame{box-shadow:none!important;}
-  .streak-1{top:8%;transform:rotate(-35deg);animation:streak-move-1 22s ease-in-out infinite;}
-  /* Blur radius reduced (50/60px -> 24/28px), same Android-performance
-     pass — CSS filter:blur() is expensive relative to its radius, and
-     these run via an infinite CSS animation the whole time the page
-     is open. Softer, but far cheaper to keep recompositing forever. */
-  .streak-2{top:38%;transform:rotate(-35deg);animation:streak-move-2 28s ease-in-out infinite;animation-delay:-6s;height:2px;filter:blur(24px);}
-  .streak-3{top:65%;transform:rotate(-35deg);animation:streak-move-1 25s ease-in-out infinite;animation-delay:-12s;filter:blur(28px);opacity:0.25;}
-  .streak-4{top:85%;transform:rotate(-35deg);animation:streak-move-2 19s ease-in-out infinite;animation-delay:-3s;height:2px;}
-  @keyframes streak-move-1{
-    0%{transform:rotate(-35deg) translateX(-8%);opacity:.18;}
-    50%{transform:rotate(-35deg) translateX(8%);opacity:.5;}
-    100%{transform:rotate(-35deg) translateX(-8%);opacity:.18;}
-  }
-  @keyframes streak-move-2{
-    0%{transform:rotate(-35deg) translateX(6%);opacity:.5;}
-    50%{transform:rotate(-35deg) translateX(-10%);opacity:.2;}
-    100%{transform:rotate(-35deg) translateX(6%);opacity:.5;}
-  }
-  @media (prefers-reduced-motion:reduce){
-    .streak{animation:none !important;}
-  }
 
   section{position:relative;z-index:1;padding:110px 24px;}
   .wrap{max-width:1080px;margin:0 auto;}
@@ -747,85 +724,35 @@ fbq('track', 'PageView');
   // convenience) — removed entirely rather than trying to patch around
   // it further.
 
-  // Subtle scroll parallax — the streaks drift slightly slower than the
-  // page itself, giving the background a sense of depth rather than
-  // feeling flat and pinned to the content.
-  //
-  // REAL BUG, reported directly, precisely: happens specifically when
-  // pinch-zooming and scrolling AT THE SAME TIME. The heavily blurred
-  // (filter: blur(40-60px)), large, already-animated background is
-  // genuinely GPU/compositor-intensive on its own — a native pinch-
-  // zoom gesture ALSO demands significant compositor work to rescale
-  // and reposition the whole page. Doing both simultaneously, while
-  // this handler ALSO keeps pushing new transform updates onto that
-  // same heavy layer, can plausibly overwhelm the renderer on a
-  // mid-range Android device — Chrome's own response to an
-  // overwhelmed/out-of-memory renderer process is to kill and reload
-  // it, which surfaces as exactly the "page failed to load" error
-  // reported, even though the real cause has nothing to do with the
-  // network at all. Paused entirely while an active pinch-zoom is in
-  // progress (visualViewport.scale away from 1) — one less thing
-  // fighting for the same compositor resources at the exact moment
-  // that matters.
+  // Requested directly: liniile de fundal nu se mai misca deloc acum
+  // (nici animatie, nici acest parallax la scroll) — raman perfect pe
+  // loc, mereu, indiferent cat de mult se scroleaza pagina. Intregul
+  // bloc de mai jos (parallax-ul la scroll + pauza animatiei liniilor
+  // in timpul zoom-ului) a disparut o data cu miscarea insasi; a ramas
+  // doar detectia de zoom, pentru ca inca mai are un rol REAL, separat
+  // — scoate temporar shadow-ul greu de pe mockup-urile de telefon
+  // (.phone-frame) in timpul unui pinch-zoom activ, motivul original
+  // al crash-ului raportat pe mobil. Ruleaza acum neconditionat (nu
+  // mai e legata de "prefers-reduced-motion" — asta oprea din greseala
+  // si aceasta protectie reala, desi n-are nicio legatura cu vreo
+  // animatie decorativa).
   (function () {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    var field = document.getElementById('streaksField');
-    var ticking = false;
     function isZooming() {
       return window.visualViewport && Math.abs(window.visualViewport.scale - 1) > 0.02;
     }
-    window.addEventListener('scroll', function () {
-      if (ticking || isZooming()) return;
-      ticking = true;
-      requestAnimationFrame(function () {
-        var y = window.scrollY * 0.15;
-        field.style.transform = 'translateY(' + y + 'px)';
-        ticking = false;
-      });
-    });
-
-    // REAL BUG, found directly, on code review, NOT the route or the
-    // blur itself — a native pinch gesture fires visualViewport
-    // 'resize' many times per second while the fingers are moving,
-    // and every single one of those firings was running TWO fresh
-    // document.querySelectorAll() calls (one of them across every
-    // route-node on the page — potentially dozens, spread across the
-    // page's whole height) plus a style write on each result, even
-    // when the zoom state hadn't actually changed since the LAST
-    // firing a moment earlier. Repeating that same expensive,
-    // uncached DOM work dozens of times a second, stacked on top of
-    // whatever cost the native pinch itself already demands, is a
-    // very plausible way to tip a memory-constrained phone into
-    // exactly the renderer crash reported — independent of the
-    // route's own animation or the streaks' own blur cost, which
-    // were never really the problem. Fixed two ways: the two
-    // querySelectorAll results are captured ONCE, not re-queried on
-    // every event; and the whole body only runs at all when the
-    // zoomed/not-zoomed STATE actually flips, not on every one of the
-    // many redundant firings while it stays the same.
-    // Cached LAZILY, not immediately at setup — the route itself
-    // builds its nodes asynchronously, a beat after page load (see
-    // safeBuildRoute below), so querying for them this early would
-    // very likely capture an empty list, permanently, before any
-    // node exists yet. Queried once, for real, the first time a zoom
-    // actually happens (by which point construction has long
-    // finished) — never re-queried again after that.
-    var cachedStreaks = null;
     var wasZooming = false;
     if (window.visualViewport) {
       window.visualViewport.addEventListener('resize', function () {
         var zooming = isZooming();
-        if (zooming === wasZooming) return; // the overwhelming majority of firings during a gesture — nothing actually changed, so nothing more to do
+        if (zooming === wasZooming) return; // marea majoritate a declansarilor in timpul unui gest — nimic schimbat cu adevarat, deci nimic de facut
         wasZooming = zooming;
-        if (!cachedStreaks) cachedStreaks = document.querySelectorAll('.streak');
-        field.style.animationPlayState = zooming ? 'paused' : 'running';
         document.body.classList.toggle('zoom-active', zooming);
-        cachedStreaks.forEach(function (s) { s.style.animationPlayState = zooming ? 'paused' : 'running'; });
       });
     }
   })();
 
 </script>
+
 <script>
   // Requested directly (Facebook Pixel setup, ad campaigns landing on
   // this page): tracks actual clicks on the "Scarica ora"/"Apri l'app"
