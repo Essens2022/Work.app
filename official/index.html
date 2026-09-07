@@ -55,11 +55,20 @@ fbq('track', 'PageView');
     --line:#2A2A2A;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
-  html{scroll-behavior:smooth;background:var(--bg);max-width:100vw;overflow-x:hidden;}
+  /* REAL BUG, raportat direct ("bara de jos... putin se ridica si
+     apoi revine"): efectul "elastic" nativ al telefonului (rubber-band
+     bounce) la capatul paginii - cand ajungi jos de tot prin scroll cu
+     inertie, browserul lasa pagina sa treaca putin peste marginea
+     reala si sa revina, ca un arc. E un comportament implicit al
+     browserului, nu ceva anume din cod, dar aici il oprim explicit, ca
+     footer-ul sa ramana perfect pe loc cand se ajunge la el, fara sa
+     "sara". */
+  html{scroll-behavior:smooth;background:var(--bg);max-width:100vw;overflow-x:hidden;overscroll-behavior-y:none;}
   body{
     background:var(--bg);color:var(--white);
     font-family:'Inter',-apple-system,sans-serif;
     overflow-x:hidden;line-height:1.6;max-width:100vw;
+    overscroll-behavior-y:none;
   }
   .grad-text{background:linear-gradient(135deg,var(--accent) 0%,var(--accent-2) 100%);-webkit-background-clip:text;background-clip:text;color:transparent;}
 
