@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v538"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v539"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -12732,6 +12732,21 @@
     window.addEventListener('resize', syncBarHeights);
     window.addEventListener('resize', syncRealViewportHeight);
     window.addEventListener('orientationchange', function () { setTimeout(syncBarHeights, 200); setTimeout(syncRealViewportHeight, 200); });
+    // REAL BUG, confirmat direct cu doua screenshot-uri comparate pixel
+    // cu pixel (cardul de Home pornea cu 111px mai sus decat ar fi
+    // trebuit): testat automat, masiv (~400 incercari), fara sa se
+    // reproduca deloc — pentru ca testele foloseau Chromium, iar
+    // telefonul lui ION e un iPhone (Safari/WebKit), un motor de
+    // randare diferit, cu propriul timing pentru ResizeObserver si
+    // incarcarea fonturilor. Nu s-a putut testa direct pe WebKit aici
+    // (server de instalare blocat de reteaua sandbox-ului). Fara sa pot
+    // confirma exact mecanismul WebKit-specific, adaugat un plasa de
+    // siguranta: cateva re-masurari programate, la intervale crescande
+    // dupa pornire — daca ResizeObserver-ul insusi intarzie sau rateaza
+    // o schimbare foarte timpurie sub WebKit, oricare din aceste
+    // verificari suplimentare o va prinde si corecta oricum, indiferent
+    // de cauza exacta.
+    [50, 200, 600, 1500].forEach(function (delay) { setTimeout(syncBarHeights, delay); });
     // Same reasoning as syncBarHeights just above — the Delivery
     // Planner's own fixed header needs the same re-measuring on
     // resize/orientation change. Safe to call even when that screen
