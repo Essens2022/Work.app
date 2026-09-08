@@ -2337,8 +2337,18 @@
         '<div class="stat-card"><div class="stat-num">' + Math.round(totalKm) + ' km</div><div class="stat-label">Km totali (mese)</div></div>';
 
       var maxConsegne = Math.max.apply(null, drivers.map(function (d) { return periodFilteredCount(d.consegne_dates); }).concat([0]));
+      // Requested directly ("aici lista trebuie sa se ia dupa cine
+      // face mai multe consegne"): sortat descrescator dupa numarul
+      // de consegne DIN PERIOADA CURENT SELECTATA (oggi/ultimi 7
+      // giorni/nel mese) - acelasi numar care alimenteaza deja
+      // eticheta "Top consegne" de mai jos, ca sa ramana consecvent
+      // cu ce vede omul pe ecran; cine schimba perioada vede automat
+      // lista resortata pentru acea perioada.
+      var sortedDrivers = drivers.slice().sort(function (a, b) {
+        return periodFilteredCount(b.consegne_dates) - periodFilteredCount(a.consegne_dates);
+      });
       var html = '';
-      drivers.forEach(function (d) {
+      sortedDrivers.forEach(function (d) {
         var myCount = periodFilteredCount(d.consegne_dates);
         var isTop = myCount > 0 && myCount === maxConsegne;
         html += '<div class="bilancio-driver-card">' +
