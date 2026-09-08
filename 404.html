@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ADB Smart Fleet</title>
+<link rel="stylesheet" href="/vendor/maplibre-gl.css">
 <!--
   Requested directly: rebuilt starting from the EXACT approved mockup
   code (demo-sistem-flotte.html) — same CSS classes, same HTML
@@ -760,6 +761,20 @@
   }
   body.role-viewer .owner-only { display: none !important; }
   body:not(.role-viewer) .viewer-only { display: none !important; }
+  /* ---------- Mappa flotta ---------- */
+  .mappa-layout { display: grid; grid-template-columns: 1fr 300px; gap: 16px; align-items: start; }
+  @media (max-width: 860px) {
+    .mappa-layout { grid-template-columns: 1fr; }
+  }
+  #mappaMapEl { height: 500px; border-radius: 16px; border: 1px solid var(--line); overflow: hidden; }
+  .mappa-driver-list-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft); margin-bottom: 10px; }
+  .mappa-driver-card { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer; }
+  .mappa-driver-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--ink-soft); }
+  .mappa-driver-dot.live { background: var(--green); }
+  .mappa-driver-name { font-weight: 700; font-size: 13.5px; }
+  .mappa-driver-sub { font-size: 11.5px; color: var(--ink-soft); margin-top: 1px; }
+  .mappa-marker { width: 30px; height: 30px; border-radius: 50%; background: var(--ink-soft); border: 3px solid var(--bg); box-shadow: 0 2px 8px rgba(0,0,0,.3); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 11px; cursor: pointer; }
+  .mappa-marker.live { background: var(--green); }
 </style>
 </head>
 <body>
@@ -986,10 +1001,17 @@
         </div>
       </div>
       <div class="main-inner">
-      <div style="position:relative;border-radius:16px;border:1px solid var(--line);overflow:hidden;height:400px;background:linear-gradient(135deg, var(--surface) 0%, var(--bg) 100%);display:flex;align-items:center;justify-content:center;">
+      <div class="mappa-layout" id="mappaLayout" style="display:none;">
+        <div id="mappaMapEl"></div>
+        <div>
+          <div class="mappa-driver-list-title">Autisti</div>
+          <div id="mappaDriverList"></div>
+        </div>
+      </div>
+      <div id="mappaEmptyState" style="position:relative;border-radius:16px;border:1px solid var(--line);overflow:hidden;height:400px;background:linear-gradient(135deg, var(--surface) 0%, var(--bg) 100%);display:flex;align-items:center;justify-content:center;">
         <div style="text-align:center;color:var(--ink-soft);max-width:320px;padding:20px;">
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:12px;"><path d="M1 6v16l7-4 8 4 7-4V2l-7 4-8-4z"/><path d="M8 2v16M16 6v16"/></svg>
-          <div style="font-size:14px;">La mappa live sarà disponibile qui, una volta che i tuoi autisti avranno attivato la condivisione della posizione.</div>
+          <div style="font-size:14px;">La mappa live sarà disponibile qui, una volta che i tuoi autisti avranno attivato la condivisione della posizione (si attiva accettando l'invito a entrare nella flotta).</div>
         </div>
       </div>
       </div>
@@ -1368,6 +1390,7 @@
 </div>
 
 <script src="/vendor/supabase.js"></script>
+<script src="/vendor/maplibre-gl.js"></script>
 
 <script>
   (function () {
@@ -1632,6 +1655,7 @@
       if (name === 'bilancio') loadBilancio();
       if (name === 'notifiche') loadNotifiche();
       if (name === 'impostazioni') loadTeam();
+      if (name === 'mappa') loadMappa();
       requestAnimationFrame(updateToplineHeight);
     }
     document.querySelectorAll('[data-goto]').forEach(function (el) {
@@ -1674,6 +1698,7 @@
       var name = activeScreen.dataset.screen;
       if (name === 'panoramica') refresh();
       else if (name === 'consegne') loadStorico();
+      else if (name === 'mappa') loadMappa();
     }, 20000);
     document.getElementById('topNotifBtn').addEventListener('click', function () { goToScreen('notifiche'); });
     goToScreen('panoramica');
@@ -2115,6 +2140,83 @@
         btn.addEventListener('click', function () {
           if (!confirm('Eliminare il veicolo ' + btn.dataset.targa + '?')) return;
           call({ action: 'fleet_delete_vehicle', slug: slug, password: password, vehicle_id: btn.dataset.id }).then(loadVehicles);
+        });
+      });
+    }
+
+    // Requested directly ("mappa flotta, cu logica corecta — pozitia
+    // doar cat timp e in consegna, marker verde/gri dupa cat de
+    // recenta e"): foloseste EXACT acelasi stil de harta (MapLibre +
+    // OpenFreeMap, gratuit, fara cheie) deja folosit in aplicatia
+    // soferului pentru Navigatore — nicio dependinta noua. Se
+    // reincarca automat cat timp esti pe acest ecran (acelasi tipar
+    // de auto-refresh deja folosit la Panoramica/Consegne), ca sa
+    // arate pozitiile la zi fara sa fie nevoie sa schimbi ecranul si
+    // sa te intorci.
+    var mappaMap = null;
+    var mappaMarkers = {};
+    function loadMappa() {
+      call({ action: 'fleet_get_positions', slug: slug, password: password }).then(function (res) {
+        if (!res.ok) return;
+        var positions = res.positions || [];
+        var layout = document.getElementById('mappaLayout');
+        var empty = document.getElementById('mappaEmptyState');
+        if (!positions.length) {
+          layout.style.display = 'none';
+          empty.style.display = 'flex';
+          return;
+        }
+        layout.style.display = 'grid';
+        empty.style.display = 'none';
+
+        if (!mappaMap) {
+          mappaMap = new maplibregl.Map({
+            container: 'mappaMapEl',
+            style: 'https://tiles.openfreemap.org/styles/liberty',
+            center: [positions[0].lon, positions[0].lat],
+            zoom: 10,
+            attributionControl: { compact: true },
+          });
+        }
+
+        var bounds = new maplibregl.LngLatBounds();
+        var seenEmails = {};
+        positions.forEach(function (p) {
+          seenEmails[p.account_email] = true;
+          var lngLat = [p.lon, p.lat];
+          bounds.extend(lngLat);
+          var initials = badgeInitials(p.nome || p.account_email);
+          if (mappaMarkers[p.account_email]) {
+            mappaMarkers[p.account_email].marker.setLngLat(lngLat);
+            mappaMarkers[p.account_email].el.className = 'mappa-marker' + (p.stale ? '' : ' live');
+          } else {
+            var el = document.createElement('div');
+            el.className = 'mappa-marker' + (p.stale ? '' : ' live');
+            el.textContent = initials;
+            var marker = new maplibregl.Marker({ element: el }).setLngLat(lngLat).addTo(mappaMap);
+            mappaMarkers[p.account_email] = { marker: marker, el: el };
+          }
+        });
+        // Sters de pe harta orice marker al unui sofer care nu mai
+        // trimite pozitie deloc (a arhivat, a iesit din flota, etc.)
+        Object.keys(mappaMarkers).forEach(function (email) {
+          if (!seenEmails[email]) { mappaMarkers[email].marker.remove(); delete mappaMarkers[email]; }
+        });
+        if (positions.length > 1) mappaMap.fitBounds(bounds, { padding: 60, maxZoom: 14, duration: 0 });
+
+        var listEl = document.getElementById('mappaDriverList');
+        listEl.innerHTML = positions.map(function (p) {
+          return '<div class="mappa-driver-card" data-email="' + esc(p.account_email) + '">' +
+            '<div class="mappa-driver-dot' + (p.stale ? '' : ' live') + '"></div>' +
+            '<div><div class="mappa-driver-name">' + esc(p.nome || p.account_email) + '</div>' +
+            '<div class="mappa-driver-sub">' + (p.stale ? 'offline' : 'live') + ' · ' + timeAgoLabel(p.updated_at) + (p.targa ? ' · ' + esc(p.targa) : '') + '</div></div>' +
+            '</div>';
+        }).join('');
+        listEl.querySelectorAll('.mappa-driver-card').forEach(function (card) {
+          card.addEventListener('click', function () {
+            var p = positions.find(function (x) { return x.account_email === card.dataset.email; });
+            if (p && mappaMap) mappaMap.flyTo({ center: [p.lon, p.lat], zoom: 14 });
+          });
         });
       });
     }
