@@ -1931,24 +1931,21 @@
         el.innerHTML = '<div class="empty-note">Nessun autista collegato ancora — aggiungine uno sopra, usando la sua email o il suo ID.</div>';
         return;
       }
-      // Requested directly ("cine apare live, mereu se pune pe primul
-      // loc... cel care a fost pe primul se duce pe a doua si tot
-      // asa"): cei live vin intotdeauna inaintea celor offline, iar
-      // intre ei insisi sunt ordonati dupa cine a devenit live cel
-      // mai RECENT — nu alfabetic, nu dupa ordinea din raspunsul
-      // serverului. .sort() e stabil in orice browser modern, deci
-      // soferii offline isi pastreaza ordinea relativa de dinainte,
-      // neschimbata — doar cei live "sar" in fata lor.
+      // REAL BUG / logica revizuita, cerut direct ("odata ce persoana
+      // s-a mutat pe primul loc, ramane acolo, nu se mai muta inapoi
+      // cand iese live... se muta doar in caz ca o alta persoana a
+      // intrat live dupa el"): pozitia castigata la intrarea live e
+      // acum PERMANENTA, nu conditionata de starea curenta (live sau
+      // nu) — sortarea nu se mai uita deloc la aLive/bLive, doar la
+      // liveSince (cand a devenit fiecare live ULTIMA data). Cine iese
+      // live isi pastreaza locul neschimbat pana cand altcineva intra
+      // live dupa el — abia atunci il depaseste. Cei care n-au fost
+      // niciodata live raman la coada, in ordinea lor relativa de
+      // dinainte (liveSince=0 pentru toti, sortare stabila).
       drivers = drivers.slice().sort(function (a, b) {
-        var aLive = !!liveEmails[(a.account_email || '').toLowerCase()];
-        var bLive = !!liveEmails[(b.account_email || '').toLowerCase()];
-        if (aLive !== bLive) return aLive ? -1 : 1;
-        if (aLive && bLive) {
-          var aSince = liveSince[(a.account_email || '').toLowerCase()] || 0;
-          var bSince = liveSince[(b.account_email || '').toLowerCase()] || 0;
-          return bSince - aSince;
-        }
-        return 0;
+        var aSince = liveSince[(a.account_email || '').toLowerCase()] || 0;
+        var bSince = liveSince[(b.account_email || '').toLowerCase()] || 0;
+        return bSince - aSince;
       });
       var html = '<div class="driver-card head"><div></div><div>Autista</div><div>Stato</div><div>Consegne oggi</div><div>Veicolo</div><div></div></div>';
       drivers.forEach(function (d) {
