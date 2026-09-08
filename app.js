@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v531"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v532"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -11561,9 +11561,27 @@
           var action = btn.dataset.action === 'accept' ? 'driver_accept_invitation' : 'driver_decline_invitation';
           var card = invListEl.querySelector('[data-invitation-id="' + invitationId + '"]');
           card.querySelectorAll('.invite-btn').forEach(function (b) { b.disabled = true; });
-          fleetCall({ action: action, account_email: email, invitation_id: invitationId }).then(function (res) {
-            if (!res.ok && res.reason === 'already_in_fleet') {
+          fleetCall({ action: action, account_email: email, invitation_id: invitationId }).then(function (actionRes) {
+            if (!actionRes.ok && actionRes.reason === 'already_in_fleet') {
               alert('Fai già parte di un\'altra flotta — esci prima dalle tue Impostazioni per poter accettare un nuovo invito.');
+            }
+            // REAL BUG, raportat direct ("am acceptat pozitia dar pe
+            // mappa nu e nimic"): pornirea trimiterii pozitiei (mai
+            // sus, in syncLiveConsegnaStatus) verifica LS_FLEET_STATUS_CACHE
+            // ca sa stie daca soferul chiar apartine unei flote - dar
+            // acel cache se actualiza DOAR cand soferul isi deschidea
+            // singur ecranul de Impostazioni (refreshFleetStatusRow),
+            // niciodata automat la acceptarea unei invitatii. Un
+            // sofer care accepta invitatia si merge direct sa
+            // livreze, fara sa deschida vreodata Impostazioni, avea
+            // cache-ul tot pe "nu sunt in nicio flota" — verificarea
+            // esua silentios, chiar daca soferul CHIAR era in flota
+            // si CHIAR livra activ. Actualizat direct aici, imediat
+            // ce acceptarea reuseste cu adevarat, in loc sa astepte
+            // un ecran pe care soferul poate nu-l deschide niciodata.
+            if (actionRes.ok && action === 'driver_accept_invitation') {
+              var inv = res.invitations.find(function (i) { return i.id === invitationId; });
+              saveJSON(LS_FLEET_STATUS_CACHE, { in_fleet: true, fleet_name: inv ? inv.fleet_name : null });
             }
             // Re-fetches regardless of outcome — the card for THIS
             // invitation disappears either way (accepted, declined,
