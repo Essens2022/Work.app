@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v535"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v536"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -715,9 +715,18 @@
     return null;
   }
 
+  // REAL BUG, testat si confirmat direct ("adauga al doilea giro dupa
+  // ce a salvat primul, pagina principala nu arata km-ul de la al
+  // doilea giro"): aceasta functie nu verifica NICIODATA kmFine2 —
+  // scrisa inainte sa existe functia de-al doilea giro, ramasa
+  // neactualizata cand acea functie a fost adaugata. findLastKmFine
+  // (mai jos, folosita ca sa porneasca ziua urmatoare de unde a
+  // ramas masina) face deja verificarea corecta — copiata aici.
   function lastKmFineOverall(sheet) {
     var lc = lastCompletedDay(sheet);
-    if (lc && lc.giorno.kmFine !== "") return lc.giorno.kmFine;
+    if (!lc) return null;
+    if (lc.giorno.kmFine2 !== "" && lc.giorno.kmFine2 !== null && lc.giorno.kmFine2 !== undefined) return lc.giorno.kmFine2;
+    if (lc.giorno.kmFine !== "") return lc.giorno.kmFine;
     return null;
   }
 
