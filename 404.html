@@ -1931,18 +1931,23 @@
         el.innerHTML = '<div class="empty-note">Nessun autista collegato ancora — aggiungine uno sopra, usando la sua email o il suo ID.</div>';
         return;
       }
-      // REAL BUG / logica revizuita, cerut direct ("odata ce persoana
-      // s-a mutat pe primul loc, ramane acolo, nu se mai muta inapoi
-      // cand iese live... se muta doar in caz ca o alta persoana a
-      // intrat live dupa el"): pozitia castigata la intrarea live e
-      // acum PERMANENTA, nu conditionata de starea curenta (live sau
-      // nu) — sortarea nu se mai uita deloc la aLive/bLive, doar la
-      // liveSince (cand a devenit fiecare live ULTIMA data). Cine iese
-      // live isi pastreaza locul neschimbat pana cand altcineva intra
-      // live dupa el — abia atunci il depaseste. Cei care n-au fost
-      // niciodata live raman la coada, in ordinea lor relativa de
-      // dinainte (liveSince=0 pentru toti, sortare stabila).
+      // REAL BUG, raportat direct ("Mario Rossi mereu se pune primul,
+      // desi e inactiv, nu a deschis aplicatia de mult"): sortarea
+      // anterioara se uita DOAR la liveSince (cand a devenit fiecare
+      // live ULTIMA data), fara sa mai verifice deloc daca e live ACUM
+      // — un sofer offline de mult putea sta deasupra unuia care chiar
+      // e live in acest moment, doar pentru ca istoricul lui de
+      // "ultima intrare" era mai recent.
+      // LOGICA CORECTA: cei live ACUM stau intotdeauna deasupra celor
+      // offline, indiferent de istoric — abia INTRE cei live, cel mai
+      // proaspat intrat e primul. Intre cei offline, ordinea lor
+      // relativa de dinainte se pastreaza (liveSince ii tine minte pe
+      // cine a fost live mai recent decat altul), dar niciun sofer
+      // offline nu poate sta deasupra unui sofer live acum.
       drivers = drivers.slice().sort(function (a, b) {
+        var aLive = !!liveEmails[(a.account_email || '').toLowerCase()];
+        var bLive = !!liveEmails[(b.account_email || '').toLowerCase()];
+        if (aLive !== bLive) return aLive ? -1 : 1;
         var aSince = liveSince[(a.account_email || '').toLowerCase()] || 0;
         var bSince = liveSince[(b.account_email || '').toLowerCase()] || 0;
         return bSince - aSince;
