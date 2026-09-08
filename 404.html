@@ -1546,6 +1546,15 @@
       ? supabase.createClient(SUPABASE_URL_RT, SUPABASE_ANON_KEY_RT, { realtime: { heartbeatIntervalMs: 10000 } })
       : null;
     var liveEmails = {};
+    // Requested directly ("cine apare live, mereu se pune pe primul
+    // loc... cel care a fost pe primul se duce pe a doua si tot asa"):
+    // trebuie stiut CAND a devenit fiecare sofer live, nu doar DACA e
+    // live acum, ca sa poata fi sortati dupa cel mai recent intai.
+    // Evenimentul 'sync' de mai jos trimite un instantaneu complet de
+    // fiecare data (nu doar cine s-a schimbat), asa ca "cine tocmai a
+    // devenit live" se afla comparand noul instantaneu cu cel vechi,
+    // chiar inainte de a-l suprascrie.
+    var liveSince = {};
     function startFleetPresenceWatch() {
       if (!presenceSupabaseClient) return;
       var channel = presenceSupabaseClient.channel('drivers-presence');
@@ -1556,6 +1565,10 @@
           (state[key] || []).forEach(function (entry) {
             if (entry.account_email) next[entry.account_email.toLowerCase()] = true;
           });
+        });
+        var now = Date.now();
+        Object.keys(next).forEach(function (email) {
+          if (!liveEmails[email]) liveSince[email] = now; // tocmai a devenit live — il trimite in fata tuturor celor deja live de mai devreme
         });
         liveEmails = next;
         // Re-render immediately wherever driver status is currently
@@ -1913,6 +1926,25 @@
         el.innerHTML = '<div class="empty-note">Nessun autista collegato ancora — aggiungine uno sopra, usando la sua email o il suo ID.</div>';
         return;
       }
+      // Requested directly ("cine apare live, mereu se pune pe primul
+      // loc... cel care a fost pe primul se duce pe a doua si tot
+      // asa"): cei live vin intotdeauna inaintea celor offline, iar
+      // intre ei insisi sunt ordonati dupa cine a devenit live cel
+      // mai RECENT — nu alfabetic, nu dupa ordinea din raspunsul
+      // serverului. .sort() e stabil in orice browser modern, deci
+      // soferii offline isi pastreaza ordinea relativa de dinainte,
+      // neschimbata — doar cei live "sar" in fata lor.
+      drivers = drivers.slice().sort(function (a, b) {
+        var aLive = !!liveEmails[(a.account_email || '').toLowerCase()];
+        var bLive = !!liveEmails[(b.account_email || '').toLowerCase()];
+        if (aLive !== bLive) return aLive ? -1 : 1;
+        if (aLive && bLive) {
+          var aSince = liveSince[(a.account_email || '').toLowerCase()] || 0;
+          var bSince = liveSince[(b.account_email || '').toLowerCase()] || 0;
+          return bSince - aSince;
+        }
+        return 0;
+      });
       var html = '<div class="driver-card head"><div></div><div>Autista</div><div>Stato</div><div>Consegne oggi</div><div>Veicolo</div><div></div></div>';
       drivers.forEach(function (d) {
         // Requested directly: "Stato" now reflects real live presence
