@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v532"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v533"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -4100,7 +4100,20 @@
           'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
           'Prefer': 'resolution=merge-duplicates,return=minimal'
         },
-        body: JSON.stringify({ account_email: accountEmail, lat: pos.coords.latitude, lon: pos.coords.longitude, updated_at: new Date().toISOString() })
+        // REAL BUG, raportat direct ("am facut tot ce ai zis... pe
+        // harta nu apar, nici macar harta insasi"): tabela
+        // driver_positions are o coloana device_id obligatorie (NOT
+        // NULL) - lipsea complet din acest payload. FIECARE incercare
+        // de trimitere esua cu o eroare de baza de date (coloana
+        // obligatorie lipsa), nu doar "din cand in cand" - niciodata
+        // nu s-a scris vreun rand, de-aia harta nu avea NIMIC de
+        // aratat, nici macar cadrul hartii (care apare doar cand
+        // exista cel putin o pozitie). fetch() nici macar nu arunca
+        // eroare pentru un raspuns 4xx ca acesta (doar pentru esec de
+        // retea) - eroarea trecea complet neobservata, fara sa fie
+        // nevoie de vreun catch() sa o "inghita". Adaugat device_id,
+        // deja disponibil prin getDeviceId() (acelasi folosit la chat).
+        body: JSON.stringify({ account_email: accountEmail, device_id: getDeviceId(), lat: pos.coords.latitude, lon: pos.coords.longitude, updated_at: new Date().toISOString() })
       }).catch(function () { /* offline or blocked — skip this cycle, next one will retry */ });
     }, function () { /* denied or unavailable right now — skip this cycle, same as above */ }, { maximumAge: 20000, timeout: 15000 });
   }
