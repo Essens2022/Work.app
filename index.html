@@ -305,6 +305,33 @@
   }
   .icon-btn:active{transform:scale(.94);}
   .topbar-actions{display:flex;align-items:center;gap:8px;}
+  /* Requested directly ("aceasta notificare push... asa cum functioneaza
+     in fleet, cum vine lent, stilul, toate aceste lucruri, e perfect") —
+     stilul EXACT copiat din portalul de flota (404.html): incepe
+     translatat complet deasupra ecranului (ascuns), aluneca in jos cand
+     se adauga .toast-show, inapoi in sus la .toast-hide sau la
+     inlaturarea clasei. Folosit intai pentru anuntul de versiune noua,
+     dar construit generic — orice alt tip de alerta poate reutiliza
+     aceeasi functie (showAppBanner) mai tarziu. */
+  .app-toast-notification {
+    position: fixed; top: calc(12px + var(--safe-top)); left: 50%; transform: translateX(-50%) translateY(-140%); width: calc(100% - 32px); max-width: 528px; z-index: 500;
+    display: flex; align-items: center; gap: 14px;
+    background: linear-gradient(165deg, rgba(28,26,30,.92) 0%, rgba(14,13,16,.94) 100%);
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255,255,255,.08); border-left: 3px solid var(--accent, #E8542B);
+    color: #f5f3ef; border-radius: 16px;
+    padding: 15px 20px; font-size: 13.5px; letter-spacing: .01em;
+    box-shadow: 0 20px 40px rgba(0,0,0,.45), 0 4px 14px rgba(232,84,43,.18), inset 0 1px 0 rgba(255,255,255,.06);
+    visibility: hidden; opacity: 0;
+    transition: transform 2.6s cubic-bezier(.16,1,.3,1), opacity .8s ease, visibility 0s linear 2.6s;
+    pointer-events: none;
+  }
+  .app-toast-notification.toast-show {
+    visibility: visible; opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto;
+    transition: transform 2.6s cubic-bezier(.16,1,.3,1), opacity .8s ease, visibility 0s linear 0s;
+  }
+  .app-toast-notification svg { color: var(--accent, #E8542B); flex: none; }
+  .app-toast-notification b { color: #fff; font-weight: 700; }
   main{
     padding:18px 16px 24px;height:100%;box-sizing:border-box;overflow-y:auto;
     -webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;touch-action:pan-y;
@@ -1578,6 +1605,10 @@
   }, 2400);
 </script>
 <div id="app">
+  <div class="app-toast-notification" id="appBanner">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
+    <div id="appBannerText"></div>
+  </div>
 
   <div class="topbar">
     <div class="brand">
