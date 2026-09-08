@@ -57,6 +57,7 @@
               // dispara si sa reapara fara nicio explicatie.
               if (typeof showAppBanner === 'function') {
                 showAppBanner('<b>Nuova versione</b> — aggiornamento in corso…');
+                if (typeof markPendingUpdateSuccessBanner === 'function') markPendingUpdateSuccessBanner();
                 setTimeout(function () { window.location.reload(); }, 2200);
               } else {
                 window.location.reload();
@@ -103,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v540"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v541"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -578,6 +579,27 @@
       }
     }, { passive: true });
   })();
+
+  // Requested directly ("dupa ce deja s-a facut si aplicatia a fost
+  // repornita, deja va anunta ca versiunea noua a fost incarcata cu
+  // succes"): un singur flag, pus in sessionStorage chiar inainte de
+  // reincarcarea propriu-zisa (indiferent care dintre cele 3 cai a
+  // declansat-o — detectare automata la pornire, la revenire din
+  // fundal, sau butonul manual din Impostazioni) — verificat o
+  // singura data, la urmatoarea pornire, si sters imediat dupa, ca sa
+  // nu mai apara a doua oara la o pornire normala, ulterioara.
+  var LS_PENDING_UPDATE_SUCCESS = 'pt_pending_update_success_banner';
+  function markPendingUpdateSuccessBanner() {
+    try { sessionStorage.setItem(LS_PENDING_UPDATE_SUCCESS, '1'); } catch (e) { /* ignore — banner-ul de confirmare e un plus, nu ceva critic */ }
+  }
+  function showUpdateSuccessBannerIfPending() {
+    try {
+      if (sessionStorage.getItem(LS_PENDING_UPDATE_SUCCESS) === '1') {
+        sessionStorage.removeItem(LS_PENDING_UPDATE_SUCCESS);
+        showAppBanner('<b>Aggiornamento completato</b> — versione più recente caricata ✓', 4500);
+      }
+    } catch (e) { /* ignore */ }
+  }
 
   // Same idea as toast(), positioned instead — see the comment on
   // #nav-toast in renderNavigatore for why. Only meaningful while the
@@ -12452,7 +12474,7 @@
       .then(function (res) { return res.json(); })
       .then(function (data) {
         if (data && data.v && data.v !== APP_VERSION) {
-          toast('Nuova versione trovata — aggiornamento in corso…');
+          showAppBanner('<b>Nuova versione trovata</b> — aggiornamento in corso…');
           // REAL BUG, reported directly, TWICE — the first fix
           // (waiting for a 'controllerchange' before reloading) still
           // didn't help, and reasoning through WHY revealed the
@@ -12485,7 +12507,10 @@
               return Promise.all(keys.map(function (k) { return caches.delete(k); }));
             }) : Promise.resolve())
           ]).catch(function () { /* best-effort — reload below regardless, even if a step here failed */ })
-            .then(function () { window.location.reload(); });
+            .then(function () {
+              markPendingUpdateSuccessBanner();
+              window.location.reload();
+            });
         } else {
           toast('Hai già la versione più recente ✓');
         }
@@ -12746,6 +12771,7 @@
     checkNovitaUnread();
     checkChatUnread();
     dpCheckPendingFleetClientImports();
+    showUpdateSuccessBannerIfPending();
     syncBarHeights();
     syncRealViewportHeight();
     // REAL BUG, reported directly: the home screen's top card sometimes
@@ -12991,6 +13017,7 @@
         // anunte, nu sa reincarce mut"): acelasi banner vizual, o
         // clipa, inainte de reincarcarea propriu-zisa.
         showAppBanner('<b>Nuova versione</b> — aggiornamento in corso…');
+        markPendingUpdateSuccessBanner();
         setTimeout(function () { window.location.reload(); }, 2200);
       };
       // Same reasoning as the early version check at the very top of this
