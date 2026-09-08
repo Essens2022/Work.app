@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v533"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v534"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -12599,6 +12599,24 @@
     // and has to be deliberately turned on again when actually
     // wanted — never left silently running from days ago.
     dpSetAutoRiordinaEnabled(false);
+    // REAL BUG, raportat direct ("nici macar pe mine nu ma arata pe
+    // harta"): trimiterea pozitiei catre flota (startFleetPositionSharing)
+    // porneste doar din syncLiveConsegnaStatus(true), care la randul ei
+    // ruleaza doar in momentul in care soferul CONFIRMA o livrare
+    // (dpConfirmReordina) - niciodata la o pornire noua a aplicatiei.
+    // Cronometrul care trimite pozitia traieste doar in memoria
+    // paginii curente - daca soferul inchide si redeschide aplicatia
+    // (sau pur si simplu o repotneste telefonul) DUPA ce a marcat deja
+    // o livrare, starea de "in consegna" ramane corecta pe server, dar
+    // cronometrul de trimis pozitia nu mai porneste niciodata singur -
+    // nimic nu se mai trimite pana la URMATOAREA livrare confirmata,
+    // desi soferul chiar livreaza activ tot timpul asta. Verificat aici,
+    // o singura data, la fiecare pornire reala a aplicatiei — daca run-ul
+    // de azi are deja cel putin un client finalizat, reporneste trimiterea
+    // imediat, in loc sa astepte urmatoarea confirmare.
+    if (state.deliveryRun && state.deliveryRun.clients && state.deliveryRun.clients.some(function (c) { return c.status === 'completed'; })) {
+      syncLiveConsegnaStatus(true);
+    }
     migrateUppercaseLocalities();
     migrateFuelToArrays();
     migrateReverifyClientPrecision(); // async, rate-limited, runs fully in the background — never blocks anything else in init()
