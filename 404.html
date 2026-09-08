@@ -2824,6 +2824,20 @@
       errEl.style.display = 'none';
       var file = fileInput.files[0];
       if (!file) return;
+      // Requested directly ("sa nu aiba multi kb, sa nu incarcam memoria
+      // serverului"): pragul se aplica DOAR fisierelor .json (liste de
+      // clienti, singurul tip de continut pe care serverul chiar il va
+      // citi si procesa mai departe la importul automat) — un PDF sau
+      // o poza cu asigurarea, orice alt document obisnuit, nu e atins
+      // de aceasta limita. 300KB e foarte generos pentru o lista de
+      // clienti (mii de clienti, usor).
+      var isJsonFile = /\.json$/i.test(file.name) || file.type === 'application/json';
+      var MAX_CLIENTI_JSON_BYTES = 300 * 1024;
+      if (isJsonFile && file.size > MAX_CLIENTI_JSON_BYTES) {
+        errEl.textContent = 'Il file clienti è troppo grande (max 300KB) — dividilo in più file più piccoli.';
+        errEl.style.display = 'block';
+        return;
+      }
       var driverEmail = uploadScope === 'driver' ? document.getElementById('documentoDriverInput').value : null;
       if (uploadScope === 'driver' && !driverEmail) { errEl.textContent = 'Seleziona un autista.'; errEl.style.display = 'block'; return; }
 
