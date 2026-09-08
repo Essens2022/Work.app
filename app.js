@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v536"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v537"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -195,7 +195,22 @@
   // live list).
   // { clients: [{ id, clientId, nome, indirizzo, lat, lon, status }] }
   function loadDeliveryRun() { return loadJSON(LS_DELIVERY_RUN, { clients: [], date: null }); }
-  function saveDeliveryRun(run) { saveJSON(LS_DELIVERY_RUN, run); }
+  // REAL BUG, raportat direct ("am adaugat 3 clienti in percorso di
+  // oggi, 'in consegna ora' tot nu arata"): sincronizarea rula DOAR
+  // la confirmarea unei livrari (dpConfirmReordina) - niciodata la
+  // simpla ADAUGARE de clienti in lista. Dupa noua regula (3+ clienti
+  // adaugati azi, neterminati toti = in consegna), un sofer care doar
+  // adauga al treilea client, fara sa fi bifat inca vreunul, ar trebui
+  // sa devina "in consegna" chiar in acel moment - dar nimic nu
+  // declansa verificarea. saveDeliveryRun e punctul unic prin care
+  // trece ORICE modificare a listei de azi (adaugare, stergere,
+  // reordonare, bifare) - din 18 locuri diferite in fisier - deci e
+  // locul corect sa se recalculeze mereu, indiferent PRIN CE actiune
+  // s-a schimbat lista.
+  function saveDeliveryRun(run) {
+    saveJSON(LS_DELIVERY_RUN, run);
+    if (run && run.clients) syncLiveConsegnaStatus(computeInConsegna(run.clients));
+  }
   function loadDeliveryHistory() { return loadJSON(LS_DELIVERY_HISTORY, []); }
   function saveDeliveryHistory(h) { saveJSON(LS_DELIVERY_HISTORY, h); }
   function todayDateStr() {
