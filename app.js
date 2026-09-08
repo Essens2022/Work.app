@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v537"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v538"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -2997,74 +2997,107 @@
   // Duplicates (matched by name+address, since imported entries won't
   // share the same random ids as anything already saved here) are
   // skipped silently rather than creating repeats.
+  // Requested directly ("soferul incarca acest document dar nu apare in
+  // archivio clienti... construieste-mi automat, dar functia veche
+  // ramane la fel"): logica de combinare (adaugare/actualizare dupa
+  // nume) extrasa aici, separat de FileReader-ul specific importului
+  // manual — reutilizata identic si de importul automat de mai jos, ca
+  // sa nu existe DOUA implementari diferite ale aceleiasi reguli care
+  // ar putea diverge in timp. Butonul manual de Import ramane complet
+  // neschimbat, functioneaza exact ca inainte.
+  function dpMergeImportedClientsData(rawText, opts) {
+    var silent = opts && opts.silent;
+    var data;
+    try { data = JSON.parse(rawText); } catch (err) { if (!silent) toast('File non valido'); return null; }
+    if (!data || !Array.isArray(data.clients)) { if (!silent) toast('File non riconosciuto — deve essere un export di clienti ADB Smart'); return null; }
+
+    var byName = {};
+    state.deliveryClients.forEach(function (c) {
+      byName[(c.nome || '').trim().toLowerCase()] = c;
+    });
+
+    var added = 0, updated = 0;
+    data.clients.forEach(function (c) {
+      if (!c || !c.nome) return;
+      var key = (c.nome || '').trim().toLowerCase();
+      var existing = byName[key];
+      if (existing) {
+        var changed = existing.indirizzo !== (c.indirizzo || '') || existing.lat !== (c.lat != null ? c.lat : null) || existing.lon !== (c.lon != null ? c.lon : null)
+          || existing.scadenza !== (c.scadenza || '') || existing.nonPrimaDi !== (c.nonPrimaDi || '');
+        if (changed) {
+          existing.indirizzo = c.indirizzo || '';
+          existing.lat = c.lat != null ? c.lat : null;
+          existing.lon = c.lon != null ? c.lon : null;
+          existing.scadenza = c.scadenza || '';
+          existing.nonPrimaDi = c.nonPrimaDi || '';
+          updated++;
+        }
+        return;
+      }
+      var fresh = {
+        id: 'imp' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
+        nome: c.nome,
+        indirizzo: c.indirizzo || '',
+        lat: c.lat != null ? c.lat : null,
+        lon: c.lon != null ? c.lon : null,
+        scadenza: c.scadenza || '',
+        nonPrimaDi: c.nonPrimaDi || ''
+      };
+      state.deliveryClients.push(fresh);
+      byName[key] = fresh;
+      added++;
+    });
+
+    saveDeliveryClients(state.deliveryClients);
+    dpRenderArchiveList();
+    return { added: added, updated: updated };
+  }
+
   function dpImportClientsArchive(file) {
     var reader = new FileReader();
     reader.onload = function (e) {
-      var data;
-      try { data = JSON.parse(e.target.result); } catch (err) { toast('File non valido'); return; }
-      if (!data || !Array.isArray(data.clients)) { toast('File non riconosciuto — deve essere un export di clienti ADB Smart'); return; }
-
-      // Requested directly: importing should recognize a client that
-      // ALREADY exists and update it with whatever's in the imported
-      // file (address, coordinates) — not skip it untouched, and
-      // definitely not create a duplicate. Matched by NOME alone (not
-      // nome+indirizzo as before) — an address correction is exactly
-      // the kind of update this needs to actually apply, and matching
-      // on the OLD address too would make a corrected address always
-      // look like a "different" client instead of an update to the
-      // same one. Anyone already in the archive but NOT present in
-      // the imported file is left completely untouched — this is a
-      // merge/update, never a replace/sync.
-      var byName = {};
-      state.deliveryClients.forEach(function (c) {
-        byName[(c.nome || '').trim().toLowerCase()] = c;
-      });
-
-      // Requested directly: ION was explicit that an exported/imported
-      // client must come through EXACTLY as saved, including its own
-      // schedule (scadenza/nonPrimaDi) — since a colleague loading a
-      // shared client list, or restoring after moving to a new phone,
-      // expects the full client, not just name/address/coordinates.
-      var added = 0, updated = 0;
-      data.clients.forEach(function (c) {
-        if (!c || !c.nome) return;
-        var key = (c.nome || '').trim().toLowerCase();
-        var existing = byName[key];
-        if (existing) {
-          var changed = existing.indirizzo !== (c.indirizzo || '') || existing.lat !== (c.lat != null ? c.lat : null) || existing.lon !== (c.lon != null ? c.lon : null)
-            || existing.scadenza !== (c.scadenza || '') || existing.nonPrimaDi !== (c.nonPrimaDi || '');
-          if (changed) {
-            existing.indirizzo = c.indirizzo || '';
-            existing.lat = c.lat != null ? c.lat : null;
-            existing.lon = c.lon != null ? c.lon : null;
-            existing.scadenza = c.scadenza || '';
-            existing.nonPrimaDi = c.nonPrimaDi || '';
-            updated++;
-          }
-          return;
-        }
-        var fresh = {
-          id: 'imp' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8),
-          nome: c.nome,
-          indirizzo: c.indirizzo || '',
-          lat: c.lat != null ? c.lat : null,
-          lon: c.lon != null ? c.lon : null,
-          scadenza: c.scadenza || '',
-          nonPrimaDi: c.nonPrimaDi || ''
-        };
-        state.deliveryClients.push(fresh);
-        byName[key] = fresh; // guards against two entries with the same nome inside the SAME imported file colliding with each other
-        added++;
-      });
-
-      saveDeliveryClients(state.deliveryClients);
-      dpRenderArchiveList();
+      var result = dpMergeImportedClientsData(e.target.result);
+      if (!result) return;
       var parts = [];
-      if (added > 0) parts.push(added + ' aggiunt' + (added === 1 ? 'o' : 'i'));
-      if (updated > 0) parts.push(updated + ' aggiornat' + (updated === 1 ? 'o' : 'i'));
+      if (result.added > 0) parts.push(result.added + ' aggiunt' + (result.added === 1 ? 'o' : 'i'));
+      if (result.updated > 0) parts.push(result.updated + ' aggiornat' + (result.updated === 1 ? 'o' : 'i'));
       toast(parts.length ? parts.join(', ') + ' ✓' : 'Nessuna modifica (già tutto aggiornato)');
     };
     reader.readAsText(file);
+  }
+
+  // Requested directly: quando il proprietario della flotta carica un
+  // file clienti (.json) specifico per questo autista, dal portale
+  // fleet, deve arrivare qui da solo — senza che l'autista debba fare
+  // niente. Controllato UNA sola volta, all'avvio reale dell'app (come
+  // Novità/chat) — nessun polling. Ogni file gia processato viene
+  // marcato subito dopo (driver_mark_import_processed), cosi non si
+  // reimporta mai due volte lo stesso file.
+  function dpCheckPendingFleetClientImports() {
+    var accountEmail = currentAccountEmail();
+    if (!accountEmail) return;
+    fleetCall({ action: 'driver_check_pending_imports', account_email: accountEmail }).then(function (res) {
+      if (!res || !res.ok || !res.pending || !res.pending.length) return;
+      var totalAdded = 0, totalUpdated = 0;
+      var chain = Promise.resolve();
+      res.pending.forEach(function (doc) {
+        chain = chain.then(function () {
+          return fetch(doc.url).then(function (r) { return r.text(); }).then(function (text) {
+            var result = dpMergeImportedClientsData(text, { silent: true });
+            if (result) { totalAdded += result.added; totalUpdated += result.updated; }
+            return fleetCall({ action: 'driver_mark_import_processed', document_id: doc.id });
+          }).catch(function () { /* offline o link scaduto — si ritenta al prossimo avvio, il file resta "da processare" */ });
+        });
+      });
+      chain.then(function () {
+        if (totalAdded > 0 || totalUpdated > 0) {
+          var parts = [];
+          if (totalAdded > 0) parts.push(totalAdded + ' client' + (totalAdded === 1 ? 'e' : 'i') + ' aggiunt' + (totalAdded === 1 ? 'o' : 'i'));
+          if (totalUpdated > 0) parts.push(totalUpdated + ' aggiornat' + (totalUpdated === 1 ? 'o' : 'i'));
+          toast('Dalla tua flotta: ' + parts.join(', ') + ' ✓');
+        }
+      });
+    }).catch(function () { /* offline — si ritenta al prossimo avvio */ });
   }
 
   function dpAddSavedClientToRun(savedClientId) {
@@ -12668,6 +12701,7 @@
     reportActivity().then(reportDailyOpen); // chained deliberately — the row reportActivity just wrote/confirmed must exist before this tries to update it
     checkNovitaUnread();
     checkChatUnread();
+    dpCheckPendingFleetClientImports();
     syncBarHeights();
     syncRealViewportHeight();
     // REAL BUG, reported directly: the home screen's top card sometimes
