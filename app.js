@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v530"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v531"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -4060,6 +4060,49 @@
       },
       body: JSON.stringify({ account_email: accountEmail, in_consegna: inConsegna, updated_at: new Date().toISOString() })
     }).catch(function () { /* offline or blocked — silently skip, same as the other lightweight syncs */ });
+    // Requested directly ("cand accepta sa intre in flota, accepta si
+    // sa transmita pozitia... doar cat timp e in consegna"): reuses
+    // this EXACT same in_consegna lifecycle — starts sending position
+    // pings the moment a driver's run is recognized as "in consegna",
+    // stops the moment it isn't (archived, or un-checked back to
+    // zero). Gated on actually belonging to a fleet (the accept-
+    // invitation screen is where this was disclosed and, in effect,
+    // consented to) — a driver with no fleet has nowhere for this
+    // position to even be shown, so there's no reason to touch the
+    // GPS for them at all.
+    var fleetStatus = loadJSON(LS_FLEET_STATUS_CACHE, null);
+    if (inConsegna && fleetStatus && fleetStatus.in_fleet) startFleetPositionSharing();
+    else stopFleetPositionSharing();
+  }
+
+  var fleetPositionInterval = null;
+  function startFleetPositionSharing() {
+    if (fleetPositionInterval || !navigator.geolocation) return;
+    sendFleetPositionPing();
+    // 25s — frequent enough for a fleet owner to see a driver move
+    // across a map without it looking frozen, far enough apart that
+    // it doesn't meaningfully compete with the Navigatore's own,
+    // much more frequent watchPosition while that's separately active.
+    fleetPositionInterval = setInterval(sendFleetPositionPing, 25000);
+  }
+  function stopFleetPositionSharing() {
+    if (fleetPositionInterval) { clearInterval(fleetPositionInterval); fleetPositionInterval = null; }
+  }
+  function sendFleetPositionPing() {
+    var accountEmail = currentAccountEmail();
+    if (!accountEmail || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      fetch(SUPABASE_URL + '/rest/v1/driver_positions?on_conflict=account_email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+          'Prefer': 'resolution=merge-duplicates,return=minimal'
+        },
+        body: JSON.stringify({ account_email: accountEmail, lat: pos.coords.latitude, lon: pos.coords.longitude, updated_at: new Date().toISOString() })
+      }).catch(function () { /* offline or blocked — skip this cycle, next one will retry */ });
+    }, function () { /* denied or unavailable right now — skip this cycle, same as above */ }, { maximumAge: 20000, timeout: 15000 });
   }
 
   function dpConfirmReordina() {
@@ -11497,6 +11540,7 @@
       '<div class="invite-item-card" data-invitation-id="' + inv.id + '">' +
       '<div class="novita-item-type">Invito flotta</div>' +
       '<div class="invite-item-fleet">' + escapeHtml(inv.fleet_name) + ' ti invita a unirti</div>' +
+      '<div class="invite-item-note">Accettando, la tua posizione sarà visibile alla flotta mentre sei in consegna.</div>' +
       '<div class="invite-item-actions">' +
       '<button type="button" class="invite-btn invite-btn-decline" data-action="decline" data-id="' + inv.id + '">Rifiuta</button>' +
       '<button type="button" class="invite-btn invite-btn-accept" data-action="accept" data-id="' + inv.id + '">Accetta</button>' +
