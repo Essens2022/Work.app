@@ -49,7 +49,18 @@
           if (data && data.v && data.v !== APP_VERSION) {
             var doReload = function () {
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
-              window.location.reload();
+              // Requested directly ("acea notificare... ca la
+              // WhatsApp... aplicatia sa faca acel restart in automat,
+              // dar sa anunte, nu doar sa reincarce brusc, mut"):
+              // update-ul tot se aplica singur, fara nicio confirmare
+              // ceruta — doar arata bannerul o clipa inainte, in loc sa
+              // dispara si sa reapara fara nicio explicatie.
+              if (typeof showAppBanner === 'function') {
+                showAppBanner('<b>Nuova versione</b> — aggiornamento in corso…');
+                setTimeout(function () { window.location.reload(); }, 2200);
+              } else {
+                window.location.reload();
+              }
             };
             if (waitForSplash) {
               var elapsed = Date.now() - pageLoadStart;
@@ -92,7 +103,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v539"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v540"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -534,6 +545,39 @@
     clearTimeout(toast._t);
     toast._t = setTimeout(function () { t.classList.remove('show'); }, durationMs || 3000);
   }
+
+  // Requested directly ("acea notificare care e interna, care apare
+  // sus, ca la WhatsApp... aceleasi stil ca la flota"): copiata exact
+  // din portalul de flota (404.html) — acelasi CSS, aceeasi animatie,
+  // acelasi gest de swipe-in-sus ca s-o inchida cu mana. Construita
+  // generic (nu doar pentru anuntul de versiune) — orice alt tip de
+  // alerta poate apela aceeasi functie mai tarziu, cu propriul text.
+  // autoHideMs=0 inseamna "ramane pana e inchisa manual" — folosit
+  // pentru anuntul de versiune, care nu trebuie sa dispara nevazut.
+  function showAppBanner(html, autoHideMs) {
+    var banner = document.getElementById('appBanner');
+    if (!banner) return;
+    document.getElementById('appBannerText').innerHTML = html;
+    clearTimeout(showAppBanner._hideTimer);
+    requestAnimationFrame(function () { banner.classList.add('toast-show'); });
+    if (autoHideMs) {
+      showAppBanner._hideTimer = setTimeout(function () { banner.classList.remove('toast-show'); }, autoHideMs);
+    }
+  }
+  (function () {
+    var banner = document.getElementById('appBanner');
+    if (!banner) return;
+    var touchStartY = null;
+    banner.addEventListener('touchstart', function (e) { touchStartY = e.touches[0].clientY; }, { passive: true });
+    banner.addEventListener('touchmove', function (e) {
+      if (touchStartY === null) return;
+      if (touchStartY - e.touches[0].clientY > 24) {
+        banner.classList.remove('toast-show');
+        clearTimeout(showAppBanner._hideTimer);
+        touchStartY = null;
+      }
+    }, { passive: true });
+  })();
 
   // Same idea as toast(), positioned instead — see the comment on
   // #nav-toast in renderNavigatore for why. Only meaningful while the
@@ -12943,7 +12987,11 @@
       reloadTriggeredThisLoad = true;
       var doReload = function () {
         try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
-        window.location.reload();
+        // Requested directly ("ca la WhatsApp... automat, dar sa
+        // anunte, nu sa reincarce mut"): acelasi banner vizual, o
+        // clipa, inainte de reincarcarea propriu-zisa.
+        showAppBanner('<b>Nuova versione</b> — aggiornamento in corso…');
+        setTimeout(function () { window.location.reload(); }, 2200);
       };
       // Same reasoning as the early version check at the very top of this
       // file: don't let a reload cut off the splash screen mid-animation
