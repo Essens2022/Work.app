@@ -1551,6 +1551,22 @@
       ? supabase.createClient(SUPABASE_URL_RT, SUPABASE_ANON_KEY_RT, { realtime: { heartbeatIntervalMs: 10000 } })
       : null;
     var liveEmails = {};
+    // REAL BUG, raportat direct ("ies din flat, redeschid pagina, si
+    // Mario iese din nou primul" — desi Ion fusese ultimul live):
+    // liveSince traia DOAR in memoria paginii curente, o simpla
+    // variabila JS — la fiecare reincarcare a paginii se reseta la
+    // zero. Daca in EXACT momentul reincarcarii nimeni nu era live
+    // (Ion iesise deja), niciun email nu primea un liveSince proaspat
+    // la acel sync initial — istoria "cine a fost ultimul live" se
+    // pierdea complet, iar sortarea cadea inapoi pe ordinea bruta de
+    // la server (care nu are nicio legatura cu cine a fost live).
+    // Persistat acum in localStorage, per flota (cheia include slug-ul
+    // acestei flote), citit la pornire si salvat la fiecare schimbare
+    // — supravietuieste unei reincarcari de pagina, exact ca liveEmails
+    // ar trebui sa se comporte conceptual, chiar daca acela ramane
+    // intentionat doar live (nu istoric).
+    var LS_LIVE_SINCE_KEY = 'adb_fleet_live_since_' + (slug || 'default');
+    var liveSince = JSON.parse(localStorage.getItem(LS_LIVE_SINCE_KEY) || '{}');
     // Requested directly ("cine apare live, mereu se pune pe primul
     // loc... cel care a fost pe primul se duce pe a doua si tot asa"):
     // trebuie stiut CAND a devenit fiecare sofer live, nu doar DACA e
@@ -1559,7 +1575,6 @@
     // fiecare data (nu doar cine s-a schimbat), asa ca "cine tocmai a
     // devenit live" se afla comparand noul instantaneu cu cel vechi,
     // chiar inainte de a-l suprascrie.
-    var liveSince = {};
     function startFleetPresenceWatch() {
       if (!presenceSupabaseClient) return;
       var channel = presenceSupabaseClient.channel('drivers-presence');
@@ -1572,9 +1587,11 @@
           });
         });
         var now = Date.now();
+        var changed = false;
         Object.keys(next).forEach(function (email) {
-          if (!liveEmails[email]) liveSince[email] = now; // tocmai a devenit live — il trimite in fata tuturor celor deja live de mai devreme
+          if (!liveEmails[email]) { liveSince[email] = now; changed = true; } // tocmai a devenit live — il trimite in fata tuturor celor deja live de mai devreme
         });
+        if (changed) localStorage.setItem(LS_LIVE_SINCE_KEY, JSON.stringify(liveSince));
         liveEmails = next;
         // Re-render immediately wherever driver status is currently
         // shown, so a driver going live/offline reflects instantly —
