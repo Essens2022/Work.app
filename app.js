@@ -92,7 +92,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v534"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v535"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -4038,6 +4038,26 @@
     }, 'image/jpeg', 0.97);
   }
 
+  // REAL BUG / logica revizuita, cerut direct ("de la trei clienti
+  // adaugati in ziua de oggi... nu mai e in consegna daca toti sunt
+  // facuti sau nu mai are niciunul... daca mai adauga dupa ce
+  // terminase, revine din nou"): "in consegna" insemna initial pur si
+  // simplu "cel putin un client completat azi" - prea sensibil (un
+  // sofer cu un singur client, facut, aparea si disparea instant).
+  // Noua regula, redusa la o singura expresie: e in consegna daca a
+  // adaugat CEL PUTIN 3 clienti azi SI nu i-a terminat inca pe toti.
+  // Cazul "revine automat daca mai adauga un client dupa ce ii
+  // terminase pe toti" rezulta AUTOMAT din aceeasi formula, fara nicio
+  // logica speciala: pragul de 3 total clienti azi era deja atins
+  // inainte, deci in clipa in care exista din nou un client
+  // necompletat (cel nou-adaugat), formula devine imediat adevarata.
+  function computeInConsegna(clients) {
+    var total = (clients || []).length;
+    if (total < 3) return false;
+    var completed = (clients || []).filter(function (c) { return c.status === 'completed'; }).length;
+    return completed < total;
+  }
+
   // Requested directly ("odata ce face primul client... in automat
   // recunoaste ca acel sofer este in consegna... termina sa fie in
   // consegna cand arhiveaza"): a lightweight, single-row-per-driver
@@ -4164,13 +4184,13 @@
       if (client.status !== 'completed') client.completedAt = null; // unchecking a mistaken mark clears the stale timestamp too
       if (client.status === 'completed' && !wasCompleted) newlyCompleted.push(client);
     });
-    // Live "in consegna" flag: true the moment at least one client is
-    // completed today, false again if the driver un-checks back down
-    // to zero (a genuine correction, not an archive) — computed fresh
-    // from the run's own current state, not just from this one batch,
-    // so it stays correct regardless of how many separate Reordina
-    // sessions it took to get there.
-    syncLiveConsegnaStatus(state.deliveryRun.clients.some(function (c) { return c.status === 'completed'; }));
+    // Live "in consegna" flag: adevarat de la 3 clienti adaugati azi
+    // in sus, cat timp nu sunt toti finalizati; fals daca ii are pe
+    // toti facuti sau nu mai are niciunul — computat mereu din starea
+    // curenta a intregului run (computeInConsegna), nu doar din acest
+    // lot, ca sa ramana corect indiferent de cate sesiuni separate de
+    // Reordina a fost nevoie ca sa ajunga acolo.
+    syncLiveConsegnaStatus(computeInConsegna(state.deliveryRun.clients));
     // REAL BUG, reported directly ("consegnele facute nu pleaca la
     // sfarsitul listei"): a client checked off here only actually
     // moved to the end of the list once the async optimization below
@@ -12601,21 +12621,22 @@
     dpSetAutoRiordinaEnabled(false);
     // REAL BUG, raportat direct ("nici macar pe mine nu ma arata pe
     // harta"): trimiterea pozitiei catre flota (startFleetPositionSharing)
-    // porneste doar din syncLiveConsegnaStatus(true), care la randul ei
+    // porneste doar din syncLiveConsegnaStatus(...), care la randul ei
     // ruleaza doar in momentul in care soferul CONFIRMA o livrare
     // (dpConfirmReordina) - niciodata la o pornire noua a aplicatiei.
     // Cronometrul care trimite pozitia traieste doar in memoria
     // paginii curente - daca soferul inchide si redeschide aplicatia
-    // (sau pur si simplu o repotneste telefonul) DUPA ce a marcat deja
+    // (sau pur si simplu o repotneste telefonul) DUPA ce marcase deja
     // o livrare, starea de "in consegna" ramane corecta pe server, dar
     // cronometrul de trimis pozitia nu mai porneste niciodata singur -
     // nimic nu se mai trimite pana la URMATOAREA livrare confirmata,
     // desi soferul chiar livreaza activ tot timpul asta. Verificat aici,
-    // o singura data, la fiecare pornire reala a aplicatiei — daca run-ul
-    // de azi are deja cel putin un client finalizat, reporneste trimiterea
-    // imediat, in loc sa astepte urmatoarea confirmare.
-    if (state.deliveryRun && state.deliveryRun.clients && state.deliveryRun.clients.some(function (c) { return c.status === 'completed'; })) {
-      syncLiveConsegnaStatus(true);
+    // o singura data, la fiecare pornire reala a aplicatiei, cu ACEEASI
+    // formula folosita peste tot (computeInConsegna) — reporneste
+    // trimiterea imediat daca formula e adevarata acum, in loc sa
+    // astepte urmatoarea confirmare.
+    if (state.deliveryRun && state.deliveryRun.clients) {
+      syncLiveConsegnaStatus(computeInConsegna(state.deliveryRun.clients));
     }
     migrateUppercaseLocalities();
     migrateFuelToArrays();
