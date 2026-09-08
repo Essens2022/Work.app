@@ -1726,6 +1726,11 @@
     // changed since the last tick. Skips entirely while the tab/app
     // is backgrounded (Page Visibility API) — resumes on its own the
     // next tick after coming back, no separate wake-up logic needed.
+    // Requested directly ("Bilancio... consegnele se adauga instantan
+    // asa ca lista este dinamica"): Bilancio functioneaza ca un
+    // clasament live (cine livreaza mai mult, chiar acum) - trebuie sa
+    // se re-tina la zi la fel de des ca Panoramica/Consegne/Mappa, nu
+    // doar o data la incarcarea ecranului.
     setInterval(function () {
       if (document.hidden) return;
       var activeScreen = document.querySelector('.screen.active');
@@ -1734,6 +1739,7 @@
       if (name === 'panoramica') refresh();
       else if (name === 'consegne') loadStorico();
       else if (name === 'mappa') loadMappa();
+      else if (name === 'bilancio') loadBilancio();
     }, 20000);
     document.getElementById('topNotifBtn').addEventListener('click', function () { goToScreen('notifiche'); });
     goToScreen('panoramica');
@@ -2337,8 +2343,21 @@
         '<div class="stat-card"><div class="stat-num">' + Math.round(totalKm) + ' km</div><div class="stat-label">Km totali (mese)</div></div>';
 
       var maxConsegne = Math.max.apply(null, drivers.map(function (d) { return periodFilteredCount(d.consegne_dates); }).concat([0]));
+      // Requested directly ("primul de sus este cine are la moment
+      // cele mai multe consegne facute... cand este intrecut se
+      // schimba cu cel care are cel mai multe"): sortat descrescator
+      // dupa numarul de consegne DIN PERIOADA CURENT SELECTATA
+      // (oggi/ultimi 7 giorni/nel mese) - acelasi numar care
+      // alimenteaza deja eticheta "Top consegne" de mai jos. Recalculat
+      // la FIECARE apel al acestei functii - impreuna cu auto-refresh-ul
+      // de 20s adaugat mai sus pentru acest ecran, clasamentul se
+      // re-ordoneaza singur, live, pe masura ce consegnele se aduna,
+      // fara sa fie nevoie sa schimbi ecranul si sa te intorci.
+      var sortedDrivers = drivers.slice().sort(function (a, b) {
+        return periodFilteredCount(b.consegne_dates) - periodFilteredCount(a.consegne_dates);
+      });
       var html = '';
-      drivers.forEach(function (d) {
+      sortedDrivers.forEach(function (d) {
         var myCount = periodFilteredCount(d.consegne_dates);
         var isTop = myCount > 0 && myCount === maxConsegne;
         html += '<div class="bilancio-driver-card">' +
