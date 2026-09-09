@@ -1590,39 +1590,90 @@
 
     var cursorY = 34;
 
+    // Requested directly ("istoricul de livrari ar fi bine tot asa
+    // exact cum in fleet aici este, ca miercuri 9 septembrie 10
+    // livrari sunt asta, asta, asta, cine le-a facut, ora,
+    // consignatul, clientul"): toate consegnele flotei, dintr-o
+    // singura lista unificata (nu mai separata pe sofer), sortate
+    // cele mai recente primele si grupate pe zi calendaristica —
+    // exact ca Storico consegne din portal. Fiecare consegna are deja
+    // numele soferului atasat direct (driver_nome), trimis de server.
+    function capitalizeFirst(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+    var allDeliveries = [];
+    data.drivers.forEach(function (d) { (d.deliveries || []).forEach(function (c) { allDeliveries.push(c); }); });
+    allDeliveries.sort(function (a, b) { return new Date(b.completed_at) - new Date(a.completed_at); });
+
+    var dayGroups = [];
+    var dayIndexByKey = {};
+    allDeliveries.forEach(function (c) {
+      var when = new Date(c.completed_at);
+      var dayKey = when.toLocaleDateString('it-IT');
+      if (!(dayKey in dayIndexByKey)) {
+        dayIndexByKey[dayKey] = dayGroups.length;
+        dayGroups.push({
+          label: capitalizeFirst(when.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })),
+          items: [],
+        });
+      }
+      dayGroups[dayIndexByKey[dayKey]].items.push(c);
+    });
+
+    if (dayGroups.length) {
+      doc.setFontSize(13); doc.setFont(undefined, 'bold');
+      doc.text('Storico consegne', 14, cursorY);
+      cursorY += 4;
+      doc.setFontSize(9); doc.setFont(undefined, 'normal'); doc.setTextColor(120);
+      doc.text('Ogni consegna della flotta, raggruppata per giorno.', 14, cursorY);
+      doc.setTextColor(0);
+      cursorY += 6;
+
+      dayGroups.forEach(function (group) {
+        if (cursorY > doc.internal.pageSize.getHeight() - 30) { doc.addPage(); cursorY = 18; }
+        doc.setFontSize(11); doc.setFont(undefined, 'bold'); doc.setTextColor(accent[0], accent[1], accent[2]);
+        doc.text(group.label + ' · ' + group.items.length + (group.items.length === 1 ? ' consegna' : ' consegne'), 14, cursorY);
+        doc.setTextColor(0);
+        cursorY += 4;
+        doc.autoTable({
+          startY: cursorY,
+          head: [['Ora', 'Autista', 'Cliente', 'Indirizzo']],
+          body: group.items.map(function (c) {
+            return [
+              new Date(c.completed_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }),
+              c.driver_nome || '—',
+              c.client_nome || '—',
+              c.client_indirizzo || '—',
+            ];
+          }),
+          headStyles: { fillColor: accent },
+          styles: { fontSize: 8 },
+          margin: { left: 14, right: 14 },
+        });
+        cursorY = doc.lastAutoTable.finalY + 8;
+      });
+      cursorY += 2;
+    }
+
+    // Requested directly ("bilanjul mensal, adica sofer, kati
+    // kilometri, cate zile lucrate, cate livrari"): un singur tabel
+    // pe sofer, cu tot ce s-a cerut — km si zile deja calculate de
+    // server pe perioada curenta de apartenenta, numarul de consegne
+    // numarat direct din lista de mai sus (aceeasi sursa de date,
+    // niciun risc sa nu coincida).
+    if (cursorY > doc.internal.pageSize.getHeight() - 30) { doc.addPage(); cursorY = 18; }
     doc.setFontSize(13); doc.setFont(undefined, 'bold');
-    doc.text('Autisti', 14, cursorY);
+    doc.text('Bilancio mensile', 14, cursorY);
     cursorY += 4;
     doc.autoTable({
       startY: cursorY,
-      head: [['Nome', 'Email', 'Stato', 'Km totali', 'Giorni totali']],
+      head: [['Autista', 'Km totali', 'Giorni lavorati', 'Consegne']],
       body: data.drivers.map(function (d) {
-        return [d.nome, d.account_email, d.currently_active ? 'Attivo' : 'Uscito dalla flotta', String(d.total_km || 0), String(d.total_giorni || 0)];
+        return [d.nome, String(d.total_km || 0), String(d.total_giorni || 0), String((d.deliveries || []).length)];
       }),
       headStyles: { fillColor: accent },
       styles: { fontSize: 9 },
       margin: { left: 14, right: 14 },
     });
     cursorY = doc.lastAutoTable.finalY + 10;
-
-    data.drivers.forEach(function (d) {
-      if (!d.deliveries.length) return;
-      if (cursorY > doc.internal.pageSize.getHeight() - 30) { doc.addPage(); cursorY = 18; }
-      doc.setFontSize(12); doc.setFont(undefined, 'bold');
-      doc.text('Consegne — ' + d.nome, 14, cursorY);
-      cursorY += 4;
-      doc.autoTable({
-        startY: cursorY,
-        head: [['Cliente', 'Indirizzo', 'Data', 'Completata alle']],
-        body: d.deliveries.map(function (c) {
-          return [c.client_nome || '—', c.client_indirizzo || '—', c.delivery_date || '—', c.completed_at ? new Date(c.completed_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '—'];
-        }),
-        headStyles: { fillColor: [40, 40, 44] },
-        styles: { fontSize: 8 },
-        margin: { left: 14, right: 14 },
-      });
-      cursorY = doc.lastAutoTable.finalY + 10;
-    });
 
     if (data.vehicles.length) {
       if (cursorY > doc.internal.pageSize.getHeight() - 30) { doc.addPage(); cursorY = 18; }
@@ -1642,30 +1693,6 @@
       cursorY = doc.lastAutoTable.finalY + 10;
     }
 
-    // Requested directly ("de ce nu sunt toti clientii undeva, daca
-    // este necesar"): arhiva de clienti a fiecarui sofer traieste doar
-    // local, pe telefon — serverul nu are acces direct la ea. Aceasta
-    // lista e reconstituita din consegnele reale, deja adunate mai sus
-    // — clientii carora aceasta flota le-a livrat efectiv, ordonati
-    // dupa numarul de vizite.
-    if (data.clienti && data.clienti.length) {
-      if (cursorY > doc.internal.pageSize.getHeight() - 30) { doc.addPage(); cursorY = 18; }
-      doc.setFontSize(13); doc.setFont(undefined, 'bold');
-      doc.text('Clienti (di questa flotta)', 14, cursorY);
-      cursorY += 4;
-      doc.autoTable({
-        startY: cursorY,
-        head: [['Cliente', 'Indirizzo', 'Consegne totali', 'Ultima consegna']],
-        body: data.clienti.map(function (c) {
-          return [c.client_nome || '—', c.client_indirizzo || '—', String(c.visite || 0), c.ultima_consegna ? new Date(c.ultima_consegna).toLocaleDateString('it-IT') : '—'];
-        }),
-        headStyles: { fillColor: [40, 40, 44] },
-        styles: { fontSize: 8 },
-        margin: { left: 14, right: 14 },
-      });
-      cursorY = doc.lastAutoTable.finalY + 10;
-    }
-
     if (data.documents.length) {
       if (cursorY > doc.internal.pageSize.getHeight() - 30) { doc.addPage(); cursorY = 18; }
       doc.setFontSize(13); doc.setFont(undefined, 'bold');
@@ -1677,7 +1704,7 @@
         body: data.documents.map(function (dd) {
           return [dd.filename, dd.scope === 'driver' ? (dd.driver_nome || 'autista') : 'flotta', dd.expiry_date || '—'];
         }),
-        headStyles: { fillColor: [40, 40, 44] },
+        headStyles: { fillColor: accent },
         styles: { fontSize: 9 },
         margin: { left: 14, right: 14 },
       });
