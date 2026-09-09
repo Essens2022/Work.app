@@ -385,9 +385,21 @@
   .flotte-pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:4px 10px;border-radius:100px;}
   .flotte-pill-green{background:rgba(52,168,116,.14);color:#34A874;}
   .flotte-pill-amber{background:rgba(217,164,65,.14);color:#D9A441;}
+  .flotte-pill-red{background:rgba(192,57,43,.16);color:#E0665A;}
   .flotte-pill-dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
   .flotte-row.head{color:var(--ink-faint);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
   .flotte-row:last-child{border-bottom:none;}
+  /* Cerut direct ("un buton care dezactiveaza flota si un buton de a
+     o elimina definitiv... trebuie sa fie intrebari de securanta"):
+     cele doua actiuni raman ascunse in spatele unui singur buton
+     "⋯", ca sa nu fie niciodata la o singura apasare distanta de
+     ceva ireversibil — trebuie sa apesi intai sa le vezi, apoi sa le
+     apesi efectiv, apoi sa confirmi intr-un dialog separat. */
+  .flotte-kebab-btn{background:none;border:none;color:var(--ink-faint);font-size:20px;font-weight:900;padding:4px 8px;cursor:pointer;line-height:1;}
+  .flotte-actions-row{display:none;gap:8px;padding:0 18px 14px;}
+  .flotte-actions-row.open{display:flex;}
+  .flotte-action-btn{flex:1;padding:9px 10px;font-size:12.5px;border-radius:8px;font-weight:700;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);cursor:pointer;}
+  .flotte-action-btn.danger{color:#E0665A;border-color:rgba(192,57,43,.35);}
   .flotte-logo{width:38px;height:38px;border-radius:9px;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex:none;}
   .flotte-name-cell{display:flex;align-items:center;gap:12px;}
   .flotte-name{font-weight:700;font-size:14px;}
@@ -1262,19 +1274,77 @@
     }
     var html = '<div class="flotte-row head"><div>Flotta</div><div>Autisti</div><div>Consegne oggi</div><div>Stato</div><div></div></div>';
     lastFlotte.forEach(function (f) {
-      var pill = f.stato === 'attiva'
-        ? '<span class="flotte-pill flotte-pill-green"><span class="flotte-pill-dot"></span>Attiva</span>'
-        : '<span class="flotte-pill flotte-pill-amber"><span class="flotte-pill-dot"></span>In attivazione</span>';
+      var pill = f.stato === 'disattivata'
+        ? '<span class="flotte-pill flotte-pill-red"><span class="flotte-pill-dot"></span>Disattivata</span>'
+        : (f.stato === 'attiva'
+          ? '<span class="flotte-pill flotte-pill-green"><span class="flotte-pill-dot"></span>Attiva</span>'
+          : '<span class="flotte-pill flotte-pill-amber"><span class="flotte-pill-dot"></span>In attivazione</span>');
       html += '<div class="flotte-row">' +
         '<div class="flotte-name-cell"><div class="flotte-logo">' + escHtml(flotteInitials(f.name)) + '</div>' +
         '<div><div class="flotte-name">' + escHtml(f.name) + '</div><div class="flotte-url">adbsmart.it/' + escHtml(f.slug) + '</div></div></div>' +
         '<div>' + f.driver_count + '</div>' +
         '<div>' + (f.consegne_oggi || 0) + '</div>' +
         '<div>' + pill + '</div>' +
-        '<div></div>' +
+        '<div><button type="button" class="flotte-kebab-btn" data-fleet-id="' + escHtml(f.id) + '">⋯</button></div>' +
+        '</div>' +
+        '<div class="flotte-actions-row" data-fleet-actions="' + escHtml(f.id) + '">' +
+        '<button type="button" class="flotte-action-btn" data-toggle-disabled="' + escHtml(f.id) + '" data-fleet-name="' + escHtml(f.name) + '" data-currently-disabled="' + (f.stato === 'disattivata' ? '1' : '0') + '">' + (f.stato === 'disattivata' ? 'Riattiva' : 'Disattiva') + '</button>' +
+        '<button type="button" class="flotte-action-btn danger" data-delete-fleet="' + escHtml(f.id) + '" data-fleet-name="' + escHtml(f.name) + '">Elimina definitivamente</button>' +
         '</div>';
     });
     el.innerHTML = html;
+
+    // Cerut direct: butonul "⋯" doar deschide/inchide randul cu cele
+    // doua actiuni — nicio actiune reala nu se intampla la aceasta
+    // apasare, e doar un "arata-mi optiunile".
+    el.querySelectorAll('.flotte-kebab-btn').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var row = document.querySelector('.flotte-actions-row[data-fleet-actions="' + btn.getAttribute('data-fleet-id') + '"]');
+        if (row) row.classList.toggle('open');
+      });
+    });
+
+    // Dezactivare/reactivare — REVERSIBILA, blocheaza doar logarea,
+    // nu sterge nimic. O singura intrebare de confirmare, clara,
+    // inainte de a trimite cererea.
+    el.querySelectorAll('[data-toggle-disabled]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var fleetId = btn.getAttribute('data-toggle-disabled');
+        var fleetName = btn.getAttribute('data-fleet-name');
+        var currentlyDisabled = btn.getAttribute('data-currently-disabled') === '1';
+        var msg = currentlyDisabled
+          ? 'Riattivare "' + fleetName + '"? Il proprietario e la squadra potranno di nuovo accedere.'
+          : 'Disattivare "' + fleetName + '"? Nessuno potrà più accedere finché non la riattivi — i dati restano intatti.';
+        if (!window.confirm(msg)) return;
+        btn.disabled = true;
+        fleetCall({ action: 'admin_toggle_fleet_disabled', fleet_id: fleetId }).then(function (res) {
+          btn.disabled = false;
+          if (!res.ok || !res.data.ok) { alert('Operazione non riuscita. Riprova.'); return; }
+          loadFlotte();
+        });
+      });
+    });
+
+    // Eliminare definitiva — IREVERSIBILA. Doua straturi de
+    // confirmare, cerute explicit: intai un confirm() clar, apoi un
+    // prompt() care cere scris exact numele flotei, ca o apasare
+    // accidentala (sau chiar doua) sa nu poata niciodata sa ajunga
+    // pana la stergerea reala.
+    el.querySelectorAll('[data-delete-fleet]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var fleetId = btn.getAttribute('data-delete-fleet');
+        var fleetName = btn.getAttribute('data-fleet-name');
+        if (!window.confirm('Eliminare DEFINITIVAMENTE "' + fleetName + '"? Verranno cancellati autisti collegati, documenti, veicoli e squadra di questa flotta. Questa azione non si può annullare.')) return;
+        var typed = window.prompt('Per confermare, scrivi esattamente il nome della flotta: "' + fleetName + '"');
+        if (typed !== fleetName) { alert('Nome non corrispondente — eliminazione annullata.'); return; }
+        btn.disabled = true;
+        fleetCall({ action: 'admin_delete_fleet', fleet_id: fleetId }).then(function (res) {
+          btn.disabled = false;
+          if (!res.ok || !res.data.ok) { alert('Eliminazione non riuscita. Riprova.'); return; }
+          loadFlotte();
+        });
+      });
+    });
   }
 
   function escHtml(s) {
