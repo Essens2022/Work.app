@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v542"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v543"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -2296,19 +2296,46 @@
 
   function dpWireSwipeRow(row) {
     var REVEAL = 84; // px — matches the delete button's own width, see CSS
-    var startX = null, dragging = false;
+    var startX = null, startY = null, dragging = false, directionDecided = false, isHorizontalSwipe = false;
     row._dpSwipeBaseOffset = 0;
 
     row.addEventListener('touchstart', function (e) {
       if (dpOpenSwipeRow && dpOpenSwipeRow !== row) dpCloseOpenSwipeRow();
       startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
       dragging = true;
+      directionDecided = false;
+      isHorizontalSwipe = false;
       row.style.transition = 'none';
     }, { passive: true });
 
+    // REAL BUG, raportat direct ("cand dau cu degetul in jos... nu se
+    // intampla nimic", pe iPhone, exact atingand un rand din lista):
+    // acest handler muta vizual randul (style.transform) la FIECARE
+    // atingere de deget, indiferent daca gestul era clar VERTICAL
+    // (vrea sa deruleze lista) sau ORIZONTAL (vrea sa traga randul,
+    // sa dezvaluie butonul de sters). Pe Safari/iOS in mod specific,
+    // manipularea continua a lui style.transform in timpul unui
+    // gest de atingere e cunoscuta ca putand bloca sau intarzia
+    // preluarea gestului de catre scroll-ul nativ al paginii — chiar
+    // daca listener-ul insusi e "passive" si nu apeleaza niciodata
+    // preventDefault(). Acum, la primele cateva pixeli de miscare,
+    // se decide o SINGURA data directia gestului (orizontal vs
+    // vertical, comparand cat s-a miscat pe fiecare axa) — daca e
+    // clar vertical, acest handler nu mai atinge deloc stilul
+    // randului pentru tot restul acestui gest, lasand scroll-ul
+    // nativ sa preia complet, neintrerupt.
     row.addEventListener('touchmove', function (e) {
       if (!dragging || startX == null) return;
       var dx = startX - e.touches[0].clientX; // positive while dragging left
+      var dy = startY - e.touches[0].clientY;
+      if (!directionDecided) {
+        if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return; // too little movement yet to tell
+        directionDecided = true;
+        isHorizontalSwipe = Math.abs(dx) > Math.abs(dy);
+        if (!isHorizontalSwipe) { dragging = false; return; } // vertical gesture — hand off entirely to native scroll
+      }
+      if (!isHorizontalSwipe) return;
       var next = Math.max(0, Math.min(REVEAL, dx + row._dpSwipeBaseOffset));
       row.style.transform = 'translateX(' + (-next) + 'px)';
     }, { passive: true });
