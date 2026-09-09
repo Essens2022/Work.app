@@ -1673,7 +1673,7 @@
     var btn = this;
     var originalHtml = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = 'Generazione in corso…';
+    btn.innerHTML = 'Backup in corso…';
     withTimeout(Promise.all([
       call({ action: 'fleet_export_backup', slug: slug, password: password }),
       loadPdfLibsForBackup(),
