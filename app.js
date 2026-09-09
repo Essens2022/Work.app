@@ -596,7 +596,9 @@
     try {
       if (sessionStorage.getItem(LS_PENDING_UPDATE_SUCCESS) === '1') {
         sessionStorage.removeItem(LS_PENDING_UPDATE_SUCCESS);
-        showAppBanner('<b>Aggiornamento completato</b> — versione più recente caricata ✓', 4500);
+        // Cerut direct: +4 secunde peste durata deja existenta (4500ms),
+        // ca notificarea sa ramana vizibila mai mult inainte sa dispara.
+        showAppBanner('<b>Aggiornamento completato</b> — versione più recente caricata ✓', 8500);
       }
     } catch (e) { /* ignore */ }
   }
@@ -2249,6 +2251,12 @@
           row.style.transform = 'translateX(0)';
           return;
         }
+        // Cerut direct: un swipe orizontal (chiar daca nu a mers
+        // suficient de departe cat sa dezvaluie butonul de sters, si
+        // s-a intors la loc) nu trebuie sa deschida NICIODATA si
+        // Modifica in acelasi timp — cele doua gesturi trebuie sa fie
+        // clar separate. Vezi finishTouch() din dpWireSwipeRow().
+        if (row._dpJustSwiped) { row._dpJustSwiped = false; return; }
         dpOpenEditClientModal(row.getAttribute('data-client-id'));
       });
     });
@@ -2350,6 +2358,19 @@
       row.style.transition = 'transform .18s ease';
       row.style.transform = 'translateX(' + (-row._dpSwipeBaseOffset) + 'px)';
       dpOpenSwipeRow = row._dpSwipeBaseOffset ? row : null;
+      // Cerut direct: "daca incep sa dau cu degetul intr-o parte sa-l
+      // elimin, totodata sa se apese si sa se deschida pentru a
+      // modifica" — browserul trimite oricum un "click" dupa orice
+      // atingere care se termina, chiar daca acea atingere a fost de
+      // fapt un swipe orizontal, nu o simpla apasare. Marcat aici,
+      // ori de cate ori gestul a fost recunoscut ca orizontal
+      // (isHorizontalSwipe), ca handler-ul de click de mai jos sa
+      // stie sa il ignore pe acesta — chiar daca swipe-ul nu a mers
+      // suficient de departe cat sa dezvaluie butonul de sters.
+      if (isHorizontalSwipe) {
+        row._dpJustSwiped = true;
+        setTimeout(function () { row._dpJustSwiped = false; }, 350);
+      }
       startX = null;
     }
     row.addEventListener('touchend', finishTouch);
