@@ -1249,6 +1249,22 @@
 
       <div class="main-inner">
       <div class="settings-grid">
+      <!-- Requested directly ("printre primele... de dat posibilitatea
+           sa faca backup... absolut totul... trebuie sa poata
+           descarca"): sectiune fina, minimala, chiar la inceput —
+           un singur buton, genereaza un PDF paginat cu tot ce e util
+           si vizibil proprietarului (soferi, consegne, ore, vehicule,
+           documente), oricand, nu doar cand vine reminder-ul lunar. -->
+      <div class="settings-section">
+        <div class="settings-section-eyebrow">Backup</div>
+        <h3>Backup dei dati</h3>
+        <p class="sub">Un documento PDF completo — autisti, consegne, veicoli e documenti della tua flotta. Puoi scaricarlo in qualsiasi momento, non solo quando te lo ricordiamo.</p>
+        <div id="backupLastInfo" style="font-size:12.5px;color:var(--ink-soft);margin-bottom:14px;"></div>
+        <button type="button" class="btn btn-accent" id="backupExportBtn" style="width:100%;justify-content:center;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+          Scarica backup PDF
+        </button>
+      </div>
       <div class="settings-section">
         <div class="settings-section-eyebrow">Account</div>
         <h3>Persone con accesso</h3>
@@ -1523,6 +1539,142 @@
     var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML;
   }
 
+  // Requested directly ("acel document include cate pagini are nevoie
+  // toata informatia... daca este necesar sa aiba mai multe pagini"):
+  // aceeasi biblioteca (jsPDF + autoTable) deja folosita in aplicatia
+  // soferului pentru "Anteprima PDF" — autoTable paginam AUTOMAT o
+  // singura data cand o pagina se umple, exact ce e nevoie aici,
+  // pentru un document care poate avea de la 1 la zeci de pagini, in
+  // functie de cate date are flota. Nimic nou construit, doar
+  // reutilizat identic vendor/jspdf.umd.min.js si
+  // vendor/jspdf.plugin.autotable.min.js.
+  var pdfLibsPromise = null;
+  function loadPdfLibsForBackup() {
+    if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve();
+    if (pdfLibsPromise) return pdfLibsPromise;
+    function loadScript(src) {
+      return new Promise(function (resolve, reject) {
+        var s = document.createElement('script');
+        s.src = src; s.onload = resolve; s.onerror = reject;
+        document.body.appendChild(s);
+      });
+    }
+    pdfLibsPromise = loadScript('/vendor/jspdf.umd.min.js')
+      .then(function () { return loadScript('/vendor/jspdf.plugin.autotable.min.js'); });
+    return pdfLibsPromise;
+  }
+
+  function generateBackupPdf(data) {
+    var jsPDFCtor = window.jspdf.jsPDF;
+    var doc = new jsPDFCtor({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    var pageWidth = doc.internal.pageSize.getWidth();
+    var accent = [232, 84, 43]; // var(--accent), stessa identità visiva del resto del prodotto
+
+    doc.setFontSize(18); doc.setFont(undefined, 'bold');
+    doc.text(data.fleet.name, 14, 18);
+    doc.setFontSize(10); doc.setFont(undefined, 'normal'); doc.setTextColor(120);
+    doc.text('Backup completo — generato il ' + new Date(data.exported_at).toLocaleString('it-IT'), 14, 25);
+    doc.setTextColor(0);
+
+    var cursorY = 34;
+
+    doc.setFontSize(13); doc.setFont(undefined, 'bold');
+    doc.text('Autisti', 14, cursorY);
+    cursorY += 4;
+    doc.autoTable({
+      startY: cursorY,
+      head: [['Nome', 'Email', 'Stato', 'Km totali', 'Giorni totali']],
+      body: data.drivers.map(function (d) {
+        return [d.nome, d.account_email, d.currently_active ? 'Attivo' : 'Uscito dalla flotta', String(d.total_km || 0), String(d.total_giorni || 0)];
+      }),
+      headStyles: { fillColor: accent },
+      styles: { fontSize: 9 },
+      margin: { left: 14, right: 14 },
+    });
+    cursorY = doc.lastAutoTable.finalY + 10;
+
+    data.drivers.forEach(function (d) {
+      if (!d.deliveries.length) return;
+      if (cursorY > doc.internal.pageSize.getHeight() - 30) { doc.addPage(); cursorY = 18; }
+      doc.setFontSize(12); doc.setFont(undefined, 'bold');
+      doc.text('Consegne — ' + d.nome, 14, cursorY);
+      cursorY += 4;
+      doc.autoTable({
+        startY: cursorY,
+        head: [['Cliente', 'Indirizzo', 'Data', 'Completata alle']],
+        body: d.deliveries.map(function (c) {
+          return [c.client_nome || '—', c.client_indirizzo || '—', c.delivery_date || '—', c.completed_at ? new Date(c.completed_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }) : '—'];
+        }),
+        headStyles: { fillColor: [40, 40, 44] },
+        styles: { fontSize: 8 },
+        margin: { left: 14, right: 14 },
+      });
+      cursorY = doc.lastAutoTable.finalY + 10;
+    });
+
+    if (data.vehicles.length) {
+      if (cursorY > doc.internal.pageSize.getHeight() - 30) { doc.addPage(); cursorY = 18; }
+      doc.setFontSize(13); doc.setFont(undefined, 'bold');
+      doc.text('Veicoli', 14, cursorY);
+      cursorY += 4;
+      doc.autoTable({
+        startY: cursorY,
+        head: [['Targa', 'Autista assegnato', 'Scad. assicurazione', 'Scad. revisione']],
+        body: data.vehicles.map(function (v) {
+          return [v.targa, v.assigned_driver_nome || '—', v.insurance_expiry || '—', v.revisione_expiry || '—'];
+        }),
+        headStyles: { fillColor: accent },
+        styles: { fontSize: 9 },
+        margin: { left: 14, right: 14 },
+      });
+      cursorY = doc.lastAutoTable.finalY + 10;
+    }
+
+    if (data.documents.length) {
+      if (cursorY > doc.internal.pageSize.getHeight() - 30) { doc.addPage(); cursorY = 18; }
+      doc.setFontSize(13); doc.setFont(undefined, 'bold');
+      doc.text('Documenti', 14, cursorY);
+      cursorY += 4;
+      doc.autoTable({
+        startY: cursorY,
+        head: [['Nome file', 'Ambito', 'Scadenza']],
+        body: data.documents.map(function (dd) {
+          return [dd.filename, dd.scope === 'driver' ? (dd.driver_nome || 'autista') : 'flotta', dd.expiry_date || '—'];
+        }),
+        headStyles: { fillColor: [40, 40, 44] },
+        styles: { fontSize: 9 },
+        margin: { left: 14, right: 14 },
+      });
+      cursorY = doc.lastAutoTable.finalY + 6;
+      doc.setFontSize(8); doc.setTextColor(120);
+      doc.text('I link di download dei documenti (validi 24 ore) sono disponibili nel file JSON allegato, se richiesto.', 14, cursorY);
+      doc.setTextColor(0);
+    }
+
+    doc.save(data.fleet.slug + '-backup-' + new Date().toISOString().slice(0, 10) + '.pdf');
+  }
+
+  document.getElementById('backupExportBtn').addEventListener('click', function () {
+    var btn = this;
+    var originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = 'Generazione in corso…';
+    Promise.all([
+      call({ action: 'fleet_export_backup', slug: slug, password: password }),
+      loadPdfLibsForBackup(),
+    ]).then(function (results) {
+      var res = results[0];
+      if (!res.ok) { alert('Impossibile generare il backup. Riprova.'); return; }
+      generateBackupPdf(res);
+      refresh(); // aggiorna subito "Ultimo backup" nella stessa schermata
+    }).catch(function () {
+      alert('Impossibile generare il backup. Controlla la connessione e riprova.');
+    }).then(function () {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    });
+  });
+
   function showApp(fleetName, password, role) {
     // REAL BUG, raportat direct ("el este putin zoomat... de-asta imi
     // da toata pagina putin in sus si in jos"): campul de parola era
@@ -1796,6 +1948,12 @@
           renderStats(res.drivers, res.period, deliveriesToday.length, expiringCount, res.in_consegna_count || 0);
           renderDrivers(res.drivers);
           renderAlertBanner(res);
+          var backupInfoEl = document.getElementById('backupLastInfo');
+          if (backupInfoEl) {
+            backupInfoEl.textContent = res.last_backup_at
+              ? 'Ultimo backup: ' + new Date(res.last_backup_at).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })
+              : 'Nessun backup ancora effettuato';
+          }
         });
       });
     }
@@ -1865,6 +2023,21 @@
         return (Date.now() - new Date(d.last_active).getTime()) > 2 * 24 * 60 * 60 * 1000;
       });
       var queue = [];
+      // Requested directly ("pe data de intai a fiecarei luni, sa-i
+      // vina o notificare... cu accepta sau nu, cu doua butoane...
+      // cand apasa ca o accepta, sa-l duca pe pagina de backup"):
+      // singurul mesaj din aceasta coada cu butoane adevarate, nu doar
+      // text — "Fai backup ora" duce direct in Impostazioni si
+      // porneste exportul; "Rimanda" amana reminder-ul 3 zile.
+      // Verificat direct de server (fleet_get_dashboard), nu aici -
+      // nu depinde de ceasul telefonului.
+      if (res.backup_reminder_due) {
+        queue.push('<b>Backup mensile</b> — è il momento di scaricare i dati della tua flotta.' +
+          '<div style="display:flex;gap:8px;margin-top:8px;">' +
+          '<button type="button" data-backup-action="accept" style="flex:1;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 10px;font-size:12.5px;font-weight:700;cursor:pointer;">Fai backup ora</button>' +
+          '<button type="button" data-backup-action="postpone" style="flex:1;background:rgba(255,255,255,.08);color:#f5f3ef;border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:8px 10px;font-size:12.5px;font-weight:700;cursor:pointer;">Rimanda</button>' +
+          '</div>');
+      }
       if (inactive.length) {
         queue.push('<b>' + esc(inactive[0].nome || inactive[0].account_email) + '</b> non ha aperto l\'app da almeno 2 giorni' + (inactive.length > 1 ? (' · altri ' + (inactive.length - 1) + ' autisti nella stessa situazione') : ''));
       }
@@ -1927,6 +2100,24 @@
           touchStartY = null;
         }
       }, { passive: true });
+      // Requested directly ("cand apasa ca o accepta, sa-l duca pe
+      // pagina de backup... daca o amana, mai pe urma"): un singur
+      // listener, pe container (bannerul se re-populeaza cu innerHTML
+      // la fiecare rotatie, deci un listener pus direct pe butoane s-ar
+      // pierde de fiecare data — delegarea pe parinte functioneaza
+      // mereu, indiferent de cate ori se rescrie continutul).
+      banner.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-backup-action]');
+        if (!btn) return;
+        banner.classList.remove('toast-show');
+        if (toastHideTimer) { clearTimeout(toastHideTimer); toastHideTimer = null; }
+        if (btn.dataset.backupAction === 'accept') {
+          goToScreen('impostazioni');
+          setTimeout(function () { document.getElementById('backupExportBtn').click(); }, 400);
+        } else if (btn.dataset.backupAction === 'postpone') {
+          call({ action: 'fleet_snooze_backup_reminder', slug: slug, password: password });
+        }
+      });
     })();
 
     function populateDriverDropdowns() {
