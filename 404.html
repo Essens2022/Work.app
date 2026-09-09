@@ -1669,41 +1669,6 @@
     ]);
   }
 
-  document.getElementById('backupExportBtn').addEventListener('click', function () {
-    var btn = this;
-    var originalHtml = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = 'Generazione in corso…';
-    withTimeout(Promise.all([
-      call({ action: 'fleet_export_backup', slug: slug, password: password }),
-      loadPdfLibsForBackup(),
-    ]), 20000).then(function (results) {
-      var res = results[0];
-      if (!res.ok) { alert('Impossibile generare il backup. Riprova.'); return; }
-      generateBackupPdf(res);
-      // REAL BUG, raportat direct ("am confirmat ca fac backup-ul...
-      // insa notificarea continua sa apara"): apasarea "Fai backup
-      // ora" naviga si pornea exportul, dar nu oprea deloc rotatia
-      // curenta a bannerului — coada ramanea neschimbata pana la
-      // urmatorul refresh() automat (la 20s), asa ca acelasi mesaj de
-      // reminder putea sa mai apara o data intre timp, chiar daca
-      // backup-ul chiar reusise. Golita explicit coada si oprit
-      // rotatia AICI, imediat ce backup-ul chiar s-a incheiat cu
-      // succes — refresh() de mai jos o reconstruieste oricum corect,
-      // de la zero, cu datele la zi (backup_reminder_due va fi acum
-      // false).
-      alertQueue = []; alertShowCounts = []; alertRotationIndex = 0;
-      if (alertIntervalTimer) { clearInterval(alertIntervalTimer); alertIntervalTimer = null; }
-      document.getElementById('alertBanner').classList.remove('toast-show');
-      refresh(); // aggiorna subito "Ultimo backup" nella stessa schermata
-    }).catch(function () {
-      alert('Impossibile generare il backup. Controlla la connessione e riprova.');
-    }).then(function () {
-      btn.disabled = false;
-      btn.innerHTML = originalHtml;
-    });
-  });
-
   function showApp(fleetName, password, role) {
     // REAL BUG, raportat direct ("el este putin zoomat... de-asta imi
     // da toata pagina putin in sus si in jos"): campul de parola era
@@ -2019,6 +1984,61 @@
     var alertShowCounts = [];
     var alertRotationIndex = 0;
     var alertIntervalTimer = null;
+
+    // REAL BUG, gasit prin testare directa, cu un server simulat, dupa
+    // ce ION a raportat blocajul si a cerut explicit "testeaza pana la
+    // capat": acest buton era inregistrat AFARA din showApp(), la
+    // nivelul de sus al fisierului — dar "password" exista DOAR ca
+    // parametru local al lui showApp(fleetName, password, role), nu ca
+    // variabila globala. Fiecare apasare arunca instant
+    // "ReferenceError: password is not defined", o exceptie
+    // NECAPTURATA, chiar in momentul construirii cererii catre server
+    // — inainte sa ajunga macar la vreun fetch. Textul "Generazione in
+    // corso" apucase deja sa se afiseze (linia de dinainte), dar tot
+    // restul (cererea, plafonul de timp, resetarea textului la
+    // eroare) nu rula NICIODATA, pentru ca handler-ul se oprea brusc,
+    // silentios, chiar acolo. Niciuna din reparatiile anterioare
+    // (plafon de 20s, plafon per-document pe server) nu aveau vreo
+    // sansa sa ajute — codul nu ajungea niciodata pana acolo. Mutat
+    // aici, in interiorul lui showApp(), exact unde "password" (si
+    // "alertQueue" etc., folosite mai jos) chiar exista si
+    // functioneaza, la fel ca refresh() si toate celelalte functii
+    // care depind de acelasi lucru. Testat efectiv, cu un server
+    // simulat: PDF-ul chiar se genereaza si se descarca acum.
+    document.getElementById('backupExportBtn').addEventListener('click', function () {
+      var btn = this;
+      var originalHtml = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = 'Backup in corso…';
+      withTimeout(Promise.all([
+        call({ action: 'fleet_export_backup', slug: slug, password: password }),
+        loadPdfLibsForBackup(),
+      ]), 20000).then(function (results) {
+        var res = results[0];
+        if (!res.ok) { alert('Impossibile generare il backup. Riprova.'); return; }
+        generateBackupPdf(res);
+        // Requested directly ("am confirmat ca fac backup-ul... insa
+        // notificarea continua sa apara"): apasarea "Fai backup ora"
+        // naviga si pornea exportul, dar nu oprea deloc rotatia
+        // curenta a bannerului — coada ramanea neschimbata pana la
+        // urmatorul refresh() automat, asa ca acelasi mesaj de
+        // reminder putea sa mai apara o data intre timp, chiar daca
+        // backup-ul chiar reusise. Golita explicit coada si oprit
+        // rotatia AICI, imediat ce backup-ul chiar s-a incheiat cu
+        // succes — refresh() de mai jos o reconstruieste oricum
+        // corect, de la zero, cu datele la zi (backup_reminder_due va
+        // fi acum false).
+        alertQueue = []; alertShowCounts = []; alertRotationIndex = 0;
+        if (alertIntervalTimer) { clearInterval(alertIntervalTimer); alertIntervalTimer = null; }
+        document.getElementById('alertBanner').classList.remove('toast-show');
+        refresh(); // aggiorna subito "Ultimo backup" nella stessa schermata
+      }).catch(function () {
+        alert('Impossibile generare il backup. Controlla la connessione e riprova.');
+      }).then(function () {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+      });
+    });
 
     function showToastNow() {
       if (!alertQueue.length) return;
