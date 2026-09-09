@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v541"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v542"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -1871,8 +1871,35 @@
       saveDeliveryRun(run);
       return;
     }
-    state.deliveryRun = dpArchiveRunToHistory(run);
-    saveDeliveryRun(state.deliveryRun);
+    // REAL BUG, reported directly, with a concrete case: consegnato
+    // Reminpiante alle 3-4 di notte, poi ritrovato tra quelli ANCORA
+    // da consegnare. La causa: questo controllo scattava alla
+    // prossima apertura dell'app dopo mezzanotte e archiviava
+    // l'INTERO run di ieri come "finito" — COMPRESI i clienti ancora
+    // pendenti, non solo quelli completati — svuotando la lista
+    // attiva anche se l'autista stava ancora lavorando, solo passata
+    // la mezzanotte di calendario. Un cliente ancora da consegnare
+    // NON e' storia, e' lavoro non finito — non deve mai sparire da
+    // solo. Ora SOLO i clienti gia' completati vengono archiviati
+    // nello storico al cambio di giorno; quelli ancora pendenti
+    // proseguono intatti nel run di oggi, come se nulla fosse
+    // successo — nessuna ri-aggiunta manuale, nessun rischio di
+    // duplicati o di consegne "perse" a cavallo di mezzanotte.
+    var completedClients = (run.clients || []).filter(function (c) { return c.status === 'completed'; });
+    var pendingClients = (run.clients || []).filter(function (c) { return c.status !== 'completed'; });
+    if (completedClients.length) {
+      syncDeliveriesToServer(completedClients);
+      var history = loadDeliveryHistory();
+      if (history.length && history[0].date === run.date) {
+        history[0].clients = history[0].clients.concat(completedClients);
+      } else {
+        history.unshift({ date: run.date, clients: completedClients });
+      }
+      if (history.length > 365) history = history.slice(0, 365);
+      saveDeliveryHistory(history);
+    }
+    state.deliveryRun = { clients: pendingClients, date: today };
+    saveDeliveryRun(state.deliveryRun); // gia' ricalcola in_consegna da solo, in base ai pendenti riportati avanti
   }
 
   // Manual archive — ION's own real case: all of today's clients
