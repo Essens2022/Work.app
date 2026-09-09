@@ -596,7 +596,9 @@
     try {
       if (sessionStorage.getItem(LS_PENDING_UPDATE_SUCCESS) === '1') {
         sessionStorage.removeItem(LS_PENDING_UPDATE_SUCCESS);
-        showAppBanner('<b>Aggiornamento completato</b> — versione più recente caricata ✓', 4500);
+        // Cerut direct: +4 secunde peste durata deja existenta (4500ms),
+        // ca notificarea sa ramana vizibila mai mult inainte sa dispara.
+        showAppBanner('<b>Aggiornamento completato</b> — versione più recente caricata ✓', 8500);
       }
     } catch (e) { /* ignore */ }
   }
