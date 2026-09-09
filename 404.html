@@ -1654,18 +1654,47 @@
     doc.save(data.fleet.slug + '-backup-' + new Date().toISOString().slice(0, 10) + '.pdf');
   }
 
+  // REAL BUG, raportat direct ("a trecut 30 de secunde... generatione
+  // in curs, dar nu s-a generat nimic"): niciun apel din acest lant
+  // nu avea vreo limita de timp — daca raspunsul serverului se
+  // pierde sau intarzie foarte mult, butonul ramanea blocat la
+  // "Generazione in corso" la nesfarsit, fara nicio eroare aratata.
+  // Adaugat un plafon dur de 20s (withTimeout) - dupa acel prag,
+  // arata eroarea si reactiveaza butonul, indiferent ce se intampla
+  // cu cererea originala in fundal.
+  function withTimeout(promise, ms) {
+    return Promise.race([
+      promise,
+      new Promise(function (_, reject) { setTimeout(function () { reject(new Error('timeout')); }, ms); }),
+    ]);
+  }
+
   document.getElementById('backupExportBtn').addEventListener('click', function () {
     var btn = this;
     var originalHtml = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = 'Generazione in corso…';
-    Promise.all([
+    withTimeout(Promise.all([
       call({ action: 'fleet_export_backup', slug: slug, password: password }),
       loadPdfLibsForBackup(),
-    ]).then(function (results) {
+    ]), 20000).then(function (results) {
       var res = results[0];
       if (!res.ok) { alert('Impossibile generare il backup. Riprova.'); return; }
       generateBackupPdf(res);
+      // REAL BUG, raportat direct ("am confirmat ca fac backup-ul...
+      // insa notificarea continua sa apara"): apasarea "Fai backup
+      // ora" naviga si pornea exportul, dar nu oprea deloc rotatia
+      // curenta a bannerului — coada ramanea neschimbata pana la
+      // urmatorul refresh() automat (la 20s), asa ca acelasi mesaj de
+      // reminder putea sa mai apara o data intre timp, chiar daca
+      // backup-ul chiar reusise. Golita explicit coada si oprit
+      // rotatia AICI, imediat ce backup-ul chiar s-a incheiat cu
+      // succes — refresh() de mai jos o reconstruieste oricum corect,
+      // de la zero, cu datele la zi (backup_reminder_due va fi acum
+      // false).
+      alertQueue = []; alertShowCounts = []; alertRotationIndex = 0;
+      if (alertIntervalTimer) { clearInterval(alertIntervalTimer); alertIntervalTimer = null; }
+      document.getElementById('alertBanner').classList.remove('toast-show');
       refresh(); // aggiorna subito "Ultimo backup" nella stessa schermata
     }).catch(function () {
       alert('Impossibile generare il backup. Controlla la connessione e riprova.');
@@ -2111,6 +2140,15 @@
         if (!btn) return;
         banner.classList.remove('toast-show');
         if (toastHideTimer) { clearTimeout(toastHideTimer); toastHideTimer = null; }
+        // REAL BUG, raportat direct ("am confirmat ca fac backup-ul...
+        // insa notificarea continua sa apara"): ascundea doar
+        // instanta VIZIBILA in acel moment, dar rotatia (la 20s) tot
+        // repunea acelasi mesaj din coada, care nu se schimba pana la
+        // urmatorul refresh() de date de la server — omul apucase deja
+        // sa actioneze, nu mai avea rost sa il mai deranjeze inca o
+        // data cat timp backup-ul e in curs.
+        alertQueue = []; alertShowCounts = []; alertRotationIndex = 0;
+        if (alertIntervalTimer) { clearInterval(alertIntervalTimer); alertIntervalTimer = null; }
         if (btn.dataset.backupAction === 'accept') {
           goToScreen('impostazioni');
           setTimeout(function () { document.getElementById('backupExportBtn').click(); }, 400);
