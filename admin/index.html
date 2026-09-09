@@ -407,9 +407,21 @@
   @media (max-width:760px){
     .flotte-rail{display:none;}
     .flotte-stats-row{grid-template-columns:repeat(2,1fr);}
-    .flotte-row{grid-template-columns:1fr;row-gap:6px;padding:14px;}
+    .flotte-row{grid-template-columns:1fr;row-gap:8px;padding:14px;position:relative;}
     .flotte-row.head{display:none;}
     .flotte-row:not(.head){border:1px solid var(--line);border-radius:10px;margin:0 0 10px;}
+    /* REAL BUG, raportat direct ("de pe telefon sunt numere una peste
+       alta si nici nu se intelege ce si pentru ce"): pe desktop,
+       randul de titluri (Flotta / Autisti / Consegne oggi / Stato)
+       explica fiecare coloana — dar acel rand e complet ASCUNS pe
+       mobil (.flotte-row.head{display:none}), lasand doar cifrele
+       goale, stivuite, fara nicio eticheta. Fiecare cifra primeste
+       acum propria eticheta, vizibila DOAR pe mobil (desktop nu are
+       nevoie, are deja randul de titluri de mai sus).
+    */
+    .flotte-row:not(.head) > div[data-label]{display:flex;justify-content:space-between;align-items:center;font-size:14px;}
+    .flotte-row:not(.head) > div[data-label]::before{content:attr(data-label);color:var(--ink-faint);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;}
+    .flotte-row:not(.head) .flotte-kebab-cell{position:absolute;top:12px;right:12px;}
   }
   .messaggi-fixed-top{
     flex:none;padding:20px 14px 14px;background:var(--bg);
@@ -1282,10 +1294,10 @@
       html += '<div class="flotte-row">' +
         '<div class="flotte-name-cell"><div class="flotte-logo">' + escHtml(flotteInitials(f.name)) + '</div>' +
         '<div><div class="flotte-name">' + escHtml(f.name) + '</div><div class="flotte-url">adbsmart.it/' + escHtml(f.slug) + '</div></div></div>' +
-        '<div>' + f.driver_count + '</div>' +
-        '<div>' + (f.consegne_oggi || 0) + '</div>' +
-        '<div>' + pill + '</div>' +
-        '<div><button type="button" class="flotte-kebab-btn" data-fleet-id="' + escHtml(f.id) + '">⋯</button></div>' +
+        '<div data-label="Autisti">' + f.driver_count + '</div>' +
+        '<div data-label="Consegne oggi">' + (f.consegne_oggi || 0) + '</div>' +
+        '<div data-label="Stato">' + pill + '</div>' +
+        '<div class="flotte-kebab-cell"><button type="button" class="flotte-kebab-btn" data-fleet-id="' + escHtml(f.id) + '">⋯</button></div>' +
         '</div>' +
         '<div class="flotte-actions-row" data-fleet-actions="' + escHtml(f.id) + '">' +
         '<button type="button" class="flotte-action-btn" data-toggle-disabled="' + escHtml(f.id) + '" data-fleet-name="' + escHtml(f.name) + '" data-currently-disabled="' + (f.stato === 'disattivata' ? '1' : '0') + '">' + (f.stato === 'disattivata' ? 'Riattiva' : 'Disattiva') + '</button>' +
