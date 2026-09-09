@@ -1258,12 +1258,24 @@
       <div class="settings-section">
         <div class="settings-section-eyebrow">Backup</div>
         <h3>Backup dei dati</h3>
-        <p class="sub">Un documento PDF completo — autisti, consegne, veicoli e documenti della tua flotta. Puoi scaricarlo in qualsiasi momento, non solo quando te lo ricordiamo.</p>
+        <p class="sub">Due file — un PDF leggibile (autisti, consegne, clienti, veicoli, documenti) e un file dati, pensato per il ripristino in caso di problemi. Puoi scaricarli in qualsiasi momento, non solo quando te lo ricordiamo.</p>
         <div id="backupLastInfo" style="font-size:12.5px;color:var(--ink-soft);margin-bottom:14px;"></div>
         <button type="button" class="btn btn-accent" id="backupExportBtn" style="width:100%;justify-content:center;">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
-          Scarica backup PDF
+          Scarica backup
         </button>
+        <!-- Requested directly ("in caz ca vreodata ceva se intampla si
+             pierd toate datele... sa poata sa-l repristineze"): fisierul
+             dati (JSON) scaricato sopra si' l'unico che questo bottone
+             accetta — carica solo cio' che MANCA, non sovrascrive e non
+             duplica mai nulla di gia' esistente. -->
+        <div class="settings-subsection">
+          <div class="settings-subsection-label">Ripristina da un backup precedente</div>
+          <p class="sub" style="margin-bottom:10px;">Carica il file dati (.json) di un backup fatto in precedenza — aggiunge solo ciò che manca, senza mai duplicare o sovrascrivere ciò che esiste già.</p>
+          <button type="button" class="btn btn-outline" id="backupRestoreBtn" style="width:100%;justify-content:center;">Ripristina backup</button>
+          <input type="file" id="backupRestoreInput" accept="application/json" style="display:none;">
+          <div id="backupRestoreResult" style="font-size:12.5px;margin-top:10px;"></div>
+        </div>
       </div>
       <div class="settings-section">
         <div class="settings-section-eyebrow">Account</div>
@@ -1625,6 +1637,30 @@
         }),
         headStyles: { fillColor: accent },
         styles: { fontSize: 9 },
+        margin: { left: 14, right: 14 },
+      });
+      cursorY = doc.lastAutoTable.finalY + 10;
+    }
+
+    // Requested directly ("de ce nu sunt toti clientii undeva, daca
+    // este necesar"): arhiva de clienti a fiecarui sofer traieste doar
+    // local, pe telefon — serverul nu are acces direct la ea. Aceasta
+    // lista e reconstituita din consegnele reale, deja adunate mai sus
+    // — clientii carora aceasta flota le-a livrat efectiv, ordonati
+    // dupa numarul de vizite.
+    if (data.clienti && data.clienti.length) {
+      if (cursorY > doc.internal.pageSize.getHeight() - 30) { doc.addPage(); cursorY = 18; }
+      doc.setFontSize(13); doc.setFont(undefined, 'bold');
+      doc.text('Clienti (di questa flotta)', 14, cursorY);
+      cursorY += 4;
+      doc.autoTable({
+        startY: cursorY,
+        head: [['Cliente', 'Indirizzo', 'Consegne totali', 'Ultima consegna']],
+        body: data.clienti.map(function (c) {
+          return [c.client_nome || '—', c.client_indirizzo || '—', String(c.visite || 0), c.ultima_consegna ? new Date(c.ultima_consegna).toLocaleDateString('it-IT') : '—'];
+        }),
+        headStyles: { fillColor: [40, 40, 44] },
+        styles: { fontSize: 8 },
         margin: { left: 14, right: 14 },
       });
       cursorY = doc.lastAutoTable.finalY + 10;
@@ -2017,6 +2053,20 @@
         var res = results[0];
         if (!res.ok) { alert('Impossibile generare il backup. Riprova.'); return; }
         generateBackupPdf(res);
+        // Requested directly ("ar fi bine sa se descarce doua documente
+        // cand se face backup... al doilea sa fie un backup care va
+        // repristina"): al doilea fisier — JSON brut, cu exact aceleasi
+        // date primite de la server, gandit special pentru restaurare
+        // (nu pentru citit de om, de-asta PDF-ul ramane separat).
+        var dataBlob = new Blob([JSON.stringify(res, null, 2)], { type: 'application/json' });
+        var dataUrl = URL.createObjectURL(dataBlob);
+        var a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = res.fleet.slug + '-backup-dati-' + new Date().toISOString().slice(0, 10) + '.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(dataUrl); }, 5000);
         // Requested directly ("am confirmat ca fac backup-ul... insa
         // notificarea continua sa apara"): apasarea "Fai backup ora"
         // naviga si pornea exportul, dar nu oprea deloc rotatia
@@ -2038,6 +2088,62 @@
         btn.disabled = false;
         btn.innerHTML = originalHtml;
       });
+    });
+
+    // Requested directly ("in caz ca vreodata ceva se intampla si pierd
+    // toate datele, cu ultimul backup sa poata sa-l repristineze"):
+    // accepta doar fisierul de date (.json) generat de exportul de mai
+    // sus — trimite continutul catre server, care adauga DOAR ce
+    // lipseste (nicio suprascriere, niciun duplicat).
+    document.getElementById('backupRestoreBtn').addEventListener('click', function () {
+      document.getElementById('backupRestoreInput').click();
+    });
+    document.getElementById('backupRestoreInput').addEventListener('change', function (e) {
+      var file = e.target.files[0];
+      if (!file) return;
+      var resultEl = document.getElementById('backupRestoreResult');
+      var btn = document.getElementById('backupRestoreBtn');
+      var originalHtml = btn.innerHTML;
+      resultEl.textContent = '';
+      var reader = new FileReader();
+      reader.onload = function (ev) {
+        var backupData;
+        try { backupData = JSON.parse(ev.target.result); } catch (err) {
+          resultEl.style.color = '#c0392b';
+          resultEl.textContent = 'File non valido — deve essere un file dati di backup ADB Smart (.json).';
+          return;
+        }
+        btn.disabled = true;
+        btn.innerHTML = 'Ripristino in corso…';
+        withTimeout(call({ action: 'fleet_restore_backup', slug: slug, password: password, backup_data: backupData }), 20000)
+          .then(function (res) {
+            if (!res || !res.ok) {
+              resultEl.style.color = '#c0392b';
+              resultEl.textContent = 'Ripristino non riuscito. Controlla che il file sia corretto e riprova.';
+              return;
+            }
+            resultEl.style.color = 'var(--ink-soft)';
+            var parts = [];
+            if (res.deliveries_restored > 0) parts.push(res.deliveries_restored + ' consegn' + (res.deliveries_restored === 1 ? 'a ripristinata' : 'e ripristinate'));
+            if (res.vehicles_restored > 0) parts.push(res.vehicles_restored + ' veicol' + (res.vehicles_restored === 1 ? 'o ripristinato' : 'i ripristinati'));
+            if (!parts.length) {
+              resultEl.textContent = 'Niente da ripristinare — tutti i dati di questo backup sono già presenti.';
+            } else {
+              resultEl.textContent = 'Ripristinato: ' + parts.join(', ') + '.';
+            }
+            refresh();
+          })
+          .catch(function () {
+            resultEl.style.color = '#c0392b';
+            resultEl.textContent = 'Ripristino non riuscito. Controlla la connessione e riprova.';
+          })
+          .then(function () {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+            document.getElementById('backupRestoreInput').value = '';
+          });
+      };
+      reader.readAsText(file);
     });
 
     function showToastNow() {
