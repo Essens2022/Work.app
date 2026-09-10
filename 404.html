@@ -2026,16 +2026,19 @@
       document.querySelectorAll('[data-goto]').forEach(function (el) {
         el.classList.toggle('on', el.dataset.goto === name);
       });
-      // Cerut direct ("refreshul trebuie sa se comporte fluid in
-      // orice pagina... nu trebuie sa vad 30 de pagini, trebuie sa
-      // fie totul stabil"): pana acum, orice reincarcare a paginii
-      // sarea mereu inapoi la Panoramica, indiferent de ecranul pe
-      // care chiar te aflai (Documenti, Consegne, etc.) — o alta
-      // sursa de "sarituri" vizibile, neasteptate, la fiecare
-      // refresh. Ecranul curent se retine acum (per flota, folosind
-      // slug-ul), si se reia exact de-acolo la urmatoarea incarcare —
-      // refresh-ul nu te mai muta niciodata singur in alta parte.
-      localStorage.setItem('adb_fleet_last_screen_' + slug, name);
+      // Cerut direct ("refreshul trebuie sa se comporte fluid... nu
+      // trebuie sa sara"), apoi PRECIZAT ulterior ("daca inchid fleet
+      // cu totul si il deschid, trebuie mereu sa deschida panoramica")
+      // — distinctie clara ceruta intre doua actiuni diferite: un
+      // simplu refresh trebuie sa ramana exact unde erai, dar o
+      // inchidere completa (nu doar o reincarcare) trebuie sa
+      // porneasca mereu de la Panoramica, ca un punct de plecare
+      // stabil. sessionStorage (nu localStorage) e exact instrumentul
+      // potrivit pentru asta — supravietuieste unui simplu refresh in
+      // aceeasi fila, dar se sterge singur, automat, cand fila/
+      // aplicatia se inchide cu adevarat — fara sa fie nevoie de nicio
+      // logica suplimentara ca sa deosebeasca cele doua cazuri.
+      sessionStorage.setItem('adb_fleet_last_screen_' + slug, name);
       window.scrollTo(0, 0);
       document.getElementById('exportCsvBtn').style.display = name === 'consegne' ? 'flex' : 'none';
       document.getElementById('panoramicaMappaBtn').style.display = name === 'panoramica' ? 'flex' : 'none';
@@ -2109,10 +2112,12 @@
     }, 20000);
     document.getElementById('topNotifBtn').addEventListener('click', function () { goToScreen('notifiche'); });
     // Reia exact ecranul pe care era inainte de refresh (vezi mai sus,
-    // in goToScreen) — implicit Panoramica doar daca nu exista inca
-    // niciun ecran retinut (prima vizita) sau daca ecranul retinut nu
-    // mai e valid (SCREEN_ID_BY_NAME nu-l recunoaste).
-    var rememberedScreen = localStorage.getItem('adb_fleet_last_screen_' + slug);
+    // in goToScreen) — implicit Panoramica daca nu exista niciun ecran
+    // retinut in ACEASTA sesiune (fila/aplicatia tocmai a fost
+    // deschisa din nou, dupa ce fusese inchisa complet — sessionStorage
+    // s-a golit singur atunci) sau daca ecranul retinut nu mai e valid
+    // (SCREEN_ID_BY_NAME nu-l recunoaste).
+    var rememberedScreen = sessionStorage.getItem('adb_fleet_last_screen_' + slug);
     goToScreen((rememberedScreen && SCREEN_ID_BY_NAME[rememberedScreen]) ? rememberedScreen : 'panoramica');
     refreshNotifDot();
 
