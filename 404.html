@@ -2143,7 +2143,21 @@
     var todayDeliveryCountByEmail = {};
 
     function refresh() {
-      call({ action: 'fleet_get_dashboard', slug: slug, password: password }).then(function (res) {
+      // Cerut direct ("panoramica greu se incarca... bara laterala si
+      // titlul se incarca bine, restul ar trebui la fel"): cele doua
+      // cereri catre server (fleet_get_dashboard, fleet_get_deliveries)
+      // rulau una DUPA alta — a doua nici nu pornea pana nu raspundea
+      // complet prima, desi nu are nevoie de raspunsul aceleia pentru
+      // A EI proprie cerere (doar slug/password/data de azi, deja
+      // disponibile de la inceput). Pornite acum AMANDOUA deodata, in
+      // paralel — timpul total de asteptare scade la cel mai lent
+      // dintre cele doua, nu la suma lor. Nimic din alta parte
+      // (validare, izolare in try/catch) nu se schimba — doar
+      // MOMENTUL cand cea de-a doua cerere porneste.
+      var todayStr = new Date().toISOString().slice(0, 10);
+      var dashboardPromise = call({ action: 'fleet_get_dashboard', slug: slug, password: password });
+      var deliveriesPromise = call({ action: 'fleet_get_deliveries', slug: slug, password: password, date_from: todayStr });
+      dashboardPromise.then(function (res) {
         if (!res.ok) return;
         currentDrivers = res.drivers;
         // Cerut, indirect, de doua ori ("panoramica inca nu arata
@@ -2162,8 +2176,7 @@
         // deliveries, from the same source Consegne itself uses —
         // fetched once per refresh, then used both for this stat and
         // for the driver table's own per-driver column below.
-        var todayStr = new Date().toISOString().slice(0, 10);
-        call({ action: 'fleet_get_deliveries', slug: slug, password: password, date_from: todayStr }).then(function (delRes) {
+        deliveriesPromise.then(function (delRes) {
           todayDeliveryCountByEmail = {};
           var deliveriesToday = (delRes.ok ? delRes.deliveries : []);
           deliveriesToday.forEach(function (d) { todayDeliveryCountByEmail[d.driver_email] = (todayDeliveryCountByEmail[d.driver_email] || 0) + 1; });
