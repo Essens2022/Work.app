@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v556"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v557"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -1133,7 +1133,7 @@
     // Cerut direct: pagina reala de oferte nu e inca construita — pana
     // atunci, la apasare arata doar un mesaj scurt, ca soferul sa nu
     // creada ca butonul e stricat/nu face nimic.
-    document.getElementById('home-job-offers-btn').addEventListener('click', function () { toast('Offerte di lavoro — in preparazione'); });
+    document.getElementById('home-job-offers-btn').addEventListener('click', function () { window.location.href = '/annunci/?mode=driver'; });
     document.getElementById('home-fuel').addEventListener('click', openFuelScreen);
     document.getElementById('home-calendar').addEventListener('click', function () { openCalendarModal(sheet.month, sheet.year); });
     var jumpBtn = document.getElementById('home-jump-latest');
