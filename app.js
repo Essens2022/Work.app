@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v546"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v547"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -4306,10 +4306,12 @@
   function stopFleetPositionSharing() {
     if (fleetPositionInterval) { clearInterval(fleetPositionInterval); fleetPositionInterval = null; }
   }
+  var fleetPositionConsecutiveFailures = 0;
   function sendFleetPositionPing() {
     var accountEmail = currentAccountEmail();
     if (!accountEmail || !navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(function (pos) {
+      fleetPositionConsecutiveFailures = 0;
       fetch(SUPABASE_URL + '/rest/v1/driver_positions?on_conflict=account_email', {
         method: 'POST',
         headers: {
@@ -4333,7 +4335,23 @@
         // deja disponibil prin getDeviceId() (acelasi folosit la chat).
         body: JSON.stringify({ account_email: accountEmail, device_id: getDeviceId(), lat: pos.coords.latitude, lon: pos.coords.longitude, updated_at: new Date().toISOString() })
       }).catch(function () { /* offline or blocked — skip this cycle, next one will retry */ });
-    }, function () { /* denied or unavailable right now — skip this cycle, same as above */ }, { maximumAge: 20000, timeout: 15000 });
+    }, function () {
+      // Cerut direct ("sistematizeaza-o sa nu mai apara asa ceva"):
+      // pana acum, un refuz de permisiune sau o localizare
+      // indisponibila trecea complet neobservat — soferul continua sa
+      // apara "live" (in_consegna corect), dar pozitia lui reala nu se
+      // mai trimitea NICIODATA, inghetata la ultimul loc cunoscut,
+      // fara niciun semn ca ceva nu functioneaza. Dupa cateva esecuri
+      // LA RAND (nu unul singur, ca sa nu alarmeze pentru o simpla
+      // pierdere temporara de semnal GPS), un banner clar ii spune
+      // soferului exact ce sa verifice — vizibil, o singura data pe
+      // sesiune, nu la fiecare incercare esuata.
+      fleetPositionConsecutiveFailures++;
+      if (fleetPositionConsecutiveFailures === 3 && !sessionStorage.getItem('fleetPositionFailureBannerShown')) {
+        sessionStorage.setItem('fleetPositionFailureBannerShown', '1');
+        showAppBanner('<b>Posizione non disponibile</b> — la flotta non vede dove sei. Controlla i permessi di localizzazione nelle impostazioni del telefono.', 8000);
+      }
+    }, { maximumAge: 20000, timeout: 15000 });
   }
 
   function dpConfirmReordina() {
