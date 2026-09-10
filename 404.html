@@ -1502,10 +1502,31 @@
 
   if (!slug) { showPlainNotFound(); return; }
 
+  // REAL BUG, raportat direct ("apas refresh... vad ADB Smart Fleet
+  // Caricamento, apoi MK Trasporti Caricamento, apoi abia Panoramica —
+  // par doua pagini diferite inainte de cea reala"): titlul incepea
+  // mereu cu placeholder-ul generic static din HTML ("ADB Smart
+  // Fleet"), schimbat abia dupa ce raspunde serverul (fleet_get_public_info)
+  // cu numele real al flotei — doua texte diferite, in succesiune
+  // vizibila, chiar daca ambele sunt doar "Caricamento". Acelasi
+  // principiu deja folosit in alte locuri (stale-while-revalidate):
+  // numele flotei se salveaza local dupa fiecare vizita reusita —
+  // la orice reincarcare ULTERIOARA a ACELEIASI flote, apare corect
+  // din prima clipa, direct din cache, fara sa mai astepte raspunsul
+  // serverului. Serverul tot confirma (sau corecteaza, daca numele
+  // s-a schimbat de la ultima vizita) imediat dupa, silentios.
+  var LS_FLEET_NAME_CACHE = 'adb_fleet_name_' + slug;
+  var cachedFleetName = localStorage.getItem(LS_FLEET_NAME_CACHE);
+  if (cachedFleetName) {
+    document.getElementById('loginTitle').textContent = cachedFleetName;
+    document.getElementById('loginBadge').textContent = badgeInitials(cachedFleetName);
+  }
+
   call({ action: 'fleet_get_public_info', slug: slug }).then(function (res) {
     if (!res.ok) { showPlainNotFound(); return; }
 
     var fleetName = res.fleet.name;
+    localStorage.setItem(LS_FLEET_NAME_CACHE, fleetName);
     document.getElementById('loginTitle').textContent = fleetName;
     document.getElementById('loginBadge').textContent = badgeInitials(fleetName);
 
