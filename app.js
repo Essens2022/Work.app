@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v562"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v563"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -13332,6 +13332,34 @@
     });
     window.addEventListener('pagehide', stopPresence);
   }
+
+  // Cerut direct ("posibilitatea de a trece din pagina home in pagina
+  // de anunturi si invers, dand doar cu degetul... chiar si fara
+  // butonul oferte di lavoro"): gest de tragere stanga pe Home, catre
+  // pagina de Annunci — a doua modalitate de a ajunge acolo, pe langa
+  // butonul deja existent. Acelasi principiu (prag + raport fata de
+  // miscarea verticala) folosit deja in pagina de Annunci insasi,
+  // pentru consistenta intre cele doua. Atasat direct pe containerul
+  // stabil al ecranului (nu pe continutul lui, care se re-genereaza
+  // la fiecare renderHome()), ca sa nu se piarda la re-randari.
+  (function setupHomeToAnnunciSwipe() {
+    var startX = 0, startY = 0, tracking = false, swiped = false;
+    var target = document.getElementById('screen-home');
+    if (!target) return;
+    target.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) return;
+      startX = e.touches[0].clientX; startY = e.touches[0].clientY; tracking = true; swiped = false;
+    }, { passive: true });
+    target.addEventListener('touchmove', function (e) {
+      if (!tracking || swiped || e.touches.length !== 1) return;
+      var dx = e.touches[0].clientX - startX, dy = e.touches[0].clientY - startY;
+      if (dx < -60 && Math.abs(dx) > Math.abs(dy) * 2) {
+        swiped = true;
+        window.location.href = '/annunci/?mode=driver';
+      }
+    }, { passive: true });
+    target.addEventListener('touchend', function () { tracking = false; }, { passive: true });
+  })();
 
   init();
 })();
