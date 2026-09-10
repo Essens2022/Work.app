@@ -2360,21 +2360,41 @@
         });
         queue.push('<b>' + expiringDocs.length + ' documenti in scadenza</b><br>' + docLines.join(', '));
       }
+      // REAL BUG, raportat direct ("arata ca 2 veicoli in scadenza...
+      // pe cand este doar 1"): serverul produce o intrare SEPARATA
+      // per tip de scadenta (asigurare, revizie) — o singura masina
+      // cu ambele scadente aproape produce 2 intrari, cu ACEEASI
+      // targa, numarate gresit ca "2 veicoli". Grupat acum dupa targa
+      // — numarul din mesaj reflecta cate masini DISTINCTE au ceva in
+      // scadenta, nu cate intrari separate exista.
       var expiringVehicles = res.expiring_vehicles || [];
-      if (expiringVehicles.length === 1) {
-        var v = expiringVehicles[0];
+      var vehiclesByTarga = {};
+      expiringVehicles.forEach(function (v) {
+        if (!vehiclesByTarga[v.targa]) vehiclesByTarga[v.targa] = [];
+        vehiclesByTarga[v.targa].push(v);
+      });
+      var distinctTargas = Object.keys(vehiclesByTarga);
+      function formatVehicleItem(v) {
         var zileV = zileRamasePanaLa(v.date);
         var typeLabel = v.type === 'assicurazione' ? 'assicurazione' : 'revisione';
         var candV = zileV < 0 ? typeLabel + ' scaduta' : zileV === 0 ? typeLabel + ' scade oggi' : zileV === 1 ? typeLabel + ' scade domani' : typeLabel + ' scade il ' + new Date(v.date).toLocaleDateString('it-IT');
-        queue.push('Veicolo <b>' + esc(v.targa) + '</b> — ' + candV);
-      } else if (expiringVehicles.length > 1) {
-        var vehicleLines = expiringVehicles.map(function (v) {
-          var zileV = zileRamasePanaLa(v.date);
-          var typeLabel = v.type === 'assicurazione' ? 'assicurazione' : 'revisione';
-          var candV = zileV < 0 ? 'scaduta' : zileV === 0 ? 'oggi' : zileV === 1 ? 'domani' : new Date(v.date).toLocaleDateString('it-IT');
-          return esc(v.targa) + ' ' + typeLabel + ' (' + candV + ')';
+        return candV;
+      }
+      if (distinctTargas.length === 1) {
+        var onlyTarga = distinctTargas[0];
+        var items = vehiclesByTarga[onlyTarga].map(formatVehicleItem);
+        queue.push('Veicolo <b>' + esc(onlyTarga) + '</b> — ' + items.join(', '));
+      } else if (distinctTargas.length > 1) {
+        var vehicleLines = distinctTargas.map(function (targa) {
+          var shortItems = vehiclesByTarga[targa].map(function (v) {
+            var zileV = zileRamasePanaLa(v.date);
+            var typeLabel = v.type === 'assicurazione' ? 'assicurazione' : 'revisione';
+            var candV = zileV < 0 ? 'scaduta' : zileV === 0 ? 'oggi' : zileV === 1 ? 'domani' : new Date(v.date).toLocaleDateString('it-IT');
+            return typeLabel + ' (' + candV + ')';
+          });
+          return esc(targa) + ' ' + shortItems.join(', ');
         });
-        queue.push('<b>' + expiringVehicles.length + ' veicoli in scadenza</b><br>' + vehicleLines.join(', '));
+        queue.push('<b>' + distinctTargas.length + ' veicoli in scadenza</b><br>' + vehicleLines.join(' · '));
       }
       // Only reset the show-counts if the SET of messages actually
       // changed (e.g. a new alert appeared) — refresh() re-runs this
