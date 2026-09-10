@@ -1507,12 +1507,31 @@
 
     var fleetName = res.fleet.name;
     document.getElementById('loginTitle').textContent = fleetName;
-    document.getElementById('loginSub').textContent = 'adbsmart.it/' + slug;
     document.getElementById('loginBadge').textContent = badgeInitials(fleetName);
-    document.getElementById('loginFormArea').style.display = 'block';
 
+    // REAL BUG, raportat direct ("apesi refresh... vad Caricamento, mai
+    // apoi campul de parola, mai apoi abia pagina normala — nu ar
+    // trebui sa se vada toate astea"): campul de parola devenea
+    // vizibil INCONDITIONAT, chiar si atunci cand exista deja o
+    // sesiune salvata (sessionStorage) care avea sa reuseasca automat
+    // o clipa mai tarziu — asa ca orice reincarcare a paginii, chiar
+    // si pentru cineva deja logat, arata o clipa vizibila de camp de
+    // parola gol, inainte sa sara la pagina normala. Verificata acum
+    // sesiunea salvata INAINTE de a decide daca arata formularul —
+    // daca exista, formularul ramane ascuns (doar "Caricamento..."
+    // continua sa se vada) cat timp se incearca logarea automata;
+    // formularul apare doar daca nu exista nicio sesiune salvata, sau
+    // daca acea incercare automata esueaza (parola expirata/schimbata).
     var savedPw = sessionStorage.getItem('adb_fleet_pw_' + slug);
-    if (savedPw) tryLogin(savedPw);
+    if (savedPw) {
+      tryLogin(savedPw, function onAutoLoginFailed() {
+        document.getElementById('loginSub').textContent = 'adbsmart.it/' + slug;
+        document.getElementById('loginFormArea').style.display = 'block';
+      });
+    } else {
+      document.getElementById('loginSub').textContent = 'adbsmart.it/' + slug;
+      document.getElementById('loginFormArea').style.display = 'block';
+    }
 
     document.getElementById('loginBtn').addEventListener('click', function () {
       tryLogin(document.getElementById('passwordInput').value);
@@ -1521,11 +1540,12 @@
       if (e.key === 'Enter') tryLogin(this.value);
     });
 
-    function tryLogin(password) {
+    function tryLogin(password, onFail) {
       var errEl = document.getElementById('loginError');
       errEl.style.display = 'none';
       call({ action: 'fleet_login', slug: slug, password: password }).then(function (loginRes) {
         if (!loginRes.ok) {
+          if (onFail) onFail();
           errEl.textContent = loginRes.reason === 'wrong_password' ? 'Password errata.' : 'Impossibile accedere.';
           errEl.style.display = 'block';
           return;
