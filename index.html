@@ -715,8 +715,19 @@
      aplicat aici printr-o clasa dedicata, ca sa nu ating .btn insasi
      (folosita de multe alte butoane, cu alt aspect). Tranzitia scurta
      face ca micsorarea sa se simta ca un "apas", nu un salt brusc. */
-  .home-job-offers-btn{transition:transform .1s ease;}
-  .home-job-offers-btn:active{transform:scale(.96);}
+  .home-job-offers-btn{transition:transform .1s ease;filter:drop-shadow(0 3px 10px rgba(232,84,43,.16)) drop-shadow(0 1px 2px rgba(28,27,31,.08));animation:home-job-offers-breathe 3.2s ease-in-out infinite;}
+  .home-job-offers-btn:active{transform:scale(.96);animation:none;}
+  /* Cerut direct ("putina umbra... ceva usor dinamic, lin, profesional
+     premium sa atraga atentia"): umbra proprie a imaginii (foarte
+     slaba, aproape invizibila) ramane neschimbata — adaugata acum o
+     umbra reala, vizibila, prin filter (nu atinge imaginea insasi),
+     plus o "respiratie" foarte lenta si discreta a acelei umbre —
+     opreste-se instant la apasare (:active de mai sus seteaza
+     animation:none), ca cele doua efecte sa nu se suprapuna ciudat. */
+  @keyframes home-job-offers-breathe {
+    0%, 100% { filter:drop-shadow(0 3px 10px rgba(232,84,43,.16)) drop-shadow(0 1px 2px rgba(28,27,31,.08)); }
+    50% { filter:drop-shadow(0 5px 16px rgba(232,84,43,.28)) drop-shadow(0 1px 3px rgba(28,27,31,.1)); }
+  }
   .btn-block{width:100%;}
   .btn-accent{background:var(--accent);color:#fff;}
   .btn-dark{background:var(--ink);color:#fff;}
