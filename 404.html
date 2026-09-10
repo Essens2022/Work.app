@@ -1956,7 +1956,18 @@
       if (name === 'bilancio') loadBilancio();
       if (name === 'notifiche') loadNotifiche();
       if (name === 'impostazioni') loadTeam();
-      if (name === 'mappa') loadMappa();
+      if (name === 'mappa') {
+        loadMappa();
+        // O harta MapLibre pregatita din timp, cat timp ecranul ei era
+        // inca ascuns (display:none), nu-si poate fi masurat corect
+        // dimensiunea reala pana acum — remasurata explicit chiar in
+        // clipa in care ecranul devine cu adevarat vizibil, ca sa umple
+        // corect tot spatiul, nu doar dimensiunea (0x0) de cand a fost
+        // creata. requestAnimationFrame asteapta ca schimbarea de mai
+        // sus (classList.add('active')) sa se aplice cu adevarat in
+        // pagina, inainte sa masoare.
+        if (mappaMap) requestAnimationFrame(function () { mappaMap.resize(); });
+      }
       requestAnimationFrame(updateToplineHeight);
     }
     document.querySelectorAll('[data-goto]').forEach(function (el) {
@@ -2029,6 +2040,19 @@
     loadTeam();
     loadVehicles();
     loadBilancio();
+    // Cerut direct ("mapa mereu acolo... fara aceste incarcari grele
+    // ... dar fii atent sa nu strici ceva"): singurul ecran lasat
+    // deoparte din acest prefetch existent — MapLibre are nevoie de
+    // WebGL, mai costisitor decat restul ecranelor, motiv probabil
+    // pentru care a fost exclus initial. Acum inclus, la fel ca toate
+    // celelalte — harta se initializeaza si incarca pozitiile chiar
+    // acum, in fundal, ascunsa, in loc sa astepte prima apasare pe
+    // Mappa. Singura diferenta reala fata de restul: o harta MapLibre
+    // creata intr-un container inca ascuns (display:none) nu-si poate
+    // masura corect dimensiunea reala — se rezolva simplu, cerandu-i
+    // explicit sa se remasoare (.resize()) exact in clipa in care
+    // ecranul chiar devine vizibil (vezi goToScreen mai jos), nu aici.
+    loadMappa();
 
     var currentDrivers = [];
 
