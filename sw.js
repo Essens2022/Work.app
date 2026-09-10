@@ -9,8 +9,8 @@
 //  - Large, rarely-changing files (jsPDF, the comuni database, icons, logo)
 //    stay CACHE-FIRST, so they don't get re-downloaded on every load.
 
-const CACHE_VERSION = 'pt-foglio-v556';
-const CORE_ASSETS = ['./', './index.html', './app.js', './manifest.json', './version.json'];
+const CACHE_VERSION = 'pt-foglio-v557';
+const CORE_ASSETS = ['./', './index.html', './app.js', './manifest.json', './version.json', './annunci/', './annunci/index.html', './annunci/annunci.js'];
 // REAL BUG, reported directly, TWICE — a first attempt excluded these
 // pages from the service worker entirely, reasoning that removing a
 // broken safety net was safer than a broken one. That held up fine on
