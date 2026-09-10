@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v554"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v555"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -9674,16 +9674,31 @@
     var lines = text.split('\n');
     var numRe = /(\d{1,4}[.,]\d{2})/g;
     var candidates = [];
+    // Raportat direct ("a aparut modelul dar nu a citit suma"): pe
+    // bonurile reale, "TOTALE" si suma de langa el ajung deseori pe
+    // randuri DIFERITE dupa recunoastere (spatiere neregulata pe
+    // hartia termica, calitate foto variabila) — cautarea stricta pe
+    // ACELASI rand rata majoritatea cazurilor reale. Cautat acum
+    // intr-o fereastra de pana la 3 randuri incepand de la "TOTALE"
+    // (randul insusi + urmatoarele doua), nu doar randul exact.
+    var WINDOW = 3;
     for (var i = 0; i < lines.length; i++) {
-      var line = lines[i].toUpperCase();
-      if (line.indexOf('TOTALE') === -1) continue;
+      var startLine = lines[i].toUpperCase();
+      if (startLine.indexOf('TOTALE') === -1) continue;
       // Evita rânduri care sunt de fapt "TOTALE IVA" sau "TOTALE
       // IMPONIBILE" — acelea sunt sub-totaluri, nu suma finala platita.
-      if (line.indexOf('IVA') !== -1 || line.indexOf('IMPONIBILE') !== -1) continue;
-      var matches = line.match(numRe);
-      if (matches && matches.length) {
-        var num = parseFloat(matches[matches.length - 1].replace(',', '.'));
-        if (!isNaN(num) && num > 0 && num < 1000) candidates.push(num);
+      if (startLine.indexOf('IVA') !== -1 || startLine.indexOf('IMPONIBILE') !== -1) continue;
+      for (var j = i; j < Math.min(i + WINDOW, lines.length); j++) {
+        // Daca vreun rand din fereastra chiar contine IVA/IMPONIBILE,
+        // opreste-te acolo — probabil apartine altui subtotal, nu
+        // celui gasit initial la "TOTALE".
+        var windowLine = lines[j].toUpperCase();
+        if (j > i && (windowLine.indexOf('IVA') !== -1 || windowLine.indexOf('IMPONIBILE') !== -1)) break;
+        var matches = lines[j].match(numRe);
+        if (matches && matches.length) {
+          var num = parseFloat(matches[matches.length - 1].replace(',', '.'));
+          if (!isNaN(num) && num > 0 && num < 1000) { candidates.push(num); break; }
+        }
       }
     }
     if (!candidates.length) return null;
