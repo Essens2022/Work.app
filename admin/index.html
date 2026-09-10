@@ -501,7 +501,7 @@
   <div class="subtitle" id="last-refreshed"></div>
   <div class="subtitle" id="live-diagnostic" style="font-size:11px;color:var(--ink-faint);"></div>
 
-  <div id="login-screen" class="card show">
+  <div id="login-screen" class="card">
     <div id="login-error" class="error" style="display:none;">Password errata.</div>
     <input id="password-input" type="password" placeholder="Password" autocomplete="current-password">
     <button id="login-btn" class="btn-block">Accedi</button>
@@ -2464,7 +2464,17 @@
     currentPassword = pw;
     fetchDrivers()
       .then(function (res) {
-        if (!res.ok) { errEl.style.display = 'block'; return; }
+        if (!res.ok) {
+          // Cerut direct ("acelasi bug la doua pagini"): ecranul de
+          // login incepe acum ascuns (vezi HTML), nu vizibil implicit
+          // ca inainte — daca logarea automata, silentioasa, cu
+          // parola salvata esueaza (expirata/schimbata), trebuie
+          // aratat aici explicit, altfel ramane blocat pe un ecran
+          // gol, fara niciun formular vizibil.
+          showScreen('login-screen');
+          errEl.style.display = 'block';
+          return;
+        }
         sessionStorage.setItem('fv_admin_pw', pw);
         lastGroupsRaw = res.data.drivers;
         renderDrivers(lastGroupsRaw);
@@ -2500,7 +2510,7 @@
           });
         }, 30000);
       })
-      .catch(function () { errEl.textContent = 'Errore di connessione.'; errEl.style.display = 'block'; });
+      .catch(function () { showScreen('login-screen'); errEl.textContent = 'Errore di connessione.'; errEl.style.display = 'block'; });
   }
 
   function attemptFaceIdUnlock() {
@@ -2577,10 +2587,22 @@
     if (e.key === 'Enter') login();
   });
 
+  // REAL BUG, raportat direct ("acelasi bug la doua pagini" — vezi
+  // fix-ul identic mai devreme la portalul de flota): formularul de
+  // parola incepea vizibil neconditionat (class="show" direct in
+  // HTML), chiar si atunci cand exista deja o sesiune salvata care
+  // avea sa reuseasca automat o clipa mai tarziu — asa ca orice
+  // reincarcare, chiar si pentru ION insusi, arata o clipa vizibila
+  // de formular, inainte sa sara la panoul normal. Formularul incepe
+  // acum ascuns (vezi HTML) — aratat doar daca nu exista nicio
+  // sesiune salvata, sau daca acea incercare automata esueaza
+  // (gestionat direct in login(), mai sus).
   var savedPw = sessionStorage.getItem('fv_admin_pw');
   if (savedPw) {
     document.getElementById('password-input').value = savedPw;
     login();
+  } else {
+    showScreen('login-screen');
   }
 
   // Requested directly: tapping a push notification about a new
