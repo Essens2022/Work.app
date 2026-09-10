@@ -1163,10 +1163,21 @@
             <span id="bilancioMonthLabel">—</span>
             <button id="bilancioNextMonth" style="background:none;border:none;color:var(--ink-soft);cursor:pointer;display:flex;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
           </div>
-          <div class="period-toggle">
-            <button class="bilancio-period-btn" data-period="day" style="background:none;color:var(--ink-soft);">Giorno</button>
-            <button class="bilancio-period-btn" data-period="week" style="background:none;color:var(--ink-soft);"><span class="ptxt-full">Settimana</span><span class="ptxt-short">Sett.</span></button>
-            <button class="bilancio-period-btn active" data-period="month" style="background:var(--accent);color:#fff;">Mese</button>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <div class="period-toggle">
+              <button class="bilancio-period-btn" data-period="day" style="background:none;color:var(--ink-soft);">Giorno</button>
+              <button class="bilancio-period-btn" data-period="week" style="background:none;color:var(--ink-soft);"><span class="ptxt-full">Settimana</span><span class="ptxt-short">Sett.</span></button>
+              <button class="bilancio-period-btn active" data-period="month" style="background:var(--accent);color:#fff;">Mese</button>
+            </div>
+            <!-- Cerut direct ("un buton micut, static, pe partea
+                 dreapta... top consegne si soferii merg descrescator,
+                 cand apesi se face top km"): comutator compact, in
+                 acelasi stil deja folosit de butoanele Giorno/
+                 Settimana/Mese de alaturi, care schimba dupa ce se
+                 sorteaza lista de soferi de dedesubt — consegne sau
+                 kilometri, ambele descrescator (cel cu mai mult,
+                 primul). -->
+            <button type="button" id="bilancioSortToggle" class="bilancio-period-btn active" style="background:var(--accent);color:#fff;white-space:nowrap;">Top consegne</button>
           </div>
         </div>
 
@@ -2965,26 +2976,28 @@
         '<div class="stat-card"><div class="stat-num">' + Math.round(totalKm) + ' km</div><div class="stat-label">Km totali (mese)</div></div>';
 
       var maxConsegne = Math.max.apply(null, drivers.map(function (d) { return periodFilteredCount(d.consegne_dates); }).concat([0]));
-      // Requested directly ("primul de sus este cine are la moment
-      // cele mai multe consegne facute... cand este intrecut se
-      // schimba cu cel care are cel mai multe"): sortat descrescator
-      // dupa numarul de consegne DIN PERIOADA CURENT SELECTATA
-      // (oggi/ultimi 7 giorni/nel mese) - acelasi numar care
-      // alimenteaza deja eticheta "Top consegne" de mai jos. Recalculat
-      // la FIECARE apel al acestei functii - impreuna cu auto-refresh-ul
-      // de 20s adaugat mai sus pentru acest ecran, clasamentul se
-      // re-ordoneaza singur, live, pe masura ce consegnele se aduna,
-      // fara sa fie nevoie sa schimbi ecranul si sa te intorci.
+      var maxKm = Math.max.apply(null, drivers.map(function (d) { return d.total_km || 0; }).concat([0]));
+      // Cerut direct ("un buton micut... top consegne, cand apesi se
+      // face top km"): sortarea foloseste acum metrica aleasa prin
+      // comutatorul de mai sus (bilancioSortMode) - consegne din
+      // perioada curenta, sau km totali - ambele descrescator (cel cu
+      // mai mult, primul). Eticheta "Top ..." aratata pe cel din
+      // frunte se schimba la fel, ca sa reflecte metrica curenta, nu
+      // doar consegnele ca inainte.
       var sortedDrivers = drivers.slice().sort(function (a, b) {
+        if (bilancioSortMode === 'km') return (b.total_km || 0) - (a.total_km || 0);
         return periodFilteredCount(b.consegne_dates) - periodFilteredCount(a.consegne_dates);
       });
       var html = '';
       sortedDrivers.forEach(function (d) {
         var myCount = periodFilteredCount(d.consegne_dates);
-        var isTop = myCount > 0 && myCount === maxConsegne;
+        var isTop = bilancioSortMode === 'km'
+          ? ((d.total_km || 0) > 0 && (d.total_km || 0) === maxKm)
+          : (myCount > 0 && myCount === maxConsegne);
+        var topBadgeLabel = bilancioSortMode === 'km' ? 'Top km' : 'Top consegne';
         html += '<div class="bilancio-driver-card">' +
           '<div class="bilancio-driver-name-col"><div class="avatar">' + esc(badgeInitials(d.nome)) + '</div>' +
-          '<div class="driver-name">' + esc(d.nome) + (isTop ? ' <span style="background:var(--green-soft);color:var(--green);font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:100px;margin-left:6px;">Top consegne</span>' : '') + '</div></div>' +
+          '<div class="driver-name">' + esc(d.nome) + (isTop ? ' <span style="background:var(--green-soft);color:var(--green);font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:100px;margin-left:6px;">' + topBadgeLabel + '</span>' : '') + '</div></div>' +
           '<div class="bilancio-driver-stats">' +
             '<div class="bilancio-stat-block"><div class="bilancio-stat-num">' + Math.round(d.total_km) + ' km</div><div class="bilancio-stat-label">Km (mese)</div></div>' +
             '<div class="bilancio-stat-block"><div class="bilancio-stat-num">' + d.total_giorni + '</div><div class="bilancio-stat-label">Giorni lavorati</div></div>' +
@@ -3019,15 +3032,30 @@
       bilancioMonth++; if (bilancioMonth > 12) { bilancioMonth = 1; bilancioYear++; }
       loadBilancio();
     });
-    document.querySelectorAll('.bilancio-period-btn').forEach(function (btn) {
+    document.querySelectorAll('.period-toggle .bilancio-period-btn').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        document.querySelectorAll('.bilancio-period-btn').forEach(function (b) {
+        document.querySelectorAll('.period-toggle .bilancio-period-btn').forEach(function (b) {
           b.classList.remove('active'); b.style.background = 'none'; b.style.color = 'var(--ink-soft)';
         });
         btn.classList.add('active'); btn.style.background = 'var(--accent)'; btn.style.color = '#fff';
         bilancioPeriod = btn.dataset.period;
         renderBilancio();
       });
+    });
+
+    // Cerut direct ("un buton micut... top consegne, cand apesi se
+    // face top km, soferii merg descrescator dupa asta"): comutator
+    // intre doua moduri de sortare a listei de soferi de dedesubt —
+    // refoloseste deliberat clasa vizuala .bilancio-period-btn (acelasi
+    // stil compact ca Giorno/Settimana/Mese de alaturi), dar scopat
+    // separat mai sus (".period-toggle .bilancio-period-btn") tocmai
+    // ca sa nu fie prins din greseala si de handler-ul de mai sus,
+    // care ar fi incercat sa-l trateze ca pe un buton de perioada.
+    var bilancioSortMode = 'consegne';
+    document.getElementById('bilancioSortToggle').addEventListener('click', function () {
+      bilancioSortMode = bilancioSortMode === 'consegne' ? 'km' : 'consegne';
+      this.textContent = bilancioSortMode === 'consegne' ? 'Top consegne' : 'Top km';
+      renderBilancio();
     });
 
     function openVehicleModal(vehicle) {
