@@ -2159,9 +2159,25 @@
     function renderCachedStatsIfAny() {
       if (statsCacheRendered) return;
       statsCacheRendered = true;
-      var cached = null;
-      try { cached = JSON.parse(localStorage.getItem(LS_STATS_CACHE) || 'null'); } catch (e) { /* cache invalid, ignora */ }
-      if (cached) renderStats(cached.drivers, cached.period, cached.todayDeliveryTotal, cached.expiringCount, cached.inConsegnaCount);
+      // REAL BUG, raportat direct ("cand fac refresh, in general deloc
+      // nu se mai deschide... doar panoramica flota si bara de
+      // cautare si atat"): daca ceva neasteptat esua aici (cache
+      // corupt, structura veche/diferita salvata cu o versiune
+      // anterioara), renderStats arunca o eroare care oprea COMPLET
+      // restul initializarii aplicatiei (loadDocumenti, loadStorico,
+      // goToScreen, tot ce vine dupa acest punct in showApp) — pagina
+      // ramanea blocata doar cu ce era deja static in HTML (titlul,
+      // bara laterala), fara nimic din ce trebuia sa fie desenat de
+      // JS. Izolat acum complet intr-un try/catch propriu — orice
+      // problema aici ramane STRICT locala, afiseaza pur si simplu
+      // nimic (starea de dinainte de refresh), fara sa mai poata opri
+      // restul aplicatiei sa porneasca normal.
+      try {
+        var cached = JSON.parse(localStorage.getItem(LS_STATS_CACHE) || 'null');
+        if (cached && Array.isArray(cached.drivers)) {
+          renderStats(cached.drivers, cached.period, cached.todayDeliveryTotal, cached.expiringCount, cached.inConsegnaCount);
+        }
+      } catch (e) { /* cache invalid sau renderStats a esuat — ignora, refresh() normal preia oricum imediat dupa */ }
     }
     renderCachedStatsIfAny();
 
