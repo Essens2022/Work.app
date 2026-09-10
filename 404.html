@@ -749,6 +749,19 @@
   html[data-theme="light"] .theme-toggle .icon-moon { display: none; }
   html:not([data-theme="light"]) .theme-toggle .icon-sun { display: none; }
 
+  /* REAL BUG, raportat direct ("cand pagina e inchisa la culoare, el
+     ramane negru, se vede cam rau... foarte greu se vede"): iconita
+     nativa a calendarului (input type="date") e desenata de browser
+     insusi, intotdeauna neagra — pe fundalul deschis (tema light) se
+     vede normal, dar pe fundalul intunecat (tema implicita, fara
+     data-theme="light") ramane neagra pe negru, aproape invizibila.
+     Inversata (filter: invert) doar in tema intunecata, ca sa devina
+     alba/deschisa exact acolo unde are nevoie sa fie vizibila —
+     neschimbata in tema light, unde era deja corecta. */
+  html:not([data-theme="light"]) input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+  }
+
   /* ---------- Bottom nav (phone only — mockup has no equivalent,
        since it simply hides .rail below 860px with no replacement;
        added here so navigation still exists on a phone). ---------- */
