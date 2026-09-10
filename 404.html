@@ -1163,21 +1163,10 @@
             <span id="bilancioMonthLabel">—</span>
             <button id="bilancioNextMonth" style="background:none;border:none;color:var(--ink-soft);cursor:pointer;display:flex;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
           </div>
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-            <div class="period-toggle">
-              <button class="bilancio-period-btn" data-period="day" style="background:none;color:var(--ink-soft);">Giorno</button>
-              <button class="bilancio-period-btn" data-period="week" style="background:none;color:var(--ink-soft);"><span class="ptxt-full">Settimana</span><span class="ptxt-short">Sett.</span></button>
-              <button class="bilancio-period-btn active" data-period="month" style="background:var(--accent);color:#fff;">Mese</button>
-            </div>
-            <!-- Cerut direct ("un buton micut, static, pe partea
-                 dreapta... top consegne si soferii merg descrescator,
-                 cand apesi se face top km"): comutator compact, in
-                 acelasi stil deja folosit de butoanele Giorno/
-                 Settimana/Mese de alaturi, care schimba dupa ce se
-                 sorteaza lista de soferi de dedesubt — consegne sau
-                 kilometri, ambele descrescator (cel cu mai mult,
-                 primul). -->
-            <button type="button" id="bilancioSortToggle" class="bilancio-period-btn active" style="background:var(--accent);color:#fff;white-space:nowrap;">Top consegne</button>
+          <div class="period-toggle">
+            <button class="bilancio-period-btn" data-period="day" style="background:none;color:var(--ink-soft);">Giorno</button>
+            <button class="bilancio-period-btn" data-period="week" style="background:none;color:var(--ink-soft);"><span class="ptxt-full">Settimana</span><span class="ptxt-short">Sett.</span></button>
+            <button class="bilancio-period-btn active" data-period="month" style="background:var(--accent);color:#fff;">Mese</button>
           </div>
         </div>
 
@@ -1185,6 +1174,16 @@
         </div>
 
         <div id="bilancioScrollArea">
+        <!-- Cerut direct ("butonul trebuie sa fie static pe partea
+             dreapta, chiar la primul sofer din lista... dar putin mai
+             sus de acel scris verde cu top consegne sau top km"):
+             mutat aici, deasupra listei (nu in bara fixa de sus, cum
+             era inainte) — sticky, ramane pe loc chiar daca lista de
+             dedesubt se scroleaza, exact deasupra primului sofer,
+             oricine ar fi el dupa resortare. -->
+        <div style="position:sticky;top:0;z-index:3;display:flex;justify-content:flex-end;padding:0 0 8px;background:var(--bg);">
+          <button type="button" id="bilancioSortToggle" class="bilancio-period-btn active" style="background:var(--accent);color:#fff;white-space:nowrap;border-radius:100px;padding:6px 14px;font-size:12.5px;font-weight:700;border:none;cursor:pointer;">Top consegne</button>
+        </div>
         <div class="fleet-table">
           <div id="bilancioDriverRows"></div>
         </div>
