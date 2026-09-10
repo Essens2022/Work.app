@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v544"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v545"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -12866,6 +12866,27 @@
         syncLiveConsegnaStatus(computeInConsegna(state.deliveryRun.clients));
       }
     }, 25000);
+    // REAL BUG, gasit direct testand cazul real al lui ION: pe iOS,
+    // sistemul de operare OPRESTE complet cronometrele JavaScript
+    // (inclusiv setInterval de mai sus) cat timp aplicatia sta in
+    // fundal sau ecranul e stins — o simpla "redeschidere" a
+    // aplicatiei nu garanteaza ca acel cronometru chiar a apucat sa
+    // mai ruleze de la ultima oara. Un eveniment de browser insa,
+    // 'visibilitychange', este garantat sa se declanseze exact cand
+    // aplicatia revine cu adevarat in prim-plan — indiferent cat timp
+    // a stat inchisa sau in fundal — si telefonul nu poate sa-l
+    // ignore sau sa-l suspende. Verificarea de mai jos foloseste
+    // acest eveniment ca o plasa de siguranta suplimentara,
+    // independenta de cronometrul periodic: de fiecare data cand
+    // soferul revine cu adevarat la aplicatie, starea corecta se
+    // retrimite imediat, chiar daca cronometrul insusi a fost oprit
+    // de sistem tot timpul cat aplicatia a stat inchisa.
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) return;
+      if (state.deliveryRun && state.deliveryRun.clients) {
+        syncLiveConsegnaStatus(computeInConsegna(state.deliveryRun.clients));
+      }
+    });
     migrateUppercaseLocalities();
     migrateFuelToArrays();
     migrateReverifyClientPrecision(); // async, rate-limited, runs fully in the background — never blocks anything else in init()
