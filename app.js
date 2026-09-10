@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v548"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v549"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -3226,7 +3226,7 @@
           return fetch(doc.url).then(function (r) { return r.text(); }).then(function (text) {
             var result = dpMergeImportedClientsData(text, { silent: true });
             if (result) { totalAdded += result.added; totalUpdated += result.updated; }
-            return fleetCall({ action: 'driver_mark_import_processed', document_id: doc.id });
+            return fleetCall({ action: 'driver_mark_import_processed', document_id: doc.id, account_email: accountEmail });
           }).catch(function () { /* offline o link scaduto — si ritenta al prossimo avvio, il file resta "da processare" */ });
         });
       });
