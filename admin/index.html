@@ -2533,16 +2533,24 @@
 
   if (localStorage.getItem(WEBAUTHN_CRED_KEY)) {
     document.getElementById('faceid-unlock-btn').style.display = 'block';
-    // Requested directly: having to tap "Sblocca con Face ID" first,
-    // THEN look at the phone, felt like an extra step on top of what
-    // should just be "look at the phone, you're in" — triggered
-    // automatically now, right at load, the instant a saved credential
-    // exists. The button itself stays visible too, as a fallback for
-    // retrying if this automatic attempt gets dismissed or fails for
-    // any reason (Face ID temporarily unavailable, etc.) — someone
-    // isn't stuck with only a fully-automatic attempt and no way to
-    // ask for it again.
-    attemptFaceIdUnlock();
+    // REAL BUG, raportat direct ("de fiecare cand se face refresh se
+    // cere parola sau face id, il pun si iar nu reusesc sa intru"):
+    // acest bloc rula NECONDITIONAT, la fiecare incarcare a paginii,
+    // complet independent de verificarea sesiunii salvate (mai sus,
+    // sessionStorage) — daca AMBELE existau (sesiune valida SI Face
+    // ID inregistrat, cazul obisnuit dupa o prima logare), porneau
+    // DOUA incercari automate de logare, deodata, concurand una cu
+    // alta. Cea prin sessionStorage e aproape instanta (un simplu
+    // apel catre server) — cea prin Face ID implica un dialog al
+    // telefonului, mult mai lenta. Daca acel dialog era respins,
+    // intarziat, sau credentialul nu mai era valid, incercarea ei de
+    // login esua DUPA ce cealalta reusise deja — iar login() esuat
+    // arata din nou ecranul de logare, anuland vizual succesul de
+    // dinainte, lasand impresia ca "nu reusesc sa intru", oricat ar
+    // incerca. Pornita acum DOAR daca nu exista deja o sesiune
+    // salvata de incercat intai — cele doua nu mai concureaza
+    // niciodata intre ele.
+    if (!sessionStorage.getItem('fv_admin_pw')) attemptFaceIdUnlock();
   }
   document.getElementById('faceid-unlock-btn').addEventListener('click', attemptFaceIdUnlock);
 
