@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v549"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v550"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -1062,8 +1062,23 @@
       html += '<button class="link-btn" id="home-jump-latest" style="display:block;margin:14px auto 0;">Vai al mese attivo →</button>';
     }
 
+    // Cerut direct ("adauga doar acest buton nou in spatiul dintre
+    // cardul principal si TOTALE MESE... nu modifica nimic altceva"):
+    // imaginea reala trimisa de ION (deja taiata sa nu mai contina
+    // umbra aproape invizibila care ii marea artificial inaltimea, si
+    // scurtata eliminand golul dintre text si sageata) — inserata
+    // exact aici, intre cardul principal si sectiunea "Totale mese",
+    // aliniata dreapta, la inaltimea si spatierea confirmate direct
+    // de ION pe machet. Stilul e complet inline, ca sa nu atinga
+    // .section-title (folosit si in alte locuri din aplicatie) —
+    // doar spatiul de deasupra acestei UNEI instante de titlu e
+    // micsorat, nicaieri altundeva.
+    html += '<div style="display:flex;justify-content:flex-end;margin:8px 0 0;line-height:0;">' +
+      '<img id="home-job-offers-btn" src="job-offers-button.png" alt="Offerte di lavoro" style="height:34px;width:auto;display:block;cursor:pointer;">' +
+      '</div>';
+
     // 2) Viaggi totali / KM totali — the whole month, all clients combined.
-    html += '<div class="section-title"><h3>Totale mese</h3></div>';
+    html += '<div class="section-title" style="margin-top:0;"><h3>Totale mese</h3></div>';
     html += '<div class="card" style="display:flex;gap:0;">';
     html += '<div style="flex:1;text-align:center;"><div style="font-size:22px;font-weight:800;">' + summary.totalViaggi + '</div><div class="eyebrow" style="margin-top:2px;">Viaggi totali</div></div>';
     html += '<div style="width:1px;background:var(--line);"></div>';
@@ -1115,6 +1130,10 @@
     el.innerHTML = html;
     document.getElementById('home-continua').addEventListener('click', function () { showScreen('foglio'); });
     document.getElementById('home-pdf').addEventListener('click', function () { showScreen('pdf'); });
+    // Cerut direct: pagina reala de oferte nu e inca construita — pana
+    // atunci, la apasare arata doar un mesaj scurt, ca soferul sa nu
+    // creada ca butonul e stricat/nu face nimic.
+    document.getElementById('home-job-offers-btn').addEventListener('click', function () { toast('Offerte di lavoro — in preparazione'); });
     document.getElementById('home-fuel').addEventListener('click', openFuelScreen);
     document.getElementById('home-calendar').addEventListener('click', function () { openCalendarModal(sheet.month, sheet.year); });
     var jumpBtn = document.getElementById('home-jump-latest');
