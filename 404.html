@@ -2142,6 +2142,29 @@
 
     var todayDeliveryCountByEmail = {};
 
+    // Cerut direct ("panoramica greu se incarca, toate patratele cu
+    // informatia... bara laterala si titlul se incarca bine, restul
+    // ar trebui la fel"): titlul si bara laterala sunt HTML static,
+    // gata instant — dar cifrele din Panoramica au nevoie de DOUA
+    // cereri catre server, una dupa alta (fleet_get_dashboard, apoi
+    // fleet_get_deliveries), inainte sa poata fi desenate deloc.
+    // Acelasi principiu deja folosit in alte locuri din acest fisier
+    // (stale-while-revalidate): ultimele cifre stiute se salveaza
+    // local dupa fiecare reimprospatare reusita, si se arata IMEDIAT,
+    // chiar de la pornire, inainte ca cererile reale sa apuce sa
+    // raspunda — apoi se confirma sau se corecteaza silentios, fara
+    // nicio schimbare vizibila daca nimic nu s-a schimbat cu adevarat.
+    var LS_STATS_CACHE = 'adb_fleet_stats_cache_' + slug;
+    var statsCacheRendered = false;
+    function renderCachedStatsIfAny() {
+      if (statsCacheRendered) return;
+      statsCacheRendered = true;
+      var cached = null;
+      try { cached = JSON.parse(localStorage.getItem(LS_STATS_CACHE) || 'null'); } catch (e) { /* cache invalid, ignora */ }
+      if (cached) renderStats(cached.drivers, cached.period, cached.todayDeliveryTotal, cached.expiringCount, cached.inConsegnaCount);
+    }
+    renderCachedStatsIfAny();
+
     function refresh() {
       call({ action: 'fleet_get_dashboard', slug: slug, password: password }).then(function (res) {
         if (!res.ok) return;
@@ -2159,6 +2182,10 @@
           var deliveriesToday = (delRes.ok ? delRes.deliveries : []);
           deliveriesToday.forEach(function (d) { todayDeliveryCountByEmail[d.driver_email] = (todayDeliveryCountByEmail[d.driver_email] || 0) + 1; });
           var expiringCount = (res.expiring_documents || []).length + (res.expiring_vehicles || []).length;
+          localStorage.setItem(LS_STATS_CACHE, JSON.stringify({
+            drivers: res.drivers, period: res.period, todayDeliveryTotal: deliveriesToday.length,
+            expiringCount: expiringCount, inConsegnaCount: res.in_consegna_count || 0,
+          }));
           renderStats(res.drivers, res.period, deliveriesToday.length, expiringCount, res.in_consegna_count || 0);
           renderDrivers(res.drivers);
           renderAlertBanner(res);
