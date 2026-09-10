@@ -2528,26 +2528,6 @@
   </div>
 </div>
 
-<!-- Cerut direct ("aratatasoferului pentru 1 secunda importo rilevato,
-     cu posibilitatea de a-l corecta"): modal scurt, aratat dupa
-     confirmarea decuparii, cu suma citita automat de pe bon (sau gol,
-     daca citirea a esuat) — editabila inainte de salvare, ca totalul
-     lunar sa ramana corect chiar daca citirea automata greseste. -->
-<div class="modal-overlay center" id="modal-fuel-amount">
-  <div class="sheet-panel" style="max-width:380px;">
-    <h3 style="margin:0 0 4px;">Importo rilevato</h3>
-    <p class="settings-driver-note" id="fuel-amount-sub" style="margin-top:0;">Verifica che l'importo sia corretto.</p>
-    <div style="display:flex;align-items:center;gap:8px;margin:18px 0 4px;">
-      <input type="number" inputmode="decimal" step="0.01" min="0" id="fuel-amount-input" placeholder="0,00" style="flex:1;font-size:22px;font-weight:700;padding:12px 14px;border-radius:12px;border:1px solid var(--line);text-align:right;">
-      <span style="font-size:18px;font-weight:700;color:var(--ink-soft);">€</span>
-    </div>
-    <div class="modal-btnrow">
-      <button class="btn btn-ghost" id="fuel-amount-skip">Salta</button>
-      <button class="btn btn-accent" id="fuel-amount-confirm">Conferma</button>
-    </div>
-  </div>
-</div>
-
 <!-- Generic confirm modal -->
 <!-- Install instructions — clear, visual, step-by-step, since a single
      line of text wasn't clear enough. Both platforms are always
@@ -2651,7 +2631,6 @@
 <script src="vendor/supabase.js"></script>
 <script src="vendor/pdf.min.js"></script>
 <script src="vendor/maplibre-gl.js"></script>
-<script src="vendor/tesseract.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
