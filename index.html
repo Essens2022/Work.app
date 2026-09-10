@@ -708,6 +708,15 @@
     font-family:inherit;
   }
   .btn:active{transform:scale(.97);}
+  /* Raportat direct ("nu se intelege ca este buton si cand apes
+     vizual nu se vede ca il apas"): imaginea butonului de oferte de
+     munca nu avea niciun feedback la apasare — acelasi principiu deja
+     folosit la restul butoanelor din aplicatie (scale la :active),
+     aplicat aici printr-o clasa dedicata, ca sa nu ating .btn insasi
+     (folosita de multe alte butoane, cu alt aspect). Tranzitia scurta
+     face ca micsorarea sa se simta ca un "apas", nu un salt brusc. */
+  .home-job-offers-btn{transition:transform .1s ease;}
+  .home-job-offers-btn:active{transform:scale(.96);}
   .btn-block{width:100%;}
   .btn-accent{background:var(--accent);color:#fff;}
   .btn-dark{background:var(--ink);color:#fff;}

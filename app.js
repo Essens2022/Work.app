@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v550"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v551"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -1074,7 +1074,7 @@
     // doar spatiul de deasupra acestei UNEI instante de titlu e
     // micsorat, nicaieri altundeva.
     html += '<div style="display:flex;justify-content:flex-end;margin:8px 0 0;line-height:0;">' +
-      '<img id="home-job-offers-btn" src="job-offers-button.png" alt="Offerte di lavoro" style="height:34px;width:auto;display:block;cursor:pointer;">' +
+      '<img id="home-job-offers-btn" class="home-job-offers-btn" src="job-offers-button.png" alt="Offerte di lavoro" style="height:34px;width:auto;display:block;cursor:pointer;">' +
       '</div>';
 
     // 2) Viaggi totali / KM totali — the whole month, all clients combined.
