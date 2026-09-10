@@ -1828,6 +1828,55 @@
     }
     startFleetPresenceWatch();
 
+    // Cerut direct ("datele din panoramica sa apara cand sunt
+    // schimbari, sa nu fie neaparat sa se aggiorneze pagina, si alte
+    // date care este necesar sa fie live"): pana acum, Panoramica/
+    // Mappa/Consegne/Bilancio se reimprospatau doar la fiecare 20 de
+    // secunde (vezi setInterval mai jos) — corect, dar cu o intarziere
+    // reala, nu genuina "live". Refolosind exact acelasi canal
+    // Supabase Realtime deja folosit pentru prezenta (acelasi client,
+    // aceeasi conexiune), se asculta acum si schimbarile reale din
+    // baza de date pentru pozitie, status live si consegne — de
+    // fiecare data cand un sofer trimite o pozitie noua, isi schimba
+    // statusul, sau confirma o consegna, ecranul activ se
+    // reimprospateaza IMEDIAT, fara sa mai astepte urmatorul ciclu de
+    // 20s. Filtrate client-side dupa lista curenta de soferi ai
+    // acestei flote (aceste tabele nu au ele insele o coloana de
+    // fleet_id), la fel cum se face deja in alte locuri din acest
+    // fisier.
+    function startFleetDataLiveWatch() {
+      if (!presenceSupabaseClient) return;
+      function belongsToThisFleet(email) {
+        if (!email) return false;
+        email = email.toLowerCase();
+        return currentDrivers.some(function (d) { return (d.account_email || '').toLowerCase() === email; });
+      }
+      function refreshActiveScreenNow() {
+        var activeScreen = document.querySelector('.screen.active');
+        if (!activeScreen) return;
+        var name = activeScreen.dataset.screen;
+        if (name === 'panoramica') refresh();
+        else if (name === 'consegne') loadStorico();
+        else if (name === 'mappa') loadMappa();
+        else if (name === 'bilancio') loadBilancio();
+      }
+      var channel = presenceSupabaseClient.channel('fleet-data-live-' + (slug || 'default'));
+      ['driver_positions', 'driver_live_status', 'driver_deliveries'].forEach(function (table) {
+        channel.on('postgres_changes', { event: '*', schema: 'public', table: table }, function (payload) {
+          var row = payload.new || payload.old;
+          if (!row || !belongsToThisFleet(row.account_email)) return;
+          refreshActiveScreenNow();
+        });
+      });
+      channel.subscribe(function (status) {
+        if (status === 'TIMED_OUT' || status === 'CLOSED') {
+          presenceSupabaseClient.removeChannel(channel);
+          setTimeout(startFleetDataLiveWatch, 1000);
+        }
+      });
+    }
+    startFleetDataLiveWatch();
+
     var SCREEN_ID_BY_NAME = { panoramica: 'fleet-dashboard', documenti: 'fleet-docs', consegne: 'fleet-consegne', mappa: 'fleet-mappa', veicoli: 'fleet-vehicles', bilancio: 'fleet-bilancio', notifiche: 'fleet-notifiche', impostazioni: 'fleet-settings' };
 
     // Requested directly: the top bar should be fully fixed on
