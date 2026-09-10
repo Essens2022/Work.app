@@ -1264,6 +1264,20 @@
     });
   }
 
+  // Cerut direct: "cand fac tap in afara acestei ferestruici a
+  // flotei, sa se inchida inapoi... sa nu fie necesar sa apas iarasi
+  // pe aceste trei puncte". Un singur listener global, inregistrat o
+  // singura data (nu la fiecare randare) — orice apasare care nu
+  // vine chiar din interiorul meniului deschis (butoanele de
+  // Disattiva/Elimina) inchide orice meniu ramas deschis. Butonul
+  // "⋯" opreste el insusi propagarea catre acest listener (vezi mai
+  // sus), ca deschiderea si inchiderea sa nu se anuleze una pe alta
+  // in aceeasi apasare.
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('.flotte-actions-row')) return;
+    document.querySelectorAll('.flotte-actions-row.open').forEach(function (r) { r.classList.remove('open'); });
+  });
+
   function flotteInitials(name) {
     return (name || '?').trim().split(/\s+/).map(function (w) { return w[0]; }).join('').slice(0, 2).toUpperCase();
   }
@@ -1308,11 +1322,17 @@
 
     // Cerut direct: butonul "⋯" doar deschide/inchide randul cu cele
     // doua actiuni — nicio actiune reala nu se intampla la aceasta
-    // apasare, e doar un "arata-mi optiunile".
+    // apasare, e doar un "arata-mi optiunile". stopPropagation aici
+    // ca listener-ul global de mai jos (care inchide la un tap in
+    // afara) sa nu inchida imediat ce tocmai s-a deschis, in aceeasi
+    // apasare.
     el.querySelectorAll('.flotte-kebab-btn').forEach(function (btn) {
-      btn.addEventListener('click', function () {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
         var row = document.querySelector('.flotte-actions-row[data-fleet-actions="' + btn.getAttribute('data-fleet-id') + '"]');
-        if (row) row.classList.toggle('open');
+        var wasOpen = row && row.classList.contains('open');
+        document.querySelectorAll('.flotte-actions-row.open').forEach(function (r) { r.classList.remove('open'); });
+        if (row && !wasOpen) row.classList.add('open');
       });
     });
 
