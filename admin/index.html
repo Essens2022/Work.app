@@ -2476,6 +2476,18 @@
           return;
         }
         sessionStorage.setItem('fv_admin_pw', pw);
+        // REAL BUG, gasit in timp ce investigam de ce Face ID nu mai
+        // reusea sa te conecteze: parola salvata pentru Face ID
+        // (WEBAUTHN_PW_KEY) nu se actualiza NICIODATA dupa prima
+        // inregistrare — daca ajungea vreodata sa nu mai corespunda
+        // cu parola reala (schimbare de parola, date de browser
+        // partial sterse, etc.), Face ID ramanea blocat la nesfarsit,
+        // fara nicio reparare automata, chiar daca logarea manuala,
+        // chiar aici, reuseste perfect cu parola corecta. Actualizata
+        // acum de fiecare data cand o logare manuala reuseste, daca
+        // Face ID e deja configurat pe acest dispozitiv — se
+        // resincronizeaza singura, fara sa ceara nimic in plus.
+        if (localStorage.getItem(WEBAUTHN_CRED_KEY)) localStorage.setItem(WEBAUTHN_PW_KEY, pw);
         lastGroupsRaw = res.data.drivers;
         renderDrivers(lastGroupsRaw);
         setRefreshedNow();
