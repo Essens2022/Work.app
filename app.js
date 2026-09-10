@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v555"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v556"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -9485,21 +9485,8 @@
     });
     if (!receipts.length) return;
 
-    // Cerut direct ("sa scrii totalul de bani care s-a cheltuit...
-    // mereu cand se adauga un nou scontrino sa se aggiorneze in
-    // automat"): suma tuturor importurilor citite (sau introduse
-    // manual) - recalculata de fiecare data cand PDF-ul se genereaza,
-    // deci mereu la zi cu ultimul scontrino adaugat. Bonurile fara
-    // importo (citire esuata SI sarita manual) nu strica totalul -
-    // sunt pur si simplu ignorate la suma, nu tratate ca zero.
-    // Calculat AICI, inainte de headerH/usableH mai jos, ca spatiul
-    // suplimentar de header (cand exista o suma de aratat) sa fie
-    // deja inclus corect in calculul de layout, nu adaugat pe urma.
-    var totalAmount = receipts.reduce(function (s, r) { return s + (typeof r.scontrino.importo === 'number' ? r.scontrino.importo : 0); }, 0);
-    var hasAnyAmount = receipts.some(function (r) { return typeof r.scontrino.importo === 'number'; });
-
     var pageW = 297, pageH = 210, margin = 10;
-    var headerH = hasAnyAmount ? 15 : 10; // space reserved for the page title (plus the amount line, when shown)
+    var headerH = 10; // space reserved for the page title on each receipts page
     var gap = 2; // mm between receipts, both across a row and between rows
     var captionH = 4; // space for the "Giorno N" label above each image
     var rowH = 78; // shared image height each receipt is scaled to
@@ -9507,6 +9494,7 @@
     var usableH = pageH - margin * 2 - headerH;
     var totalCount = receipts.length;
     var totalWord = totalCount === 1 ? 'totale' : 'totali';
+
     // Pass 1: simulate the flow layout to find out how many pages it
     // takes, so each page's title can say "pagina X di Y" correctly —
     // with a flow layout (unlike a fixed grid) that isn't known upfront.
@@ -9534,12 +9522,6 @@
         ? 'Scontrini carburante — ' + totalCount + ' ' + totalWord + ' (pagina ' + pageNum + ' di ' + totalPages + ')'
         : 'Scontrini carburante — ' + totalCount + ' ' + totalWord;
       doc.text(pageLabel, pageW / 2, margin + 3, { align: 'center' });
-      if (hasAnyAmount) {
-        doc.setFont('Roboto', 'normal');
-        doc.setFontSize(9);
-        doc.setTextColor(90, 90, 90);
-        doc.text('Totale speso: ' + totalAmount.toFixed(2).replace('.', ',') + ' €', pageW / 2, margin + 8, { align: 'center' });
-      }
       x = margin; y = margin + headerH;
     }
     startPage();
@@ -9645,86 +9627,6 @@
     // only happen in extreme, unusual cases; return the smallest one
     // found rather than nothing, so saving a receipt never simply fails.
     return best;
-  }
-
-  // Cerut direct ("extrage toate sumele... suma asociata cu Totale,
-  // altfel poate confunda litri, pret/litru, IVA sau alte valori"):
-  // recunoastere text direct pe telefon (Tesseract.js), fara niciun
-  // cont sau cheie API — motorul greu (WASM + limba italiana) se
-  // descarca DOAR in acest moment exact, cand chiar se scaneaza un
-  // bon, nu la pornirea aplicatiei, ca sa nu incetineasca restul
-  // aplicatiei pentru toti soferii, inclusiv cei care nu folosesc
-  // niciodata aceasta functie.
-  var fuelOcrWorker = null;
-  function getFuelOcrWorker() {
-    if (fuelOcrWorker) return fuelOcrWorker;
-    fuelOcrWorker = Tesseract.createWorker('ita', 1, {
-      workerPath: 'vendor/tesseract-worker.min.js',
-      logger: function () {},
-    });
-    return fuelOcrWorker;
-  }
-
-  // Cauta specific un rand care contine "TOTALE" (dar nu "IVA",
-  // "IMPONIBILE" pe langa el, care ar putea aparea alaturi pe unele
-  // bonuri) si extrage numarul de langa acel cuvant — nu orice numar
-  // gasit oriunde pe bon (litri, pret/litru, IVA sunt toate numere
-  // care ar putea fi confundate daca am cauta doar "primul numar").
-  function extractTotalFromReceiptText(text) {
-    var lines = text.split('\n');
-    var numRe = /(\d{1,4}[.,]\d{2})/g;
-    var candidates = [];
-    // Raportat direct ("a aparut modelul dar nu a citit suma"): pe
-    // bonurile reale, "TOTALE" si suma de langa el ajung deseori pe
-    // randuri DIFERITE dupa recunoastere (spatiere neregulata pe
-    // hartia termica, calitate foto variabila) — cautarea stricta pe
-    // ACELASI rand rata majoritatea cazurilor reale. Cautat acum
-    // intr-o fereastra de pana la 3 randuri incepand de la "TOTALE"
-    // (randul insusi + urmatoarele doua), nu doar randul exact.
-    var WINDOW = 3;
-    for (var i = 0; i < lines.length; i++) {
-      var startLine = lines[i].toUpperCase();
-      if (startLine.indexOf('TOTALE') === -1) continue;
-      // Evita rânduri care sunt de fapt "TOTALE IVA" sau "TOTALE
-      // IMPONIBILE" — acelea sunt sub-totaluri, nu suma finala platita.
-      if (startLine.indexOf('IVA') !== -1 || startLine.indexOf('IMPONIBILE') !== -1) continue;
-      for (var j = i; j < Math.min(i + WINDOW, lines.length); j++) {
-        // Daca vreun rand din fereastra chiar contine IVA/IMPONIBILE,
-        // opreste-te acolo — probabil apartine altui subtotal, nu
-        // celui gasit initial la "TOTALE".
-        var windowLine = lines[j].toUpperCase();
-        if (j > i && (windowLine.indexOf('IVA') !== -1 || windowLine.indexOf('IMPONIBILE') !== -1)) break;
-        var matches = lines[j].match(numRe);
-        if (matches && matches.length) {
-          var num = parseFloat(matches[matches.length - 1].replace(',', '.'));
-          if (!isNaN(num) && num > 0 && num < 1000) { candidates.push(num); break; }
-        }
-      }
-    }
-    if (!candidates.length) return null;
-    // Daca apar mai multe randuri cu "TOTALE" (rar, dar posibil), cel
-    // mai mare e aproape mereu cel corect — un sub-total partial ar fi
-    // mai mic decat totalul final platit.
-    return Math.max.apply(null, candidates);
-  }
-
-  function recognizeReceiptAmount(canvas) {
-    var worker;
-    try {
-      worker = getFuelOcrWorker();
-    } catch (e) {
-      return Promise.resolve(null);
-    }
-    return worker.then(function (w) {
-      return w.recognize(canvas.toDataURL('image/jpeg', 0.85));
-    }).then(function (result) {
-      return extractTotalFromReceiptText(result.data.text || '');
-    }).catch(function () {
-      // Fara internet, CDN indisponibil, sau orice alta eroare — nu
-      // blocheaza niciodata salvarea bonului; soferul introduce pur si
-      // simplu suma manual in pasul urmator.
-      return null;
-    });
   }
 
   /* ---------------------------------------------------------------- */
@@ -10084,7 +9986,6 @@
   document.getElementById('modal-crop').addEventListener('click', function (e) {
     if (e.target === document.getElementById('modal-crop')) document.getElementById('crop-cancel').click();
   });
-  var fuelPendingScontrino = null; // set right before showing the amount-confirm modal, consumed when it closes
   document.getElementById('crop-confirm').addEventListener('click', function () {
     if (!cropRawImage || !fuelTargetDay) return;
     if (!cropRect) { toast('Un istante, la foto si sta ancora preparando…'); return; }
@@ -10099,57 +10000,20 @@
     srcCanvas.getContext('2d').drawImage(cropRawImage, sx, sy, sw, sh, 0, 0, srcCanvas.width, srcCanvas.height);
 
     var scontrino = processReceiptCanvas(srcCanvas);
-    fuelPendingScontrino = { scontrino: scontrino, day: fuelTargetDay };
+    var monthKey = fuelMonthKey(fuelActiveMonth, fuelActiveYear);
+    if (!state.fuel[monthKey]) state.fuel[monthKey] = {};
+    if (!state.fuel[monthKey][fuelTargetDay]) state.fuel[monthKey][fuelTargetDay] = [];
+    state.fuel[monthKey][fuelTargetDay].push(scontrino);
+    var savedCount = state.fuel[monthKey][fuelTargetDay].length;
+    saveFuel(state.fuel);
+    renderFuelList();
+    toast(savedCount > 1 ? 'Scontrino ' + savedCount + ' salvato — Giorno ' + fuelTargetDay : 'Scontrino salvato — Giorno ' + fuelTargetDay);
+    reportActivity();
     document.getElementById('modal-crop').classList.remove('open');
     document.getElementById('in-fuel-photo').value = '';
     cropRawImage = null;
-
-    // Cerut direct ("aratatasoferului pentru 1 secunda importo
-    // rilevato, cu posibilitatea de a-l corecta"): modalul apare
-    // IMEDIAT, cu campul gol si un mesaj de "se citeste...", ca
-    // soferul sa nu astepte fara niciun semn — recunoasterea (care
-    // poate lua cateva secunde, mai ales prima data cand descarca
-    // motorul) completeaza campul singura, de indata ce termina, fara
-    // sa blocheze nimic daca soferul vrea sa scrie manual mai repede.
-    var amountInput = document.getElementById('fuel-amount-input');
-    var amountSub = document.getElementById('fuel-amount-sub');
-    amountInput.value = '';
-    amountSub.textContent = 'Rilevamento in corso…';
-    document.getElementById('modal-fuel-amount').classList.add('open');
-    recognizeReceiptAmount(srcCanvas).then(function (amount) {
-      if (fuelPendingScontrino !== null && amountInput.value === '' && amount !== null) {
-        amountInput.value = amount.toFixed(2).replace('.', ',');
-      }
-      amountSub.textContent = amount !== null
-        ? 'Verifica che l\'importo sia corretto.'
-        : 'Non rilevato automaticamente — inserisci l\'importo.';
-    });
-  });
-
-  function finalizeFuelSave(amount) {
-    if (!fuelPendingScontrino) return;
-    var scontrino = fuelPendingScontrino.scontrino;
-    var day = fuelPendingScontrino.day;
-    if (amount !== null) scontrino.importo = amount;
-    var monthKey = fuelMonthKey(fuelActiveMonth, fuelActiveYear);
-    if (!state.fuel[monthKey]) state.fuel[monthKey] = {};
-    if (!state.fuel[monthKey][day]) state.fuel[monthKey][day] = [];
-    state.fuel[monthKey][day].push(scontrino);
-    var savedCount = state.fuel[monthKey][day].length;
-    saveFuel(state.fuel);
-    renderFuelList();
-    toast(savedCount > 1 ? 'Scontrino ' + savedCount + ' salvato — Giorno ' + day : 'Scontrino salvato — Giorno ' + day);
-    reportActivity();
-    document.getElementById('modal-fuel-amount').classList.remove('open');
-    fuelPendingScontrino = null;
     fuelTargetDay = null;
-  }
-  document.getElementById('fuel-amount-confirm').addEventListener('click', function () {
-    var raw = document.getElementById('fuel-amount-input').value.replace(',', '.');
-    var amount = raw === '' ? null : parseFloat(raw);
-    finalizeFuelSave(isNaN(amount) ? null : amount);
   });
-  document.getElementById('fuel-amount-skip').addEventListener('click', function () { finalizeFuelSave(null); });
 
   function openDayEditor(sheet, day) {
     state.editingDay = { sheetId: sheet.id, day: day };
