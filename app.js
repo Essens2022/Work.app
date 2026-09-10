@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v545"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v546"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -10604,13 +10604,9 @@
       row.style.display = 'block';
       document.getElementById('settings-fleet-name').textContent = cached.fleet_name || 'una flotta';
     }
-    fleetCall({ action: 'driver_get_fleet_status', account_email: email }).then(function (res) {
-      if (!res.ok || !res.in_fleet) {
-        row.style.display = 'none';
-        saveJSON(LS_FLEET_STATUS_CACHE, { in_fleet: false });
-        return;
-      }
-      saveJSON(LS_FLEET_STATUS_CACHE, { in_fleet: true, fleet_name: res.fleet_name });
+    refreshFleetStatusCache().then(function (res) {
+      if (!res) return; // network failure — leave whatever the cached value already showed, don't hide it based on a mere connectivity hiccup
+      if (!res.ok || !res.in_fleet) { row.style.display = 'none'; return; }
       row.style.display = 'block';
       document.getElementById('settings-fleet-name').textContent = res.fleet_name || 'una flotta';
       var btn = document.getElementById('settings-leave-fleet-btn');
@@ -10628,6 +10624,32 @@
         });
       });
     });
+  }
+
+  // REAL BUG, gasit direct testand cazul real al lui ION ("pozitia
+  // soferului pe harta nu functioneaza deloc"): LS_FLEET_STATUS_CACHE
+  // — verificat de syncLiveConsegnaStatus() ca sa decida daca sa
+  // porneasca trimiterea pozitiei — se popula DOAR ca efect secundar
+  // al deschiderii ecranului Impostazioni (mai sus). Un sofer care nu
+  // deschidea niciodata acel ecran (sau al carui localStorage se
+  // golea din orice motiv — cache sters, reinstalare) ramanea
+  // PERMANENT fara pozitie trimisa catre flota, desi era cu adevarat
+  // in flota si cu adevarat in consegna — fara nicio eroare vizibila,
+  // fara niciun indiciu ca ceva nu functiona. Extrasa aici, separat
+  // de partea care deseneaza randul din Impostazioni, ca sa poata fi
+  // apelata si de la pornirea aplicatiei (vezi init()), nu doar cand
+  // soferul intampla sa deschida acel ecran anume.
+  function refreshFleetStatusCache() {
+    var email = currentAccountEmail();
+    if (!email) return Promise.resolve(null);
+    return fleetCall({ action: 'driver_get_fleet_status', account_email: email }).then(function (res) {
+      if (!res || !res.ok || !res.in_fleet) {
+        saveJSON(LS_FLEET_STATUS_CACHE, { in_fleet: false });
+        return res;
+      }
+      saveJSON(LS_FLEET_STATUS_CACHE, { in_fleet: true, fleet_name: res.fleet_name });
+      return res;
+    }).catch(function () { return null; });
   }
 
   // A permanent, unique identity number for this account — like a
@@ -12836,9 +12858,23 @@
     // formula folosita peste tot (computeInConsegna) — reporneste
     // trimiterea imediat daca formula e adevarata acum, in loc sa
     // astepte urmatoarea confirmare.
-    if (state.deliveryRun && state.deliveryRun.clients) {
-      syncLiveConsegnaStatus(computeInConsegna(state.deliveryRun.clients));
-    }
+    //
+    // REAL BUG, gasit direct testand cazul real al lui ION ("pozitia
+    // soferului pe harta nu functioneaza deloc"): syncLiveConsegnaStatus
+    // decide daca sa porneasca pozitia uitandu-se la LS_FLEET_STATUS_CACHE
+    // — dar acel cache se popula DOAR cand soferul deschidea ecranul
+    // Impostazioni, niciodata la pornirea aplicatiei. Un sofer care nu
+    // deschidea acel ecran (sau al carui localStorage se golea din orice
+    // motiv) ramanea PERMANENT fara pozitie trimisa, fara nicio eroare
+    // vizibila. Reparat: cache-ul se reimprospateaza acum chiar aici,
+    // la fiecare pornire reala a aplicatiei — verificarea de mai jos
+    // asteapta acel raspuns, ca sa aiba mereu date proaspete, nu
+    // presupuse, chiar de la prima verificare.
+    refreshFleetStatusCache().then(function () {
+      if (state.deliveryRun && state.deliveryRun.clients) {
+        syncLiveConsegnaStatus(computeInConsegna(state.deliveryRun.clients));
+      }
+    });
     // Cerut direct ("trebuie gandita bine, ca sa fie facuta odata si
     // pentru totdeauna sa functioneze, nu cand functioneaza, cand
     // nu"): pana acum, aceasta stare se trimitea catre server DOAR
