@@ -13,7 +13,17 @@ var tabs=mode==='fleet'?[['job','Trova lavoro'],['client','Trova clienti'],['mar
 function renderTabs(){E.tabs.className='tabs'+(mode==='driver'?' driver':'');E.tabs.innerHTML=tabs.map(function(t){return '<button class="tab '+(state.view==='tab'&&state.tab===t[0]?'active':'')+'" data-tab="'+t[0]+'">'+t[1]+'</button>'}).join('');E.tabs.querySelectorAll('[data-tab]').forEach(function(b){b.onclick=function(){state.view='tab';state.tab=b.dataset.tab;E.tabs.style.display='';E.toolbarRow.style.display='';renderTabs();renderSide();fillCategories();render()}})}
 function renderSide(){if(mode!=='fleet'){E.sideNav.parentElement.style.display='none';return}var mineActive=state.view==='mine';E.sideNav.innerHTML='<div class="sideitem">'+icon('job')+' Panoramica annunci</div>'+tabs.map(function(t){return '<div class="sideitem '+(!mineActive&&state.tab===t[0]?'active':'')+'" data-stab="'+t[0]+'">'+icon(t[0])+' '+t[1]+'</div>'}).join('')+'<div class="sidecard-divider"></div><div class="sideitem '+(mineActive?'active':'')+'" data-mine="1">'+icon('mine')+' I miei annunci</div>';E.sideNav.querySelectorAll('[data-stab]').forEach(function(b){b.onclick=function(){state.view='tab';state.tab=b.dataset.stab;E.tabs.style.display='';E.toolbarRow.style.display='';renderTabs();renderSide();fillCategories();render()}});var mineBtn=E.sideNav.querySelector('[data-mine]');if(mineBtn)mineBtn.onclick=openMine}
 var cats={job:['Furgone','Patente B','Patente C','C + CQC','CE + CQC','Linea nazionale','Consegne locali'],client:['Pallet','Merce varia','Refrigerato','Macchinari','Espresso'],marketplace:['Veicoli','Ricambi','Pneumatici','Attrezzatura','Elettronica','Altro'],service:['Assicurazioni','GPS e app','Officine','Gommisti','Consulenza','Formazione']};
-function fillCategories(){var old=E.category.value;E.category.innerHTML='<option value="">Tutte le categorie</option>'+cats[state.tab].map(function(x){return '<option>'+esc(x)+'</option>'}).join('');if(cats[state.tab].indexOf(old)>=0)E.category.value=old;var titles={job:'Offerte di lavoro',client:'Opportunità di trasporto',marketplace:'Marketplace',service:'Servizi per autisti e flotte'};E.sectionTitle.textContent=titles[state.tab];renderSide()}
+function fillCategories(){var old=E.category.value;E.category.innerHTML='<option value="">Tutte le categorie</option>'+cats[state.tab].map(function(x){return '<option>'+esc(x)+'</option>'}).join('');if(cats[state.tab].indexOf(old)>=0)E.category.value=old;var titles={job:'Offerte di lavoro',client:'Opportunità di trasporto',marketplace:'Marketplace',service:'Servizi per autisti e flotte'};E.sectionTitle.textContent=titles[state.tab];
+  // Cerut direct ("cand se schimba ele se schimba si sus titlul...
+  // independent pe ce sectiune esti schimba si titlul principal sus
+  // exact ca si cel secundar"): titlul mare de sus (pageTitle) se
+  // schimba acum odata cu tab-ul curent, la fel ca eticheta mica a
+  // tab-ului insusi (Lavoro/Marketplace/Servizi, sau Trova
+  // lavoro/Trova clienti/Marketplace/Servizi pentru fleet) - nu mai
+  // ramane fix pe "Trova lavoro"/"Annunci" indiferent unde esti.
+  var currentTabDef=tabs.find(function(t){return t[0]===state.tab});
+  if(currentTabDef)E.pageTitle.textContent=currentTabDef[1];
+  renderSide()}
 function apiCall(action,payload){payload=payload||{};payload.action=action;payload.mode=mode;payload.fleet_slug=fleetSlug;payload.fleet_password=fleetPassword;return fetch(API,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_ANON_KEY},body:JSON.stringify(payload)}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()})}
 var sample=[
 {id:'demo1',type:'job',title:'Autista consegne locali',company:'Logistica Veneta S.r.l.',location:'Padova',category:'Furgone',price_label:'1.600 – 2.000 €',work_mode:'Full time',badge:'new',created_at:new Date().toISOString(),description:'Consegne locali e provinciali con furgone aziendale. Inserimento stabile.',image_url:''},
@@ -156,7 +166,15 @@ renderTabs();renderSide();fillCategories();dynamicForm();load();
       swiped=true;
       var idx=tabs.findIndex(function(t){return t[0]===state.tab});
       var nextIdx=dx<0?idx+1:idx-1;
-      if(nextIdx<0||nextIdx>=tabs.length)return; // la capete, nu face nimic — nu exista "inainte de prima" sau "dupa ultima"
+      // Cerut direct ("posibilitatea de a trece din pagina home in
+      // pagina de anunturi si invers"): la primul tab, o tragere spre
+      // dreapta (ca si cum ai vrea sa mergi "inainte de primul")
+      // intoarce acum la Home, in loc sa nu faca nimic - a doua
+      // jumatate a aceleiasi functii, simetrica cu gestul de pe Home
+      // care intra aici. Doar in modul sofer - fleet nu are o pagina
+      // "Home" de forma asta catre care sa se intoarca in acelasi fel.
+      if(nextIdx<0){if(mode==='driver'&&dx>0){window.location.href='/';}return}
+      if(nextIdx>=tabs.length)return; // dupa ultima, nu exista "mai departe"
       var dir=dx<0?1:-1;
       E.cards.style.transition='transform .18s ease, opacity .18s ease';
       E.cards.style.transform='translateX('+(-dir*24)+'px)';E.cards.style.opacity='0';
