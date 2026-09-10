@@ -63,12 +63,11 @@ fbq('track', 'PageView');
      browserului, nu ceva anume din cod, dar aici il oprim explicit, ca
      footer-ul sa ramana perfect pe loc cand se ajunge la el, fara sa
      "sara". */
-  html{scroll-behavior:smooth;background:var(--bg);max-width:100vw;overflow-x:hidden;overscroll-behavior-y:none;}
+  html{scroll-behavior:smooth;background:var(--bg);max-width:100vw;overflow-x:hidden;}
   body{
     background:var(--bg);color:var(--white);
     font-family:'Inter',-apple-system,sans-serif;
     overflow-x:hidden;line-height:1.6;max-width:100vw;
-    overscroll-behavior-y:none;
   }
   .grad-text{background:linear-gradient(135deg,var(--accent) 0%,var(--accent-2) 100%);-webkit-background-clip:text;background-clip:text;color:transparent;}
 
@@ -257,6 +256,22 @@ fbq('track', 'PageView');
     .faq-item{padding:20px 20px;}
     .faq-item h3{font-size:16px;}
     .faq-item p{font-size:14.5px;}
+  }
+  /* REAL BUG, raportat direct ("nu o pot scrola in jos de pe
+     calculator... chiar de la inceput, sus de tot"): overscroll-
+     behavior-y:none era aplicat neconditionat, si pe desktop, nu doar
+     pe mobil unde e cu adevarat util (evita "saritura"/bounce-ul
+     paginii la tras cu degetul pana la capat). Exact acea proprietate
+     controleaza comportamentul LA LIMITELE de scroll (sus/jos de tot)
+     — potrivindu-se exact cu "chiar de la inceput, sus de tot" — si e
+     cunoscuta ca avand interactiuni ciudate, in unele versiuni de
+     Chrome, chiar la acel punct exact. Scopat acum explicit doar la
+     dispozitive cu control tactil principal ((pointer: coarse) —
+     telefoane, tablete), nu la latimea ferestrei — un mouse ramane un
+     mouse, indiferent cat de ingusta e fereastra browserului.
+  */
+  @media (pointer: coarse) {
+    html, body { overscroll-behavior-y: none; }
   }
 
   .gallery-item{width:230px;position:relative;text-align:center;}
