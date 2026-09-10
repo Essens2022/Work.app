@@ -2146,7 +2146,16 @@
       call({ action: 'fleet_get_dashboard', slug: slug, password: password }).then(function (res) {
         if (!res.ok) return;
         currentDrivers = res.drivers;
-        populateDriverDropdowns();
+        // Cerut, indirect, de doua ori ("panoramica inca nu arata
+        // nimic... doar bara laterala si titlul, restul gol"): daca
+        // oricare bucata de afisare de mai jos arunca vreodata o
+        // eroare neasteptata (date reale cu o forma putin diferita
+        // de cea presupusa), fara aceasta protectie ÎNTREAGA functie
+        // se oprea acolo, lasand tot restul Panoramicii complet gol,
+        // fara niciun indiciu vizibil ca ceva n-a mers. Fiecare pas
+        // e acum izolat in propriul try/catch — o problema intr-unul
+        // singur nu mai poate opri restul sa se afiseze corect.
+        try { populateDriverDropdowns(); } catch (e) { /* izolat */ }
 
         // Requested directly, matching the mockup's own "Consegne
         // oggi" figure: a real count IS available here — today's
@@ -2159,9 +2168,9 @@
           var deliveriesToday = (delRes.ok ? delRes.deliveries : []);
           deliveriesToday.forEach(function (d) { todayDeliveryCountByEmail[d.driver_email] = (todayDeliveryCountByEmail[d.driver_email] || 0) + 1; });
           var expiringCount = (res.expiring_documents || []).length + (res.expiring_vehicles || []).length;
-          renderStats(res.drivers, res.period, deliveriesToday.length, expiringCount, res.in_consegna_count || 0);
-          renderDrivers(res.drivers);
-          renderAlertBanner(res);
+          try { renderStats(res.drivers, res.period, deliveriesToday.length, expiringCount, res.in_consegna_count || 0); } catch (e) { /* izolat */ }
+          try { renderDrivers(res.drivers); } catch (e) { /* izolat */ }
+          try { renderAlertBanner(res); } catch (e) { /* izolat */ }
           var backupInfoEl = document.getElementById('backupLastInfo');
           if (backupInfoEl) {
             backupInfoEl.textContent = res.last_backup_at
