@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v543"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v544"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -12839,6 +12839,33 @@
     if (state.deliveryRun && state.deliveryRun.clients) {
       syncLiveConsegnaStatus(computeInConsegna(state.deliveryRun.clients));
     }
+    // Cerut direct ("trebuie gandita bine, ca sa fie facuta odata si
+    // pentru totdeauna sa functioneze, nu cand functioneaza, cand
+    // nu"): pana acum, aceasta stare se trimitea catre server DOAR
+    // in momente punctuale (adaugare/finalizare consegna, sau o
+    // singura data la pornirea aplicatiei, ca mai sus) — o singura
+    // incercare, fara nicio reincercare, la fiecare moment. Daca
+    // ACEA incercare esua silentios (o clipa de retea instabila,
+    // exact momentul cand telefonul trecea printr-o zona slaba), nu
+    // mai exista NIMIC care sa mai corecteze starea gresita ramasa pe
+    // server, pana la urmatoarea schimbare reala facuta de sofer —
+    // care putea sa intarzie ore intregi, sau sa nu mai vina deloc in
+    // ziua aceea.
+    //
+    // Reparat la radacina, nu cu o simpla reincercare: acum, cat timp
+    // aplicatia e deschisa, valoarea corecta (recalculata din starea
+    // REALA, nu presupusa) se retrimite singura, la fiecare 25
+    // secunde, la nesfarsit — independent de GPS (acest indicator nu
+    // are nevoie de pozitie, doar harta are). Orice esec izolat de
+    // retea se corecteaza de la sine, automat, in cel mult 25 de
+    // secunde, fara nicio actiune din partea soferului si fara sa
+    // astepte vreo schimbare viitoare — sistemul se auto-verifica
+    // permanent, nu doar la momente punctuale.
+    setInterval(function () {
+      if (state.deliveryRun && state.deliveryRun.clients) {
+        syncLiveConsegnaStatus(computeInConsegna(state.deliveryRun.clients));
+      }
+    }, 25000);
     migrateUppercaseLocalities();
     migrateFuelToArrays();
     migrateReverifyClientPrecision(); // async, rate-limited, runs fully in the background — never blocks anything else in init()
