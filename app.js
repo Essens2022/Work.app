@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v547"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v548"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -4297,11 +4297,14 @@
   function startFleetPositionSharing() {
     if (fleetPositionInterval || !navigator.geolocation) return;
     sendFleetPositionPing();
-    // 25s — frequent enough for a fleet owner to see a driver move
-    // across a map without it looking frozen, far enough apart that
-    // it doesn't meaningfully compete with the Navigatore's own,
-    // much more frequent watchPosition while that's separately active.
-    fleetPositionInterval = setInterval(sendFleetPositionPing, 25000);
+    // Cerut direct ("bateria nu importa, un sofer are mereu telefonul
+    // la incarcat"): redus de la 25s la 4s — minimul practic fara sa
+    // ceara permisiunea de locatie "Always" (mult mai invaziva, doar
+    // pentru urmarire chiar in fundal, cu aplicatia inchisa). La 4s,
+    // fleet owner-ul vede pozitia soferului sarind clar, prompt, de
+    // aproape 15 ori pe minut — cel mai aproape de "live" posibil cat
+    // timp aplicatia ramane doar deschisa (nu neaparat in prim-plan).
+    fleetPositionInterval = setInterval(sendFleetPositionPing, 4000);
   }
   function stopFleetPositionSharing() {
     if (fleetPositionInterval) { clearInterval(fleetPositionInterval); fleetPositionInterval = null; }
@@ -4351,7 +4354,7 @@
         sessionStorage.setItem('fleetPositionFailureBannerShown', '1');
         showAppBanner('<b>Posizione non disponibile</b> — la flotta non vede dove sei. Controlla i permessi di localizzazione nelle impostazioni del telefono.', 8000);
       }
-    }, { maximumAge: 20000, timeout: 15000 });
+    }, { maximumAge: 3000, timeout: 8000 });
   }
 
   function dpConfirmReordina() {
