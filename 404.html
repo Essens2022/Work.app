@@ -826,7 +826,7 @@
 <!-- SCREEN: Fleet login (copied from mockup's fleet-login) -->
 <div class="screen active" id="fleet-login">
   <div class="login-wrap">
-    <div class="login-card">
+    <div class="login-card" id="loginCard" style="display:none;">
       <div class="fleet-logo" id="loginBadge" style="width:56px;height:56px;border-radius:14px;font-size:22px;margin:0 auto 18px;">··</div>
       <h1 id="loginTitle">ADB Smart Fleet</h1>
       <p class="sub" id="loginSub">Caricamento…</p>
@@ -1508,6 +1508,7 @@
   };
 
   function showPlainNotFound() {
+    document.getElementById('loginCard').style.display = 'block';
     document.getElementById('loginTitle').textContent = 'Pagina non trovata';
     document.getElementById('loginSub').textContent = 'Questo indirizzo non corrisponde a nessuna flotta registrata.';
     document.getElementById('loginBadge').textContent = '?';
@@ -1558,11 +1559,25 @@
     // daca acea incercare automata esueaza (parola expirata/schimbata).
     var savedPw = sessionStorage.getItem('adb_fleet_pw_' + slug);
     if (savedPw) {
+      // Cerut direct ("daca sunt deja logat si apas refresh, nu
+      // trebuie sa se vada absolut nicio clintenala... pagina trebuie
+      // sa fie imobila"): pana acum, cardul de logare (insigna, nume,
+      // 'Caricamento') ramanea vizibil neconditionat cat timp se
+      // incerca logarea automata — o singura etapa vizibila, dar tot
+      // o schimbare vizuala fata de nimic. Acum ramane complet ascuns
+      // (#loginCard) cat timp exista o sesiune salvata si logarea
+      // automata e in desfasurare — apare doar daca acea incercare
+      // esueaza (parola expirata/schimbata). Cine e deja logat, cazul
+      // obisnuit, nu mai vede absolut nimic din ecranul de logare —
+      // doar indicatorul de incarcare al browserului insusi, apoi
+      // direct Panoramica.
       tryLogin(savedPw, function onAutoLoginFailed() {
+        document.getElementById('loginCard').style.display = 'block';
         document.getElementById('loginSub').textContent = 'adbsmart.it/' + slug;
         document.getElementById('loginFormArea').style.display = 'block';
       });
     } else {
+      document.getElementById('loginCard').style.display = 'block';
       document.getElementById('loginSub').textContent = 'adbsmart.it/' + slug;
       document.getElementById('loginFormArea').style.display = 'block';
     }
@@ -2001,6 +2016,16 @@
       document.querySelectorAll('[data-goto]').forEach(function (el) {
         el.classList.toggle('on', el.dataset.goto === name);
       });
+      // Cerut direct ("refreshul trebuie sa se comporte fluid in
+      // orice pagina... nu trebuie sa vad 30 de pagini, trebuie sa
+      // fie totul stabil"): pana acum, orice reincarcare a paginii
+      // sarea mereu inapoi la Panoramica, indiferent de ecranul pe
+      // care chiar te aflai (Documenti, Consegne, etc.) — o alta
+      // sursa de "sarituri" vizibile, neasteptate, la fiecare
+      // refresh. Ecranul curent se retine acum (per flota, folosind
+      // slug-ul), si se reia exact de-acolo la urmatoarea incarcare —
+      // refresh-ul nu te mai muta niciodata singur in alta parte.
+      localStorage.setItem('adb_fleet_last_screen_' + slug, name);
       window.scrollTo(0, 0);
       document.getElementById('exportCsvBtn').style.display = name === 'consegne' ? 'flex' : 'none';
       document.getElementById('panoramicaMappaBtn').style.display = name === 'panoramica' ? 'flex' : 'none';
@@ -2073,7 +2098,12 @@
       else if (name === 'bilancio') loadBilancio();
     }, 20000);
     document.getElementById('topNotifBtn').addEventListener('click', function () { goToScreen('notifiche'); });
-    goToScreen('panoramica');
+    // Reia exact ecranul pe care era inainte de refresh (vezi mai sus,
+    // in goToScreen) — implicit Panoramica doar daca nu exista inca
+    // niciun ecran retinut (prima vizita) sau daca ecranul retinut nu
+    // mai e valid (SCREEN_ID_BY_NAME nu-l recunoaste).
+    var rememberedScreen = localStorage.getItem('adb_fleet_last_screen_' + slug);
+    goToScreen((rememberedScreen && SCREEN_ID_BY_NAME[rememberedScreen]) ? rememberedScreen : 'panoramica');
     refreshNotifDot();
 
     // Requested directly ("informatiile urmatoare sa fie prefetch-uite
