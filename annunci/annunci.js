@@ -62,4 +62,46 @@ document.getElementById('themeBtn').onclick=function(){var l=document.documentEl
 E.contextLabel.textContent=mode==='fleet'?'Fleet · Annunci':'App autista · Annunci';E.pageTitle.textContent=mode==='fleet'?'Annunci':'Trova lavoro';E.pageSub.textContent=mode==='fleet'?'Pubblica e gestisci opportunità, servizi e marketplace':'Offerte, marketplace e servizi per autisti';
 document.getElementById('promoBtn').onclick=function(){alert('Modulo promozioni predisposto. Collega Stripe/prezzi prima di attivare gli addebiti reali.')};
 renderTabs();renderSide();fillCategories();dynamicForm();load();
+
+// Cerut direct ("sa pot trage cu degetul in partea laterala a
+// paginii si sa intre in cealalta pagina de anunturi... sa fie mai
+// profesionala acea trecere"): gest de tragere stanga/dreapta intre
+// sectiuni (Lavoro/Marketplace/Servizi, sau cele 4 pentru fleet) —
+// scrie explicit distinctia fata de un simplu scroll vertical
+// (deplasarea orizontala trebuie sa domine clar cea verticala,
+// altfel nu se declanseaza nimic), plus o tranzitie scurta de
+// alunecare, ca schimbarea sa se simta intentionata, nu brusca.
+(function setupSwipe(){
+  var startX=0,startY=0,tracking=false,swiped=false;
+  var target=document.querySelector('.main')||document.body;
+  target.addEventListener('touchstart',function(e){
+    if(e.touches.length!==1)return;
+    startX=e.touches[0].clientX;startY=e.touches[0].clientY;tracking=true;swiped=false;
+  },{passive:true});
+  target.addEventListener('touchmove',function(e){
+    if(!tracking||swiped||e.touches.length!==1)return;
+    var dx=e.touches[0].clientX-startX,dy=e.touches[0].clientY-startY;
+    // Pragul (60px) si raportul (dublu fata de miscarea verticala)
+    // evita declansarea accidentala la un scroll normal, usor piezis.
+    if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*2){
+      swiped=true;
+      var idx=tabs.findIndex(function(t){return t[0]===state.tab});
+      var nextIdx=dx<0?idx+1:idx-1;
+      if(nextIdx<0||nextIdx>=tabs.length)return; // la capete, nu face nimic — nu exista "inainte de prima" sau "dupa ultima"
+      var dir=dx<0?1:-1;
+      E.cards.style.transition='transform .18s ease, opacity .18s ease';
+      E.cards.style.transform='translateX('+(-dir*24)+'px)';E.cards.style.opacity='0';
+      setTimeout(function(){
+        state.tab=tabs[nextIdx][0];renderTabs();renderSide();fillCategories();render();
+        E.cards.style.transition='none';
+        E.cards.style.transform='translateX('+(dir*24)+'px)';
+        requestAnimationFrame(function(){
+          E.cards.style.transition='transform .18s ease, opacity .18s ease';
+          E.cards.style.transform='translateX(0)';E.cards.style.opacity='1';
+        });
+      },140);
+    }
+  },{passive:true});
+  target.addEventListener('touchend',function(){tracking=false},{passive:true});
+})();
 })();
