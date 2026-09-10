@@ -2175,18 +2175,19 @@
 
     function showToastNow() {
       if (!alertQueue.length) return;
-      // Find the next message (starting from the rotation cursor)
-      // that still has appearances remaining — skips over any
-      // message that's already reached its own limit of 3.
+      // Cerut direct ("sa nu deranjeze mult persoana care este in
+      // fleet"): fiecare mesaj aparea de 3 ori la rand — o data e
+      // suficient ca sa observi ceva, a treia oara devine deranjant,
+      // mai ales cu mai multe mesaje diferite in aceeasi coada.
       var startIndex = alertRotationIndex;
       var foundIndex = -1;
       for (var i = 0; i < alertQueue.length; i++) {
         var idx = (startIndex + i) % alertQueue.length;
-        if (alertShowCounts[idx] < 3) { foundIndex = idx; break; }
+        if (alertShowCounts[idx] < 1) { foundIndex = idx; break; }
       }
       if (foundIndex === -1) {
-        // Every message has been shown 3 times already — nothing
-        // left to do, stop the periodic timer for good.
+        // Every message has been shown once already — nothing left
+        // to do, stop the periodic timer for good.
         if (alertIntervalTimer) { clearInterval(alertIntervalTimer); alertIntervalTimer = null; }
         return;
       }
@@ -2242,17 +2243,46 @@
         var tinta = new Date(dataStr + 'T00:00:00');
         return Math.round((tinta - azi) / 86400000);
       }
-      (res.expiring_documents || []).forEach(function (d) {
+      // Cerut direct ("logica lor sa fie mai inteligenta sa nu
+      // deranjeze mult persoana care este in fleet"): fiecare document
+      // sau vehicul in scadenta primea propriul mesaj separat, in
+      // coada — cu mai multe scadente in acelasi timp (frecvent, la o
+      // flota cu multe vehicule/documente), coada de banner-uri putea
+      // deveni lunga, si fiecare aparea de 3 ori la rand, la fiecare
+      // 20 de secunde. Acum, documentele in scadenta se grupeaza
+      // intr-un singur mesaj (daca sunt mai multe), la fel vehiculele
+      // — un singur banner clar, in loc de unul separat pentru
+      // fiecare, cu detaliile complete listate impreuna.
+      var expiringDocs = res.expiring_documents || [];
+      if (expiringDocs.length === 1) {
+        var d = expiringDocs[0];
         var zile = zileRamasePanaLa(d.expiry_date);
         var cand = zile < 0 ? 'è scaduto' : zile === 0 ? 'scade oggi' : zile === 1 ? 'scade domani' : 'scade il ' + new Date(d.expiry_date).toLocaleDateString('it-IT');
         queue.push('<b>' + esc(d.filename) + '</b> ' + cand);
-      });
-      (res.expiring_vehicles || []).forEach(function (v) {
-        var zile = zileRamasePanaLa(v.date);
+      } else if (expiringDocs.length > 1) {
+        var docLines = expiringDocs.map(function (d) {
+          var zile = zileRamasePanaLa(d.expiry_date);
+          var cand = zile < 0 ? 'scaduto' : zile === 0 ? 'oggi' : zile === 1 ? 'domani' : new Date(d.expiry_date).toLocaleDateString('it-IT');
+          return esc(d.filename) + ' (' + cand + ')';
+        });
+        queue.push('<b>' + expiringDocs.length + ' documenti in scadenza</b><br>' + docLines.join(', '));
+      }
+      var expiringVehicles = res.expiring_vehicles || [];
+      if (expiringVehicles.length === 1) {
+        var v = expiringVehicles[0];
+        var zileV = zileRamasePanaLa(v.date);
         var typeLabel = v.type === 'assicurazione' ? 'assicurazione' : 'revisione';
-        var cand = zile < 0 ? typeLabel + ' scaduta' : zile === 0 ? typeLabel + ' scade oggi' : zile === 1 ? typeLabel + ' scade domani' : typeLabel + ' scade il ' + new Date(v.date).toLocaleDateString('it-IT');
-        queue.push('Veicolo <b>' + esc(v.targa) + '</b> — ' + cand);
-      });
+        var candV = zileV < 0 ? typeLabel + ' scaduta' : zileV === 0 ? typeLabel + ' scade oggi' : zileV === 1 ? typeLabel + ' scade domani' : typeLabel + ' scade il ' + new Date(v.date).toLocaleDateString('it-IT');
+        queue.push('Veicolo <b>' + esc(v.targa) + '</b> — ' + candV);
+      } else if (expiringVehicles.length > 1) {
+        var vehicleLines = expiringVehicles.map(function (v) {
+          var zileV = zileRamasePanaLa(v.date);
+          var typeLabel = v.type === 'assicurazione' ? 'assicurazione' : 'revisione';
+          var candV = zileV < 0 ? 'scaduta' : zileV === 0 ? 'oggi' : zileV === 1 ? 'domani' : new Date(v.date).toLocaleDateString('it-IT');
+          return esc(v.targa) + ' ' + typeLabel + ' (' + candV + ')';
+        });
+        queue.push('<b>' + expiringVehicles.length + ' veicoli in scadenza</b><br>' + vehicleLines.join(', '));
+      }
       // Only reset the show-counts if the SET of messages actually
       // changed (e.g. a new alert appeared) — refresh() re-runs this
       // periodically, and resetting on every single call would let an
@@ -2266,7 +2296,10 @@
       }
       if (!alertIntervalTimer && alertQueue.length) {
         showToastNow();
-        alertIntervalTimer = setInterval(showToastNow, 20000);
+        // Cerut direct: interval marit (era 20s) intre aparitii
+        // diferite in coada — cu mai multe mesaje distincte, un
+        // interval scurt insemna un banner nou aproape non-stop.
+        alertIntervalTimer = setInterval(showToastNow, 45000);
       }
     }
 
