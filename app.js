@@ -11634,17 +11634,37 @@
   // entirely (this function used to live here, wired to the toggle's
   // "on" state) rather than leaving unreachable dead code behind.
 
+  // REAL BUG, raportat direct ("cand vine cererea de la o flota nu
+  // vine notificare la autist... vizual nu l-a anuntat"): punctul rosu
+  // de "ceva nou" langa Novita verifica doar anunturile generale ale
+  // ADB Smart (app_novita) — o invitatie de flotă nu era luată deloc
+  // in calcul, asa ca soferul n-avea niciun semn vizual sa deschida
+  // Novita si sa o descopere, chiar daca notificarea push (separata,
+  // trimisa deja de server) nu ajungea din vreun motiv (permisiune de
+  // notificari nedata, subscriptie expirata etc.) — semnalul vizual
+  // din aplicatie trebuia sa functioneze oricum, indiferent de push.
   function checkNovitaUnread() {
+    var dot = document.getElementById('novita-unread-dot');
+    var novitaSeen = false, hasPendingInvitation = false;
+    function updateDot() { if (dot) dot.style.display = (novitaSeen || hasPendingInvitation) ? 'block' : 'none'; }
     fetch(SUPABASE_URL + '/rest/v1/app_novita?select=created_at&published=eq.true&order=created_at.desc&limit=1', {
       headers: { 'apikey': SUPABASE_ANON_KEY, 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY }
     }).then(function (r) { return r.json(); })
       .then(function (rows) {
-        if (!rows || !rows.length) return;
-        var lastSeen = localStorage.getItem(LS_NOVITA_LAST_SEEN);
-        var dot = document.getElementById('novita-unread-dot');
-        if (dot) dot.style.display = (rows[0].created_at !== lastSeen) ? 'block' : 'none';
+        if (rows && rows.length) {
+          var lastSeen = localStorage.getItem(LS_NOVITA_LAST_SEEN);
+          novitaSeen = rows[0].created_at !== lastSeen;
+        }
+        updateDot();
       })
       .catch(function () { /* offline — dot simply doesn't update this time, not worth surfacing */ });
+    var email = currentAccountEmail();
+    if (email) {
+      fleetCall({ action: 'driver_list_invitations', account_email: email }).then(function (res) {
+        hasPendingInvitation = !!(res.ok && res.invitations && res.invitations.length);
+        updateDot();
+      });
+    }
   }
 
   // Support chat with ION — requested directly, one continuous thread
@@ -12949,6 +12969,18 @@
     migrateReverifyClientPrecision(); // async, rate-limited, runs fully in the background — never blocks anything else in init()
     reportActivity().then(reportDailyOpen); // chained deliberately — the row reportActivity just wrote/confirmed must exist before this tries to update it
     checkNovitaUnread();
+    // Cerut direct ("cand vine cererea de la o flota nu vine
+    // notificare la autist... vizual nu l-a anuntat"): verificat pana
+    // acum o singura data, la pornirea aplicatiei — un sofer care
+    // avea deja aplicatia deschisa cand sosea o invitatie nu vedea
+    // niciodata punctul rosu, decat dupa o repornire completa.
+    // Reverificat acum si la revenirea in prim-plan (acelasi eveniment
+    // 'visibilitychange' deja folosit in alte locuri din acest
+    // fisier), ca semnalul vizual sa apara prompt, nu doar la un
+    // cold-start.
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) checkNovitaUnread();
+    });
     checkChatUnread();
     dpCheckPendingFleetClientImports();
     showUpdateSuccessBannerIfPending();
