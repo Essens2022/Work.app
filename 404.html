@@ -795,20 +795,22 @@
   .mappa-layout { display: grid; grid-template-columns: 1fr 300px; gap: 16px; align-items: start; }
   @media (max-width: 860px) {
     .mappa-layout { grid-template-columns: 1fr; }
-    /* Raportat din nou, mai precis a doua oara ("macar doi soferi sa
-       incapa, mai apoi se scroleaza si se pot urmari ceilalti"):
-       360px tot lasa prea putin loc, plus lista insasi nu avea o
-       inaltime proprie de derulare - se baza doar pe scroll-ul
-       intregii pagini, care nu ajungea sa dezvaluie destul. Harta
-       redusa suplimentar, iar lista de soferi primeste acum o
-       inaltime proprie (deajuns pentru cel putin 2 carduri complete)
-       cu propriul ei scroll intern, independent de restul paginii -
-       ceilalti soferi se vad derulandu-se chiar acolo, nu mai departe
-       pe pagina. */
+  }
+  #mappaMapEl { height: 500px; border-radius: 16px; border: 1px solid var(--line); overflow: hidden; }
+  /* REAL BUG, gasit abia acum, vazand chiar eu pagina reala pe un
+     telefon simulat (raportat de multe ori, fara sa se schimbe nimic
+     vizibil): regula de mai jos, desi corecta ca valoare, statea
+     INAINTE de regula de baza (#mappaMapEl{height:500px} de mai sus)
+     in codul sursa - la specificitate egala (acelasi selector simplu
+     pe ID), CSS foloseste ordinea din cod ca sa decida, nu conditia
+     din media query - regula de baza, venind DUPA, castiga mereu,
+     indiferent de latimea ecranului. Harta ramanea mereu la 500px pe
+     telefon, oricat de multe ori "reparam" valoarea. Mutata acum DUPA
+     regula de baza, unde chiar castiga. */
+  @media (max-width: 860px) {
     #mappaMapEl { height: 260px; }
     #mappaDriverList { max-height: 190px; overflow-y: auto; }
   }
-  #mappaMapEl { height: 500px; border-radius: 16px; border: 1px solid var(--line); overflow: hidden; }
   .mappa-driver-list-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft); margin-bottom: 10px; }
   .mappa-driver-card { display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; cursor: pointer; }
   .mappa-driver-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--ink-soft); }
