@@ -10,8 +10,23 @@ var E={};['tabs','cards','search','zone','category','sort','sectionTitle','resul
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function icon(name){var p={job:'<path d="M9 6V4h6v2M4 8h16v11H4zM4 11h16"/>',client:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/>',marketplace:'<path d="M3 7h18l-2 12H5L3 7z"/><path d="M8 7a4 4 0 0 1 8 0"/>',service:'<path d="M14.7 6.3a4 4 0 0 0-5-5L7 4l3 3 2.7-2.7a4 4 0 0 0 2 2z"/><path d="M5 10 2 13l9 9 3-3M14 14l7-7"/>',pin:'<path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2"/>',heart:'<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/>',mine:'<path d="M9 12h6M9 16h4M8 4h8a2 2 0 0 1 2 2v13l-3-2-3 2-3-2-3 2V6a2 2 0 0 1 2-2Z"/>',share:'<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/>',eye:'<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/>',click:'<path d="M9 3v2M4.2 4.2l1.4 1.4M3 10h2M15.5 15.5 19 19M9 9l10 3-4 2 3 5-3 1-3-5-3 3z"/>'};return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'+(p[name]||p.job)+'</svg>'}
 var tabs=mode==='fleet'?[['job','Trova lavoro'],['client','Trova clienti'],['marketplace','Marketplace'],['service','Servizi']]:[['job','Lavoro'],['marketplace','Marketplace'],['service','Servizi']];
-function renderTabs(){E.tabs.className='tabs'+(mode==='driver'?' driver':'');E.tabs.innerHTML=tabs.map(function(t){return '<button class="tab '+(state.view==='tab'&&state.tab===t[0]?'active':'')+'" data-tab="'+t[0]+'">'+t[1]+'</button>'}).join('');E.tabs.querySelectorAll('[data-tab]').forEach(function(b){b.onclick=function(){state.view='tab';state.tab=b.dataset.tab;E.tabs.style.display='';E.toolbarRow.style.display='';renderTabs();renderSide();fillCategories();render()}})}
-function renderSide(){if(mode!=='fleet'){E.sideNav.parentElement.style.display='none';return}var mineActive=state.view==='mine';E.sideNav.innerHTML='<div class="sideitem">'+icon('job')+' Panoramica annunci</div>'+tabs.map(function(t){return '<div class="sideitem '+(!mineActive&&state.tab===t[0]?'active':'')+'" data-stab="'+t[0]+'">'+icon(t[0])+' '+t[1]+'</div>'}).join('')+'<div class="sidecard-divider"></div><div class="sideitem '+(mineActive?'active':'')+'" data-mine="1">'+icon('mine')+' I miei annunci</div>';E.sideNav.querySelectorAll('[data-stab]').forEach(function(b){b.onclick=function(){state.view='tab';state.tab=b.dataset.stab;E.tabs.style.display='';E.toolbarRow.style.display='';renderTabs();renderSide();fillCategories();render()}});var mineBtn=E.sideNav.querySelector('[data-mine]');if(mineBtn)mineBtn.onclick=openMine}
+// Cerut direct ("cand apesi pe preferite trebuie sa arate ca esti
+// acolo, ca in meniul flotei"): butoanele-iconita din antet (favBtn,
+// mineBtn) capata acum aceeasi evidentiere de culoare cand sectiunea
+// lor e cea curenta, la fel ca elementele din bara laterala.
+function updateHeaderActiveStates(){
+  if(E.favBtn)E.favBtn.classList.toggle('active',state.view==='favs');
+  if(E.mineBtn)E.mineBtn.classList.toggle('active',state.view==='mine');
+}
+function renderTabs(){E.tabs.className='tabs'+(mode==='driver'?' driver':'');E.tabs.innerHTML=tabs.map(function(t){return '<button class="tab '+(state.view==='tab'&&state.tab===t[0]?'active':'')+'" data-tab="'+t[0]+'">'+t[1]+'</button>'}).join('');E.tabs.querySelectorAll('[data-tab]').forEach(function(b){b.onclick=function(){state.view='tab';state.tab=b.dataset.tab;E.tabs.style.display='';E.toolbarRow.style.display='';renderTabs();renderSide();fillCategories();render()}});updateHeaderActiveStates()}
+// Cerut direct, in etape: 'cand apes panoramica annunci, nu se apasa
+// absolut nimic' - nu avea niciun buton de actiune, era doar text
+// decorativ. Facut acum clicabil, revine la primul tab (vederea
+// implicita). Plus starea activa (culoare) extinsa si la Preferiti,
+// nu doar la taburile normale si I miei annunci - 'cand esti in
+// preferite trebuie sa arate ca esti acolo', la fel ca in restul
+// meniului flotei.
+function renderSide(){if(mode!=='fleet'){E.sideNav.parentElement.style.display='none';return}var mineActive=state.view==='mine';var favsActive=state.view==='favs';var panoramicaActive=state.view==='tab'&&state.tab===tabs[0][0];E.sideNav.innerHTML='<div class="sideitem '+(panoramicaActive?'active':'')+'" data-panoramica="1">'+icon('job')+' Panoramica annunci</div>'+tabs.map(function(t){return '<div class="sideitem '+(state.view==='tab'&&state.tab===t[0]?'active':'')+'" data-stab="'+t[0]+'">'+icon(t[0])+' '+t[1]+'</div>'}).join('')+'<div class="sidecard-divider"></div><div class="sideitem '+(mineActive?'active':'')+'" data-mine="1">'+icon('mine')+' I miei annunci</div><div class="sideitem '+(favsActive?'active':'')+'" data-favs-side="1">'+icon('heart')+' Preferiti</div>';var backToFirstTab=function(){state.view='tab';state.tab=tabs[0][0];E.tabs.style.display='';E.toolbarRow.style.display='';renderTabs();renderSide();fillCategories();render()};var panBtn=E.sideNav.querySelector('[data-panoramica]');if(panBtn)panBtn.onclick=backToFirstTab;E.sideNav.querySelectorAll('[data-stab]').forEach(function(b){b.onclick=function(){state.view='tab';state.tab=b.dataset.stab;E.tabs.style.display='';E.toolbarRow.style.display='';renderTabs();renderSide();fillCategories();render()}});var mineBtn=E.sideNav.querySelector('[data-mine]');if(mineBtn)mineBtn.onclick=openMine;var favsSideBtn=E.sideNav.querySelector('[data-favs-side]');if(favsSideBtn)favsSideBtn.onclick=openFavorites}
 var cats={job:['Furgone','Patente B','Patente C','C + CQC','CE + CQC','Linea nazionale','Consegne locali'],client:['Pallet','Merce varia','Refrigerato','Macchinari','Espresso'],marketplace:['Veicoli','Ricambi','Pneumatici','Attrezzatura','Elettronica','Altro'],service:['Assicurazioni','GPS e app','Officine','Gommisti','Consulenza','Formazione']};
 function fillCategories(){var old=E.category.value;E.category.innerHTML='<option value="">Tutte le categorie</option>'+cats[state.tab].map(function(x){return '<option>'+esc(x)+'</option>'}).join('');if(cats[state.tab].indexOf(old)>=0)E.category.value=old;var titles={job:'Offerte di lavoro',client:'Opportunità di trasporto',marketplace:'Marketplace',service:'Servizi per autisti e flotte'};E.sectionTitle.textContent=titles[state.tab];
   // Cerut direct ("cand se schimba ele se schimba si sus titlul...
@@ -80,6 +95,7 @@ function openMine(){
   E.resultCount.textContent='';
   E.cards.innerHTML='<div class="empty">Caricamento…</div>';
   renderSide();
+  updateHeaderActiveStates();
   apiCall('mine',{}).then(function(r){
     if(!r.ok)throw new Error(r.error||'api');
     state.mineItems=r.items||[];
@@ -136,6 +152,8 @@ function openFavorites(){
   E.sectionTitle.textContent='Preferiti';
   E.resultCount.textContent='';
   E.cards.innerHTML='<div class="empty">Caricamento…</div>';
+  renderSide();
+  updateHeaderActiveStates();
   var favIds=favs();
   if(!favIds.length){state.favItems=[];renderFavorites();return}
   Promise.all(tabs.map(function(t){return apiCall('list',{type:t[0]}).then(function(r){return r.ok?(r.items||[]):[]}).catch(function(){return[]})})).then(function(lists){
@@ -321,6 +339,26 @@ document.getElementById('themeBtn').onclick=function(){var l=document.documentEl
 E.contextLabel.textContent=mode==='fleet'?'Fleet · Annunci':'App autista · Annunci';E.pageTitle.textContent=mode==='fleet'?'Annunci':'Trova lavoro';E.pageSub.textContent=mode==='fleet'?'Pubblica e gestisci opportunità, servizi e marketplace':'Offerte, marketplace e servizi per autisti';
 document.getElementById('promoBtn').onclick=function(){alert('Modulo promozioni predisposto. Collega Stripe/prezzi prima di attivare gli addebiti reali.')};
 renderTabs();renderSide();fillCategories();dynamicForm();load();
+
+// Cerut direct ("ridici mai sus, subt acolo unde chiar scrie titlul
+// paginii... bara laterala trebuie sa fie sub titlu, fixa"): bara
+// laterala foloseste o valoare fixa (86px) ca sa stie unde sa se
+// opreasca la scroll - gandita pentru pagina de sine statatoare
+// (unde 86px chiar corespundea inaltimii propriului antet). In modul
+// incorporat (in flota), acel antet nu mai exista (shell-ul flotei
+// il inlocuieste), iar 86px nu se mai potriveste cu inaltimea reala
+// a blocului titlu+taburi de aici, lasand un gol intre ele. Masurata
+// acum dinamic (la fel ca --topline-h in flota), ca bara laterala sa
+// se lipeasca mereu exact sub blocul real, indiferent de contextul
+// in care pagina ruleaza.
+(function trackHeaderHeight(){
+  var header=document.querySelector('.sticky-header');
+  if(!header||!('ResizeObserver' in window))return;
+  var obs=new ResizeObserver(function(){
+    document.documentElement.style.setProperty('--annunci-header-h',header.offsetHeight+'px');
+  });
+  obs.observe(header);
+})();
 
 // Cerut direct: daca pagina e deschisa printr-un link distribuit
 // (?ad=id), deschide direct acel anunt, indiferent de tab-ul curent.
