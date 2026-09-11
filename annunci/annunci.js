@@ -237,7 +237,17 @@ function shareAnnuncio(id){
   // anuntul din baza de date si ofera etichetele og:image/og:title
   // corecte, apoi redirectioneaza instant browserele reale catre
   // pagina interactiva de mai jos.
-  var url='https://chboalgzigdglygnnist.supabase.co/functions/v1/annunci?id='+encodeURIComponent(it.id);
+  // Cerut direct ("imaginea tot continua sa nu se primeasca"): WhatsApp
+  // cacheaza agresiv previzualizarile de link, per URL exact - daca
+  // acelasi link a fost testat inainte (chiar cu o imagine care nu
+  // mergea), WhatsApp poate continua sa arate acel rezultat vechi,
+  // chiar dupa ce problema de fond a fost reparata. Adaugat un
+  // parametru legat de data ultimei actualizari a anuntului - de
+  // fiecare data cand anuntul se schimba (inclusiv o noua imagine),
+  // link-ul insusi devine altul, fortand WhatsApp sa il citeasca din
+  // nou, nu sa foloseasca o previzualizare veche, memorata.
+  var cacheBust=it.updated_at?new Date(it.updated_at).getTime():Date.now();
+  var url='https://chboalgzigdglygnnist.supabase.co/functions/v1/annunci?id='+encodeURIComponent(it.id)+'&v='+cacheBust;
   var shareData={title:it.title,text:text,url:url};
   if(!String(it.id).startsWith('demo'))apiCall('track_share',{id:it.id}).catch(function(){});
   if(navigator.share){

@@ -74,10 +74,17 @@ Deno.serve(async (req) => {
     const destination = `https://adbsmart.it/annunci/?ad=${encodeURIComponent(id)}`;
     if (!id) return Response.redirect(destination, 302);
     try {
-      const { data } = await admin.from('adb_annunci').select('title,company,location,description,image_url').eq('id', id).eq('visibility','public').maybeSingle();
+      const { data } = await admin.from('adb_annunci').select('title,company,location,description,image_url,updated_at').eq('id', id).eq('visibility','public').maybeSingle();
       const title = data ? escapeHtml(data.title) : 'ADB Smart — Annunci';
       const desc = data ? escapeHtml(`${data.company} · ${data.location}`) : 'Offerte di lavoro, marketplace e servizi per autisti.';
-      const image = data?.image_url ? escapeHtml(data.image_url) : 'https://adbsmart.it/icon-512.png';
+      // Cerut direct ("imaginea tot continua sa nu se primeasca"):
+      // WhatsApp cacheaza si imaginea insasi, separat de pagina - iar
+      // adresa fisierului din depozit RAMANE ACEEASI chiar si dupa ce
+      // continutul e inlocuit (upsert, acelasi nume de fisier).
+      // Adaugat un parametru legat de data ultimei actualizari, ca
+      // adresa imaginii insasi sa se schimbe la fiecare inlocuire.
+      const imgVersion = data?.updated_at ? new Date(data.updated_at).getTime() : Date.now();
+      const image = data?.image_url ? escapeHtml(data.image_url + (data.image_url.includes('?') ? '&' : '?') + 'v=' + imgVersion) : 'https://adbsmart.it/icon-512.png';
       const html = `<!doctype html><html><head><meta charset="utf-8">
 <meta property="og:title" content="${title}">
 <meta property="og:description" content="${desc}">
