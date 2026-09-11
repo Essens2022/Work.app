@@ -145,6 +145,21 @@
      ecrane cu mai mult continut acolo (Panoramica, Autisti etc.).
      Redus doar aici, ca sa nu atinga celelalte ecrane ale flotei. */
   #fleet-annunci .topline { padding: 20px 40px 10px; margin-bottom: 0; }
+  /* REAL BUG, gasit vazand chiar eu pagina, comparata direct cu
+     Panoramica ("acolo unde iese cu date... si uite la anunte de
+     unde porneste... la fel meniul"): pe desktop, .topline e
+     "sticky" - ramane in fluxul normal al paginii, impingand deja
+     corect tot ce vine dupa el, prin inaltimea lui proprie. Cadrul
+     de aici primea INCA un padding-top calculat separat, dupa
+     aceeasi inaltime - practic, spatiul se numara de doua ori.
+     Necesar DOAR pe mobil (unde .topline devine "fixed", iesind din
+     flux, si chiar are nevoie de o compensare explicita) - pe
+     desktop, cadrul umple pur si simplu restul spatiului, fara nicio
+     compensare in plus. */
+  .annunci-frame-wrap { padding: 0; height: calc(100dvh - var(--topline-h, 90px)); box-sizing: border-box; }
+  @media (max-width: 860px) {
+    .annunci-frame-wrap { padding-top: calc(var(--topline-h, 90px) + 12px); height: 100dvh; }
+  }
   .eyebrow { font-size: 13px; color: var(--ink-soft); font-weight: 600; margin-bottom: 6px; }
   .page-title { font-size: 34px; line-height: 1; }
   /* Requested directly: the descriptive line under a page title
@@ -1117,7 +1132,7 @@
           <h1 class="page-title">Annunci</h1>
         </div>
       </div>
-      <div class="main-inner" style="padding:0;padding-top:var(--topline-h, 90px);height:calc(100dvh - var(--topline-h, 90px));box-sizing:border-box;">
+      <div class="main-inner annunci-frame-wrap">
         <!-- Raportat direct ("in fleet, pagina anunturi se deschide ca
              in browser"): pe iOS, o navigare adevarata catre o alta
              pagina (chiar acelasi domeniu) poate "scoate" temporar din
@@ -1939,8 +1954,8 @@
     document.getElementById('fleet-login').classList.remove('active');
     document.body.classList.add('app-shown');
     document.getElementById('topNotifBtn').style.display = 'flex';
-    ['dashName', 'dashName2', 'dashName3', 'dashName4', 'dashName5', 'dashName6', 'dashName7', 'dashName8'].forEach(function (id) { document.getElementById(id).textContent = fleetName; });
-    ['dashBadge', 'dashBadge2', 'dashBadge3', 'dashBadge4', 'dashBadge5', 'dashBadge6', 'dashBadge7', 'dashBadge8'].forEach(function (id) { document.getElementById(id).textContent = badgeInitials(fleetName); });
+    ['dashName', 'dashName2', 'dashName3', 'dashName4', 'dashName5', 'dashName6', 'dashName7', 'dashName8', 'dashNameAnn'].forEach(function (id) { var el = document.getElementById(id); if (el) el.textContent = fleetName; });
+    ['dashBadge', 'dashBadge2', 'dashBadge3', 'dashBadge4', 'dashBadge5', 'dashBadge6', 'dashBadge7', 'dashBadge8', 'dashBadgeAnn'].forEach(function (id) { var el = document.getElementById(id); if (el) el.textContent = badgeInitials(fleetName); });
     if (role === 'viewer') document.body.classList.add('role-viewer');
 
     // Requested directly ("de ce nu folosesti acelasi instrument pe
