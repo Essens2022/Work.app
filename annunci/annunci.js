@@ -108,7 +108,7 @@ function renderMine(){
     // pentru vizualizari (a aparut pe ecranul cuiva), cursor pentru
     // click-uri (a fost chiar deschis), distribuire pentru cate ori a
     // fost trimis mai departe.
-    var statsRow='<div class="minestats"><span title="Visualizzazioni">'+icon('eye')+' '+(it.views_count||0)+'</span><span title="Aperture">'+icon('click')+' '+(it.clicks_count||0)+'</span><span title="Condivisioni">'+icon('share')+' '+(it.shares_count||0)+'</span></div>';
+    var statsRow='<div class="minestats"><span title="Visualizzazioni">'+icon('eye')+' '+(it.views_count||0)+'</span><span title="Aperture">'+icon('click')+' '+(it.clicks_count||0)+'</span><span title="Condivisioni">'+icon('share')+' '+(it.shares_count||0)+'</span><span title="Salvati nei preferiti">'+icon('heart')+' '+(it.saves_count||0)+'</span></div>';
     return '<article class="card">'+stateBadge+cardImage(it)+'<div class="cardbody"><div class="cardtop"><div style="min-width:0;flex:1"><div class="title">'+esc(it.title)+'</div><div class="company">'+esc(it.company)+'</div></div></div><div class="meta">'+icon('pin')+' '+esc(it.location)+'</div>'+statsRow+'<div class="chips">'+(it.category?'<span class="chip">'+esc(it.category)+'</span>':'')+(it.price_label?'<span class="chip money">'+esc(it.price_label)+'</span>':'')+'</div><div class="cardactions"><span class="count">'+relativeTime(it.created_at)+'</span><div style="display:flex;gap:6px;"><button class="ghost" data-mine-toggle="'+esc(it.id)+'" style="padding:6px 10px;font-size:12px;">'+toggleLabel+'</button><button class="ghost" data-mine-edit="'+esc(it.id)+'" style="padding:6px 10px;font-size:12px;">Modifica</button><button class="ghost danger" data-mine-delete="'+esc(it.id)+'" style="padding:6px 10px;font-size:12px;">Elimina</button></div></div></div></article>'
   }).join(''):'<div class="empty">Non hai ancora pubblicato nessun annuncio.</div>';
   E.cards.querySelectorAll('[data-mine-edit]').forEach(function(b){b.onclick=function(){var it=state.mineItems.find(function(x){return x.id===b.dataset.mineEdit});if(it)openEdit(it)}});
@@ -174,7 +174,12 @@ function renderFavorites(){
 }
 function backFromFavorites(){state.view='tab';E.tabs.style.display='';E.toolbarRow.style.display='';renderTabs();renderSide();fillCategories();render()}
 
-function favs(){try{return JSON.parse(localStorage.getItem('adb_annunci_favs')||'[]')}catch(e){return[]}}function toggleFav(id){var f=favs(),i=f.indexOf(id);if(i>=0)f.splice(i,1);else f.push(id);localStorage.setItem('adb_annunci_favs',JSON.stringify(f));render()}
+function favs(){try{return JSON.parse(localStorage.getItem('adb_annunci_favs')||'[]')}catch(e){return[]}}
+// Cerut direct ("cati au pus la preferite, cati au salvat"): contorizat
+// doar la ADAUGARE (nu si la eliminare) - un numar cumulativ, la fel
+// ca celelalte trei (vizualizari/click-uri/distribuiri), nu o stare
+// curenta care ar putea scadea.
+function toggleFav(id){var f=favs(),i=f.indexOf(id);if(i>=0)f.splice(i,1);else{f.push(id);if(!String(id).startsWith('demo'))apiCall('track_save',{id:id}).catch(function(){})}localStorage.setItem('adb_annunci_favs',JSON.stringify(f));render()}
 function relativeTime(x){var d=(Date.now()-new Date(x).getTime())/1000;if(d<3600)return Math.max(1,Math.floor(d/60))+' min fa';if(d<86400)return Math.floor(d/3600)+' ore fa';return Math.floor(d/86400)+' giorni fa'}
 function cardImage(it){if(it.image_url)return '<img class="thumb" src="'+esc(it.image_url)+'" alt="">';return '<div class="thumb placeholder">'+icon(it.type)+'</div>'}
 
