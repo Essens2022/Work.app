@@ -795,6 +795,14 @@
   .mappa-layout { display: grid; grid-template-columns: 1fr 300px; gap: 16px; align-items: start; }
   @media (max-width: 860px) {
     .mappa-layout { grid-template-columns: 1fr; }
+    /* Cerut direct ("mapa e prea mare... nu se vede numele
+       soferilor... pune-o putin mai micuta, de inaltime"): pe mobil,
+       harta si lista de soferi se aseaza una sub alta (o singura
+       coloana, mai sus) - o inaltime fixa de 500px, aceeasi ca pe
+       desktop, nu lasa aproape deloc loc listei de dedesubt pe un
+       ecran de telefon. Redusa moderat, nu drastic, exact cat sa se
+       vada bine ambele. */
+    #mappaMapEl { height: 360px; }
   }
   #mappaMapEl { height: 500px; border-radius: 16px; border: 1px solid var(--line); overflow: hidden; }
   .mappa-driver-list-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft); margin-bottom: 10px; }
