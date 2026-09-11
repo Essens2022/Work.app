@@ -25,14 +25,29 @@ function fillCategories(){var old=E.category.value;E.category.innerHTML='<option
   if(currentTabDef)E.pageTitle.textContent=currentTabDef[1];
   renderSide()}
 function apiCall(action,payload){payload=payload||{};payload.action=action;payload.mode=mode;payload.fleet_slug=fleetSlug;payload.fleet_password=fleetPassword;return fetch(API,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+SUPABASE_ANON_KEY},body:JSON.stringify(payload)}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()})}
-var sample=[
-{id:'demo1',type:'job',title:'Autista consegne locali',company:'Logistica Veneta S.r.l.',location:'Padova',category:'Furgone',price_label:'1.600 – 2.000 €',work_mode:'Full time',badge:'new',created_at:new Date().toISOString(),description:'Consegne locali e provinciali con furgone aziendale. Inserimento stabile.',image_url:''},
-{id:'demo2',type:'job',title:'Autista linea nazionale',company:'Trasporti Nord Italia',location:'Verona',category:'CE + CQC',price_label:'2.200 – 2.700 €',work_mode:'Turni',badge:'urgent',created_at:new Date(Date.now()-3600000).toISOString(),description:'Linea nazionale, esperienza richiesta. Mezzo assegnato.',image_url:''},
-{id:'demo3',type:'client',title:'Trasporto pallet',company:'Alfa Logistica S.r.l.',location:'Padova → Vicenza',category:'Pallet',price_label:'450 €',work_mode:'Entro 24h',badge:'new',created_at:new Date().toISOString(),description:'1 pallet, merce secca, ritiro in giornata.',image_url:''},
-{id:'demo4',type:'marketplace',title:'Pneumatici autocarro usati',company:'Truck Parts Veneto',location:'Treviso',category:'Pneumatici',price_label:'Da 120 €',work_mode:'Ottime condizioni',badge:'',created_at:new Date().toISOString(),description:'Disponibili varie misure per veicoli commerciali.',image_url:''},
-{id:'demo5',type:'service',title:'Assicurazione veicoli commerciali',company:'Broker Trasporti Italia',location:'Italia',category:'Assicurazioni',price_label:'Preventivo',work_mode:'Per flotte e singoli',badge:'sponsored',created_at:new Date().toISOString(),description:'Soluzioni dedicate ad autisti, padroncini e flotte.',image_url:''}
-];
-function load(){E.statusBar.classList.remove('show');return apiCall('list',{type:state.tab}).then(function(r){if(!r.ok)throw new Error(r.error||'api');state.items=r.items||[];state.apiReady=true;render()}).catch(function(){state.apiReady=false;state.items=sample.slice();E.statusBar.textContent='Anteprima locale: il backend Annunci non è ancora distribuito. Il pacchetto include già SQL + Edge Function da collegare.';E.statusBar.classList.add('show');render()})}
+// Cerut direct ("nu mai apara acele publicatii hardcodate... mereu sa
+// apara doar publicarile facute de flote"): datele de test (5
+// anunturi fictive), folosite doar cat timp backend-ul inca nu era
+// distribuit, aparusera din greseala si DUPA aceea - de fiecare data
+// cand cererea catre server esua dintr-un motiv oarecare (o
+// intrerupere temporara de retea, de exemplu), pagina "cadea" tacut
+// pe aceste date fictive, aratand-le ca si cum ar fi reale. Eliminate
+// complet - la o eroare reala, un mesaj clar spune exact atat, cu un
+// buton de reincercare, niciodata date inventate.
+function load(){
+  E.statusBar.classList.remove('show');
+  E.cards.innerHTML='<div class="empty">Caricamento…</div>';
+  return apiCall('list',{type:state.tab}).then(function(r){
+    if(!r.ok)throw new Error(r.error||'api');
+    state.items=r.items||[];state.apiReady=true;render()
+  }).catch(function(){
+    state.apiReady=false;state.items=[];
+    E.resultCount.textContent='';
+    E.cards.innerHTML='<div class="empty">Impossibile caricare gli annunci al momento.<br><button class="ghost" id="retryLoadBtn" style="margin-top:10px;">Riprova</button></div>';
+    var retryBtn=document.getElementById('retryLoadBtn');
+    if(retryBtn)retryBtn.onclick=load;
+  })
+}
 
 // Cerut direct ("in fleet nu arata anunturile deja publicate sau care
 // sunt in bozza cu posibilitatea de a aggiorna anuntul"): sectiune noua,
