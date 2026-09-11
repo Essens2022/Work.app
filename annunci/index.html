@@ -37,6 +37,19 @@
   // aici, in acelasi loc, cat mai devreme posibil, ca regula CSS de
   // mai jos sa se aplice instant, fara nicio clipa vizibila gresita.
   if(isDriver)document.documentElement.setAttribute('data-hide-promo','1');
+  // Cerut direct ("in loc sa navighezi catre o alta pagina, incarca
+  // continutul de Annunci direct in interiorul paginii de flota"):
+  // cand pagina e incarcata intr-un cadru (iframe) din portalul de
+  // flota, acel cadru ("shell"-ul de flota) calculeaza deja o singura
+  // data spatiul de sus pentru crestatura - fara aceasta, spatiul s-ar
+  // calcula de DOUA ori (o data de shell, o data aici), lasand un gol
+  // dublu, nedorit, sus de tot. Acelasi motiv pentru care bara proprie
+  // de sus (cu sigla si butonul "inapoi") nu mai are sens aici - acel
+  // shell are deja propriul titlu si propria navigare.
+  if(new URLSearchParams(location.search).get('embedded')==='1'){
+    document.documentElement.style.setProperty('--safe-top','0px');
+    document.documentElement.setAttribute('data-embedded','1');
+  }
 })();</script>
 <style>
 :root{--bg:#0d0e10;--panel:#151619;--panel2:#1b1c20;--line:#292b31;--text:#f6f5f3;--muted:#9b9ca2;--accent:#E8542B;--accent2:#ff6b3f;--green:#32bd72;--amber:#e9a83a;--danger:#e45555;--shadow:0 12px 34px rgba(0,0,0,.22);--r:16px;--safe-top:env(safe-area-inset-top,0px)}
@@ -51,7 +64,7 @@ html[data-theme="light"]{--bg:#FAFAF8;--panel:#FFFFFF;--panel2:#F4F2EE;--line:#E
    desktop) - un mouse nu are acest gest, deci nu are nevoie de
    aceasta reparatie. */
 @media (pointer: coarse) { html, body { overscroll-behavior-y: none; } }
-button,input,select,textarea{font:inherit}button{cursor:pointer}.app{min-height:100vh}.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}.topin{max-width:1240px;margin:auto;padding:calc(12px + var(--safe-top)) 18px 12px;display:flex;align-items:center;gap:12px}.brand{display:flex;align-items:center;gap:10px;font-weight:850}.brand img{width:34px;height:34px;border-radius:9px}.topspacer{flex:1}.iconbtn{width:40px;height:40px;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:12px;display:grid;place-items:center}.iconbtn svg{width:19px;height:19px}.backlabel{font-size:13px;color:var(--muted)}
+button,input,select,textarea{font:inherit}button{cursor:pointer}.app{min-height:100vh}.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}html[data-embedded="1"] .top{display:none}html[data-embedded="1"] .sticky-header{top:0}.topin{max-width:1240px;margin:auto;padding:calc(12px + var(--safe-top)) 18px 12px;display:flex;align-items:center;gap:12px}.brand{display:flex;align-items:center;gap:10px;font-weight:850}.brand img{width:34px;height:34px;border-radius:9px}.topspacer{flex:1}.iconbtn{width:40px;height:40px;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:12px;display:grid;place-items:center}.iconbtn svg{width:19px;height:19px}.backlabel{font-size:13px;color:var(--muted)}
 .layout{max-width:1240px;margin:0 auto;display:grid;grid-template-columns:220px minmax(0,1fr);gap:20px;padding:22px 18px 60px}.side{position:sticky;top:calc(86px + var(--safe-top));height:max-content}.sidecard{border:1px solid var(--line);background:var(--panel);border-radius:18px;padding:10px}.sideitem{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:11px;color:var(--muted);font-size:13.5px;font-weight:700}.sideitem.active{background:rgba(239,85,45,.14);color:var(--accent)}.sidecard-divider{height:1px;background:var(--line);margin:8px 4px}.sideitem svg{width:18px;height:18px}.main{min-width:0}.hero{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 0}.hero h1{font-size:21px;line-height:1.1;margin:0 0 2px;letter-spacing:-.02em}.hero p{margin:0;color:var(--muted);font-size:12px}.primary{border:0;background:var(--accent);color:#fff;border-radius:12px;padding:11px 15px;font-weight:800;display:flex;align-items:center;gap:7px}.primary:hover{background:var(--accent2)}
 /* Cerut direct ("bara de sus... nu este fixa blocata impreuna cu
    Trova lavoro... trebuie sa fie mai restransa mai organizat
