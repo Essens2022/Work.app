@@ -230,24 +230,22 @@ function shareAnnuncio(id){
   if(!it)return;
   var priceLine=it.price_label?' · '+it.price_label:'';
   var text=it.title+' — '+it.company+' ('+it.location+')'+priceLine;
-  // Cerut direct ("cand trimiti pe WhatsApp... ar trebui sa se
-  // trimita impreuna cu imaginea sa, exact ca la retelele de
-  // socializare"): linkul distribuit trece acum prin pagina de
-  // previzualizare a functiei server (vezi index.ts) - aceea citeste
-  // anuntul din baza de date si ofera etichetele og:image/og:title
-  // corecte, apoi redirectioneaza instant browserele reale catre
-  // pagina interactiva de mai jos.
-  // Cerut direct ("imaginea tot continua sa nu se primeasca"): WhatsApp
-  // cacheaza agresiv previzualizarile de link, per URL exact - daca
-  // acelasi link a fost testat inainte (chiar cu o imagine care nu
-  // mergea), WhatsApp poate continua sa arate acel rezultat vechi,
-  // chiar dupa ce problema de fond a fost reparata. Adaugat un
-  // parametru legat de data ultimei actualizari a anuntului - de
-  // fiecare data cand anuntul se schimba (inclusiv o noua imagine),
-  // link-ul insusi devine altul, fortand WhatsApp sa il citeasca din
-  // nou, nu sa foloseasca o previzualizare veche, memorata.
-  var cacheBust=it.updated_at?new Date(it.updated_at).getTime():Date.now();
-  var url='https://chboalgzigdglygnnist.supabase.co/functions/v1/annunci?id='+encodeURIComponent(it.id)+'&v='+cacheBust;
+  // REVENIT la varianta simpla si sigura (raportat direct: "pana acum
+  // link-ul se deschidea bine, direct la produs, era perfect... era
+  // deajuns sa dau doar sa se deschida si imaginea"): incercarea de a
+  // adauga imaginea la previzualizare trecea link-ul printr-o pagina
+  // intermediara pe server - dar Supabase INTERZICE, la nivel de
+  // platforma, trimiterea de HTML pe domeniul gratuit (documentat
+  // oficial: "GET requests that return text/html will be rewritten to
+  // text/plain"), indiferent ce am fi scris noi in cod. Asta a stricat
+  // exact lucrul care functiona deja bine - deschiderea directa a
+  // anuntului. Distribuie acum din nou link-ul direct catre pagina
+  // reala, fara nicio pagina intermediara - functia de baza (apasa,
+  // se deschide anuntul) merge din nou, garantat. Imaginea in
+  // previzualizare ramane un lucru separat, de rezolvat cu o solutie
+  // dedicata (Cloudflare Workers sau domeniu propriu Supabase), fara
+  // sa mai riste sa strice ce merge deja.
+  var url=location.origin+'/annunci/?ad='+encodeURIComponent(it.id);
   var shareData={title:it.title,text:text,url:url};
   if(!String(it.id).startsWith('demo'))apiCall('track_share',{id:it.id}).catch(function(){});
   if(navigator.share){
