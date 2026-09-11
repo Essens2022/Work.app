@@ -273,6 +273,15 @@
     .toast-notification { left: 248px; }
   }
   .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .alert-banner-close { display: none; }
+  @media (min-width: 861px) {
+    .alert-banner-close {
+      display: flex; align-items: center; justify-content: center; flex: none;
+      width: 26px; height: 26px; margin-left: 4px; border: none; border-radius: 8px;
+      background: rgba(255,255,255,.08); color: #cfcbc6; cursor: pointer;
+    }
+    .alert-banner-close:hover { background: rgba(255,255,255,.16); color: #fff; }
+  }
   /* REAL BUG, raportat direct de ION ("numarul si titlul... ar trebui
      sa nu fie legate... cand se schimba ceva la numar, nu iese
      profesional"): inainte, numarul si eticheta erau doar stivuite,
@@ -887,6 +896,16 @@
 <div class="toast-notification" id="alertBanner">
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/><path d="M12 9v4M12 17h.01"/></svg>
   <div id="alertBannerText"></div>
+  <!-- Cerut direct ("la fleet... alertele... pe calculator sa pun un
+       X"): pe telefon, alerta doar dispare singura dupa cateva
+       secunde (nu are nevoie de nimic in plus) - pe calculator, unde
+       persoana poate sta cu ea pe ecran mai mult timp cat lucreaza,
+       un buton clar de inchidere e util. Vizibil doar de la latimea
+       de desktop in sus (aceeasi limita deja folosita mai jos pentru
+       pozitionarea alertei). */
+  <button type="button" id="alertBannerClose" class="alert-banner-close" aria-label="Chiudi">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+  </button>
 </div>
 
 <!-- SCREEN: Fleet login (copied from mockup's fleet-login) -->
@@ -2577,6 +2596,11 @@
       requestAnimationFrame(function () { banner.classList.add('toast-show'); });
       toastHideTimer = setTimeout(function () { banner.classList.remove('toast-show'); }, 9000);
     }
+    var alertBannerCloseBtn = document.getElementById('alertBannerClose');
+    if (alertBannerCloseBtn) alertBannerCloseBtn.addEventListener('click', function () {
+      if (toastHideTimer) { clearTimeout(toastHideTimer); toastHideTimer = null; }
+      document.getElementById('alertBanner').classList.remove('toast-show');
+    });
 
     function renderAlertBanner(res) {
       var drivers = res.drivers || [];
