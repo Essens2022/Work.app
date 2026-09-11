@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v575"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v576"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -1055,7 +1055,7 @@
     html += '<div class="odometer"><span class="lbl">Ultimo KM fine registrato</span><span class="val">' + (lastKm !== null ? Number(lastKm).toLocaleString('it-IT') : '—') + '</span></div>';
     html += '<div class="card-actions">';
     html += '<button class="btn btn-light" style="flex:1" id="home-continua">Apri foglio</button>';
-    html += '<button class="btn btn-accent" style="flex:1" id="home-pdf">Anteprima PDF</button>';
+    html += '<button class="btn btn-accent" style="flex:1" id="home-percorso"><svg viewBox="0 0 640 512" width="18" height="15" fill="currentColor"><path d="M112 0C85.5 0 64 21.5 64 48V96H16c-8.8 0-16 7.2-16 16s7.2 16 16 16H64 272c8.8 0 16 7.2 16 16s-7.2 16-16 16H64 48c-8.8 0-16 7.2-16 16s7.2 16 16 16H64 240c8.8 0 16 7.2 16 16s-7.2 16-16 16H64 16c-8.8 0-16 7.2-16 16s7.2 16 16 16H64 208c8.8 0 16 7.2 16 16s-7.2 16-16 16H64V416c0 53 43 96 96 96s96-43 96-96H384c0 53 43 96 96 96s96-43 96-96h32c17.7 0 32-14.3 32-32s-14.3-32-32-32V288 256 237.3c0-17-6.7-33.3-18.7-45.3L512 114.7c-12-12-28.3-18.7-45.3-18.7H416V48c0-26.5-21.5-48-48-48H112zM544 237.3V256H416V160h50.7L544 237.3zM160 464c-26.5 0-48-21.5-48-48s21.5-48 48-48s48 21.5 48 48s-21.5 48-48 48zm368-48c0 26.5-21.5 48-48 48s-48-21.5-48-48s21.5-48 48-48s48 21.5 48 48z"/></svg>Percorso</button>';
     html += '</div></div>';
 
     if (!activeMonth) {
@@ -1129,7 +1129,7 @@
 
     el.innerHTML = html;
     document.getElementById('home-continua').addEventListener('click', function () { showScreen('foglio'); });
-    document.getElementById('home-pdf').addEventListener('click', function () { showScreen('pdf'); });
+    document.getElementById('home-percorso').addEventListener('click', function () { showScreen('navigatore'); });
     // Cerut direct: pagina reala de oferte nu e inca construita — pana
     // atunci, la apasare arata doar un mesaj scurt, ca soferul sa nu
     // creada ca butonul e stricat/nu face nimic.
