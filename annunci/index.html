@@ -37,6 +37,16 @@
   // aici, in acelasi loc, cat mai devreme posibil, ca regula CSS de
   // mai jos sa se aplice instant, fara nicio clipa vizibila gresita.
   if(isDriver)document.documentElement.setAttribute('data-hide-promo','1');
+  // Cerut direct ("se deschide de pe calculator, este un dezastru,
+  // este totul pus intr-un colt pe stanga"): pentru sofer (fara bara
+  // laterala), regula CSS de grid pentru pagina ('.layout') tot
+  // rezerva doua coloane - iar fara niciun element vizibil pentru
+  // prima coloana (bara laterala e ascunsa complet), grid-ul CSS
+  // plaseaza gresit tot continutul chiar in acea prima coloana,
+  // ingusta, lasand a doua coloana (lata) complet goala. Marcat aici,
+  // devreme, ca regula CSS de mai jos sa comute la o singura coloana
+  // in acest caz, fara nicio clipa de layout gresit vizibila.
+  if(isDriver)document.documentElement.setAttribute('data-single-col','1');
   // Cerut direct ("in loc sa navighezi catre o alta pagina, incarca
   // continutul de Annunci direct in interiorul paginii de flota"):
   // cand pagina e incarcata intr-un cadru (iframe) din portalul de
@@ -65,7 +75,7 @@ html[data-theme="light"]{--bg:#FAFAF8;--panel:#FFFFFF;--panel2:#F4F2EE;--line:#E
    aceasta reparatie. */
 @media (pointer: coarse) { html, body { overscroll-behavior-y: none; } }
 button,input,select,textarea{font:inherit}button{cursor:pointer}.app{min-height:100vh}.top{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}html[data-embedded="1"] .top{display:none}html[data-embedded="1"] .sticky-header{top:0}.topin{max-width:1240px;margin:auto;padding:calc(12px + var(--safe-top)) 18px 12px;display:flex;align-items:center;gap:12px}.brand{display:flex;align-items:center;gap:10px;font-weight:850}.brand img{width:34px;height:34px;border-radius:9px}.topspacer{flex:1}.iconbtn{width:40px;height:40px;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:12px;display:grid;place-items:center}.iconbtn.active{background:rgba(239,85,45,.14);color:var(--accent);border-color:var(--accent)}.iconbtn svg{width:19px;height:19px}.backlabel{font-size:13px;color:var(--muted)}
-.layout{max-width:1600px;margin:0 auto;display:grid;grid-template-columns:220px minmax(0,1fr);gap:20px;padding:22px 18px 60px}
+.layout{max-width:1600px;margin:0 auto;display:grid;grid-template-columns:220px minmax(0,1fr);gap:20px;padding:22px 18px 60px}html[data-single-col="1"] .layout{grid-template-columns:minmax(0,1fr)}
 /* Raportat direct ("aceste pagini noi... nu se extind pe intregul
    ecran, cum se extind alte pagini"): limita proprie de latime a
    paginii (1240px) era mai ingusta decat spatiul disponibil oferit

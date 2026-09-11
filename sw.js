@@ -9,7 +9,7 @@
 //  - Large, rarely-changing files (jsPDF, the comuni database, icons, logo)
 //    stay CACHE-FIRST, so they don't get re-downloaded on every load.
 
-const CACHE_VERSION = 'pt-foglio-v586';
+const CACHE_VERSION = 'pt-foglio-v587';
 const CORE_ASSETS = ['./', './index.html', './app.js', './manifest.json', './version.json', './annunci/', './annunci/index.html', './annunci/annunci.js'];
 // REAL BUG, reported directly, TWICE — a first attempt excluded these
 // pages from the service worker entirely, reasoning that removing a
@@ -184,6 +184,19 @@ self.addEventListener('push', (event) => {
       // every notification this app can currently send, and still
       // leaves room for the backend to specify a different type
       // explicitly later, if a second kind of push ever gets added.
+      // Cerut direct ("pe calculator nu-i nicio modalitate cum poti
+      // sa le inchizi... ar fi bine sa pui un X... dar doar la
+      // versiunea de pe calculator"): un buton de actiune standard
+      // ("Chiudi") - browserele de pe telefon (unde deja functioneaza
+      // tras cu degetul in sus, ca la WhatsApp) fie il ignora complet,
+      // fie il afiseaza discret, fara sa strice nimic din
+      // comportamentul deja existent - browserele de pe calculator
+      // (Chrome, Firefox, Edge), care nu au niciun gest de inchidere,
+      // il arata ca un buton vizibil chiar pe notificare. Nu e nevoie
+      // de nicio detectare explicita a dispozitivului - fiecare
+      // platforma foloseste comportamentul ei standard pentru acest
+      // camp.
+      actions: [{ action: 'dismiss', title: 'Chiudi' }],
       data: { type: data.type || 'chat', slug: data.slug || null }
     })
   );
@@ -191,6 +204,9 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  // Butonul "Chiudi" doar inchide notificarea (deja facut mai sus) -
+  // nu deschide nicio pagina, exact ca un swipe pe telefon.
+  if (event.action === 'dismiss') return;
   var notificationType = (event.notification.data && event.notification.data.type) || 'generic';
 
   // Requested directly ("la flota notificarea nu se cede de pe
