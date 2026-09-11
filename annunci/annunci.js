@@ -34,18 +34,33 @@ function apiCall(action,payload){payload=payload||{};payload.action=action;paylo
 // pe aceste date fictive, aratand-le ca si cum ar fi reale. Eliminate
 // complet - la o eroare reala, un mesaj clar spune exact atat, cu un
 // buton de reincercare, niciodata date inventate.
-function load(){
+// Cerut direct ("anunturile trebuie sa se incarce mereu, fara nicio
+// problema"): investigat cauza reala a esecurilor ocazionale - codul
+// facea o SINGURA incercare, fara nicio reincercare automata; o
+// simpla sincopa temporara de retea (foarte obisnuita pe mobil, de
+// exemplu la trecerea de pe wifi pe date, sau chiar in primele
+// clipe dupa ce ecranul se aprinde) era suficienta ca sa esueze o
+// data, fara nicio a doua sansa. Acum reincearca automat, de doua ori
+// in plus (trei incercari in total), cu o pauza scurta intre ele -
+// majoritatea sincopelor trecatoare nu mai ajung sa fie vizibile
+// deloc. Mesajul de eroare (cu buton de reincercare manuala) apare
+// doar daca toate cele trei incercari esueaza la rand.
+function load(retriesLeft){
+  if(retriesLeft===undefined)retriesLeft=2;
   E.statusBar.classList.remove('show');
   E.cards.innerHTML='<div class="empty">Caricamento…</div>';
   return apiCall('list',{type:state.tab}).then(function(r){
     if(!r.ok)throw new Error(r.error||'api');
     state.items=r.items||[];state.apiReady=true;render()
   }).catch(function(){
+    if(retriesLeft>0){
+      return new Promise(function(resolve){setTimeout(resolve,900)}).then(function(){return load(retriesLeft-1)});
+    }
     state.apiReady=false;state.items=[];
     E.resultCount.textContent='';
     E.cards.innerHTML='<div class="empty">Impossibile caricare gli annunci al momento.<br><button class="ghost" id="retryLoadBtn" style="margin-top:10px;">Riprova</button></div>';
     var retryBtn=document.getElementById('retryLoadBtn');
-    if(retryBtn)retryBtn.onclick=load;
+    if(retryBtn)retryBtn.onclick=function(){load()};
   })
 }
 
