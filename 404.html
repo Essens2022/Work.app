@@ -1534,12 +1534,26 @@
 (function () {
   document.getElementById('themeToggle').addEventListener('click', function () {
     var isLight = document.documentElement.getAttribute('data-theme') === 'light';
+    var newTheme = isLight ? 'dark' : 'light';
     if (isLight) {
       document.documentElement.removeAttribute('data-theme');
       localStorage.setItem('adb_fleet_theme', 'dark');
     } else {
       document.documentElement.setAttribute('data-theme', 'light');
       localStorage.setItem('adb_fleet_theme', 'light');
+    }
+    // Raportat direct ("cand apas scuro... insasi pagina ramane mereu
+    // alba"): pagina de Annunci, incarcata in cadrul de mai jos, are
+    // propria tema salvata separat (chei diferite in localStorage) -
+    // schimbarea temei aici nu ajungea niciodata la ea. Actualizata
+    // acum si cheia ei, plus (pentru cadrul deja incarcat, care nu
+    // observa singur schimbarea) atinsa direct tema paginii dinauntru,
+    // ca efectul sa se vada imediat, nu doar la o reincarcare viitoare.
+    localStorage.setItem('adb_annunci_theme', newTheme);
+    var annunciFrame = document.getElementById('fleetAnnunciFrame');
+    if (annunciFrame && annunciFrame.contentDocument) {
+      if (newTheme === 'light') annunciFrame.contentDocument.documentElement.setAttribute('data-theme', 'light');
+      else annunciFrame.contentDocument.documentElement.removeAttribute('data-theme');
     }
   });
 
@@ -2190,6 +2204,13 @@
       // ecrane doar arata/ascund acest ecran, fara sa reincarce
       // cadrul de fiecare data.
       if (frame && !frame.getAttribute('src')) {
+        // Sincronizeaza tema INAINTE de prima incarcare - daca flota
+        // avea deja o tema aleasa dintr-o sesiune anterioara (fara sa
+        // fi atins vreodata comutatorul in ACEASTA sesiune), pagina de
+        // Annunci trebuie sa porneasca deja cu aceeasi tema, nu cu
+        // propria ei valoare, posibil diferita, salvata separat.
+        var fleetIsLight = document.documentElement.getAttribute('data-theme') === 'light';
+        localStorage.setItem('adb_annunci_theme', fleetIsLight ? 'light' : 'dark');
         frame.setAttribute('src', '/annunci/?mode=fleet&fleet=' + encodeURIComponent(slug) + '&embedded=1');
       }
       goToScreen('annunci');
