@@ -795,14 +795,18 @@
   .mappa-layout { display: grid; grid-template-columns: 1fr 300px; gap: 16px; align-items: start; }
   @media (max-width: 860px) {
     .mappa-layout { grid-template-columns: 1fr; }
-    /* Cerut direct ("mapa e prea mare... nu se vede numele
-       soferilor... pune-o putin mai micuta, de inaltime"): pe mobil,
-       harta si lista de soferi se aseaza una sub alta (o singura
-       coloana, mai sus) - o inaltime fixa de 500px, aceeasi ca pe
-       desktop, nu lasa aproape deloc loc listei de dedesubt pe un
-       ecran de telefon. Redusa moderat, nu drastic, exact cat sa se
-       vada bine ambele. */
-    #mappaMapEl { height: 360px; }
+    /* Raportat din nou, mai precis a doua oara ("macar doi soferi sa
+       incapa, mai apoi se scroleaza si se pot urmari ceilalti"):
+       360px tot lasa prea putin loc, plus lista insasi nu avea o
+       inaltime proprie de derulare - se baza doar pe scroll-ul
+       intregii pagini, care nu ajungea sa dezvaluie destul. Harta
+       redusa suplimentar, iar lista de soferi primeste acum o
+       inaltime proprie (deajuns pentru cel putin 2 carduri complete)
+       cu propriul ei scroll intern, independent de restul paginii -
+       ceilalti soferi se vad derulandu-se chiar acolo, nu mai departe
+       pe pagina. */
+    #mappaMapEl { height: 260px; }
+    #mappaDriverList { max-height: 190px; overflow-y: auto; }
   }
   #mappaMapEl { height: 500px; border-radius: 16px; border: 1px solid var(--line); overflow: hidden; }
   .mappa-driver-list-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft); margin-bottom: 10px; }
