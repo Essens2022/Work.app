@@ -2234,6 +2234,15 @@
       else if (name === 'consegne') loadStorico();
       else if (name === 'mappa') loadMappa();
       else if (name === 'bilancio') loadBilancio();
+      else if (name === 'annunci') {
+        // Cerut direct ("vezi ce este acolo si ce nu este la anunci,
+        // adauga-i, sincronizeaza-le"): acelasi reimprospatare la 20
+        // de secunde ca celelalte ecrane - pagina traieste intr-un
+        // cadru separat, asa ca ii trimitem un mesaj simplu in loc sa
+        // ii apelam functiile direct (nu sunt accesibile din afara).
+        var annunciFrame = document.getElementById('fleetAnnunciFrame');
+        if (annunciFrame && annunciFrame.contentWindow) annunciFrame.contentWindow.postMessage({ type: 'adb-annunci-refresh' }, '*');
+      }
     }, 20000);
     document.getElementById('topNotifBtn').addEventListener('click', function () { goToScreen('notifiche'); });
 
