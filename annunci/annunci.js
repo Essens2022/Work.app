@@ -110,7 +110,25 @@ function renderFavorites(){
   var a=state.favItems;
   E.resultCount.textContent=a.length+' '+(a.length===1?'preferito':'preferiti');
   var f=favs();
-  E.cards.innerHTML=a.length?a.map(function(it){var badge=it.badge?'<span class="badge '+esc(it.badge)+'">'+(it.badge==='urgent'?'Urgente':it.badge==='new'?'Nuovo':'Sponsorizzato')+'</span>':'';return '<article class="card">'+badge+cardImage(it)+'<div class="cardbody"><div class="cardtop"><div style="min-width:0;flex:1"><div class="title">'+esc(it.title)+'</div><div class="company">'+esc(it.company)+'</div></div><button class="fav on" data-fav="'+esc(it.id)+'">'+icon('heart')+'</button></div><div class="meta">'+icon('pin')+' '+esc(it.location)+'</div><div class="chips">'+(it.category?'<span class="chip">'+esc(it.category)+'</span>':'')+(it.price_label?'<span class="chip money">'+esc(it.price_label)+'</span>':'')+'</div><div class="cardactions"><span class="count">'+relativeTime(it.created_at)+'</span><button class="details" data-detail="'+esc(it.id)+'">Dettagli →</button></div></div></article>'}).join(''):'<div class="empty">Nessun annuncio salvato tra i preferiti.</div>';
+  function cardHtml(it){
+    var badge=it.badge?'<span class="badge '+esc(it.badge)+'">'+(it.badge==='urgent'?'Urgente':it.badge==='new'?'Nuovo':'Sponsorizzato')+'</span>':'';
+    return '<article class="card">'+badge+cardImage(it)+'<div class="cardbody"><div class="cardtop"><div style="min-width:0;flex:1"><div class="title">'+esc(it.title)+'</div><div class="company">'+esc(it.company)+'</div></div><button class="fav on" data-fav="'+esc(it.id)+'">'+icon('heart')+'</button></div><div class="meta">'+icon('pin')+' '+esc(it.location)+'</div><div class="chips">'+(it.category?'<span class="chip">'+esc(it.category)+'</span>':'')+(it.price_label?'<span class="chip money">'+esc(it.price_label)+'</span>':'')+'</div><div class="cardactions"><span class="count">'+relativeTime(it.created_at)+'</span><button class="details" data-detail="'+esc(it.id)+'">Dettagli →</button></div></div></article>';
+  }
+  // Cerut direct ("daca salveaza doar job-uri, apar mai intai job-
+  // urile, daca a salvat si din marketplace, apare alaturi o sectiune
+  // din marketplace..."): grupate acum pe sectiuni, cate una pentru
+  // fiecare tip (in aceeasi ordine ca taburile de sus) - o sectiune
+  // apare doar daca exista cel putin un anunt salvat de acel tip,
+  // fiecare cu propriul titlu, ca "Lavoro" sau "Marketplace".
+  if(!a.length){
+    E.cards.innerHTML='<div class="empty">Nessun annuncio salvato tra i preferiti.</div>';
+  } else {
+    E.cards.innerHTML=tabs.map(function(t){
+      var group=a.filter(function(it){return it.type===t[0]});
+      if(!group.length)return'';
+      return '<div class="sectionhead" style="margin-top:18px;grid-column:1/-1;"><h2>'+esc(t[1])+'</h2><span>'+group.length+'</span></div><div class="cards" style="margin:0;grid-column:1/-1;">'+group.map(cardHtml).join('')+'</div>';
+    }).join('');
+  }
   E.cards.querySelectorAll('[data-fav]').forEach(function(b){b.onclick=function(){toggleFav(b.dataset.fav);state.favItems=state.favItems.filter(function(x){return x.id!==b.dataset.fav||favs().indexOf(x.id)>=0});renderFavorites()}});
   E.cards.querySelectorAll('[data-detail]').forEach(function(b){b.onclick=function(){var it=a.find(function(x){return x.id===b.dataset.detail});if(it){state.items=[it].concat(state.items);openDetail(it.id)}}});
 }
