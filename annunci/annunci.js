@@ -272,7 +272,14 @@ function o(x){return '<option>'+x+'</option>'}
 // (72px, calitate 0.28) pentru orice poza reala de telefon. Marita la
 // 200 KB - suficient pentru o poza de produs clara, la o rezolutie
 // mult mai mare (pana la 800px), ramanand totusi usor de incarcat.
-async function compressSquare(file){var img=await createImageBitmap(file),size=Math.min(img.width,img.height),sx=(img.width-size)/2,sy=(img.height-size)/2;var dim=800,quality=.86,blob=null,MAX=200000;while(dim>=240){var c=document.createElement('canvas');c.width=c.height=dim;c.getContext('2d').drawImage(img,sx,sy,size,size,0,0,dim,dim);for(var q=quality;q>=.5;q-=.08){blob=await new Promise(function(res){c.toBlob(res,'image/webp',q)});if(blob&&blob.size<=MAX)break}if(blob&&blob.size<=MAX)break;dim=Math.floor(dim*.84)}if(!blob||blob.size>MAX)throw new Error('compression');var data=await new Promise(function(res){var r=new FileReader();r.onload=function(){res(r.result)};r.readAsDataURL(blob)});return{data:data,size:blob.size}}
+// REAL BUG, gasit prin cercetare, dupa ce s-a raportat direct
+// ("imaginea tot continua sa nu se primeasca... prin butonul de
+// trimitere"): imaginile erau salvate in format WebP - documentat pe
+// larg ca o cauza obisnuita pentru esecul previzualizarilor pe
+// WhatsApp specific (desi functioneaza normal in restul paginii, in
+// browser). Schimbat la JPEG - acceptat universal, inclusiv de
+// WhatsApp, fara nicio exceptie documentata.
+async function compressSquare(file){var img=await createImageBitmap(file),size=Math.min(img.width,img.height),sx=(img.width-size)/2,sy=(img.height-size)/2;var dim=800,quality=.86,blob=null,MAX=200000;while(dim>=240){var c=document.createElement('canvas');c.width=c.height=dim;c.getContext('2d').drawImage(img,sx,sy,size,size,0,0,dim,dim);for(var q=quality;q>=.5;q-=.08){blob=await new Promise(function(res){c.toBlob(res,'image/jpeg',q)});if(blob&&blob.size<=MAX)break}if(blob&&blob.size<=MAX)break;dim=Math.floor(dim*.84)}if(!blob||blob.size>MAX)throw new Error('compression');var data=await new Promise(function(res){var r=new FileReader();r.onload=function(){res(r.result)};r.readAsDataURL(blob)});return{data:data,size:blob.size}}
 E.fImage.onchange=async function(){var file=this.files&&this.files[0];if(!file){state.imageData=null;return}E.imageStatus.textContent='Ottimizzazione…';try{var r=await compressSquare(file);state.imageData=r.data;E.imagePreview.src=r.data;E.imageStatus.textContent='Immagine pronta: '+(r.size/1024).toFixed(1)+' KB · 1:1'}catch(e){state.imageData=null;E.imageStatus.textContent='Impossibile comprimere questa immagine a sufficienza. Prova un’altra foto.'}}
 // REAL BUG, raportat direct ("cand vreau sa public un anunt scroland
 // in general scroleaza si pagina dedesubt"): pagina din spatele
