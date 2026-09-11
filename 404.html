@@ -138,6 +138,13 @@
     position: sticky; top: 0; z-index: 10; background: var(--bg); padding: 30px 40px 20px; margin: 0 0 8px;
     max-width: 1600px; margin-left: auto; margin-right: auto;
   }
+  /* Cerut direct ("trebuie de ridicat mai sus pagina, chiar si
+     meniul... acum e un spatiu foarte mult"): titlul "Annunci" e
+     singurul lucru din acest antet - fara subtitlu, fara butoane
+     alaturi - dar mostenea acelasi padding generos gandit pentru
+     ecrane cu mai mult continut acolo (Panoramica, Autisti etc.).
+     Redus doar aici, ca sa nu atinga celelalte ecrane ale flotei. */
+  #fleet-annunci .topline { padding: 20px 40px 10px; margin-bottom: 0; }
   .eyebrow { font-size: 13px; color: var(--ink-soft); font-weight: 600; margin-bottom: 6px; }
   .page-title { font-size: 34px; line-height: 1; }
   /* Requested directly: the descriptive line under a page title
