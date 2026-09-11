@@ -398,7 +398,15 @@ renderTabs();renderSide();fillCategories();dynamicForm();load();
       // jumatate a aceleiasi functii, simetrica cu gestul de pe Home
       // care intra aici. Doar in modul sofer - fleet nu are o pagina
       // "Home" de forma asta catre care sa se intoarca in acelasi fel.
-      if(nextIdx<0){if(mode==='driver'&&dx>0){window.location.href='/';}return}
+      if(nextIdx<0){if(mode==='driver'&&dx>0){
+        // Cerut direct ("fara izbituri... lin, profesional"): aceeasi
+        // alunecare scurta inainte de a naviga, simetrica cu cea de pe
+        // Home, ca tranzitia sa se simta la fel de lina in ambele
+        // directii.
+        E.cards.style.transition='transform .22s ease, opacity .22s ease';
+        E.cards.style.transform='translateX(32px)';E.cards.style.opacity='0';
+        setTimeout(function(){window.location.href='/';},180);
+      }return}
       if(nextIdx>=tabs.length)return; // dupa ultima, nu exista "mai departe"
       var dir=dx<0?1:-1;
       E.cards.style.transition='transform .18s ease, opacity .18s ease';
