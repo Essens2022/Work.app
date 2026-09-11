@@ -60,17 +60,27 @@ function apiCall(action,payload){payload=payload||{};payload.action=action;paylo
 // majoritatea sincopelor trecatoare nu mai ajung sa fie vizibile
 // deloc. Mesajul de eroare (cu buton de reincercare manuala) apare
 // doar daca toate cele trei incercari esueaza la rand.
-function load(retriesLeft){
+// Cerut direct ("ajurneaza intruna si este foarte urat, pentru ca
+// dispare si apare... datele sa se ajurneze in fundal... cand se
+// face un refresh, sa nu se vada acest tic"): reimprospatarile
+// AUTOMATE (din fundal, la fiecare 20s) nu mai arata deloc starea de
+// incarcare - lista veche ramane pe ecran neschimbata cat timp se
+// verifica ceva nou, iar continutul se schimba doar daca chiar s-a
+// schimbat ceva (un numar nou etc.), fara nicio clipire. Incarcarea
+// vizibila ("Caricamento...") ramane doar pentru actiuni explicite
+// ale persoanei (schimbat tab, apasat Riprova) - acolo chiar are
+// sens sa se vada ca ceva se intampla.
+function load(retriesLeft,silent){
   if(retriesLeft===undefined)retriesLeft=2;
-  E.statusBar.classList.remove('show');
-  E.cards.innerHTML='<div class="empty">Caricamento…</div>';
+  if(!silent){E.statusBar.classList.remove('show');E.cards.innerHTML='<div class="empty">Caricamento…</div>'}
   return apiCall('list',{type:state.tab}).then(function(r){
     if(!r.ok)throw new Error(r.error||'api');
     state.items=r.items||[];state.apiReady=true;render()
   }).catch(function(){
     if(retriesLeft>0){
-      return new Promise(function(resolve){setTimeout(resolve,900)}).then(function(){return load(retriesLeft-1)});
+      return new Promise(function(resolve){setTimeout(resolve,900)}).then(function(){return load(retriesLeft-1,silent)});
     }
+    if(silent)return; // reimprospatare din fundal, esuata - lista veche ramane, fara niciun mesaj de eroare nedorit
     state.apiReady=false;state.items=[];
     E.resultCount.textContent='';
     E.cards.innerHTML='<div class="empty">Impossibile caricare gli annunci al momento.<br><button class="ghost" id="retryLoadBtn" style="margin-top:10px;">Riprova</button></div>';
@@ -86,21 +96,20 @@ function load(retriesLeft){
 // de tip sau stare (inclusiv ciornele, invizibile altfel oriunde),
 // fiecare cu Modifica/Elimina direct disponibile (acelasi modal deja
 // folosit pentru asta, nimic nou de invatat).
-function openMine(){
+function openMine(silent){
   if(mode!=='fleet')return;
   state.view='mine';
   E.tabs.style.display='none';
   E.toolbarRow.style.display='none';
   E.sectionTitle.textContent='I miei annunci';
-  E.resultCount.textContent='';
-  E.cards.innerHTML='<div class="empty">Caricamento…</div>';
+  if(!silent){E.resultCount.textContent='';E.cards.innerHTML='<div class="empty">Caricamento…</div>'}
   renderSide();
   updateHeaderActiveStates();
   apiCall('mine',{}).then(function(r){
     if(!r.ok)throw new Error(r.error||'api');
     state.mineItems=r.items||[];
     renderMine();
-  }).catch(function(){E.cards.innerHTML='<div class="empty">Impossibile caricare i tuoi annunci.</div>'});
+  }).catch(function(){if(!silent)E.cards.innerHTML='<div class="empty">Impossibile caricare i tuoi annunci.</div>'});
 }
 function backFromMine(){state.view='tab';E.tabs.style.display='';E.toolbarRow.style.display='';renderTabs();renderSide();fillCategories();render()}
 function renderMine(){
@@ -145,13 +154,12 @@ function renderMine(){
 // dedicata, accesibila din bara de sus — incarca TOATE tipurile in
 // paralel (nu doar tab-ul curent), ca un anunt favorit din Marketplace
 // sa apara aici chiar daca esti pe tab-ul Lavoro cand il deschizi.
-function openFavorites(){
+function openFavorites(silent){
   state.view='favs';
   E.tabs.style.display='none';
   E.toolbarRow.style.display='none';
   E.sectionTitle.textContent='Preferiti';
-  E.resultCount.textContent='';
-  E.cards.innerHTML='<div class="empty">Caricamento…</div>';
+  if(!silent){E.resultCount.textContent='';E.cards.innerHTML='<div class="empty">Caricamento…</div>'}
   renderSide();
   updateHeaderActiveStates();
   var favIds=favs();
@@ -328,7 +336,16 @@ function unlockPageScroll(){var y=parseInt(document.body.dataset.lockedY||'0',10
 function openModal(el){if(!el)return;if(openModalCount===0)lockPageScroll();openModalCount++;el.classList.add('open')}
 function closeModal(el){if(!el)return;if(!el.classList.contains('open'))return;el.classList.remove('open');openModalCount=Math.max(0,openModalCount-1);if(openModalCount===0)unlockPageScroll()}
 function openPublish(){if(mode!=='fleet')return;state.editingId=null;E.publishForm.reset();state.imageData=null;E.imagePreview.removeAttribute('src');E.publishModal.querySelector('.modalhead h3').textContent='Pubblica annuncio';E.publishForm.querySelector('[type=submit]').textContent='Pubblica';openModal(E.publishModal);dynamicForm()}
-E.publishBtn.style.display=mode==='fleet'?'flex':'none';E.mineBtn.style.display=mode==='fleet'?'flex':'none';E.fType.onchange=dynamicForm;E.publishBtn.onclick=openPublish;E.favBtn.onclick=openFavorites;E.mineBtn.onclick=openMine;
+E.publishBtn.style.display=mode==='fleet'?'flex':'none';E.mineBtn.style.display=mode==='fleet'?'flex':'none';E.fType.onchange=dynamicForm;E.publishBtn.onclick=openPublish;
+// Cerut direct ("am apasat pe i miei annunci si acum nu pot iesi...
+// stau acolo si atat"): pe mobil, taburile normale (singura cale
+// inapoi, altfel) sunt ascunse cat timp esti in I miei annunci sau
+// Preferiti - fara bara laterala (doar pe desktop), nu ramanea nicio
+// cale vizibila de iesire. Butoanele insesi devin acum un comutator -
+// apasa din nou pe cel deja activ (Preferiti sau I miei annunci) ca
+// sa revii direct la taburile normale.
+E.favBtn.onclick=function(){if(state.view==='favs')backFromFavorites();else openFavorites()};
+E.mineBtn.onclick=function(){if(state.view==='mine')backFromMine();else openMine()};
 E.publishForm.onsubmit=function(ev){ev.preventDefault();if(mode!=='fleet')return;var payload={type:E.fType.value,title:E.fTitle.value.trim(),company:E.fCompany.value.trim(),location:E.fLocation.value.trim(),contact:E.fContact.value.trim(),description:E.fDescription.value.trim(),badge:E.fBadge.value,visibility:E.fVisibility.value,promotion:E.fPromotion.value,category:(document.getElementById('fCategory')||{}).value||'',price_label:(document.getElementById('fPrice')||{}).value||'',work_mode:(document.getElementById('fWork')||{}).value||'',extra:(document.getElementById('fExtra')||{}).value||'',image_data:state.imageData};var btn=E.publishForm.querySelector('[type=submit]');btn.disabled=true;btn.textContent='Pubblicazione…';apiCall(state.editingId?'update':'create',state.editingId?{id:state.editingId,item:payload}:{item:payload}).then(function(r){if(!r.ok)throw new Error(r.error||'Errore');closeModal(E.publishModal);E.publishForm.reset();state.imageData=null;state.editingId=null;E.imagePreview.removeAttribute('src');load()}).catch(function(err){alert('Pubblicazione non riuscita: '+err.message)}).finally(function(){btn.disabled=false;btn.textContent='Pubblica'})}
 function openEdit(it){if(mode!=='fleet')return;state.editingId=it.id;state.imageData=null;closeModal(E.detailModal);openModal(E.publishModal);E.publishModal.querySelector('.modalhead h3').textContent='Modifica annuncio';E.fType.value=it.type||'job';dynamicForm();E.fTitle.value=it.title||'';E.fCompany.value=it.company||'';E.fLocation.value=it.location||'';E.fContact.value=it.contact||'';E.fDescription.value=it.description||'';E.fBadge.value=it.badge||'';E.fVisibility.value=it.visibility||'public';E.fPromotion.value=it.promotion||'standard';var fc=document.getElementById('fCategory'),fp=document.getElementById('fPrice'),fw=document.getElementById('fWork'),fx=document.getElementById('fExtra');if(fc)fc.value=it.category||fc.value;if(fp)fp.value=it.price_label||'';if(fw)fw.value=it.work_mode||'';if(fx)fx.value=it.extra||'';if(it.image_url){E.imagePreview.src=it.image_url;E.imageStatus.textContent='Immagine attuale. Caricane una nuova solo se vuoi sostituirla.'}E.publishForm.querySelector('[type=submit]').textContent='Salva modifiche'}
 function openDetail(id){var it=state.items.find(function(x){return x.id===id});if(!it)return;if(!String(it.id).startsWith('demo'))apiCall('track_click',{id:it.id}).catch(function(){});var img=it.image_url?'<img src="'+esc(it.image_url)+'" alt="">':'<div class="thumb placeholder" style="width:130px;height:130px">'+icon(it.type)+'</div>';E.detailBody.innerHTML='<div class="detailhero">'+img+'<div><div class="title" style="font-size:21px;white-space:normal">'+esc(it.title)+'</div><div class="company" style="font-size:14px">'+esc(it.company)+'</div><div class="meta">'+esc(it.location)+'</div><div class="chips">'+(it.category?'<span class="chip">'+esc(it.category)+'</span>':'')+(it.work_mode?'<span class="chip">'+esc(it.work_mode)+'</span>':'')+(it.price_label?'<span class="chip money">'+esc(it.price_label)+'</span>':'')+'</div></div></div><div class="sectionhead"><h2>Descrizione</h2></div><div class="detaildesc">'+esc(it.description||'')+'</div>'+(it.contact?'<div class="sectionhead"><h2>Contatto</h2></div><div class="detaildesc">'+esc(it.contact)+'</div>':'')+(mode==='fleet'&&!String(it.id).startsWith('demo')?'<div class="owner-tools"><button class="ghost" id="editAd">Modifica</button><button class="ghost danger" id="deleteAd">Elimina annuncio</button></div>':'');openModal(E.detailModal);var edit=document.getElementById('editAd');if(edit)edit.onclick=function(){openEdit(it)};var del=document.getElementById('deleteAd');if(del)del.onclick=function(){if(!confirm('Eliminare questo annuncio?'))return;apiCall('delete',{id:it.id}).then(function(r){if(!r.ok)throw new Error(r.error||'Errore');closeModal(E.detailModal);load()}).catch(function(e){alert(e.message)})}}
@@ -377,9 +394,9 @@ renderTabs();renderSide();fillCategories();dynamicForm();load();
 // vizibil chiar acum (tab normal, I miei annunci, sau Preferiti).
 window.addEventListener('message',function(e){
   if(!e.data||e.data.type!=='adb-annunci-refresh')return;
-  if(state.view==='mine')openMine();
-  else if(state.view==='favs')openFavorites();
-  else load();
+  if(state.view==='mine')openMine(true);
+  else if(state.view==='favs')openFavorites(true);
+  else load(undefined,true);
 });
 
 // Cerut direct ("sa pot trage cu degetul in partea laterala a
