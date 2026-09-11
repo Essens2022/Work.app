@@ -808,7 +808,14 @@
      telefon, oricat de multe ori "reparam" valoarea. Mutata acum DUPA
      regula de baza, unde chiar castiga. */
   @media (max-width: 860px) {
-    #mappaMapEl { height: 260px; }
+    /* Cerut direct ("mapa ar trebui sa ajunga macar pana la mijlocul
+       ecranului... vreo 4-5 centimetri o poti da mai in jos"): marita
+       suplimentar, extinsa in jos (nu mutata) - lista de soferi de
+       dedesubt are propriul ei spatiu de derulare, separat, asa ca
+       marirea hartii nu mai "fura" din locul rezervat pentru ea, cum
+       se intampla inainte cu o inaltime fixa mare fara acel spatiu
+       propriu. */
+    #mappaMapEl { height: 400px; }
     #mappaDriverList { max-height: 190px; overflow-y: auto; }
   }
   .mappa-driver-list-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-soft); margin-bottom: 10px; }
