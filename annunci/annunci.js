@@ -367,6 +367,21 @@ renderTabs();renderSide();fillCategories();dynamicForm();load();
   if(sharedId)openSharedAd(sharedId);
 })();
 
+// Cerut direct ("vezi ce este acolo si ce nu este la anunci, adauga-i,
+// sincronizeaza-le"): flota reimprospateaza automat Panoramica,
+// Consegne, Mappa si Bilancio la fiecare 20 de secunde, cat timp
+// ecranul respectiv e activ - Annunci nu avea un echivalent. Cum
+// pagina traieste intr-un cadru separat (iframe), shell-ul de flota
+// nu poate apela direct functiile de aici - trimite un mesaj simplu
+// (postMessage), pe care il ascultam aici, reimprospatand orice e
+// vizibil chiar acum (tab normal, I miei annunci, sau Preferiti).
+window.addEventListener('message',function(e){
+  if(!e.data||e.data.type!=='adb-annunci-refresh')return;
+  if(state.view==='mine')openMine();
+  else if(state.view==='favs')openFavorites();
+  else load();
+});
+
 // Cerut direct ("sa pot trage cu degetul in partea laterala a
 // paginii si sa intre in cealalta pagina de anunturi... sa fie mai
 // profesionala acea trecere"): gest de tragere stanga/dreapta intre
