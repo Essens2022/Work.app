@@ -2268,7 +2268,18 @@
     // s-a golit singur atunci) sau daca ecranul retinut nu mai e valid
     // (SCREEN_ID_BY_NAME nu-l recunoaste).
     var rememberedScreen = sessionStorage.getItem('adb_fleet_last_screen_' + slug);
-    goToScreen((rememberedScreen && SCREEN_ID_BY_NAME[rememberedScreen]) ? rememberedScreen : 'panoramica');
+    // REAL BUG, raportat direct ("daca fac refresh la pagina, imi
+    // apare doar titlul paginii Annunci si gata, meniul si toata
+    // informatia nu mai apar"): pentru majoritatea ecranelor, un
+    // simplu goToScreen ajunge - dar Annunci foloseste un cadru
+    // (iframe) incarcat LENES, abia la prima deschidere prin
+    // openAnnunciPage() (care ii seteaza adresa) - un goToScreen
+    // direct, ca mai jos, arata ecranul, dar cadrul ramane fara nicio
+    // adresa setata, deci complet gol. Restaurat acum prin aceeasi
+    // functie folosita si la clic normal, ca cadrul sa se incarce de
+    // fiecare data cand acesta e ecranul de revenit.
+    if (rememberedScreen === 'annunci') openAnnunciPage();
+    else goToScreen((rememberedScreen && SCREEN_ID_BY_NAME[rememberedScreen]) ? rememberedScreen : 'panoramica');
     refreshNotifDot();
 
     // Requested directly ("informatiile urmatoare sa fie prefetch-uite

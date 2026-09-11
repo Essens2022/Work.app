@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v585"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v586"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -13342,23 +13342,50 @@
   // pentru consistenta intre cele doua. Atasat direct pe containerul
   // stabil al ecranului (nu pe continutul lui, care se re-genereaza
   // la fiecare renderHome()), ca sa nu se piarda la re-randari.
+  // Raportat direct, doua probleme:
+  // 1) "prima oara, cand deschid aplicatia, daca dau cu degetul...
+  //    nu se deschide. Mai intai trebuie sa apas pe oferte de la
+  //    Voro... si doar dupa asta pot sa dau intr-o parte" - nicio
+  //    cauza clara gasita in cod pentru asta specific, dar rescris
+  //    acum intr-un mod mult mai robust (asculta pe intreg
+  //    documentul, nu doar pe elementul Home, verificand daca
+  //    atingerea a inceput acolo) - independent de orice detaliu
+  //    fragil legat de cand/cum exista elementul in pagina.
+  // 2) "daca dau chiar din margine... vine lin, frumos... daca dau
+  //    de la mijlocul ecranului, vine foarte urat, foarte agresiv...
+  //    fara izbituri, fara buguri": tragerea de la margine era
+  //    recunoscuta de iOS insusi ca gestul lui nativ de "inapoi", cu
+  //    propria animatie lina - a mea, declansata din orice alt punct,
+  //    sarea direct la pagina noua, fara nicio tranzitie, simtindu-se
+  //    brusca. Adaugata acum o alunecare vizuala scurta (acelasi
+  //    principiu deja folosit la schimbarea intre sectiuni in
+  //    Annunci), inainte de a naviga efectiv - simte la fel de lin,
+  //    indiferent de unde incepe gestul pe ecran.
   (function setupHomeToAnnunciSwipe() {
-    var startX = 0, startY = 0, tracking = false, swiped = false;
-    var target = document.getElementById('screen-home');
-    if (!target) return;
-    target.addEventListener('touchstart', function (e) {
+    var startX = 0, startY = 0, tracking = false, swiped = false, startEl = null;
+    document.addEventListener('touchstart', function (e) {
       if (e.touches.length !== 1) return;
+      var homeScreen = document.getElementById('screen-home');
+      if (!homeScreen || !homeScreen.classList.contains('active')) { tracking = false; return; }
+      startEl = e.target.closest ? e.target.closest('#screen-home') : null;
+      if (!startEl) return;
       startX = e.touches[0].clientX; startY = e.touches[0].clientY; tracking = true; swiped = false;
     }, { passive: true });
-    target.addEventListener('touchmove', function (e) {
+    document.addEventListener('touchmove', function (e) {
       if (!tracking || swiped || e.touches.length !== 1) return;
       var dx = e.touches[0].clientX - startX, dy = e.touches[0].clientY - startY;
       if (dx < -60 && Math.abs(dx) > Math.abs(dy) * 2) {
         swiped = true;
-        window.location.href = '/annunci/?mode=driver';
+        var homeScreen = document.getElementById('screen-home');
+        if (homeScreen) {
+          homeScreen.style.transition = 'transform .22s ease, opacity .22s ease';
+          homeScreen.style.transform = 'translateX(-32px)';
+          homeScreen.style.opacity = '0';
+        }
+        setTimeout(function () { window.location.href = '/annunci/?mode=driver'; }, 180);
       }
     }, { passive: true });
-    target.addEventListener('touchend', function () { tracking = false; }, { passive: true });
+    document.addEventListener('touchend', function () { tracking = false; }, { passive: true });
   })();
 
   init();
