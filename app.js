@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v589"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v590"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -13362,6 +13362,18 @@
   //    Annunci), inainte de a naviga efectiv - simte la fel de lin,
   //    indiferent de unde incepe gestul pe ecran.
   (function setupHomeToAnnunciSwipe() {
+    // REVENIT, cerut direct ("nu-mi place asa... era mai frumos cum
+    // venea pagina peste pagina... cand dau inapoi nu mai apare
+    // pagina, este alba pagina Home"): tranzitia mea (alunecare +
+    // transparenta) inainte de navigare a fost eliminata complet -
+    // pe langa faptul ca nu se simtea cum trebuie, modifica direct
+    // stilul lui #screen-home (opacity, transform), iar la o
+    // navigare "inapoi" prin cache-ul browserului (nu o reincarcare
+    // completa), acele stiluri modificate PUTEAU ramane, lasand Home
+    // permanent invizibil - exact bug-ul raportat. Navigare simpla,
+    // instanta, fara nicio manipulare vizuala proprie - tranzitia
+    // vizuala (daca exista vreuna) e cea nativa a telefonului, nu una
+    // construita aici, care sa poata strica ceva.
     var startX = 0, startY = 0, tracking = false, swiped = false, startEl = null;
     document.addEventListener('touchstart', function (e) {
       if (e.touches.length !== 1) return;
@@ -13376,13 +13388,7 @@
       var dx = e.touches[0].clientX - startX, dy = e.touches[0].clientY - startY;
       if (dx < -60 && Math.abs(dx) > Math.abs(dy) * 2) {
         swiped = true;
-        var homeScreen = document.getElementById('screen-home');
-        if (homeScreen) {
-          homeScreen.style.transition = 'transform .22s ease, opacity .22s ease';
-          homeScreen.style.transform = 'translateX(-32px)';
-          homeScreen.style.opacity = '0';
-        }
-        setTimeout(function () { window.location.href = '/annunci/?mode=driver'; }, 180);
+        window.location.href = '/annunci/?mode=driver';
       }
     }, { passive: true });
     document.addEventListener('touchend', function () { tracking = false; }, { passive: true });
