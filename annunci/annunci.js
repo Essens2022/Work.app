@@ -180,24 +180,40 @@ function cardImage(it){if(it.image_url)return '<img class="thumb" src="'+esc(it.
 // diferit pentru fiecare anunt). Cade elegant pe distribuire doar-
 // text daca telefonul/browserul nu suporta distribuirea de fisiere,
 // sau daca anuntul nu are nicio imagine atasata.
+// Cerut direct, precizat ulterior ("nu pur si simplu textul si poza...
+// trebuie sa se trimita linkul, asa cum ai trimite un video pe
+// YouTube, o postare pe Facebook... persoana cand apasa pe el, i se
+// deschide chiar anuntul... nu e neaparat ca lumea sa aiba profil la
+// noi ca sa poata vedea anunturile aici"): distribuie acum un LINK
+// public catre exact acel anunt (?ad=<id>), nu un fisier - la fel ca
+// distribuirea unui link YouTube/Facebook. Oricine apasa pe link
+// ajunge direct la anuntul respectiv, fara sa aiba nevoie de cont sau
+// de aplicatia instalata - doar pagina de anunturi, public.
 function shareAnnuncio(id){
   var all=state.items.concat(state.mineItems||[],state.favItems||[]);
   var it=all.find(function(x){return x.id===id});
   if(!it)return;
   var priceLine=it.price_label?' · '+it.price_label:'';
-  var text=it.title+' — '+it.company+' ('+it.location+')'+priceLine+'\n'+(it.description||'');
-  var shareData={title:it.title,text:text};
-  function shareTextOnly(){if(navigator.share)navigator.share(shareData).catch(function(){});else{navigator.clipboard.writeText(text).then(function(){alert('Testo copiato negli appunti.')})}}
-  if(it.image_url&&navigator.canShare){
-    fetch(it.image_url).then(function(r){return r.blob()}).then(function(blob){
-      var file=new File([blob],'annuncio.webp',{type:blob.type||'image/webp'});
-      var withFile=Object.assign({},shareData,{files:[file]});
-      if(navigator.canShare(withFile))navigator.share(withFile).catch(function(){});
-      else shareTextOnly();
-    }).catch(shareTextOnly);
+  var text=it.title+' — '+it.company+' ('+it.location+')'+priceLine;
+  var url=location.origin+'/annunci/?ad='+encodeURIComponent(it.id);
+  var shareData={title:it.title,text:text,url:url};
+  if(navigator.share){
+    navigator.share(shareData).catch(function(){});
   } else {
-    shareTextOnly();
+    navigator.clipboard.writeText(url).then(function(){alert('Link copiato negli appunti.')});
   }
+}
+
+// Companion al functiei de mai sus: deschide direct un anunt specific
+// cand pagina e vizitata printr-un asemenea link distribuit (?ad=id)
+// - cauta in toate tipurile in paralel (nu se stie dinainte tipul
+// exact al anuntului doar din id), la fel ca la Preferiti.
+function openSharedAd(id){
+  Promise.all(tabs.map(function(t){return apiCall('list',{type:t[0]}).then(function(r){return r.ok?(r.items||[]):[]}).catch(function(){return[]})})).then(function(lists){
+    var all=[].concat.apply([],lists);
+    var it=all.find(function(x){return x.id===id});
+    if(it){state.items=[it].concat(state.items);openDetail(it.id)}
+  });
 }
 function filtered(){var q=E.search.value.trim().toLowerCase(),z=E.zone.value,c=E.category.value;var a=state.items.filter(function(i){if(i.type!==state.tab)return false;if(q&&([i.title,i.company,i.location,i.description].join(' ').toLowerCase().indexOf(q)<0))return false;if(z&&String(i.location||'').toLowerCase().indexOf(z.toLowerCase())<0)return false;if(c&&i.category!==c)return false;return i.visibility!=='draft'});if(E.sort.value==='featured')a.sort(function(a,b){return +(b.promotion==='featured'||b.promotion==='sponsored')-+(a.promotion==='featured'||a.promotion==='sponsored')});else a.sort(function(a,b){return new Date(b.created_at)-new Date(a.created_at)});return a}
 function render(){var a=filtered();E.resultCount.textContent=a.length+' '+(a.length===1?'risultato':'risultati');var f=favs();E.cards.innerHTML=a.length?a.map(function(it){var badge=it.badge?'<span class="badge '+esc(it.badge)+'">'+(it.badge==='urgent'?'Urgente':it.badge==='new'?'Nuovo':'Sponsorizzato')+'</span>':'';return '<article class="card">'+badge+cardImage(it)+'<div class="cardbody"><div class="cardtop"><div style="min-width:0;flex:1"><div class="title">'+esc(it.title)+'</div><div class="company">'+esc(it.company)+'</div></div><button class="fav '+(f.indexOf(it.id)>=0?'on':'')+'" data-fav="'+esc(it.id)+'">'+icon('heart')+'</button></div><div class="meta">'+icon('pin')+' '+esc(it.location)+'</div><div class="chips">'+(it.category?'<span class="chip">'+esc(it.category)+'</span>':'')+(it.work_mode?'<span class="chip">'+esc(it.work_mode)+'</span>':'')+(it.price_label?'<span class="chip money">'+esc(it.price_label)+'</span>':'')+'</div><div class="cardactions"><span class="count">'+relativeTime(it.created_at)+'</span><div style="display:flex;gap:8px;align-items:center;"><button class="ghost sharebtn" data-share="'+esc(it.id)+'" title="Condividi">'+icon('share')+'</button><button class="details" data-detail="'+esc(it.id)+'">Dettagli →</button></div></div></div></article>'}).join(''):'<div class="empty">Nessun annuncio trovato con questi filtri.</div>';E.cards.querySelectorAll('[data-fav]').forEach(function(b){b.onclick=function(){toggleFav(b.dataset.fav)}});E.cards.querySelectorAll('[data-detail]').forEach(function(b){b.onclick=function(){openDetail(b.dataset.detail)}});E.cards.querySelectorAll('[data-share]').forEach(function(b){b.onclick=function(){shareAnnuncio(b.dataset.share)}})}
@@ -235,6 +251,13 @@ document.getElementById('themeBtn').onclick=function(){var l=document.documentEl
 E.contextLabel.textContent=mode==='fleet'?'Fleet · Annunci':'App autista · Annunci';E.pageTitle.textContent=mode==='fleet'?'Annunci':'Trova lavoro';E.pageSub.textContent=mode==='fleet'?'Pubblica e gestisci opportunità, servizi e marketplace':'Offerte, marketplace e servizi per autisti';
 document.getElementById('promoBtn').onclick=function(){alert('Modulo promozioni predisposto. Collega Stripe/prezzi prima di attivare gli addebiti reali.')};
 renderTabs();renderSide();fillCategories();dynamicForm();load();
+
+// Cerut direct: daca pagina e deschisa printr-un link distribuit
+// (?ad=id), deschide direct acel anunt, indiferent de tab-ul curent.
+(function openFromSharedLinkIfPresent(){
+  var sharedId=qs.get('ad');
+  if(sharedId)openSharedAd(sharedId);
+})();
 
 // Cerut direct ("sa pot trage cu degetul in partea laterala a
 // paginii si sa intre in cealalta pagina de anunturi... sa fie mai
