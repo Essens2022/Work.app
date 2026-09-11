@@ -140,6 +140,16 @@ Deno.serve(async (req) => {
       if (error) throw error;
       return json({ ok:true });
     }
+    // Cerut direct ("cati au pus la preferite, cati au salvat"): al
+    // patrulea indicator - cate ori a fost adaugat la preferite
+    // (inima apasata), separat de celelalte trei.
+    if (action === 'track_save') {
+      const id = cleanText(body.id,60);
+      if (!id) return json({ ok:false, error:'missing_id' },400);
+      const { error } = await admin.rpc('adb_annunci_increment_save', { p_id:id });
+      if (error) throw error;
+      return json({ ok:true });
+    }
 
     if (action === 'list') {
       const type = ['job','client','marketplace','service'].includes(body.type) ? body.type : 'job';
