@@ -352,8 +352,8 @@ E.fImage.onchange=async function(){var file=this.files&&this.files[0];if(!file){
 // inchidere) - centralizata aici, ca sa acopere toate cele 6 locuri
 // care deschideau/inchideau modale direct, fara sa rateze vreunul.
 var openModalCount=0;
-function lockPageScroll(){var y=window.scrollY||window.pageYOffset||0;document.body.style.position='fixed';document.body.style.top=(-y)+'px';document.body.style.left='0';document.body.style.right='0';document.body.dataset.lockedY=y}
-function unlockPageScroll(){var y=parseInt(document.body.dataset.lockedY||'0',10);document.body.style.position='';document.body.style.top='';document.body.style.left='';document.body.style.right='';delete document.body.dataset.lockedY;window.scrollTo(0,y)}
+function lockPageScroll(){var y=window.scrollY||window.pageYOffset||0;document.body.style.position='fixed';document.body.style.top=(-y)+'px';document.body.style.left='0';document.body.style.right='0';document.body.style.width='100%';document.body.dataset.lockedY=y}
+function unlockPageScroll(){var y=parseInt(document.body.dataset.lockedY||'0',10);document.body.style.position='';document.body.style.top='';document.body.style.left='';document.body.style.right='';document.body.style.width='';delete document.body.dataset.lockedY;window.scrollTo(0,y)}
 function openModal(el){if(!el)return;if(openModalCount===0)lockPageScroll();openModalCount++;el.classList.add('open')}
 function closeModal(el){if(!el)return;if(!el.classList.contains('open'))return;el.classList.remove('open');openModalCount=Math.max(0,openModalCount-1);if(openModalCount===0)unlockPageScroll()}
 function openPublish(){if(mode!=='fleet')return;state.editingId=null;E.publishForm.reset();state.imageData=null;E.imagePreview.removeAttribute('src');E.publishModal.querySelector('.modalhead h3').textContent='Pubblica annuncio';E.publishForm.querySelector('[type=submit]').textContent='Pubblica';openModal(E.publishModal);dynamicForm()}
