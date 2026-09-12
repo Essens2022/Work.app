@@ -76,12 +76,27 @@ function apiCall(action,payload){payload=payload||{};payload.action=action;paylo
 // vizibila ("Caricamento...") ramane doar pentru actiuni explicite
 // ale persoanei (schimbat tab, apasat Riprova) - acolo chiar are
 // sens sa se vada ca ceva se intampla.
+function itemsSignature(items){return (items||[]).map(function(i){return i.id}).join(',')}
 function load(retriesLeft,silent){
   if(retriesLeft===undefined)retriesLeft=2;
   if(!silent){E.statusBar.classList.remove('show');E.cards.innerHTML='<div class="empty">Caricamento…</div>'}
   return apiCall('list',{type:state.tab}).then(function(r){
     if(!r.ok)throw new Error(r.error||'api');
-    state.items=r.items||[];state.apiReady=true;render()
+    // Cerut direct ("imaginile se incarca din cand in cand... ar
+    // trebui la fel sa fie stabile ca si textul"): re-randarea
+    // reconstruia intreaga lista de carduri, inclusiv etichetele
+    // <img> - un card recreat de la zero (chiar cu aceeasi adresa de
+    // imagine) poate face browserul sa arate o mica clipire vizuala
+    // la reincarcarea/redecodarea imaginii, spre deosebire de simplul
+    // text, care se schimba fara nicio urma vizuala. Daca lista de
+    // anunturi e EXACT aceeasi ca inainte (aceleasi id-uri, aceeasi
+    // ordine), sarim complet peste re-randare - nimic vizual relevant
+    // nu s-ar fi schimbat oricum (pagina publica nu arata statistici
+    // care s-ar fi putut modifica).
+    var newItems=r.items||[];
+    var unchanged=itemsSignature(state.items)===itemsSignature(newItems);
+    state.items=newItems;state.apiReady=true;
+    if(!unchanged)render();
   }).catch(function(){
     if(retriesLeft>0){
       return new Promise(function(resolve){setTimeout(resolve,900)}).then(function(){return load(retriesLeft-1,silent)});
