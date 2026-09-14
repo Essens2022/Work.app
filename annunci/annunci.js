@@ -459,24 +459,46 @@ renderTabs();renderSide();fillCategories();dynamicForm();load();
 // acum dinamic (la fel ca --topline-h in flota), ca bara laterala sa
 // se lipeasca mereu exact sub blocul real, indiferent de contextul
 // in care pagina ruleaza.
-(function trackHeaderHeight(){
+// Cerut direct, dupa investigare atenta si un test empiric care a
+// aratat inconsecventa: "bara laterala... inca se duc in jos, nu
+// sunt la aceeasi marime ca si la Servizi". Pozitionarea "sticky"
+// nativa a browserului, combinata cu acest tip de grid (coloana din
+// stanga langa un antet cu inaltime variabila intre sectiuni), s-a
+// dovedit, verificat direct, imprevizibila - acelasi offset setat,
+// dar rezultatul vizual diferit dupa sectiune. Inlocuita complet cu
+// o pozitionare calculata si aplicata manual, din cod, la fiecare
+// scroll SI la fiecare schimbare de sectiune - fara sa se mai
+// bazeze deloc pe "sticky" nativ, eliminand orice ambiguitate.
+(function pinSidebarBelowHeader(){
   var header=document.querySelector('.sticky-header');
-  if(!header)return;
-  // Facuta functie separata, apelabila explicit (nu doar prin
-  // ResizeObserver) - raportat direct ("bara laterala... schimba
-  // pozitia ei... in baza in care sectiune este"): ResizeObserver
-  // reactioneaza doar cand dimensiunea CHIAR se schimba si poate
-  // intarzia (ruleaza pe cadrul urmator, nu instant) - la schimbari
-  // rapide intre sectiuni, bara laterala putea ramane cu o valoare
-  // veche, ramasa de la sectiunea anterioara, pentru o clipa sau
-  // chiar mai mult. Apelata acum explicit, imediat, de fiecare data
-  // cand se schimba sectiunea (nu doar pasiv, prin observator).
-  window.updateAnnunciHeaderHeight=function(){
-    document.documentElement.style.setProperty('--annunci-header-h',header.offsetHeight+'px');
-  };
-  window.updateAnnunciHeaderHeight();
+  var side=document.querySelector('.side');
+  if(!header||!side)return;
+  // Cerut direct ("cand apas pe I miei annunci, Preferiti inca se
+  // duc in jos, nu sunt la aceeasi marime ca la Servizi"): in acele
+  // doua sectiuni, taburile si cautarea sunt ascunse, deci antetul
+  // chiar devine mai scund - masurand mereu inaltimea LUI ACTUALA,
+  // bara laterala se ridica si ea, urmarind acest antet mai mic.
+  // Ceruta insa o inaltime CONSTANTA, indiferent de sectiune - deci
+  // se retine aici inaltimea antetului DOAR cand taburile sunt
+  // vizibile (starea "completa", cea mai inalta posibila) si se
+  // foloseste ACEASTA valoare fixa mereu, chiar si atunci cand
+  // taburile chiar dispar din antet (I miei annunci, Preferiti).
+  var baselineHeaderHeight=null;
+  function reposition(){
+    side.style.transform='none';
+    if(E.tabs&&E.tabs.style.display!=='none')baselineHeaderHeight=header.getBoundingClientRect().height;
+    var headerTop=header.getBoundingClientRect().top;
+    var headerBottom=baselineHeaderHeight!=null?headerTop+baselineHeaderHeight:header.getBoundingClientRect().bottom;
+    var sideNaturalTop=side.getBoundingClientRect().top;
+    var offset=headerBottom-sideNaturalTop;
+    side.style.transform=offset>0?'translateY('+Math.round(offset)+'px)':'none';
+  }
+  window.updateAnnunciHeaderHeight=reposition;
+  reposition();
+  window.addEventListener('scroll',reposition,{passive:true});
+  window.addEventListener('resize',reposition);
   if('ResizeObserver' in window){
-    var obs=new ResizeObserver(window.updateAnnunciHeaderHeight);
+    var obs=new ResizeObserver(reposition);
     obs.observe(header);
   }
 })();
