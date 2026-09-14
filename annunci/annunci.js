@@ -334,7 +334,17 @@ function shareAnnuncio(id){
   var all=state.items.concat(state.mineItems||[],state.favItems||[]);
   var it=all.find(function(x){return x.id===id});
   if(!it)return;
-  var priceLine=it.price_label?' · '+it.price_label:'';
+  // Cerut direct ("cand trimit linkul la anunt salariul intra ca
+  // link si nu este clar"): un interval de tip "1950 - 2350" seamana
+  // exact cu formatul unui numar de telefon pentru multe aplicatii
+  // de mesagerie (WhatsApp inclus) - genul "NNNN - NNNN" e un tipar
+  // obisnuit pentru numere locale, deci se subliniaza si devine
+  // apelabil, desi e vorba de salariu, nu de telefon. Reformulat doar
+  // pentru textul distribuit (afisarea normala, in card/detalii,
+  // ramane neschimbata) - cuvantul "a" intre cele doua cifre rupe
+  // tiparul de numar de telefon, ramanand perfect clar ca interval.
+  var priceForShare=it.price_label?String(it.price_label).replace(/(\d[\d.,]*)\s*-\s*(\d[\d.,]*)/,'$1 a $2'):'';
+  var priceLine=priceForShare?' · '+priceForShare:'';
   var text=it.title+' — '+it.company+' ('+it.location+')'+priceLine;
   // REVENIT la varianta simpla si sigura (raportat direct: "pana acum
   // link-ul se deschidea bine, direct la produs, era perfect... era
