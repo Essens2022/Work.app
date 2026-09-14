@@ -1039,21 +1039,61 @@
     </div>
     <div class="main">
       <div class="topline topline-compact">
-        <h1 class="page-title">Storico consegne</h1>
-        <div class="filter-row filter-row-inline">
-          <select class="filter-select" id="storicoDriverFilter"><option value="">Tutti gli autisti</option></select>
-          <select class="filter-select" id="storicoPeriodFilter">
-            <option value="7">Ultimi 7 giorni</option>
-            <option value="30" selected>Ultimi 30 giorni</option>
-            <option value="">Tutti</option>
-          </select>
-          <input class="driver-search" id="storicoSearchInput" placeholder="Cerca cliente o indirizzo...">
+        <h1 class="page-title">Consegne</h1>
+      </div>
+      <div class="main-inner">
+        <!-- Cerut direct ("borderolo... acolo sunt toate consegnele,
+             clientii si toate datele necesare"): pastreaza Storico
+             (deja existent) intact, adauga acum un al doilea tab,
+             Borderò di oggi - unde se incarca documentul zilei si se
+             vede lista deja impartita automat pe soferi. -->
+        <div class="clients-tabs" style="display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:14px;">
+          <button type="button" class="consegne-tab on" data-consegne-tab="borderolo" style="border:0;background:var(--accent);color:#fff;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:750;cursor:pointer;">Borderò di oggi</button>
+          <button type="button" class="consegne-tab" data-consegne-tab="storico" style="border:0;background:transparent;color:var(--ink-soft);border-radius:10px;padding:9px 16px;font-size:13px;font-weight:750;cursor:pointer;">Storico</button>
+        </div>
+
+        <div id="consegneStoricoView" style="display:none;">
+          <div class="filter-row filter-row-inline" style="margin-bottom:14px;">
+            <select class="filter-select" id="storicoDriverFilter"><option value="">Tutti gli autisti</option></select>
+            <select class="filter-select" id="storicoPeriodFilter">
+              <option value="7">Ultimi 7 giorni</option>
+              <option value="30" selected>Ultimi 30 giorni</option>
+              <option value="">Tutti</option>
+            </select>
+            <input class="driver-search" id="storicoSearchInput" placeholder="Cerca cliente o indirizzo...">
+          </div>
+          <div class="fleet-table" id="storicoList"></div>
+        </div>
+
+        <div id="consegneBorderoloView">
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">
+            <input type="date" id="borderoloDateInput" class="filter-select" style="max-width:170px;">
+            <input type="file" id="borderoloFileInput" accept=".xlsx,.xls,.csv,.ods" style="display:none;">
+            <button class="btn btn-accent owner-only" id="openBorderoloUploadBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+              Carica borderò
+            </button>
+            <span id="borderoloCurrentFileLabel" style="font-size:12px;color:var(--ink-soft);"></span>
+          </div>
+          <div id="consegneBorderoloList"></div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
 
-      <div class="main-inner">
-      <div class="fleet-table" id="storicoList"></div>
-      </div>
+<!-- MODAL: previzualizare borderò, inainte de import -->
+<div class="modal-backdrop" id="borderoloPreviewModalBackdrop">
+  <div class="modal" style="max-width:640px;display:flex;flex-direction:column;max-height:min(80vh,640px);padding:0;overflow:hidden;">
+    <div style="padding:18px 20px;border-bottom:1px solid var(--line);">
+      <h3 style="margin:0;">Importa borderò</h3>
+      <p id="borderoloPreviewSummary" style="font-size:13px;color:var(--ink-soft);margin:4px 0 0;"></p>
+    </div>
+    <div id="borderoloPreviewBody" style="overflow-y:auto;flex:1;padding:10px 20px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;"></div>
+    <div class="error-msg" id="borderoloPreviewError" style="padding:0 20px;"></div>
+    <div class="modal-actions" style="padding:14px 20px;border-top:1px solid var(--line);">
+      <button class="btn btn-ghost" id="borderoloPreviewCancelBtn">Annulla</button>
+      <button class="btn btn-accent" id="borderoloPreviewConfirmBtn">Importa</button>
     </div>
   </div>
 </div>
@@ -2303,7 +2343,7 @@
         if (!activeScreen) return;
         var name = activeScreen.dataset.screen;
         if (name === 'panoramica') refresh();
-        else if (name === 'consegne') loadStorico();
+        else if (name === 'consegne') { loadStorico(); loadBorderoloView(); }
         else if (name === 'mappa') loadMappa();
         else if (name === 'bilancio') loadBilancio();
       }
@@ -2410,7 +2450,7 @@
       window.scrollTo(0, 0);
       document.getElementById('exportCsvBtn').style.display = name === 'consegne' ? 'flex' : 'none';
       document.getElementById('panoramicaMappaBtn').style.display = name === 'panoramica' ? 'flex' : 'none';
-      if (name === 'consegne') loadStorico();
+      if (name === 'consegne') { loadStorico(); loadBorderoloView(); }
       if (name === 'documenti') loadDocumenti();
       if (name === 'veicoli') loadVehicles();
       if (name === 'clienti') loadClients();
@@ -2475,7 +2515,7 @@
       if (!activeScreen) return;
       var name = activeScreen.dataset.screen;
       if (name === 'panoramica') refresh();
-      else if (name === 'consegne') loadStorico();
+      else if (name === 'consegne') { loadStorico(); loadBorderoloView(); }
       else if (name === 'mappa') loadMappa();
       else if (name === 'bilancio') loadBilancio();
       else if (name === 'annunci') {
@@ -4266,6 +4306,201 @@
     document.getElementById('storicoDriverFilter').addEventListener('change', loadStorico);
     document.getElementById('storicoPeriodFilter').addEventListener('change', loadStorico);
     document.getElementById('storicoSearchInput').addEventListener('input', renderStorico);
+
+    // Cerut direct ("borderolul... acolo sunt toate consegnele,
+    // clientii si toate datele necesare... trebuie sa ramana salvat
+    // doar pana la urmatoarea incarcare, se salveaza doar datele"):
+    // tab nou langa Storico - incarci fisierul zilei o singura data,
+    // sistemul il potriveste automat cu clientii deja cunoscuti
+    // (acelasi sofer care ii e deja asignat), fara sa mai fie nevoie
+    // sa alegi tu manual cine ia ce.
+    document.querySelectorAll('.consegne-tab').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('.consegne-tab').forEach(function (b) {
+          b.classList.toggle('on', b === btn);
+          b.style.background = b === btn ? 'var(--accent)' : 'transparent';
+          b.style.color = b === btn ? '#fff' : 'var(--ink-soft)';
+        });
+        var mode = btn.dataset.consegneTab;
+        document.getElementById('consegneBorderoloView').style.display = mode === 'borderolo' ? '' : 'none';
+        document.getElementById('consegneStoricoView').style.display = mode === 'storico' ? '' : 'none';
+        if (mode === 'storico') loadStorico();
+      });
+    });
+
+    var borderoloParsedRows = [];
+    var BORDEROLO_FIELD_HINTS = {
+      client_name: ['nome', 'cliente', 'ragione sociale', 'ragione', 'destinatario'],
+      client_code: ['codice', 'cod. cliente', 'codcliente'],
+      merchandise_note: ['merce', 'colli', 'marca', 'note', 'descrizione'],
+    };
+    function guessBorderoloField(header) {
+      var h = (header || '').toString().trim().toLowerCase();
+      if (!h) return null;
+      var best = null;
+      Object.keys(BORDEROLO_FIELD_HINTS).forEach(function (field) {
+        BORDEROLO_FIELD_HINTS[field].forEach(function (hint) {
+          if (h.indexOf(hint) >= 0 && !best) best = field;
+        });
+      });
+      return best;
+    }
+
+    var todayIso = new Date().toISOString().slice(0, 10);
+    document.getElementById('borderoloDateInput').value = todayIso;
+
+    function loadBorderoloView() {
+      call({ action: 'fleet_get_current_manifest', slug: slug, password: password }).then(function (res) {
+        if (!res.ok) return;
+        var label = document.getElementById('borderoloCurrentFileLabel');
+        label.textContent = res.manifest_file ? ('Ultimo file: ' + res.manifest_file.filename) : 'Nessun file caricato ancora.';
+      });
+      renderBorderoloList(document.getElementById('borderoloDateInput').value || todayIso);
+    }
+    document.getElementById('borderoloDateInput').addEventListener('change', function () {
+      renderBorderoloList(this.value || todayIso);
+    });
+
+    function renderBorderoloList(deliveryDate) {
+      var el = document.getElementById('consegneBorderoloList');
+      el.innerHTML = '<div class="empty-note">Caricamento…</div>';
+      call({ action: 'fleet_list_delivery_items', slug: slug, password: password, delivery_date: deliveryDate }).then(function (res) {
+        if (!res.ok) { el.innerHTML = '<div class="empty-note">Impossibile caricare.</div>'; return; }
+        var items = res.items || [];
+        if (!items.length) { el.innerHTML = '<div class="empty-note">Nessun borderò caricato per questa data.</div>'; return; }
+        var groups = {};
+        var unassigned = [];
+        items.forEach(function (it) {
+          if (it.assigned_driver_email) {
+            var key = it.assigned_driver_email;
+            if (!groups[key]) groups[key] = { name: nameByEmailGlobal(key), items: [] };
+            groups[key].items.push(it);
+          } else {
+            unassigned.push(it);
+          }
+        });
+        var statusChip = function (it) {
+          if (it.status === 'delivered') return '<span class="chip" style="background:rgba(60,184,120,.15);color:#3CB878;">Consegnato</span>';
+          if (it.status === 'not_delivered') return '<span class="chip" style="background:rgba(214,69,69,.15);color:#D64545;" title="' + esc(it.status_reason || '') + '">Non consegnato</span>';
+          return '<span class="chip">In attesa</span>';
+        };
+        var rowHtml = function (it) {
+          return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line);">' +
+            '<div style="flex:1;min-width:0;"><b>' + esc(it.client_name) + '</b>' + (it.client_code ? ' <span style="color:var(--ink-soft);font-size:12px;">(' + esc(it.client_code) + ')</span>' : '') +
+            (it.merchandise_note ? '<div style="font-size:12px;color:var(--ink-soft);">' + esc(it.merchandise_note) + '</div>' : '') + '</div>' +
+            statusChip(it) +
+            '<button class="borderolo-delete-btn" data-id="' + esc(it.id) + '" style="background:none;border:none;color:var(--ink-soft);cursor:pointer;" title="Rimuovi">✕</button>' +
+          '</div>';
+        };
+        var html = '';
+        Object.keys(groups).forEach(function (email) {
+          var g = groups[email];
+          html += '<div style="background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:12px;">' +
+            '<div style="font-weight:800;margin-bottom:4px;">' + esc(g.name) + ' <span style="color:var(--ink-soft);font-weight:600;font-size:12px;">(' + g.items.length + ')</span></div>' +
+            g.items.map(rowHtml).join('') +
+          '</div>';
+        });
+        if (unassigned.length) {
+          html += '<div style="background:var(--surface);border:1px dashed var(--accent);border-radius:14px;padding:14px 16px;">' +
+            '<div style="font-weight:800;color:var(--accent);margin-bottom:4px;">Da assegnare <span style="color:var(--ink-soft);font-weight:600;font-size:12px;">(' + unassigned.length + ')</span></div>' +
+            unassigned.map(rowHtml).join('') +
+          '</div>';
+        }
+        el.innerHTML = html;
+        el.querySelectorAll('.borderolo-delete-btn').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            if (!confirm('Rimuovere questa riga dal borderò?')) return;
+            call({ action: 'fleet_delete_delivery_item', slug: slug, password: password, item_id: btn.dataset.id }).then(function () {
+              renderBorderoloList(deliveryDate);
+            });
+          });
+        });
+      });
+    }
+
+    document.getElementById('openBorderoloUploadBtn').addEventListener('click', function () {
+      document.getElementById('borderoloFileInput').click();
+    });
+    document.getElementById('borderoloFileInput').addEventListener('change', function (e) {
+      var file = e.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function (ev) {
+        try {
+          var workbook = XLSX.read(ev.target.result, { type: 'array' });
+          var sheet = workbook.Sheets[workbook.SheetNames[0]];
+          var rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+          if (!rows.length) { alert('Il file non contiene righe leggibili.'); return; }
+          var headers = Object.keys(rows[0]);
+          var fieldByHeader = {};
+          headers.forEach(function (h) { fieldByHeader[h] = guessBorderoloField(h); });
+          borderoloParsedRows = rows.map(function (r) {
+            var out = {};
+            headers.forEach(function (h) {
+              var field = fieldByHeader[h];
+              if (field) out[field] = (r[h] || '').toString().trim();
+            });
+            return out;
+          }).filter(function (r) { return r.client_name; });
+          openBorderoloPreview(rows.length, borderoloParsedRows);
+        } catch (err) {
+          alert('Impossibile leggere questo file. Verifica che sia un Excel, CSV o ODS valido.');
+        }
+        document.getElementById('borderoloFileInput').value = '';
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    var pendingBorderoloUpload = null;
+    function openBorderoloPreview(totalRows, parsedRows) {
+      pendingBorderoloUpload = document.getElementById('borderoloFileInput').files[0] || pendingBorderoloUpload;
+      var skipped = totalRows - parsedRows.length;
+      document.getElementById('borderoloPreviewSummary').textContent =
+        parsedRows.length + ' righ' + (parsedRows.length === 1 ? 'a pronta' : 'e pronte') + ' per l\'importazione' +
+        (skipped ? ' — ' + skipped + ' saltate (nome cliente mancante)' : '') + '.';
+      var body = document.getElementById('borderoloPreviewBody');
+      var html = '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+        '<tr style="text-align:left;color:var(--ink-soft);font-size:11px;text-transform:uppercase;"><th style="padding:6px 8px;">Cliente</th><th style="padding:6px 8px;">Codice</th><th style="padding:6px 8px;">Merce/Note</th></tr>';
+      parsedRows.slice(0, 50).forEach(function (r) {
+        html += '<tr style="border-top:1px solid var(--line);"><td style="padding:6px 8px;font-weight:700;">' + esc(r.client_name) + '</td><td style="padding:6px 8px;">' + esc(r.client_code || '') + '</td><td style="padding:6px 8px;">' + esc(r.merchandise_note || '') + '</td></tr>';
+      });
+      html += '</table>';
+      if (parsedRows.length > 50) html += '<p style="font-size:12px;color:var(--ink-soft);margin-top:8px;">… e altre ' + (parsedRows.length - 50) + '.</p>';
+      body.innerHTML = html;
+      document.getElementById('borderoloPreviewError').textContent = '';
+      document.getElementById('borderoloPreviewModalBackdrop').classList.add('open');
+    }
+    document.getElementById('borderoloPreviewCancelBtn').addEventListener('click', function () {
+      document.getElementById('borderoloPreviewModalBackdrop').classList.remove('open');
+    });
+    document.getElementById('borderoloPreviewConfirmBtn').addEventListener('click', function () {
+      if (!borderoloParsedRows.length) return;
+      var btn = this;
+      var deliveryDate = document.getElementById('borderoloDateInput').value || todayIso;
+      var errEl = document.getElementById('borderoloPreviewError');
+      btn.disabled = true; btn.textContent = 'Importazione…';
+
+      // Fisierul brut se incarca la storage DUPA ce importul de date
+      // reuseste - daca ceva esueaza la citirea randurilor, nu ramane
+      // un fisier "orfan" incarcat degeaba. Un singur fisier pastrat
+      // mereu (cel vechi se sterge automat pe server, la cerere).
+      call({ action: 'fleet_import_delivery_items', slug: slug, password: password, delivery_date: deliveryDate, items: borderoloParsedRows }).then(function (res) {
+        if (!res.ok) { btn.disabled = false; btn.textContent = 'Importa'; errEl.textContent = res.error || 'Errore durante l\'importazione.'; return; }
+        var finish = function () {
+          btn.disabled = false; btn.textContent = 'Importa';
+          document.getElementById('borderoloPreviewModalBackdrop').classList.remove('open');
+          renderBorderoloList(deliveryDate);
+        };
+        if (!pendingBorderoloUpload) { finish(); return; }
+        var file = pendingBorderoloUpload;
+        call({ action: 'fleet_get_manifest_upload_url', slug: slug, password: password, filename: file.name }).then(function (uploadRes) {
+          if (!uploadRes.ok) { finish(); return; }
+          fetch(uploadRes.upload_url, { method: 'PUT', body: file }).then(function () {
+            call({ action: 'fleet_confirm_manifest_upload', slug: slug, password: password, filename: file.name, storage_path: uploadRes.storage_path }).then(finish);
+          }).catch(finish);
+        }).catch(finish);
+      });
+    });
 
     document.getElementById('exportCsvBtn').addEventListener('click', function () {
       var query = document.getElementById('storicoSearchInput').value.trim().toLowerCase();
