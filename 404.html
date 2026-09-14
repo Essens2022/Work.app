@@ -1307,8 +1307,21 @@
         <div>
           <h1 class="page-title">Clienti</h1>
         </div>
-        <div style="display:flex;gap:10px;">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
           <button class="btn btn-ghost owner-only" id="openZoneRulesModalBtn">Zone e autisti</button>
+          <!-- Cerut direct ("clientii trebuie sai pot incarca din mai
+               multe tipuri de documente inclusiv si excel"): un
+               singur buton, o singura libreria (SheetJS) capabila sa
+               citeasca deja Excel (.xlsx, .xls), CSV si ODS - fara sa
+               fie nevoie de mai multe unelte diferite pentru fiecare
+               tip de fisier in parte. Fisierul se citeste chiar in
+               telefon/calculator, nu se trimite nicaieri pana nu
+               apesi explicit "Importa" pe fereastra de previzualizare. -->
+          <input type="file" id="importClientsFileInput" accept=".xlsx,.xls,.csv,.ods" style="display:none;">
+          <button class="btn btn-ghost owner-only" id="openImportClientsBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+            Importa file
+          </button>
           <button class="btn btn-accent owner-only" id="openAddClientModalBtn">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
             Nuovo cliente
@@ -1431,6 +1444,24 @@
     <div class="modal-actions">
       <button class="btn btn-ghost" id="zoneRulesModalClose">Chiudi</button>
       <button class="btn btn-accent" id="zoneRuleAddBtn">Aggiungi regola</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: previzualizare import clienti (Excel/CSV/ODS), inainte
+     de a trimite orice pe server - persoana vede exact ce s-a
+     inteles din fisier si poate anula, fara nicio scriere facuta. -->
+<div class="modal-backdrop" id="importClientsModalBackdrop">
+  <div class="modal" style="max-width:640px;display:flex;flex-direction:column;max-height:min(80vh,640px);padding:0;overflow:hidden;">
+    <div style="padding:18px 20px;border-bottom:1px solid var(--line);">
+      <h3 style="margin:0;">Importa clienti</h3>
+      <p id="importClientsSummary" style="font-size:13px;color:var(--ink-soft);margin:4px 0 0;"></p>
+    </div>
+    <div id="importClientsPreviewBody" style="overflow-y:auto;flex:1;padding:10px 20px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;"></div>
+    <div class="error-msg" id="importClientsError" style="padding:0 20px;"></div>
+    <div class="modal-actions" style="padding:14px 20px;border-top:1px solid var(--line);">
+      <button class="btn btn-ghost" id="importClientsCancelBtn">Annulla</button>
+      <button class="btn btn-accent" id="importClientsConfirmBtn">Importa</button>
     </div>
   </div>
 </div>
@@ -1776,6 +1807,7 @@
 
 <script src="/vendor/supabase.js"></script>
 <script src="/vendor/maplibre-gl.js"></script>
+<script src="/vendor/xlsx.full.min.js"></script>
 
 <script>
   (function () {
@@ -3755,6 +3787,119 @@
     }
 
     document.getElementById('openAddClientModalBtn').addEventListener('click', function () { openClientModal(null); });
+
+    // Cerut direct ("clientii trebuie sai pot incarca din mai multe
+    // tipuri de documente inclusiv si excel"): citit chiar in
+    // browser (SheetJS, vendorizat local) - suporta deja Excel
+    // (.xlsx/.xls), CSV si ODS, fara sa fie nevoie de unelte diferite
+    // pentru fiecare tip. Coloanele se recunosc automat dupa numele
+    // obisnuite din italiana (nome/cliente, indirizzo, comune, cap,
+    // provincia, telefono) - nu trebuie sa fie exact aceleasi cuvinte,
+    // doar sa contina unul din termenii cunoscuti.
+    var importParsedRows = [];
+    var IMPORT_FIELD_HINTS = {
+      name: ['nome', 'cliente', 'ragione sociale', 'ragione', 'denominazione'],
+      address: ['indirizzo', 'via'],
+      comune: ['comune'],
+      city: ['città', 'citta', 'frazione', 'localita', 'località'],
+      cap: ['cap'],
+      province: ['provincia', 'prov'],
+      phone: ['telefono', 'tel', 'cellulare'],
+    };
+    function guessFieldForHeader(header) {
+      var h = (header || '').toString().trim().toLowerCase();
+      if (!h) return null;
+      var best = null;
+      Object.keys(IMPORT_FIELD_HINTS).forEach(function (field) {
+        IMPORT_FIELD_HINTS[field].forEach(function (hint) {
+          if (h.indexOf(hint) >= 0 && !best) best = field;
+        });
+      });
+      return best;
+    }
+    document.getElementById('openImportClientsBtn').addEventListener('click', function () {
+      document.getElementById('importClientsFileInput').click();
+    });
+    document.getElementById('importClientsFileInput').addEventListener('change', function (e) {
+      var file = e.target.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function (ev) {
+        try {
+          var workbook = XLSX.read(ev.target.result, { type: 'array' });
+          var firstSheetName = workbook.SheetNames[0];
+          var sheet = workbook.Sheets[firstSheetName];
+          var rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+          if (!rows.length) { alert('Il file non contiene righe leggibili.'); return; }
+          var headers = Object.keys(rows[0]);
+          var fieldByHeader = {};
+          headers.forEach(function (h) { fieldByHeader[h] = guessFieldForHeader(h); });
+          importParsedRows = rows.map(function (r) {
+            var out = {};
+            headers.forEach(function (h) {
+              var field = fieldByHeader[h];
+              if (field) out[field] = (r[h] || '').toString().trim();
+            });
+            return out;
+          }).filter(function (r) { return r.name; }); // fara nume, randul nu poate deveni un client
+          openImportPreview(rows.length, importParsedRows, headers, fieldByHeader);
+        } catch (err) {
+          alert('Impossibile leggere questo file. Verifica che sia un Excel, CSV o ODS valido.');
+        }
+        document.getElementById('importClientsFileInput').value = '';
+      };
+      reader.readAsArrayBuffer(file);
+    });
+
+    function openImportPreview(totalRows, parsedRows, headers, fieldByHeader) {
+      var skipped = totalRows - parsedRows.length;
+      document.getElementById('importClientsSummary').textContent =
+        parsedRows.length + ' client' + (parsedRows.length === 1 ? 'e pronto' : 'i pronti') + ' per l\'importazione' +
+        (skipped ? ' — ' + skipped + ' riga/e saltate (nome mancante)' : '') + '.';
+      var unmatched = headers.filter(function (h) { return !fieldByHeader[h]; });
+      var body = document.getElementById('importClientsPreviewBody');
+      var html = '';
+      if (unmatched.length) {
+        html += '<p style="font-size:12.5px;color:var(--ink-soft);">Colonne non riconosciute (ignorate): ' + esc(unmatched.join(', ')) + '</p>';
+      }
+      if (!parsedRows.length) {
+        html += '<div class="empty-note">Nessuna riga valida trovata (serve almeno il nome del cliente).</div>';
+      } else {
+        html += '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+          '<tr style="text-align:left;color:var(--ink-soft);font-size:11px;text-transform:uppercase;">' +
+            '<th style="padding:6px 8px;">Nome</th><th style="padding:6px 8px;">Comune</th><th style="padding:6px 8px;">Indirizzo</th><th style="padding:6px 8px;">Telefono</th>' +
+          '</tr>';
+        parsedRows.slice(0, 50).forEach(function (r) {
+          html += '<tr style="border-top:1px solid var(--line);">' +
+            '<td style="padding:6px 8px;font-weight:700;">' + esc(r.name || '') + '</td>' +
+            '<td style="padding:6px 8px;">' + esc(r.comune || '') + '</td>' +
+            '<td style="padding:6px 8px;">' + esc(r.address || '') + '</td>' +
+            '<td style="padding:6px 8px;">' + esc(r.phone || '') + '</td>' +
+          '</tr>';
+        });
+        html += '</table>';
+        if (parsedRows.length > 50) html += '<p style="font-size:12px;color:var(--ink-soft);margin-top:8px;">… e altri ' + (parsedRows.length - 50) + '.</p>';
+      }
+      body.innerHTML = html;
+      document.getElementById('importClientsError').textContent = '';
+      document.getElementById('importClientsConfirmBtn').disabled = !parsedRows.length;
+      document.getElementById('importClientsConfirmBtn').style.opacity = parsedRows.length ? '1' : '.5';
+      document.getElementById('importClientsModalBackdrop').classList.add('open');
+    }
+    document.getElementById('importClientsCancelBtn').addEventListener('click', function () {
+      document.getElementById('importClientsModalBackdrop').classList.remove('open');
+    });
+    document.getElementById('importClientsConfirmBtn').addEventListener('click', function () {
+      if (!importParsedRows.length) return;
+      var btn = this;
+      btn.disabled = true; btn.textContent = 'Importazione…';
+      call({ action: 'fleet_import_clients', slug: slug, password: password, clients: importParsedRows }).then(function (res) {
+        btn.disabled = false; btn.textContent = 'Importa';
+        if (!res.ok) { document.getElementById('importClientsError').textContent = res.error || 'Errore durante l\'importazione.'; return; }
+        document.getElementById('importClientsModalBackdrop').classList.remove('open');
+        loadClients();
+      });
+    });
     document.getElementById('clientModalClose').addEventListener('click', function () {
       document.getElementById('clientModalBackdrop').classList.remove('open');
     });
