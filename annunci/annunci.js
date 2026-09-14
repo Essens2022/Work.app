@@ -17,6 +17,11 @@ var tabs=mode==='fleet'?[['job','Trova lavoro'],['client','Trova clienti'],['mar
 function updateHeaderActiveStates(){
   if(E.favBtn)E.favBtn.classList.toggle('active',state.view==='favs');
   if(E.mineBtn)E.mineBtn.classList.toggle('active',state.view==='mine');
+  // Cerut direct ("bara laterala... schimba pozitia ei... in baza in
+  // care sectiune este"): recalculata explicit, imediat, de fiecare
+  // data cand se schimba sectiunea (nu doar pasiv, prin observator,
+  // care putea intarzia sau ramane cu o valoare veche pentru o clipa).
+  if(window.updateAnnunciHeaderHeight)window.updateAnnunciHeaderHeight();
   // Cerut direct ("se intoarce, insa nu este intuitiv"): comutatorul
   // pe butonul deja activ (apasa din nou ca sa iesi) functiona, dar
   // nimeni nu ghicea singur ca poate face asta - adaugat acum un
@@ -456,11 +461,24 @@ renderTabs();renderSide();fillCategories();dynamicForm();load();
 // in care pagina ruleaza.
 (function trackHeaderHeight(){
   var header=document.querySelector('.sticky-header');
-  if(!header||!('ResizeObserver' in window))return;
-  var obs=new ResizeObserver(function(){
+  if(!header)return;
+  // Facuta functie separata, apelabila explicit (nu doar prin
+  // ResizeObserver) - raportat direct ("bara laterala... schimba
+  // pozitia ei... in baza in care sectiune este"): ResizeObserver
+  // reactioneaza doar cand dimensiunea CHIAR se schimba si poate
+  // intarzia (ruleaza pe cadrul urmator, nu instant) - la schimbari
+  // rapide intre sectiuni, bara laterala putea ramane cu o valoare
+  // veche, ramasa de la sectiunea anterioara, pentru o clipa sau
+  // chiar mai mult. Apelata acum explicit, imediat, de fiecare data
+  // cand se schimba sectiunea (nu doar pasiv, prin observator).
+  window.updateAnnunciHeaderHeight=function(){
     document.documentElement.style.setProperty('--annunci-header-h',header.offsetHeight+'px');
-  });
-  obs.observe(header);
+  };
+  window.updateAnnunciHeaderHeight();
+  if('ResizeObserver' in window){
+    var obs=new ResizeObserver(window.updateAnnunciHeaderHeight);
+    obs.observe(header);
+  }
 })();
 
 // Cerut direct: daca pagina e deschisa printr-un link distribuit
