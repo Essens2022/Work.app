@@ -437,6 +437,15 @@
 
   @media (max-width: 860px) {
     .rail { display: none; }
+    /* Cerut direct ("barele in care scriem de cautare niciodata nu au
+       zoom cand apasam pe ele"): pe iOS Safari, orice camp de
+       introducere text (input, textarea, select) cu un font mai mic
+       de 16px face telefonul sa "apropie" automat pagina la atingere
+       - un comportament al sistemului, nu ceva gandit de aplicatie.
+       Fortat aici, global, la 16px minim, indiferent de orice
+       dimensiune mai mica setata pe vreun camp anume, in orice parte
+       a aplicatiei - elimina definitiv zoom-ul nedorit peste tot. */
+    input, textarea, select { font-size: 16px !important; }
     .fleet-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .driver-card { grid-template-columns: 1fr; gap: 4px; }
     .driver-card.head { display: none; }
@@ -825,8 +834,18 @@
        added here so navigation still exists on a phone). ---------- */
   .bottom-nav { display: none; }
   @media (max-width: 860px) {
-    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--line); z-index: 40; padding: 6px 4px calc(16px + env(safe-area-inset-bottom)); }
-    .bottom-nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 2px; color: var(--ink-soft); font-size: 10.5px; font-weight: 700; cursor: pointer; }
+    /* Cerut direct ("bara de jos sa se scroleze in stanga si in
+       dreapta... nu liber, insa cu impacte... o roata cu dinti care
+       face tic, tic, tic"): cu 7 sectiuni acum (adaugat Clienti),
+       toate inghesuite ar fi devenit prea stranse pe un telefon
+       ingust. In loc de asta, bara insasi devine orizontal
+       scrolabila - dar nu liber, ci cu "scroll snap": fiecare
+       atingere/tragere se opreste exact la urmatorul buton, nu
+       undeva la mijloc, dand exact senzatia de "clic, clic, clic"
+       ceruta, nu un scroll continuu, alunecos. */
+    .bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--line); z-index: 40; padding: 6px 4px calc(16px + env(safe-area-inset-bottom)); overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+    .bottom-nav::-webkit-scrollbar { display: none; }
+    .bottom-nav-item { flex: 0 0 auto; min-width: 68px; scroll-snap-align: start; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 2px; color: var(--ink-soft); font-size: 10.5px; font-weight: 700; cursor: pointer; }
     .bottom-nav-item svg { width: 20px; height: 20px; }
     .bottom-nav-item.on { color: var(--accent); }
   }
@@ -1749,8 +1768,8 @@
   <div class="bottom-nav-item on" data-goto="panoramica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>Panoramica</div>
   <div class="bottom-nav-item" data-goto="documenti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Documenti</div>
   <div class="bottom-nav-item" data-goto="consegne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><path d="M9 11l2 2 4-4"/></svg>Consegne</div>
-  <div class="bottom-nav-item" data-goto="veicoli"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="7" width="15" height="10" rx="2"/><path d="M16 10h3l3 3v4h-6"/><circle cx="6" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg>Veicoli</div>
   <div class="bottom-nav-item" data-goto="clienti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Clienti</div>
+  <div class="bottom-nav-item" data-goto="veicoli"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="7" width="15" height="10" rx="2"/><path d="M16 10h3l3 3v4h-6"/><circle cx="6" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg>Veicoli</div>
   <div class="bottom-nav-item" data-goto="bilancio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>Bilancio</div>
   <div class="bottom-nav-item owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
 </div>
