@@ -1297,10 +1297,45 @@
         </div>
       </div>
       <div class="main-inner">
-        <input type="text" id="clientSearchInput" placeholder="Cerca per nome, città, zona…" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:11px 14px;color:var(--ink);font-size:14px;margin-bottom:14px;">
-        <div id="clientsList"></div>
+        <!-- Cerut direct ("doua sectiuni... per autista... tutti i
+             clienti"): aceleasi date, doua moduri de afisare,
+             comutabile - la fel ca taburile de la Annunci. -->
+        <div class="clients-tabs" style="display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:14px;">
+          <button type="button" class="clients-tab on" data-clients-tab="drivers" style="border:0;background:var(--accent);color:#fff;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:750;cursor:pointer;">Per autista</button>
+          <button type="button" class="clients-tab" data-clients-tab="all" style="border:0;background:transparent;color:var(--ink-soft);border-radius:10px;padding:9px 16px;font-size:13px;font-weight:750;cursor:pointer;">Tutti i clienti</button>
+        </div>
+        <div id="clientsByDriverView">
+          <div id="clientsByDriverList"></div>
+        </div>
+        <div id="clientsAllView" style="display:none;">
+          <input type="text" id="clientSearchInput" placeholder="Cerca per nome, città, zona…" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:11px 14px;color:var(--ink);font-size:14px;margin-bottom:14px;">
+          <div id="clientsList"></div>
+        </div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- MODAL: clienti unui singur autist, cu mod de selectie explicit -->
+<div class="modal-backdrop" id="driverClientsModalBackdrop">
+  <div class="modal" style="max-width:520px;display:flex;flex-direction:column;max-height:min(80vh,640px);padding:0;overflow:hidden;">
+    <div style="display:flex;align-items:center;gap:12px;padding:18px 20px;border-bottom:1px solid var(--line);">
+      <div id="driverClientsAvatar" style="width:34px;height:34px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex:none;"></div>
+      <b id="driverClientsName" style="font-size:15px;"></b>
+      <span id="driverClientsCount" style="margin-left:auto;color:var(--ink-soft);font-size:12px;"></span>
+      <button type="button" id="driverClientsModalClose" style="width:28px;height:28px;border:0;border-radius:8px;background:var(--surface-2);color:var(--ink-soft);font-size:15px;cursor:pointer;">×</button>
+    </div>
+    <!-- Cerut direct ("nu poti mereu selectiona, trebuie sa apesi
+         seleziona si dupa"): modul de selectie e OPRIT implicit -
+         fara nicio bifa vizibila, o atingere pe un rand nu selecteaza
+         nimic din greseala. Doar dupa apasarea "Seleziona" apar
+         bifele si devine posibila alegerea mai multor clienti odata. -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 20px;border-bottom:1px solid var(--line);">
+      <span id="driverClientsSelHint" style="color:var(--ink-soft);font-size:12.5px;">Tocca un cliente per i dettagli</span>
+      <button type="button" id="driverClientsSelToggle" class="btn btn-ghost" style="padding:8px 13px;font-size:12.5px;">Seleziona</button>
+      <button type="button" id="driverClientsRemoveBtn" class="btn btn-accent" style="padding:8px 13px;font-size:12.5px;display:none;background:#D64545;">Rimuovi selezionati</button>
+    </div>
+    <div id="driverClientsListBody" style="overflow-y:auto;flex:1;padding:4px 20px 16px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;"></div>
   </div>
 </div>
 
@@ -1710,6 +1745,7 @@
   <div class="bottom-nav-item" data-goto="documenti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>Documenti</div>
   <div class="bottom-nav-item" data-goto="consegne"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><path d="M9 11l2 2 4-4"/></svg>Consegne</div>
   <div class="bottom-nav-item" data-goto="veicoli"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="7" width="15" height="10" rx="2"/><path d="M16 10h3l3 3v4h-6"/><circle cx="6" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg>Veicoli</div>
+  <div class="bottom-nav-item" data-goto="clienti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Clienti</div>
   <div class="bottom-nav-item" data-goto="bilancio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>Bilancio</div>
   <div class="bottom-nav-item owner-only" data-goto="impostazioni"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Impostazioni</div>
 </div>
@@ -3503,15 +3539,157 @@
     }
 
     function loadClients() {
-      if (lastClients) renderClients(lastClients);
+      if (lastClients) { renderClients(lastClients); renderClientsByDriver(lastClients); }
       else document.getElementById('clientsList').innerHTML = '<div class="empty-note">Caricamento…</div>';
       call({ action: 'fleet_list_clients', slug: slug, password: password }).then(function (res) {
         if (!res.ok) return;
         lastClients = res.clients;
         renderClients(lastClients);
+        renderClientsByDriver(lastClients);
       });
     }
     document.getElementById('clientSearchInput').addEventListener('input', function () { if (lastClients) renderClients(lastClients); });
+
+    // Cerut direct ("doua sectiuni... per autista... trebuie sa fie
+    // profesional... functioneaza pe telefon, tableta, tot"):
+    // vederea grupata pe autist - aceleasi date din lastClients,
+    // doar organizate diferit, fara niciun apel suplimentar la server.
+    document.querySelectorAll('.clients-tab').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        document.querySelectorAll('.clients-tab').forEach(function (b) {
+          b.classList.toggle('on', b === btn);
+          b.style.background = b === btn ? 'var(--accent)' : 'transparent';
+          b.style.color = b === btn ? '#fff' : 'var(--ink-soft)';
+        });
+        var mode = btn.dataset.clientsTab;
+        document.getElementById('clientsByDriverView').style.display = mode === 'drivers' ? '' : 'none';
+        document.getElementById('clientsAllView').style.display = mode === 'all' ? '' : 'none';
+        if (mode === 'drivers' && lastClients) renderClientsByDriver(lastClients);
+      });
+    });
+
+    function initials(name) {
+      return (name || '?').trim().split(/\s+/).slice(0, 2).map(function (w) { return w[0]; }).join('').toUpperCase();
+    }
+
+    function renderClientsByDriver(clients) {
+      var el = document.getElementById('clientsByDriverList');
+      var groups = {}; // email -> {name, clients:[]}
+      var unassigned = [];
+      clients.forEach(function (c) {
+        if (c.assigned_driver_email) {
+          var key = c.assigned_driver_email;
+          if (!groups[key]) groups[key] = { name: nameByEmailGlobal(key), clients: [] };
+          groups[key].clients.push(c);
+        } else {
+          unassigned.push(c);
+        }
+      });
+      var html = '<div class="clients-driver-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;">';
+      Object.keys(groups).forEach(function (email) {
+        var g = groups[email];
+        html += '<div class="client-driver-card" data-driver-email="' + esc(email) + '" style="background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;cursor:pointer;">' +
+          '<div style="width:40px;height:40px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;margin-bottom:10px;">' + esc(initials(g.name)) + '</div>' +
+          '<b style="font-size:15px;display:block;">' + esc(g.name) + '</b>' +
+          '<span style="color:var(--ink-soft);font-size:12px;">' + g.clients.length + (g.clients.length === 1 ? ' cliente' : ' clienti') + '</span>' +
+        '</div>';
+      });
+      if (unassigned.length) {
+        html += '<div class="client-driver-card" data-driver-email="" style="background:var(--surface);border:1px dashed var(--accent);border-radius:16px;padding:18px;cursor:pointer;">' +
+          '<div style="width:40px;height:40px;border-radius:50%;background:rgba(232,84,43,.12);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;margin-bottom:10px;">?</div>' +
+          '<b style="font-size:15px;display:block;color:var(--accent);">Da assegnare</b>' +
+          '<span style="color:var(--ink-soft);font-size:12px;">' + unassigned.length + (unassigned.length === 1 ? ' cliente' : ' clienti') + '</span>' +
+        '</div>';
+      }
+      html += '</div>';
+      if (!Object.keys(groups).length && !unassigned.length) html = '<div class="empty-note">Nessun cliente registrato ancora.</div>';
+      el.innerHTML = html;
+      el.querySelectorAll('.client-driver-card').forEach(function (card) {
+        card.addEventListener('click', function () { openDriverClientsModal(card.dataset.driverEmail); });
+      });
+    }
+
+    var driverModalSelecting = false;
+    var driverModalSelected = {};
+    var driverModalCurrentEmail = null;
+
+    function renderDriverClientsModalList() {
+      var body = document.getElementById('driverClientsListBody');
+      var list = lastClients.filter(function (c) { return (c.assigned_driver_email || '') === driverModalCurrentEmail; });
+      var html = '';
+      list.forEach(function (c) {
+        var checked = driverModalSelecting && driverModalSelected[c.id];
+        html += '<div class="driver-modal-row" data-id="' + esc(c.id) + '" style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);' + (driverModalSelecting ? 'cursor:pointer;' : '') + '">' +
+          (driverModalSelecting ? '<div class="dm-chk" style="width:18px;height:18px;border-radius:5px;border:1.5px solid var(--line);flex:none;' + (checked ? 'background:var(--accent);border-color:var(--accent);' : '') + '"></div>' : '') +
+          '<b style="font-size:13.5px;">' + esc(c.name) + '</b>' +
+          '<span style="color:var(--ink-soft);font-size:11.5px;margin-left:auto;">' + esc(c.comune || c.city || '') + '</span>' +
+        '</div>';
+      });
+      body.innerHTML = html || '<div class="empty-note">Nessun cliente per questo autista.</div>';
+      body.querySelectorAll('.driver-modal-row').forEach(function (row) {
+        row.addEventListener('click', function () {
+          if (!driverModalSelecting) return;
+          var id = row.dataset.id;
+          driverModalSelected[id] = !driverModalSelected[id];
+          renderDriverClientsModalList();
+          updateDriverModalSelBar();
+        });
+      });
+    }
+
+    function updateDriverModalSelBar() {
+      var n = Object.keys(driverModalSelected).filter(function (id) { return driverModalSelected[id]; }).length;
+      document.getElementById('driverClientsSelHint').style.display = driverModalSelecting ? 'none' : '';
+      document.getElementById('driverClientsSelToggle').textContent = driverModalSelecting ? 'Annulla' : 'Seleziona';
+      document.getElementById('driverClientsRemoveBtn').style.display = driverModalSelecting ? '' : 'none';
+      document.getElementById('driverClientsRemoveBtn').textContent = n ? ('Rimuovi selezionati (' + n + ')') : 'Rimuovi selezionati';
+      document.getElementById('driverClientsRemoveBtn').disabled = !n;
+      document.getElementById('driverClientsRemoveBtn').style.opacity = n ? '1' : '.5';
+    }
+
+    function openDriverClientsModal(email) {
+      driverModalCurrentEmail = email || '';
+      driverModalSelecting = false;
+      driverModalSelected = {};
+      var name = email ? nameByEmailGlobal(email) : 'Da assegnare';
+      var count = lastClients.filter(function (c) { return (c.assigned_driver_email || '') === driverModalCurrentEmail; }).length;
+      document.getElementById('driverClientsAvatar').textContent = email ? initials(name) : '?';
+      document.getElementById('driverClientsAvatar').style.background = email ? 'var(--accent)' : 'rgba(232,84,43,.12)';
+      document.getElementById('driverClientsAvatar').style.color = email ? '#fff' : 'var(--accent)';
+      document.getElementById('driverClientsName').textContent = name;
+      document.getElementById('driverClientsCount').textContent = count + (count === 1 ? ' cliente' : ' clienti');
+      renderDriverClientsModalList();
+      updateDriverModalSelBar();
+      document.getElementById('driverClientsModalBackdrop').classList.add('open');
+    }
+    document.getElementById('driverClientsModalClose').addEventListener('click', function () {
+      document.getElementById('driverClientsModalBackdrop').classList.remove('open');
+    });
+    document.getElementById('driverClientsSelToggle').addEventListener('click', function () {
+      driverModalSelecting = !driverModalSelecting;
+      driverModalSelected = {};
+      renderDriverClientsModalList();
+      updateDriverModalSelBar();
+    });
+    document.getElementById('driverClientsRemoveBtn').addEventListener('click', function () {
+      var ids = Object.keys(driverModalSelected).filter(function (id) { return driverModalSelected[id]; });
+      if (!ids.length) return;
+      if (!confirm('Rimuovere ' + ids.length + ' clienti da questo autista?')) return;
+      Promise.all(ids.map(function (id) {
+        return call({ action: 'fleet_update_client', slug: slug, password: password, client_id: id, assigned_driver_email: '' });
+      })).then(function () {
+        driverModalSelecting = false;
+        driverModalSelected = {};
+        call({ action: 'fleet_list_clients', slug: slug, password: password }).then(function (res) {
+          if (!res.ok) return;
+          lastClients = res.clients;
+          renderClientsByDriver(lastClients);
+          renderDriverClientsModalList();
+          updateDriverModalSelBar();
+          document.getElementById('driverClientsCount').textContent = lastClients.filter(function (c) { return (c.assigned_driver_email || '') === driverModalCurrentEmail; }).length + ' clienti';
+        });
+      });
+    });
 
     function fillDriverSelect(selectEl, selectedEmail) {
       selectEl.innerHTML = '<option value="">— nessuno / da suggerire —</option>';
