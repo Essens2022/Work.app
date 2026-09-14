@@ -3937,12 +3937,19 @@
           '<span><b>' + esc(r.comune) + '</b> → ' + esc(nameByEmailGlobal(r.driver_email)) + '</span>' +
           '<span style="display:flex;gap:6px;">' +
             '<button class="zone-rule-edit-btn" data-id="' + esc(r.id) + '" data-comune="' + esc(r.comune) + '" data-driver="' + esc(r.driver_email) + '" style="background:none;border:none;color:var(--ink-soft);cursor:pointer;" title="Modifica" aria-label="Modifica">✎</button>' +
-            '<button class="zone-rule-delete-btn" data-id="' + esc(r.id) + '" style="background:none;border:none;color:var(--ink-soft);cursor:pointer;" title="Elimina" aria-label="Elimina">✕</button>' +
+            '<button class="zone-rule-delete-btn" data-id="' + esc(r.id) + '" data-comune="' + esc(r.comune) + '" style="background:none;border:none;color:var(--ink-soft);cursor:pointer;" title="Elimina" aria-label="Elimina">✕</button>' +
           '</span>' +
         '</div>';
       }).join('');
+      // Cerut direct ("daca apas sa elimin trebuie sa ma intrebe daca
+      // sigur vreau... poate fi apasat din greseala"): la fel ca la
+      // stergerea unui client, o singura apasare pe X, fara nicio
+      // confirmare, putea sterge o regula din greseala - adaugata
+      // aceeasi intrebare de confirmare, cu numele comunei in mesaj,
+      // ca sa fie clar exact ce se elimina.
       el.querySelectorAll('.zone-rule-delete-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
+          if (!confirm('Eliminare la regola per ' + btn.dataset.comune + '?')) return;
           call({ action: 'fleet_delete_zone_rule', slug: slug, password: password, rule_id: btn.dataset.id }).then(loadZoneRules);
         });
       });
