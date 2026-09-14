@@ -3935,12 +3935,32 @@
       el.innerHTML = rules.map(function (r) {
         return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);">' +
           '<span><b>' + esc(r.comune) + '</b> → ' + esc(nameByEmailGlobal(r.driver_email)) + '</span>' +
-          '<button class="zone-rule-delete-btn" data-id="' + esc(r.id) + '" style="background:none;border:none;color:var(--ink-soft);cursor:pointer;">✕</button>' +
+          '<span style="display:flex;gap:6px;">' +
+            '<button class="zone-rule-edit-btn" data-id="' + esc(r.id) + '" data-comune="' + esc(r.comune) + '" data-driver="' + esc(r.driver_email) + '" style="background:none;border:none;color:var(--ink-soft);cursor:pointer;" title="Modifica" aria-label="Modifica">✎</button>' +
+            '<button class="zone-rule-delete-btn" data-id="' + esc(r.id) + '" style="background:none;border:none;color:var(--ink-soft);cursor:pointer;" title="Elimina" aria-label="Elimina">✕</button>' +
+          '</span>' +
         '</div>';
       }).join('');
       el.querySelectorAll('.zone-rule-delete-btn').forEach(function (btn) {
         btn.addEventListener('click', function () {
           call({ action: 'fleet_delete_zone_rule', slug: slug, password: password, rule_id: btn.dataset.id }).then(loadZoneRules);
+        });
+      });
+      // Cerut direct ("zone e autisti trebuie sai pot modifica...
+      // pe cei existenti"): serverul (fleet_save_zone_rule) face
+      // deja un upsert dupa comuna - trimitand din nou aceeasi
+      // comuna, dar cu alt sofer, regula veche se suprascrie singura,
+      // fara sa creeze un duplicat. "Modifica" doar precompleteaza
+      // formularul cu regula aleasa, ca sa nu fie nevoie sa retii tu
+      // insuti numele comunei corect - schimbi doar soferul si apesi
+      // din nou butonul de salvare.
+      el.querySelectorAll('.zone-rule-edit-btn').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          document.getElementById('zoneRuleComuneInput').value = btn.dataset.comune;
+          fillDriverSelect(document.getElementById('zoneRuleDriverInput'), btn.dataset.driver);
+          document.getElementById('zoneRuleModalError').textContent = '';
+          document.getElementById('zoneRuleAddBtn').textContent = 'Salva modifiche';
+          document.getElementById('zoneRuleComuneInput').focus();
         });
       });
     }
@@ -3955,6 +3975,7 @@
       fillDriverSelect(document.getElementById('zoneRuleDriverInput'), '');
       document.getElementById('zoneRuleComuneInput').value = '';
       document.getElementById('zoneRuleModalError').textContent = '';
+      document.getElementById('zoneRuleAddBtn').textContent = 'Aggiungi regola';
       loadZoneRules();
       document.getElementById('zoneRulesModalBackdrop').classList.add('open');
     });
@@ -3969,6 +3990,7 @@
       call({ action: 'fleet_save_zone_rule', slug: slug, password: password, comune: comune, driver_email: driverEmail }).then(function (res) {
         if (!res.ok) { errEl.textContent = 'Impossibile salvare la regola.'; return; }
         document.getElementById('zoneRuleComuneInput').value = '';
+        document.getElementById('zoneRuleAddBtn').textContent = 'Aggiungi regola';
         errEl.textContent = '';
         loadZoneRules();
       });
