@@ -88,11 +88,49 @@ function itemsSignature(items){return (items||[]).map(function(i){return i.id}).
 // apel nou - orice raspuns care nu mai corespunde ULTIMEI cereri
 // facute e pur si simplu aruncat, indiferent cat de tarziu ajunge.
 var loadRequestToken=0;
+// Cerut direct ("cand deschid aplicatia... anunturile se incarca cu
+// intarziere... trebuie sa nu se observe vizual incarcatura asta...
+// vreau sa fie stabil ca la BizScan"): tehnica exacta folosita acolo -
+// verificata direct in codul lor sursa (BizScan/premium-app.js,
+// functia load()): la fiecare vizita, daca exista deja o versiune in
+// cache (sessionStorage, indiferent cat de veche, pana la 24h), se
+// foloseste IMEDIAT, cu zero asteptare - apoi, INDIFERENT, se
+// porneste o verificare noua in fundal, silentioasa, care actualizeaza
+// cache-ul pentru DATA VIITOARE. Doar la PRIMA vizita reala din
+// aceasta sesiune (fara nicio cache existenta) se mai asteapta reteaua,
+// o singura data.
+var LIST_CACHE_MAX_AGE_MS=24*60*60*1000;
+function getListCache(key){
+  try{
+    var raw=sessionStorage.getItem('adb_annunci_cache:'+key);
+    if(!raw)return null;
+    var parsed=JSON.parse(raw);
+    if(Date.now()-parsed.t>LIST_CACHE_MAX_AGE_MS)return null;
+    return parsed.v;
+  }catch(e){return null}
+}
+function setListCache(key,v){
+  try{sessionStorage.setItem('adb_annunci_cache:'+key,JSON.stringify({t:Date.now(),v:v}))}catch(e){}
+}
 function load(retriesLeft,silent){
   if(retriesLeft===undefined)retriesLeft=2;
   var myToken=++loadRequestToken;
   var myTab=state.tab;
-  if(!silent){E.statusBar.classList.remove('show');E.cards.innerHTML='<div class="empty">Caricamento…</div>'}
+  var cacheKey='list:'+myTab;
+  if(!silent){
+    var cached=getListCache(cacheKey);
+    if(cached){
+      // Gasita in cache: aratata IMEDIAT, fara nicio stare de incarcare
+      // vizibila - apoi verificam in fundal, silentios, ca datele sa
+      // fie proaspete pentru data viitoare (si chiar acum, daca s-a
+      // schimbat ceva between timp).
+      state.items=cached;state.apiReady=true;render();
+      return load(retriesLeft,true).then(function(){
+        if(myToken===loadRequestToken)setListCache(cacheKey,state.items);
+      });
+    }
+    E.statusBar.classList.remove('show');E.cards.innerHTML='<div class="empty">Caricamento…</div>';
+  }
   return apiCall('list',{type:myTab}).then(function(r){
     if(myToken!==loadRequestToken)return; // un tab mai nou a fost deja ales - acest raspuns nu mai e relevant
     if(!r.ok)throw new Error(r.error||'api');
@@ -111,6 +149,7 @@ function load(retriesLeft,silent){
     var unchanged=itemsSignature(state.items)===itemsSignature(newItems);
     state.items=newItems;state.apiReady=true;
     if(!unchanged)render();
+    setListCache(cacheKey,newItems);
   }).catch(function(){
     if(myToken!==loadRequestToken)return; // la fel, un esec intarziat al unui tab parasit nu trebuie sa strice tab-ul curent
     if(retriesLeft>0){
@@ -243,7 +282,7 @@ function favs(){try{return JSON.parse(localStorage.getItem('adb_annunci_favs')||
 // curenta care ar putea scadea.
 function toggleFav(id){var f=favs(),i=f.indexOf(id);if(i>=0)f.splice(i,1);else{f.push(id);if(!String(id).startsWith('demo'))apiCall('track_save',{id:id}).catch(function(){})}localStorage.setItem('adb_annunci_favs',JSON.stringify(f));render()}
 function relativeTime(x){var d=(Date.now()-new Date(x).getTime())/1000;if(d<3600)return Math.max(1,Math.floor(d/60))+' min fa';if(d<86400)return Math.floor(d/3600)+' ore fa';return Math.floor(d/86400)+' giorni fa'}
-function cardImage(it){if(it.image_url)return '<img class="thumb" src="'+esc(it.image_url)+'" alt="">';return '<div class="thumb placeholder">'+icon(it.type)+'</div>'}
+function cardImage(it){if(it.image_url)return '<img class="thumb" src="'+esc(it.image_url)+'" alt="" loading="lazy" decoding="async">';return '<div class="thumb placeholder">'+icon(it.type)+'</div>'}
 
 // Cerut direct ("cate ori a fost vizualizata... cand trece privirea
 // pe el, odata ce nimereste pe ecranul telefonului, se socoate ca a
