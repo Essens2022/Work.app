@@ -436,6 +436,23 @@ window.addEventListener('message',function(e){
   else load(undefined,true);
 });
 
+// Cerut direct ("daca pun aplicatia pe fundal o perioada de timp, cand
+// deschid inapoi, nu se mai incarca anunturile"): telefoanele (mai
+// ales iOS) pot opri sau intrerupe brusc executia paginii cat timp
+// aplicatia sta in fundal - o cerere care era "in zbor" chiar atunci
+// poate ramane blocata pentru totdeauna, fara sa se mai termine
+// niciodata, lasand pagina agatata exact in acea stare, fara nicio
+// eroare vizibila care sa explice ce s-a intamplat. La revenire
+// (pagina redevine vizibila), se porneste automat o reimprospatare
+// noua, silentioasa - indiferent ce s-a intamplat cat timp aplicatia
+// era in fundal, revenirea aduce mereu date proaspete, functionale.
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState!=='visible')return;
+  if(state.view==='mine')openMine(true);
+  else if(state.view==='favs')openFavorites(true);
+  else load(undefined,true);
+});
+
 // Cerut direct ("sa pot trage cu degetul in partea laterala a
 // paginii si sa intre in cealalta pagina de anunturi... sa fie mai
 // profesionala acea trecere"): gest de tragere stanga/dreapta intre
