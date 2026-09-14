@@ -442,6 +442,16 @@
     .driver-card.head { display: none; }
     .driver-card:not(.head) { padding: 16px; border-radius: 12px; margin: 0 0 10px; border: 1px solid var(--line); }
     .main-inner { padding: 20px 16px 90px; padding-top: calc(var(--topline-h, 90px) + 12px); }
+    /* Raportat direct ("in impostazioni fleet nu se cede bine partea
+       de jos, acolo unde parola se ascunde sub bara de jos"): sectiunea
+       "Cambia password" e ultima din pagina - cei 90px obisnuiti de
+       spatiu de rezerva nu erau de ajuns cat timp era logat deja
+       (formularul de schimbare a parolei are cateva campuri in plus
+       fata de restul paginii), lasand campurile chiar sub bara fixa de
+       jos. Marit doar aici, generos, ca sa fie loc sigur, indiferent
+       de inaltimea exacta a barei pe orice telefon.
+    */
+    #fleet-settings .main-inner { padding-bottom: 160px; }
     .topline {
       position: fixed; top: 0; left: 0; right: 0; z-index: 15;
       padding: calc(16px + env(safe-area-inset-top)) 16px 16px; margin: 0;
