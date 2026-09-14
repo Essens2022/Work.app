@@ -77,10 +77,24 @@ function apiCall(action,payload){payload=payload||{};payload.action=action;paylo
 // ale persoanei (schimbat tab, apasat Riprova) - acolo chiar are
 // sens sa se vada ca ceva se intampla.
 function itemsSignature(items){return (items||[]).map(function(i){return i.id}).join(',')}
+// Cerut direct ("uneori dispar anunturile... cand scrollez intre
+// Trova lavoro, Trova clienti, Marketplace"): CAUZA REALA, o cursa
+// clasica intre cereri - daca schimbi rapid taburile, pornesc mai
+// multe cereri simultan (una pentru fiecare tab apasat); daca una mai
+// veche (pentru un tab parasit deja) se termina DUPA una mai noua
+// (pentru tab-ul curent), raspunsul vechi ajungea sa suprascrie
+// datele corecte, aratand lista gresita sau goala pentru tab-ul in
+// care esti de fapt acum. Un simplu numar (token), crescut la fiecare
+// apel nou - orice raspuns care nu mai corespunde ULTIMEI cereri
+// facute e pur si simplu aruncat, indiferent cat de tarziu ajunge.
+var loadRequestToken=0;
 function load(retriesLeft,silent){
   if(retriesLeft===undefined)retriesLeft=2;
+  var myToken=++loadRequestToken;
+  var myTab=state.tab;
   if(!silent){E.statusBar.classList.remove('show');E.cards.innerHTML='<div class="empty">Caricamento…</div>'}
-  return apiCall('list',{type:state.tab}).then(function(r){
+  return apiCall('list',{type:myTab}).then(function(r){
+    if(myToken!==loadRequestToken)return; // un tab mai nou a fost deja ales - acest raspuns nu mai e relevant
     if(!r.ok)throw new Error(r.error||'api');
     // Cerut direct ("imaginile se incarca din cand in cand... ar
     // trebui la fel sa fie stabile ca si textul"): re-randarea
@@ -98,8 +112,9 @@ function load(retriesLeft,silent){
     state.items=newItems;state.apiReady=true;
     if(!unchanged)render();
   }).catch(function(){
+    if(myToken!==loadRequestToken)return; // la fel, un esec intarziat al unui tab parasit nu trebuie sa strice tab-ul curent
     if(retriesLeft>0){
-      return new Promise(function(resolve){setTimeout(resolve,900)}).then(function(){return load(retriesLeft-1,silent)});
+      return new Promise(function(resolve){setTimeout(resolve,900)}).then(function(){if(myToken===loadRequestToken)return load(retriesLeft-1,silent)});
     }
     if(silent)return; // reimprospatare din fundal, esuata - lista veche ramane, fara niciun mesaj de eroare nedorit
     state.apiReady=false;state.items=[];
