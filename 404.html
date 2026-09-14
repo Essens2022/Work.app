@@ -1298,17 +1298,22 @@
       </div>
       <div class="main-inner">
         <!-- Cerut direct ("doua sectiuni... per autista... tutti i
-             clienti"): aceleasi date, doua moduri de afisare,
-             comutabile - la fel ca taburile de la Annunci. -->
-        <div class="clients-tabs" style="display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:14px;">
-          <button type="button" class="clients-tab on" data-clients-tab="drivers" style="border:0;background:var(--accent);color:#fff;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:750;cursor:pointer;">Per autista</button>
-          <button type="button" class="clients-tab" data-clients-tab="all" style="border:0;background:transparent;color:var(--ink-soft);border-radius:10px;padding:9px 16px;font-size:13px;font-weight:750;cursor:pointer;">Tutti i clienti</button>
+             clienti... taburile si cautarea trebuie sa fie fixe,
+             doar clientii/soferii se scroleaza"): tot blocul de sus
+             (taburi + cautare, comuna pentru ambele vederi) ramane
+             fix - acelasi principiu deja folosit si dovedit la
+             Annunci (.sticky-header), aplicat aici la fel. -->
+        <div class="clients-sticky-header" style="position:sticky;top:130px;z-index:5;background:var(--bg);padding-top:2px;margin:0 0 14px;">
+          <div class="clients-tabs" style="display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:10px;">
+            <button type="button" class="clients-tab on" data-clients-tab="drivers" style="border:0;background:var(--accent);color:#fff;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:750;cursor:pointer;">Per autista</button>
+            <button type="button" class="clients-tab" data-clients-tab="all" style="border:0;background:transparent;color:var(--ink-soft);border-radius:10px;padding:9px 16px;font-size:13px;font-weight:750;cursor:pointer;">Tutti i clienti</button>
+          </div>
+          <input type="text" id="clientSearchInput" placeholder="Cerca per nome, città, zona…" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:11px 14px;color:var(--ink);font-size:14px;">
         </div>
         <div id="clientsByDriverView">
           <div id="clientsByDriverList"></div>
         </div>
         <div id="clientsAllView" style="display:none;">
-          <input type="text" id="clientSearchInput" placeholder="Cerca per nome, città, zona…" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:11px 14px;color:var(--ink);font-size:14px;margin-bottom:14px;">
           <div id="clientsList"></div>
         </div>
       </div>
@@ -3548,7 +3553,7 @@
         renderClientsByDriver(lastClients);
       });
     }
-    document.getElementById('clientSearchInput').addEventListener('input', function () { if (lastClients) renderClients(lastClients); });
+    document.getElementById('clientSearchInput').addEventListener('input', function () { if (lastClients) { renderClients(lastClients); renderClientsByDriver(lastClients); } });
 
     // Cerut direct ("doua sectiuni... per autista... trebuie sa fie
     // profesional... functioneaza pe telefon, tableta, tot"):
@@ -3574,6 +3579,15 @@
 
     function renderClientsByDriver(clients) {
       var el = document.getElementById('clientsByDriverList');
+      // Cerut direct ("la toti i clienti are cerca per nome, insa la
+      // per autista nu era"): aceeasi cautare (un singur camp,
+      // impartit intre ambele vederi) filtreaza acum si aici - un
+      // sofer ramane vizibil daca fie numele lui, fie unul din
+      // clientii lui, se potriveste cu ce s-a scris.
+      var q = (document.getElementById('clientSearchInput').value || '').trim().toLowerCase();
+      var matches = function (c) {
+        return !q || (c.name || '').toLowerCase().indexOf(q) >= 0 || (c.city || '').toLowerCase().indexOf(q) >= 0 || (c.comune || '').toLowerCase().indexOf(q) >= 0;
+      };
       var groups = {}; // email -> {name, clients:[]}
       var unassigned = [];
       clients.forEach(function (c) {
@@ -3588,17 +3602,21 @@
       var html = '<div class="clients-driver-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;">';
       Object.keys(groups).forEach(function (email) {
         var g = groups[email];
+        var driverNameMatches = !q || g.name.toLowerCase().indexOf(q) >= 0;
+        var matchingClients = driverNameMatches ? g.clients : g.clients.filter(matches);
+        if (!matchingClients.length) return; // niciun client si nici numele soferului nu se potriveste cautarii - cardul nu apare
         html += '<div class="client-driver-card" data-driver-email="' + esc(email) + '" style="background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;cursor:pointer;">' +
           '<div style="width:40px;height:40px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;margin-bottom:10px;">' + esc(initials(g.name)) + '</div>' +
           '<b style="font-size:15px;display:block;">' + esc(g.name) + '</b>' +
-          '<span style="color:var(--ink-soft);font-size:12px;">' + g.clients.length + (g.clients.length === 1 ? ' cliente' : ' clienti') + '</span>' +
+          '<span style="color:var(--ink-soft);font-size:12px;">' + matchingClients.length + (matchingClients.length === 1 ? ' cliente' : ' clienti') + '</span>' +
         '</div>';
       });
-      if (unassigned.length) {
+      var matchingUnassigned = unassigned.filter(matches);
+      if (matchingUnassigned.length) {
         html += '<div class="client-driver-card" data-driver-email="" style="background:var(--surface);border:1px dashed var(--accent);border-radius:16px;padding:18px;cursor:pointer;">' +
           '<div style="width:40px;height:40px;border-radius:50%;background:rgba(232,84,43,.12);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;margin-bottom:10px;">?</div>' +
           '<b style="font-size:15px;display:block;color:var(--accent);">Da assegnare</b>' +
-          '<span style="color:var(--ink-soft);font-size:12px;">' + unassigned.length + (unassigned.length === 1 ? ' cliente' : ' clienti') + '</span>' +
+          '<span style="color:var(--ink-soft);font-size:12px;">' + matchingUnassigned.length + (matchingUnassigned.length === 1 ? ' cliente' : ' clienti') + '</span>' +
         '</div>';
       }
       html += '</div>';
