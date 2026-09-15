@@ -1425,6 +1425,15 @@
       <label>Nome / Ragione sociale</label>
       <input type="text" id="clientNameInput" placeholder="Es. Alfa Service Srl">
     </div>
+    <!-- Cerut direct ("de ce in baza de date a clientilor nu citeste
+         codice cliente, asa mai usor va face legatura borderol si
+         baza de clienti"): campul e optional - un client poate exista
+         fara cod, dar daca il are, potrivirea cu borderò-ul zilnic
+         devine mult mai sigura decat sa se bazeze doar pe nume. -->
+    <div class="field">
+      <label>Codice cliente (opzionale)</label>
+      <input type="text" id="clientCodeInput" placeholder="Es. C001">
+    </div>
     <div class="field">
       <label>Indirizzo (opzionale)</label>
       <input type="text" id="clientAddressInput" placeholder="Via Roma 12">
@@ -3816,6 +3825,7 @@
       editingClientId = client ? client.id : null;
       document.getElementById('clientModalTitle').textContent = client ? 'Modifica cliente' : 'Nuovo cliente';
       document.getElementById('clientNameInput').value = client ? client.name : '';
+      document.getElementById('clientCodeInput').value = client && client.client_code ? client.client_code : '';
       document.getElementById('clientAddressInput').value = client && client.address ? client.address : '';
       document.getElementById('clientComuneInput').value = client && client.comune ? client.comune : '';
       document.getElementById('clientCityInput').value = client && client.city ? client.city : '';
@@ -3840,6 +3850,7 @@
     var importParsedRows = [];
     var IMPORT_FIELD_HINTS = {
       name: ['nome', 'cliente', 'ragione sociale', 'ragione', 'denominazione'],
+      client_code: ['codice', 'cod. cliente', 'codcliente', 'cod cliente'],
       address: ['indirizzo', 'via'],
       comune: ['comune'],
       city: ['città', 'citta', 'frazione', 'localita', 'località'],
@@ -3908,11 +3919,12 @@
       } else {
         html += '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
           '<tr style="text-align:left;color:var(--ink-soft);font-size:11px;text-transform:uppercase;">' +
-            '<th style="padding:6px 8px;">Nome</th><th style="padding:6px 8px;">Comune</th><th style="padding:6px 8px;">Indirizzo</th><th style="padding:6px 8px;">Telefono</th>' +
+            '<th style="padding:6px 8px;">Nome</th><th style="padding:6px 8px;">Codice</th><th style="padding:6px 8px;">Comune</th><th style="padding:6px 8px;">Indirizzo</th><th style="padding:6px 8px;">Telefono</th>' +
           '</tr>';
         parsedRows.slice(0, 50).forEach(function (r) {
           html += '<tr style="border-top:1px solid var(--line);">' +
             '<td style="padding:6px 8px;font-weight:700;">' + esc(r.name || '') + '</td>' +
+            '<td style="padding:6px 8px;">' + esc(r.client_code || '') + '</td>' +
             '<td style="padding:6px 8px;">' + esc(r.comune || '') + '</td>' +
             '<td style="padding:6px 8px;">' + esc(r.address || '') + '</td>' +
             '<td style="padding:6px 8px;">' + esc(r.phone || '') + '</td>' +
@@ -3951,6 +3963,7 @@
       var payload = {
         action: editingClientId ? 'fleet_update_client' : 'fleet_add_client',
         slug: slug, password: password, name: name,
+        client_code: document.getElementById('clientCodeInput').value,
         address: document.getElementById('clientAddressInput').value,
         comune: document.getElementById('clientComuneInput').value,
         city: document.getElementById('clientCityInput').value,
