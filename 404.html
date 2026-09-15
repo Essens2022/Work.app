@@ -450,7 +450,7 @@
     .driver-card { grid-template-columns: 1fr; gap: 4px; }
     .driver-card.head { display: none; }
     .driver-card:not(.head) { padding: 16px; border-radius: 12px; margin: 0 0 10px; border: 1px solid var(--line); }
-    .main-inner { padding: 20px 16px 90px; padding-top: calc(var(--topline-h, 90px) + 12px); }
+    .main-inner { padding: 20px 16px calc(70px + env(safe-area-inset-bottom)); padding-top: calc(var(--topline-h, 90px) + 12px); }
     /* Raportat direct ("in impostazioni fleet nu se cede bine partea
        de jos, acolo unde parola se ascunde sub bara de jos"): sectiunea
        "Cambia password" e ultima din pagina - cei 90px obisnuiti de
@@ -1047,13 +1047,17 @@
              (deja existent) intact, adauga acum un al doilea tab,
              Borderò di oggi - unde se incarca documentul zilei si se
              vede lista deja impartita automat pe soferi. -->
-        <div class="clients-tabs" style="display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:14px;">
-          <button type="button" class="consegne-tab on" data-consegne-tab="borderolo" style="border:0;background:var(--accent);color:#fff;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:750;cursor:pointer;">Borderò di oggi</button>
-          <button type="button" class="consegne-tab" data-consegne-tab="storico" style="border:0;background:transparent;color:var(--ink-soft);border-radius:10px;padding:9px 16px;font-size:13px;font-weight:750;cursor:pointer;">Storico</button>
-        </div>
-
-        <div id="consegneStoricoView" style="display:none;">
-          <div class="filter-row filter-row-inline" style="margin-bottom:14px;">
+        <div class="clients-tabs-header" id="consegneStickyHeader" style="position:relative;z-index:5;background:var(--bg);padding-top:2px;margin:0 0 14px;">
+          <div class="clients-tabs" style="display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:14px;">
+            <button type="button" class="consegne-tab on" data-consegne-tab="borderolo" style="border:0;background:var(--accent);color:#fff;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:750;cursor:pointer;">Borderò di oggi</button>
+            <button type="button" class="consegne-tab" data-consegne-tab="storico" style="border:0;background:transparent;color:var(--ink-soft);border-radius:10px;padding:9px 16px;font-size:13px;font-weight:750;cursor:pointer;">Storico</button>
+          </div>
+          <!-- Cerut direct ("totul... trebuie sa fie fix, doar
+               clientii/soferii se scroleaza"): randul de sub taburi
+               (filtre pentru Storico, data+incarcare pentru Borderò)
+               ramane si el fix, alaturi de taburi - doar lista de
+               dedesubt (randurile efective) se scroleaza. -->
+          <div class="filter-row filter-row-inline" id="consegneStoricoFilters" style="display:none;">
             <select class="filter-select" id="storicoDriverFilter"><option value="">Tutti gli autisti</option></select>
             <select class="filter-select" id="storicoPeriodFilter">
               <option value="7">Ultimi 7 giorni</option>
@@ -1062,11 +1066,7 @@
             </select>
             <input class="driver-search" id="storicoSearchInput" placeholder="Cerca cliente o indirizzo...">
           </div>
-          <div class="fleet-table" id="storicoList"></div>
-        </div>
-
-        <div id="consegneBorderoloView">
-          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">
+          <div id="consegneBorderoloFilters" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
             <input type="date" id="borderoloDateInput" class="filter-select" style="max-width:170px;">
             <input type="file" id="borderoloFileInput" accept=".xlsx,.xls,.csv,.ods,.jpg,.jpeg,.png,.heic,.webp,.pdf" style="display:none;">
             <button class="btn btn-accent owner-only" id="openBorderoloUploadBtn">
@@ -1075,6 +1075,13 @@
             </button>
             <span id="borderoloCurrentFileLabel" style="font-size:12px;color:var(--ink-soft);"></span>
           </div>
+        </div>
+
+        <div id="consegneStoricoView" style="display:none;">
+          <div class="fleet-table" id="storicoList"></div>
+        </div>
+
+        <div id="consegneBorderoloView">
           <div id="consegneBorderoloList"></div>
         </div>
       </div>
@@ -1376,7 +1383,7 @@
              (taburi + cautare, comuna pentru ambele vederi) ramane
              fix - acelasi principiu deja folosit si dovedit la
              Annunci (.sticky-header), aplicat aici la fel. -->
-        <div class="clients-sticky-header" style="position:sticky;top:130px;z-index:5;background:var(--bg);padding-top:2px;margin:0 0 14px;">
+        <div class="clients-sticky-header" id="clientsStickyHeader" style="position:relative;z-index:5;background:var(--bg);padding-top:2px;margin:0 0 14px;">
           <div class="clients-tabs" style="display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:10px;">
             <button type="button" class="clients-tab on" data-clients-tab="drivers" style="border:0;background:var(--accent);color:#fff;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:750;cursor:pointer;">Per autista</button>
             <button type="button" class="clients-tab" data-clients-tab="all" style="border:0;background:transparent;color:var(--ink-soft);border-radius:10px;padding:9px 16px;font-size:13px;font-weight:750;cursor:pointer;">Tutti i clienti</button>
@@ -2459,10 +2466,10 @@
       window.scrollTo(0, 0);
       document.getElementById('exportCsvBtn').style.display = name === 'consegne' ? 'flex' : 'none';
       document.getElementById('panoramicaMappaBtn').style.display = name === 'panoramica' ? 'flex' : 'none';
-      if (name === 'consegne') { loadStorico(); loadBorderoloView(); }
+      if (name === 'consegne') { loadStorico(); loadBorderoloView(); if (repositionConsegneHeader) repositionConsegneHeader(); }
       if (name === 'documenti') loadDocumenti();
       if (name === 'veicoli') loadVehicles();
-      if (name === 'clienti') loadClients();
+      if (name === 'clienti') { loadClients(); if (repositionClientsHeader) repositionClientsHeader(); }
       if (name === 'bilancio') loadBilancio();
       if (name === 'notifiche') loadNotifiche();
       if (name === 'impostazioni') loadTeam();
@@ -4214,6 +4221,38 @@
     // reset fresh whenever the screen re-fetches from scratch.
     var storicoOpenDays = {};
 
+    // Cerut direct ("aceste butoane, bara de cautare... trebuie sa
+    // fie fix, asa cum si in altele... doar clientii se scroleaza"):
+    // valoarea fixa "top:130px" folosita pana acum nu era sigura -
+    // nu se potrivea intotdeauna cu inaltimea REALA a titlului de sus
+    // (.topline), care poate varia. Reparat masurand direct, din cod,
+    // inaltimea reala a .topline DIN ACELASI ECRAN (exista cate un
+    // .topline separat per ecran, la fel ca bara laterala - masurarea
+    // gresita a celui dintai din pagina, ascuns la incarcare, e ce
+    // dadea 0px inainte) - recalculata din nou de fiecare data cand
+    // se intra pe acel ecran, cand elementele chiar sunt vizibile.
+    function pinBelowTopline(headerEl) {
+      if (!headerEl) return null;
+      var screenEl = headerEl.closest('.screen');
+      var topline = screenEl ? screenEl.querySelector('.topline') : null;
+      if (!topline) return null;
+      function reposition() {
+        var h = topline.getBoundingClientRect().height;
+        if (!h) return; // ecranul e inca ascuns - nu suprascrie cu 0
+        headerEl.style.position = 'sticky';
+        headerEl.style.top = Math.round(h) + 'px';
+      }
+      reposition();
+      if ('ResizeObserver' in window) {
+        new ResizeObserver(reposition).observe(topline);
+      } else {
+        window.addEventListener('resize', reposition);
+      }
+      return reposition;
+    }
+    var repositionClientsHeader = pinBelowTopline(document.getElementById('clientsStickyHeader'));
+    var repositionConsegneHeader = pinBelowTopline(document.getElementById('consegneStickyHeader'));
+
     function loadStorico() {
       var driverFilter = document.getElementById('storicoDriverFilter').value;
       var periodDays = document.getElementById('storicoPeriodFilter').value;
@@ -4337,6 +4376,8 @@
         var mode = btn.dataset.consegneTab;
         document.getElementById('consegneBorderoloView').style.display = mode === 'borderolo' ? '' : 'none';
         document.getElementById('consegneStoricoView').style.display = mode === 'storico' ? '' : 'none';
+        document.getElementById('consegneBorderoloFilters').style.display = mode === 'borderolo' ? 'flex' : 'none';
+        document.getElementById('consegneStoricoFilters').style.display = mode === 'storico' ? 'flex' : 'none';
         if (mode === 'storico') loadStorico();
       });
     });
