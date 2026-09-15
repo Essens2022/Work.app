@@ -1176,6 +1176,7 @@
       todayDeliveryItems = res.items || [];
       var pending = todayDeliveryItems.filter(function (i) { return i.status !== 'delivered'; }).length;
       todayDeliveryCountBadge = pending || '';
+      dpAddTodayDeliveriesToRun(todayDeliveryItems);
       if (currentScreen === 'home') renderHome();
     });
   }
@@ -1196,58 +1197,34 @@
       todayDeliveryItems = res.items || [];
       var pending = todayDeliveryItems.filter(function (i) { return i.status !== 'delivered'; }).length;
       todayDeliveryCountBadge = pending || '';
+      dpAddTodayDeliveriesToRun(todayDeliveryItems);
       renderConsegneOggiList();
     });
   }
 
+  // Simplificat la un rezumat, fara butoane proprii de marcare -
+  // odata ce livrarile devin opriri reale in Percorso, marcarea se
+  // face DOAR de acolo (checkbox-ul deja existent la Riordina), ca
+  // sa nu existe doua locuri separate care ar putea contrazice unul
+  // pe celalalt despre aceeasi livrare.
   function renderConsegneOggiList() {
     var listEl = document.getElementById('consegne-oggi-list');
     if (!listEl) return;
     if (!todayDeliveryItems.length) { listEl.innerHTML = '<div style="color:var(--ink-soft,#9a9a9e);font-size:13px;">Nessuna consegna assegnata per oggi.</div>'; return; }
-    var html = '';
+    var html = '<div style="background:var(--accent-soft,rgba(232,84,43,.1));color:var(--accent,#E8542B);border-radius:12px;padding:10px 14px;font-size:12.5px;font-weight:700;margin-bottom:14px;">Queste consegne sono già state aggiunte al tuo Percorso — segnale consegnate da lì.</div>';
     todayDeliveryItems.forEach(function (it) {
       var statusBadge = '';
       if (it.status === 'delivered') statusBadge = '<span style="background:var(--teal-soft,rgba(15,157,140,.14));color:var(--teal,#0F9D8C);border-radius:100px;padding:3px 10px;font-size:11.5px;font-weight:800;">✓ Consegnato</span>';
       else if (it.status === 'not_delivered') statusBadge = '<span style="background:var(--danger-soft,#FBE4E1);color:var(--danger,#D64545);border-radius:100px;padding:3px 10px;font-size:11.5px;font-weight:800;" title="' + escapeHtml(it.status_reason || '') + '">✕ Non consegnato</span>';
-      html += '<div class="delivery-card" data-item-id="' + it.id + '" style="background:var(--surface,#151517);border-radius:14px;padding:14px 16px;margin-bottom:10px;">' +
+      else statusBadge = '<span style="background:var(--surface-2,#1c1c1e);color:var(--ink-soft,#9a9a9e);border-radius:100px;padding:3px 10px;font-size:11.5px;font-weight:800;">In attesa</span>';
+      html += '<div style="background:var(--surface,#151517);border-radius:14px;padding:14px 16px;margin-bottom:10px;">' +
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">' +
         '<div><b style="font-size:14.5px;">' + escapeHtml(it.client_name) + '</b>' +
         (it.merchandise_note ? '<div style="font-size:12.5px;color:var(--ink-soft,#9a9a9e);margin-top:3px;">' + escapeHtml(it.merchandise_note) + '</div>' : '') +
         '</div>' + statusBadge +
-        '</div>';
-      if (it.status !== 'delivered' && it.status !== 'not_delivered') {
-        html += '<div style="display:flex;gap:8px;margin-top:10px;">' +
-          '<button class="btn btn-light delivery-btn-not" data-id="' + it.id + '" style="flex:1;">Non consegnato</button>' +
-          '<button class="btn btn-accent delivery-btn-yes" data-id="' + it.id + '" style="flex:1;">Consegnato</button>' +
-          '</div>';
-      }
-      html += '</div>';
+        '</div></div>';
     });
     listEl.innerHTML = html;
-
-    listEl.querySelectorAll('.delivery-btn-yes').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        updateDeliveryStatus(btn.dataset.id, 'delivered', null);
-      });
-    });
-    listEl.querySelectorAll('.delivery-btn-not').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var reason = prompt('Perché non è stato consegnato? (facoltativo)') || '';
-        updateDeliveryStatus(btn.dataset.id, 'not_delivered', reason);
-      });
-    });
-  }
-
-  function updateDeliveryStatus(itemId, status, reason) {
-    var email = currentAccountEmail();
-    fleetCall({ action: 'driver_update_delivery_status', account_email: email, item_id: itemId, status: status, status_reason: reason }).then(function (res) {
-      if (!res.ok) { toast('Impossibile aggiornare — verifica la connessione'); return; }
-      var item = todayDeliveryItems.find(function (i) { return i.id === itemId; });
-      if (item) { item.status = status; item.status_reason = reason || null; }
-      var pending = todayDeliveryItems.filter(function (i) { return i.status !== 'delivered'; }).length;
-      todayDeliveryCountBadge = pending || '';
-      renderConsegneOggiList();
-    });
   }
 
   function escapeHtml(s) {
@@ -1977,6 +1954,51 @@
       saveDeliveryHistory(history);
     }
     return { clients: [], date: todayDateStr() };
+  }
+
+  // Cerut direct ("sa devina stopuri reale in Percorso, ca soferul sa
+  // le poata naviga direct"): la fiecare incarcare a livrarilor de
+  // azi, cele NEadaugate inca (verificat dupa deliveryItemId, ca sa
+  // nu se dubleze la reincarcari repetate) sunt transformate in
+  // opriri navigabile - adresa clientului (deja legata pe server) e
+  // geocodata cu acelasi geocoder folosit peste tot in aplicatie,
+  // apoi adaugate in run-ul de azi, exact ca un client adaugat manual.
+  function dpAddTodayDeliveriesToRun(items) {
+    dpArchiveIfNewDay();
+    var existingIds = {};
+    state.deliveryRun.clients.forEach(function (c) { if (c.deliveryItemId) existingIds[c.deliveryItemId] = true; });
+    var toAdd = items.filter(function (it) { return it.address && !existingIds[it.id] && it.status !== 'delivered'; });
+    if (!toAdd.length) return;
+    var geocodePromises = toAdd.map(function (it) {
+      return geocodeAddress(it.address).then(function (result) {
+        return { item: it, result: result };
+      }).catch(function () { return { item: it, result: null }; });
+    });
+    Promise.all(geocodePromises).then(function (resolved) {
+      var addedAny = false;
+      resolved.forEach(function (r) {
+        if (!r.result) return; // indirizzo non geocodificabile — saltato, non blocca gli altri
+        state.deliveryRun.clients.push({
+          id: uid(), deliveryItemId: r.item.id, nome: r.item.client_name, indirizzo: r.item.address,
+          lat: r.result.lat, lon: r.result.lon, status: 'pending', scadenza: '', nonPrimaDi: ''
+        });
+        addedAny = true;
+      });
+      if (addedAny) {
+        saveDeliveryRun(state.deliveryRun);
+        if (currentScreen === 'navigatore') renderDeliveryPlanner();
+      }
+    });
+  }
+
+  // Cand un'opprire aggiunta cosi' viene segnata consegnata dentro
+  // Percorso, il proprietario della flotta deve vederlo anche lui,
+  // nel suo pannello - sincronizzato qui, verso la stessa azione gia'
+  // usata dallo schermo "Consegne di oggi".
+  function dpSyncDeliveryItemStatus(dpClient, status) {
+    if (!dpClient.deliveryItemId) return;
+    var email = currentAccountEmail();
+    fleetCall({ action: 'driver_update_delivery_status', account_email: email, item_id: dpClient.deliveryItemId, status: status, status_reason: null });
   }
 
   function dpArchiveIfNewDay() {
@@ -4577,6 +4599,11 @@
     // later. Uncompleted ones are removed from the server the same way.
     if (newlyCompleted.length) syncDeliveriesToServer(newlyCompleted);
     if (newlyUncompleted.length) deleteDeliveriesFromServer(newlyUncompleted);
+    // Cerut direct ("sa devina stopuri reale in Percorso"): opririle
+    // adaugate automat din borderolul flotei raman legate de randul
+    // lor original (deliveryItemId) - bifate aici, trimit acelasi
+    // status catre server, ca proprietarul flotei sa vada imediat.
+    newlyCompleted.forEach(function (c) { dpSyncDeliveryItemStatus(c, 'delivered'); });
 
     var completed = state.deliveryRun.clients.filter(function (c) { return c.status === 'completed'; });
     var remaining = state.deliveryRun.clients.filter(function (c) { return c.status !== 'completed'; });
