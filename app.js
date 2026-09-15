@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v626"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v627"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -1207,24 +1207,90 @@
   // face DOAR de acolo (checkbox-ul deja existent la Riordina), ca
   // sa nu existe doua locuri separate care ar putea contrazice unul
   // pe celalalt despre aceeasi livrare.
+  // Cerut direct ("in Consegne di oggi vreau sa vad daca se pun deja
+  // in ordine... trebuie sa fie posibil la fel ca in Percorso... sa
+  // le poti modifica cu locul... sa le poti elimina"): ordinea aici
+  // reflecta acum ordinea REALA din Percorso (nu ordinea alfabetica
+  // primita de la server) - pentru ca sunt exact aceleasi opriri.
+  // Sageti sus/jos muta ordinea; X elimina oprirea DIN PERCORSO (nu
+  // sterge nimic din baza de date a flotei - doar din ruta proprie a
+  // soferului, la fel cum ar face-o si daca ar sterge un client
+  // adaugat manual).
+  function dpRunClientsForDeliveryItems() {
+    var byId = {};
+    todayDeliveryItems.forEach(function (it) { byId[it.id] = it; });
+    return state.deliveryRun.clients.filter(function (c) { return c.deliveryItemId && byId[c.deliveryItemId]; });
+  }
+
   function renderConsegneOggiList() {
     var listEl = document.getElementById('consegne-oggi-list');
     if (!listEl) return;
     if (!todayDeliveryItems.length) { listEl.innerHTML = '<div style="color:var(--ink-soft,#9a9a9e);font-size:13px;">Nessuna consegna assegnata per oggi.</div>'; return; }
-    var html = '<div style="background:var(--accent-soft,rgba(232,84,43,.1));color:var(--accent,#E8542B);border-radius:12px;padding:10px 14px;font-size:12.5px;font-weight:700;margin-bottom:14px;">Queste consegne sono già state aggiunte al tuo Percorso — segnale consegnate da lì.</div>';
-    todayDeliveryItems.forEach(function (it) {
+    var byId = {};
+    todayDeliveryItems.forEach(function (it) { byId[it.id] = it; });
+    var runClients = dpRunClientsForDeliveryItems();
+    // Consegnele care inca nu au ajuns in Percorso (adresa lipsa sau
+    // geocodare inca in curs) raman vizibile la final, fara sageti -
+    // nu au inca o pozitie in ruta pe care s-o schimbe.
+    var notYetInRun = todayDeliveryItems.filter(function (it) { return !runClients.some(function (c) { return c.deliveryItemId === it.id; }); });
+
+    var html = '<div style="background:var(--accent-soft,rgba(232,84,43,.1));color:var(--accent,#E8542B);border-radius:12px;padding:10px 14px;font-size:12.5px;font-weight:700;margin-bottom:14px;">Queste consegne sono nel tuo Percorso — segnale consegnate da lì. Qui puoi solo riordinare o rimuovere.</div>';
+
+    runClients.forEach(function (c, idx) {
+      var it = byId[c.deliveryItemId];
       var statusBadge = '';
       if (it.status === 'delivered') statusBadge = '<span style="background:var(--teal-soft,rgba(15,157,140,.14));color:var(--teal,#0F9D8C);border-radius:100px;padding:3px 10px;font-size:11.5px;font-weight:800;">✓ Consegnato</span>';
-      else if (it.status === 'not_delivered') statusBadge = '<span style="background:var(--danger-soft,#FBE4E1);color:var(--danger,#D64545);border-radius:100px;padding:3px 10px;font-size:11.5px;font-weight:800;" title="' + escapeHtml(it.status_reason || '') + '">✕ Non consegnato</span>';
+      else if (it.status === 'not_delivered') statusBadge = '<span style="background:var(--danger-soft,#FBE4E1);color:var(--danger,#D64545);border-radius:100px;padding:3px 10px;font-size:11.5px;font-weight:800;">✕ Non consegnato</span>';
       else statusBadge = '<span style="background:var(--surface-2,#1c1c1e);color:var(--ink-soft,#9a9a9e);border-radius:100px;padding:3px 10px;font-size:11.5px;font-weight:800;">In attesa</span>';
-      html += '<div style="background:var(--surface,#151517);border-radius:14px;padding:14px 16px;margin-bottom:10px;">' +
-        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">' +
-        '<div><b style="font-size:14.5px;">' + escapeHtml(it.client_name) + '</b>' +
+      html += '<div style="background:var(--surface,#151517);border-radius:14px;padding:14px 16px;margin-bottom:10px;display:flex;gap:10px;align-items:center;">' +
+        '<div style="display:flex;flex-direction:column;gap:2px;">' +
+        '<button class="consegne-oggi-up" data-idx="' + idx + '" ' + (idx === 0 ? 'disabled style="opacity:.3;"' : '') + ' style="background:none;border:none;color:var(--ink-soft,#9a9a9e);cursor:pointer;padding:2px;">▲</button>' +
+        '<button class="consegne-oggi-down" data-idx="' + idx + '" ' + (idx === runClients.length - 1 ? 'disabled style="opacity:.3;"' : '') + ' style="background:none;border:none;color:var(--ink-soft,#9a9a9e);cursor:pointer;padding:2px;">▼</button>' +
+        '</div>' +
+        '<div style="flex:1;min-width:0;"><b style="font-size:14.5px;">' + escapeHtml(it.client_name) + '</b>' +
         (it.merchandise_note ? '<div style="font-size:12.5px;color:var(--ink-soft,#9a9a9e);margin-top:3px;">' + escapeHtml(it.merchandise_note) + '</div>' : '') +
         '</div>' + statusBadge +
-        '</div></div>';
+        '<button class="consegne-oggi-remove" data-delivery-item-id="' + it.id + '" style="background:none;border:none;color:var(--ink-soft,#9a9a9e);font-size:18px;cursor:pointer;padding:2px 6px;">✕</button>' +
+        '</div>';
     });
+
+    notYetInRun.forEach(function (it) {
+      html += '<div style="background:var(--surface,#151517);border-radius:14px;padding:14px 16px;margin-bottom:10px;opacity:.6;">' +
+        '<b style="font-size:14.5px;">' + escapeHtml(it.client_name) + '</b>' +
+        '<div style="font-size:12px;color:var(--ink-soft,#9a9a9e);margin-top:3px;">Non ancora nel Percorso — indirizzo non trovato.</div></div>';
+    });
+
     listEl.innerHTML = html;
+
+    listEl.querySelectorAll('.consegne-oggi-up').forEach(function (btn) {
+      btn.addEventListener('click', function () { dpMoveDeliveryStop(Number(btn.dataset.idx), -1); });
+    });
+    listEl.querySelectorAll('.consegne-oggi-down').forEach(function (btn) {
+      btn.addEventListener('click', function () { dpMoveDeliveryStop(Number(btn.dataset.idx), 1); });
+    });
+    listEl.querySelectorAll('.consegne-oggi-remove').forEach(function (btn) {
+      btn.addEventListener('click', function () { dpRemoveDeliveryStop(btn.dataset.deliveryItemId); });
+    });
+  }
+
+  function dpMoveDeliveryStop(idx, direction) {
+    var runClients = dpRunClientsForDeliveryItems();
+    var target = idx + direction;
+    if (target < 0 || target >= runClients.length) return;
+    var a = runClients[idx], b = runClients[target];
+    var posA = state.deliveryRun.clients.indexOf(a), posB = state.deliveryRun.clients.indexOf(b);
+    state.deliveryRun.clients[posA] = b;
+    state.deliveryRun.clients[posB] = a;
+    saveDeliveryRun(state.deliveryRun);
+    renderConsegneOggiList();
+  }
+
+  function dpRemoveDeliveryStop(deliveryItemId) {
+    if (!window.confirm('Rimuovere questa fermata dal Percorso?')) return;
+    state.deliveryRun.clients = state.deliveryRun.clients.filter(function (c) { return c.deliveryItemId !== deliveryItemId; });
+    saveDeliveryRun(state.deliveryRun);
+    renderConsegneOggiList();
+    if (currentScreen === 'navigatore') renderDeliveryPlanner();
   }
 
   function escapeHtml(s) {
