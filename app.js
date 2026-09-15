@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v622"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v623"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -1184,6 +1184,12 @@
       var exists = d <= n;
       var date = exists ? new Date(sheet.year, sheet.month - 1, d) : null;
       var dow = exists ? GIORNI_SETT[date.getDay()].slice(0, 3) : '';
+      // Cerut direct ("sambetele si duminicile sa fie cu rosu, ca sa
+      // fie mai clar... ma incurc si nu sar acele doua zile"):
+      // reper vizual simplu, pe cercul zilei - weekend-ul iese in
+      // evidenta, mai usor de observat dintr-o privire decat citind
+      // textul zilei saptamanii de langa fiecare rand.
+      var isWeekend = exists && (date.getDay() === 0 || date.getDay() === 6);
       if (!exists) {
         html += '<div class="day-row disabled"><div class="day-num">' + d + '</div><div class="day-main"><span class="placeholder">Giorno inesistente</span></div></div>';
         continue;
@@ -1201,7 +1207,7 @@
       if (g && g.kmInizio2 !== "" && g.kmInizio2 !== undefined && g.kmFine2 !== "" && g.kmFine2 !== undefined && !isNaN(g.kmFine2 - g.kmInizio2)) {
         kmtot = (kmtot || 0) + (Number(g.kmFine2) - Number(g.kmInizio2));
       }
-      html += '<div class="day-row ' + (filled ? 'filled' : '') + '" data-day="' + d + '">';
+      html += '<div class="day-row ' + (filled ? 'filled' : '') + (isWeekend ? ' weekend' : '') + '" data-day="' + d + '">';
       html += '<div class="day-num">' + d + '</div>';
       html += '<div class="day-main">';
       if (filled) {
