@@ -4398,17 +4398,29 @@
         });
         html += '</div>';
       });
-      el.innerHTML = html;
-      el.querySelectorAll('.consegne-day-header').forEach(function (header) {
-        header.addEventListener('click', function () {
-          var dayKey = header.getAttribute('data-day-key');
-          storicoOpenDays[dayKey] = !storicoOpenDays[dayKey];
-          var body = header.nextElementSibling;
-          var nowOpen = !!storicoOpenDays[dayKey];
-          header.classList.toggle('open', nowOpen);
-          body.style.display = nowOpen ? '' : 'none';
+      // Acelasi tratament ca la Borderò - reimprospatarea din fundal
+      // (la 20 de secunde) nu mai trebuie sa resetze scroll-ul
+      // utilizatorului daca datele sunt neschimbate. Ascultatorii de
+      // clic se ataseaza DOAR cand continutul chiar s-a schimbat -
+      // altfel s-ar aduna cate un ascultator in plus la fiecare
+      // reimprospatare, facand un singur clic sa deschida/inchida de
+      // mai multe ori la rand dupa cateva minute de folosire.
+      var scrollContainer = el.closest('.main');
+      var savedScrollTop = scrollContainer ? scrollContainer.scrollTop : 0;
+      if (el.innerHTML !== html) {
+        el.innerHTML = html;
+        if (scrollContainer) scrollContainer.scrollTop = savedScrollTop;
+        el.querySelectorAll('.consegne-day-header').forEach(function (header) {
+          header.addEventListener('click', function () {
+            var dayKey = header.getAttribute('data-day-key');
+            storicoOpenDays[dayKey] = !storicoOpenDays[dayKey];
+            var body = header.nextElementSibling;
+            var nowOpen = !!storicoOpenDays[dayKey];
+            header.classList.toggle('open', nowOpen);
+            body.style.display = nowOpen ? '' : 'none';
+          });
         });
-      });
+      }
     }
 
     document.getElementById('storicoDriverFilter').addEventListener('change', loadStorico);
@@ -4471,9 +4483,24 @@
       renderBorderoloList(this.value || todayIso);
     });
 
+    // Cerut direct ("lista periodic se reincarca, ceea ce iar nu este
+    // profesional"): gasit exact cauza - reimprospatarea automata la
+    // 20 de secunde (deja existenta, pentru Bilancio live) rescria
+    // TOT continutul listei, arunca un "Caricamento..." peste ea si
+    // reseta pozitia de scroll de fiecare data, chiar daca datele nu
+    // se schimbasera deloc. Reparat: "Caricamento..." apare DOAR la
+    // incarcarea initiala (lista goala) - la reimprospatarile tacute
+    // de dupa, continutul se schimba pe loc, fara sa treaca prin acel
+    // ecran gol intre timp, iar pozitia de scroll a utilizatorului
+    // (in .main, containerul real care se scroleaza) e retinuta
+    // dinainte si restaurata dupa, ca listele lungi sa nu mai sara
+    // inapoi sus la fiecare reimprospatare din fundal.
     function renderBorderoloList(deliveryDate) {
       var el = document.getElementById('consegneBorderoloList');
-      el.innerHTML = '<div class="empty-note">Caricamento…</div>';
+      var isFirstLoad = !el.dataset.loadedOnce;
+      if (isFirstLoad) el.innerHTML = '<div class="empty-note">Caricamento…</div>';
+      var scrollContainer = el.closest('.main');
+      var savedScrollTop = scrollContainer ? scrollContainer.scrollTop : 0;
       call({ action: 'fleet_list_delivery_items', slug: slug, password: password, delivery_date: deliveryDate }).then(function (res) {
         if (!res.ok) { el.innerHTML = '<div class="empty-note">Impossibile caricare.</div>'; return; }
         var items = res.items || [];
@@ -4516,15 +4543,23 @@
             unassigned.map(rowHtml).join('') +
           '</div>';
         }
-        el.innerHTML = html;
-        el.querySelectorAll('.borderolo-delete-btn').forEach(function (btn) {
-          btn.addEventListener('click', function () {
-            if (!confirm('Rimuovere questa riga dal borderò?')) return;
-            call({ action: 'fleet_delete_delivery_item', slug: slug, password: password, item_id: btn.dataset.id }).then(function () {
-              renderBorderoloList(deliveryDate);
+        // Daca ceva nou chiar a aparut/disparut intre timp, HTML-ul
+        // difera si atunci chiar merita reconstruit - dar daca e
+        // identic (cazul obisnuit la o reimprospatare din fundal),
+        // sarim peste inlocuire cu totul, ca sa nu clipeasca degeaba.
+        if (el.innerHTML !== html) {
+          el.innerHTML = html;
+          if (scrollContainer) scrollContainer.scrollTop = savedScrollTop;
+          el.querySelectorAll('.borderolo-delete-btn').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              if (!confirm('Rimuovere questa riga dal borderò?')) return;
+              call({ action: 'fleet_delete_delivery_item', slug: slug, password: password, item_id: btn.dataset.id }).then(function () {
+                renderBorderoloList(deliveryDate);
+              });
             });
           });
-        });
+        }
+        el.dataset.loadedOnce = '1';
       });
     }
 
