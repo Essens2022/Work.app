@@ -4231,18 +4231,31 @@
     // gresita a celui dintai din pagina, ascuns la incarcare, e ce
     // dadea 0px inainte) - recalculata din nou de fiecare data cand
     // se intra pe acel ecran, cand elementele chiar sunt vizibile.
+    // Cerut direct, a doua oara ("inca sta ca rizina, da in jos si
+    // vine de urma apoi se intoarce... vreau stabila fixa ca bara de
+    // sus"): "sticky" nativ, chiar cu un "top" calculat corect, tot
+    // arata un mic elastic la scroll - acelasi comportament nesigur
+    // deja intalnit si la Annunci. Inlocuit complet, ca acolo: FARA
+    // "sticky" deloc - element cu pozitie normala (relative), mutat
+    // manual, cu transform, recalculat la FIECARE scroll (nu doar o
+    // data), exact cat sa ramana lipit sub titlu, indiferent cat de
+    // mult sau de repede se scroleaza containerul.
     function pinBelowTopline(headerEl) {
       if (!headerEl) return null;
       var screenEl = headerEl.closest('.screen');
       var topline = screenEl ? screenEl.querySelector('.topline') : null;
-      if (!topline) return null;
+      var scrollContainer = screenEl ? screenEl.querySelector('.main') : null;
+      if (!topline || !scrollContainer) return null;
+      headerEl.style.position = 'relative';
       function reposition() {
-        var h = topline.getBoundingClientRect().height;
-        if (!h) return; // ecranul e inca ascuns - nu suprascrie cu 0
-        headerEl.style.position = 'sticky';
-        headerEl.style.top = Math.round(h) + 'px';
+        headerEl.style.transform = 'none';
+        var toplineBottom = topline.getBoundingClientRect().bottom;
+        var headerTop = headerEl.getBoundingClientRect().top;
+        var offset = toplineBottom - headerTop;
+        headerEl.style.transform = offset > 0 ? 'translateY(' + Math.round(offset) + 'px)' : 'none';
       }
       reposition();
+      scrollContainer.addEventListener('scroll', reposition, { passive: true });
       if ('ResizeObserver' in window) {
         new ResizeObserver(reposition).observe(topline);
       } else {
@@ -4252,6 +4265,27 @@
     }
     var repositionClientsHeader = pinBelowTopline(document.getElementById('clientsStickyHeader'));
     var repositionConsegneHeader = pinBelowTopline(document.getElementById('consegneStickyHeader'));
+
+    // Cerut direct, a doua oara ("lista sta ascunsa sub bara de
+    // jos... trebuie mai mult spatiu"): valoarea ghicita prin CSS
+    // (calc) nu era destul de mare pe toate telefoanele - masurata
+    // acum DIRECT, real, inaltimea barei de jos, si folosita ACEEASI
+    // valoare ca spatiu rezervat sub fiecare lista - garantat sa se
+    // potriveasca intotdeauna, indiferent de telefon.
+    (function reserveSpaceAboveBottomNav() {
+      var bottomNav = document.getElementById('bottomNav');
+      if (!bottomNav) return;
+      function apply() {
+        var h = bottomNav.getBoundingClientRect().height;
+        if (!h) return;
+        document.querySelectorAll('.main-inner').forEach(function (el) {
+          el.style.paddingBottom = Math.round(h + 24) + 'px';
+        });
+      }
+      apply();
+      if ('ResizeObserver' in window) new ResizeObserver(apply).observe(bottomNav);
+      else window.addEventListener('resize', apply);
+    })();
 
     function loadStorico() {
       var driverFilter = document.getElementById('storicoDriverFilter').value;
