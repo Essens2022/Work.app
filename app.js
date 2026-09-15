@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v624"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v625"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -869,6 +869,14 @@
   /* Navigation                                                         */
   /* ---------------------------------------------------------------- */
   var currentScreen = 'home';
+  // Cerut direct, de la inceput ("cursa zilnica se va incarca in
+  // automat la fiecare sofer in aplicatia lor"): numarul de livrari
+  // NEfacute inca, pentru azi - afisat ca insigna pe butonul de pe
+  // Home, ca soferul sa vada dintr-o privire, fara sa deschida nimic,
+  // daca are ceva de facut azi.
+  var todayDeliveryItems = [];
+  var todayDeliveryCountBadge = '';
+  var todayDeliveryBadgeLoadedOnce = false;
   var mainEl = document.querySelector('main');
   var scrollToLastDayPending = false;
 
@@ -878,7 +886,7 @@
 
   function showScreen(name) {
     currentScreen = name;
-    ['home', 'foglio', 'archivio', 'pdf', 'navigatore'].forEach(function (n) {
+    ['home', 'consegne-oggi', 'foglio', 'archivio', 'pdf', 'navigatore'].forEach(function (n) {
       document.getElementById('screen-' + n).classList.toggle('active', n === name);
     });
     document.querySelectorAll('.navbtn[data-nav]').forEach(function (b) {
@@ -912,6 +920,7 @@
   /* ---------------------------------------------------------------- */
   function render() {
     if (currentScreen === 'home') renderHome();
+    else if (currentScreen === 'consegne-oggi') renderConsegneOggi();
     else if (currentScreen === 'foglio') renderFoglio();
     else if (currentScreen === 'archivio') renderArchivio();
     else if (currentScreen === 'pdf') renderPdfScreen();
@@ -999,6 +1008,7 @@
   }
 
   function renderHome() {
+    if (!todayDeliveryBadgeLoadedOnce) { todayDeliveryBadgeLoadedOnce = true; loadTodayDeliveryBadge(); }
     // Requested directly: rather than hooking this to each individual
     // sign-in path separately (email confirmation's "Continua" button,
     // Google's own callback redirect — two different code paths that
@@ -1055,6 +1065,7 @@
     html += '<div class="odometer"><span class="lbl">Ultimo KM fine registrato</span><span class="val">' + (lastKm !== null ? Number(lastKm).toLocaleString('it-IT') : '—') + '</span></div>';
     html += '<div class="card-actions">';
     html += '<button class="btn btn-light" style="flex:1" id="home-continua">Apri foglio</button>';
+    html += '<button class="btn btn-accent" style="flex:1" id="home-consegne-oggi">Consegne di oggi' + (todayDeliveryCountBadge ? ' <span style="background:#fff;color:var(--accent);border-radius:100px;padding:1px 7px;font-size:11px;font-weight:800;margin-left:4px;">' + todayDeliveryCountBadge + '</span>' : '') + '</button>';
     html += '<button class="btn btn-accent" style="flex:1" id="home-percorso"><svg viewBox="0 0 640 512" width="18" height="15" fill="currentColor"><path d="M112 0C85.5 0 64 21.5 64 48V96H16c-8.8 0-16 7.2-16 16s7.2 16 16 16H64 272c8.8 0 16 7.2 16 16s-7.2 16-16 16H64 48c-8.8 0-16 7.2-16 16s7.2 16 16 16H64 240c8.8 0 16 7.2 16 16s-7.2 16-16 16H64 16c-8.8 0-16 7.2-16 16s7.2 16 16 16H64 208c8.8 0 16 7.2 16 16s-7.2 16-16 16H64V416c0 53 43 96 96 96s96-43 96-96H384c0 53 43 96 96 96s96-43 96-96h32c17.7 0 32-14.3 32-32s-14.3-32-32-32V288 256 237.3c0-17-6.7-33.3-18.7-45.3L512 114.7c-12-12-28.3-18.7-45.3-18.7H416V48c0-26.5-21.5-48-48-48H112zM544 237.3V256H416V160h50.7L544 237.3zM160 464c-26.5 0-48-21.5-48-48s21.5-48 48-48s48 21.5 48 48s-21.5 48-48 48zm368-48c0 26.5-21.5 48-48 48s-48-21.5-48-48s21.5-48 48-48s48 21.5 48 48z"/></svg>Percorso</button>';
     html += '</div></div>';
 
@@ -1129,6 +1140,7 @@
 
     el.innerHTML = html;
     document.getElementById('home-continua').addEventListener('click', function () { showScreen('foglio'); });
+    document.getElementById('home-consegne-oggi').addEventListener('click', function () { showScreen('consegne-oggi'); });
     document.getElementById('home-percorso').addEventListener('click', function () { showScreen('navigatore'); });
     // Cerut direct: pagina reala de oferte nu e inca construita — pana
     // atunci, la apasare arata doar un mesaj scurt, ca soferul sa nu
@@ -1150,6 +1162,94 @@
     });
     var setRateBtn = document.getElementById('home-set-rate');
     if (setRateBtn) setRateBtn.addEventListener('click', function () { openSettingsModal(null); });
+  }
+
+  // Cerut direct, de la inceput ("cursa zilnica se va incarca in
+  // automat la fiecare sofer in aplicatia lor... fara niciun pas
+  // suplimentar"): ecranul asta e exact acel ultim pas - soferul
+  // deschide aplicatia si vede direct livrarile lui de azi, deja
+  // impartite automat (client, marfa, sofer) de flota, in seara
+  // dinainte - fara sa ceara sau sa astepte nimic.
+  function loadTodayDeliveryBadge() {
+    var email = currentAccountEmail();
+    if (!email) return;
+    fleetCall({ action: 'driver_list_today_deliveries', account_email: email }).then(function (res) {
+      if (!res.ok) return;
+      todayDeliveryItems = res.items || [];
+      var pending = todayDeliveryItems.filter(function (i) { return i.status !== 'delivered'; }).length;
+      todayDeliveryCountBadge = pending || '';
+      if (currentScreen === 'home') renderHome();
+    });
+  }
+  function renderConsegneOggi() {
+    var el = document.getElementById('screen-consegne-oggi');
+    var email = currentAccountEmail();
+    var html = '<div style="display:flex;align-items:center;gap:10px;padding:16px 16px 4px;">' +
+      '<button id="consegne-oggi-back" aria-label="Indietro" style="width:36px;height:36px;border:1px solid var(--line,#333);background:var(--surface,#151517);color:var(--ink,#fff);border-radius:10px;display:flex;align-items:center;justify-content:center;">' +
+      '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>' +
+      '<h2 style="margin:0;font-size:18px;">Consegne di oggi</h2></div>';
+    html += '<div style="padding:12px 16px 24px;" id="consegne-oggi-list"><div style="color:var(--ink-soft,#9a9a9e);font-size:13px;">Caricamento…</div></div>';
+    el.innerHTML = html;
+    document.getElementById('consegne-oggi-back').addEventListener('click', function () { showScreen('home'); });
+
+    if (!email) { document.getElementById('consegne-oggi-list').innerHTML = '<div style="color:var(--ink-soft,#9a9a9e);font-size:13px;">Accedi per vedere le tue consegne.</div>'; return; }
+    fleetCall({ action: 'driver_list_today_deliveries', account_email: email }).then(function (res) {
+      if (!res.ok) { document.getElementById('consegne-oggi-list').innerHTML = '<div style="color:var(--ink-soft,#9a9a9e);font-size:13px;">Impossibile caricare le consegne.</div>'; return; }
+      todayDeliveryItems = res.items || [];
+      var pending = todayDeliveryItems.filter(function (i) { return i.status !== 'delivered'; }).length;
+      todayDeliveryCountBadge = pending || '';
+      renderConsegneOggiList();
+    });
+  }
+
+  function renderConsegneOggiList() {
+    var listEl = document.getElementById('consegne-oggi-list');
+    if (!listEl) return;
+    if (!todayDeliveryItems.length) { listEl.innerHTML = '<div style="color:var(--ink-soft,#9a9a9e);font-size:13px;">Nessuna consegna assegnata per oggi.</div>'; return; }
+    var html = '';
+    todayDeliveryItems.forEach(function (it) {
+      var statusBadge = '';
+      if (it.status === 'delivered') statusBadge = '<span style="background:var(--teal-soft,rgba(15,157,140,.14));color:var(--teal,#0F9D8C);border-radius:100px;padding:3px 10px;font-size:11.5px;font-weight:800;">✓ Consegnato</span>';
+      else if (it.status === 'not_delivered') statusBadge = '<span style="background:var(--danger-soft,#FBE4E1);color:var(--danger,#D64545);border-radius:100px;padding:3px 10px;font-size:11.5px;font-weight:800;" title="' + escapeHtml(it.status_reason || '') + '">✕ Non consegnato</span>';
+      html += '<div class="delivery-card" data-item-id="' + it.id + '" style="background:var(--surface,#151517);border-radius:14px;padding:14px 16px;margin-bottom:10px;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">' +
+        '<div><b style="font-size:14.5px;">' + escapeHtml(it.client_name) + '</b>' +
+        (it.merchandise_note ? '<div style="font-size:12.5px;color:var(--ink-soft,#9a9a9e);margin-top:3px;">' + escapeHtml(it.merchandise_note) + '</div>' : '') +
+        '</div>' + statusBadge +
+        '</div>';
+      if (it.status !== 'delivered' && it.status !== 'not_delivered') {
+        html += '<div style="display:flex;gap:8px;margin-top:10px;">' +
+          '<button class="btn btn-light delivery-btn-not" data-id="' + it.id + '" style="flex:1;">Non consegnato</button>' +
+          '<button class="btn btn-accent delivery-btn-yes" data-id="' + it.id + '" style="flex:1;">Consegnato</button>' +
+          '</div>';
+      }
+      html += '</div>';
+    });
+    listEl.innerHTML = html;
+
+    listEl.querySelectorAll('.delivery-btn-yes').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        updateDeliveryStatus(btn.dataset.id, 'delivered', null);
+      });
+    });
+    listEl.querySelectorAll('.delivery-btn-not').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var reason = prompt('Perché non è stato consegnato? (facoltativo)') || '';
+        updateDeliveryStatus(btn.dataset.id, 'not_delivered', reason);
+      });
+    });
+  }
+
+  function updateDeliveryStatus(itemId, status, reason) {
+    var email = currentAccountEmail();
+    fleetCall({ action: 'driver_update_delivery_status', account_email: email, item_id: itemId, status: status, status_reason: reason }).then(function (res) {
+      if (!res.ok) { toast('Impossibile aggiornare — verifica la connessione'); return; }
+      var item = todayDeliveryItems.find(function (i) { return i.id === itemId; });
+      if (item) { item.status = status; item.status_reason = reason || null; }
+      var pending = todayDeliveryItems.filter(function (i) { return i.status !== 'delivered'; }).length;
+      todayDeliveryCountBadge = pending || '';
+      renderConsegneOggiList();
+    });
   }
 
   function escapeHtml(s) {
