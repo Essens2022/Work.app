@@ -1068,7 +1068,7 @@
         <div id="consegneBorderoloView">
           <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px;">
             <input type="date" id="borderoloDateInput" class="filter-select" style="max-width:170px;">
-            <input type="file" id="borderoloFileInput" accept=".xlsx,.xls,.csv,.ods,.jpg,.jpeg,.png,.heic,.webp" style="display:none;">
+            <input type="file" id="borderoloFileInput" accept=".xlsx,.xls,.csv,.ods,.jpg,.jpeg,.png,.heic,.webp,.pdf" style="display:none;">
             <button class="btn btn-accent owner-only" id="openBorderoloUploadBtn">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
               Carica borderò
@@ -4444,9 +4444,13 @@
     document.getElementById('borderoloFileInput').addEventListener('change', function (e) {
       var file = e.target.files[0];
       if (!file) return;
+      // Cerut direct ("borderoul nu-l vede ca imagine... poate pdf"):
+      // multe scanari reale ajung ca PDF, nu ca poza bruta - tratat
+      // la fel ca o poza (trimis la Claude), nu ca un tabel structurat.
       var isImage = /^image\//.test(file.type) || /\.(jpe?g|png|heic|webp)$/i.test(file.name);
-      if (isImage) {
-        handleBorderoloImageUpload(file);
+      var isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+      if (isImage || isPdf) {
+        handleBorderoloImageUpload(file, isPdf);
       } else {
         handleBorderoloSpreadsheetUpload(file);
       }
@@ -4480,7 +4484,7 @@
       reader.readAsArrayBuffer(file);
     }
 
-    function handleBorderoloImageUpload(file) {
+    function handleBorderoloImageUpload(file, isPdf) {
       var btn = document.getElementById('openBorderoloUploadBtn');
       var originalText = btn.innerHTML;
       btn.disabled = true;
@@ -4492,7 +4496,10 @@
         var dataUrl = ev.target.result;
         var commaIdx = dataUrl.indexOf(',');
         var base64Data = dataUrl.slice(commaIdx + 1);
-        var mediaType = file.type || 'image/jpeg';
+        // Unele browsere lasa file.type gol pentru PDF-uri (mai ales
+        // pe mobil) - fallback explicit la 'application/pdf' cand stim
+        // sigur, din extensie, ca asta e tipul real al fisierului.
+        var mediaType = file.type || (isPdf ? 'application/pdf' : 'image/jpeg');
         call({ action: 'fleet_extract_document_image', slug: slug, password: password, image_base64: base64Data, media_type: mediaType }).then(function (res) {
           btn.disabled = false; btn.innerHTML = originalText;
           pendingBorderoloUpload = file;
