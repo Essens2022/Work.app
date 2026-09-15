@@ -1040,43 +1040,40 @@
     <div class="main">
       <div class="topline topline-compact">
         <h1 class="page-title">Consegne</h1>
+        <!-- Cerut direct, a patra oara ("butoanele de sus... inca se
+             misca cand scrolez"): mutate DIRECT in .topline (acelasi
+             element deja dovedit stabil, folosit pentru titlu peste
+             tot in aplicatie) - nu mai e un al doilea element separat,
+             pozitionat prin cod, sub titlu. Un singur bloc fix, nu
+             doua suprapuse - elimina complet acea clasa de probleme. -->
+        <div class="clients-tabs" style="display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:4px;">
+          <button type="button" class="consegne-tab on" data-consegne-tab="borderolo" style="border:0;background:var(--accent);color:#fff;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:750;cursor:pointer;">Borderò di oggi</button>
+          <button type="button" class="consegne-tab" data-consegne-tab="storico" style="border:0;background:transparent;color:var(--ink-soft);border-radius:10px;padding:9px 16px;font-size:13px;font-weight:750;cursor:pointer;">Storico</button>
+        </div>
+        <div class="filter-row filter-row-inline" id="consegneStoricoFilters" style="display:none;">
+          <select class="filter-select" id="storicoDriverFilter"><option value="">Tutti gli autisti</option></select>
+          <select class="filter-select" id="storicoPeriodFilter">
+            <option value="7">Ultimi 7 giorni</option>
+            <option value="30" selected>Ultimi 30 giorni</option>
+            <option value="">Tutti</option>
+          </select>
+          <input class="driver-search" id="storicoSearchInput" placeholder="Cerca cliente o indirizzo...">
+        </div>
+        <div id="consegneBorderoloFilters" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <input type="date" id="borderoloDateInput" class="filter-select" style="max-width:170px;">
+          <input type="file" id="borderoloFileInput" accept=".xlsx,.xls,.csv,.ods,.jpg,.jpeg,.png,.heic,.webp,.pdf" style="display:none;">
+          <button class="btn btn-accent owner-only" id="openBorderoloUploadBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+            Carica borderò
+          </button>
+          <span id="borderoloCurrentFileLabel" style="font-size:12px;color:var(--ink-soft);"></span>
+        </div>
       </div>
       <div class="main-inner">
         <!-- Cerut direct ("borderolo... acolo sunt toate consegnele,
              clientii si toate datele necesare"): pastreaza Storico
-             (deja existent) intact, adauga acum un al doilea tab,
-             Borderò di oggi - unde se incarca documentul zilei si se
-             vede lista deja impartita automat pe soferi. -->
-        <div class="clients-tabs-header" id="consegneStickyHeader" style="position:relative;z-index:5;background:var(--bg);padding-top:2px;margin:0 0 14px;">
-          <div class="clients-tabs" style="display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:14px;">
-            <button type="button" class="consegne-tab on" data-consegne-tab="borderolo" style="border:0;background:var(--accent);color:#fff;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:750;cursor:pointer;">Borderò di oggi</button>
-            <button type="button" class="consegne-tab" data-consegne-tab="storico" style="border:0;background:transparent;color:var(--ink-soft);border-radius:10px;padding:9px 16px;font-size:13px;font-weight:750;cursor:pointer;">Storico</button>
-          </div>
-          <!-- Cerut direct ("totul... trebuie sa fie fix, doar
-               clientii/soferii se scroleaza"): randul de sub taburi
-               (filtre pentru Storico, data+incarcare pentru Borderò)
-               ramane si el fix, alaturi de taburi - doar lista de
-               dedesubt (randurile efective) se scroleaza. -->
-          <div class="filter-row filter-row-inline" id="consegneStoricoFilters" style="display:none;">
-            <select class="filter-select" id="storicoDriverFilter"><option value="">Tutti gli autisti</option></select>
-            <select class="filter-select" id="storicoPeriodFilter">
-              <option value="7">Ultimi 7 giorni</option>
-              <option value="30" selected>Ultimi 30 giorni</option>
-              <option value="">Tutti</option>
-            </select>
-            <input class="driver-search" id="storicoSearchInput" placeholder="Cerca cliente o indirizzo...">
-          </div>
-          <div id="consegneBorderoloFilters" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-            <input type="date" id="borderoloDateInput" class="filter-select" style="max-width:170px;">
-            <input type="file" id="borderoloFileInput" accept=".xlsx,.xls,.csv,.ods,.jpg,.jpeg,.png,.heic,.webp,.pdf" style="display:none;">
-            <button class="btn btn-accent owner-only" id="openBorderoloUploadBtn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
-              Carica borderò
-            </button>
-            <span id="borderoloCurrentFileLabel" style="font-size:12px;color:var(--ink-soft);"></span>
-          </div>
-        </div>
-
+             (deja existent) intact - lista deja impartita automat
+             pe soferi apare in tabul Borderò di oggi. -->
         <div id="consegneStoricoView" style="display:none;">
           <div class="fleet-table" id="storicoList"></div>
         </div>
@@ -2466,7 +2463,7 @@
       window.scrollTo(0, 0);
       document.getElementById('exportCsvBtn').style.display = name === 'consegne' ? 'flex' : 'none';
       document.getElementById('panoramicaMappaBtn').style.display = name === 'panoramica' ? 'flex' : 'none';
-      if (name === 'consegne') { loadStorico(); loadBorderoloView(); if (repositionConsegneHeader) repositionConsegneHeader(); }
+      if (name === 'consegne') { loadStorico(); loadBorderoloView(); }
       if (name === 'documenti') loadDocumenti();
       if (name === 'veicoli') loadVehicles();
       if (name === 'clienti') { loadClients(); if (repositionClientsHeader) repositionClientsHeader(); }
@@ -4280,7 +4277,6 @@
       return reposition;
     }
     var repositionClientsHeader = pinBelowTopline(document.getElementById('clientsStickyHeader'));
-    var repositionConsegneHeader = pinBelowTopline(document.getElementById('consegneStickyHeader'));
 
     // Cerut direct, a treia oara ("mai trebuie spatiu... automat, sa
     // verifice bine lungimea listei, ultimul client sa fie mai sus de
