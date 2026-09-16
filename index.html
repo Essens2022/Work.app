@@ -856,6 +856,14 @@
     position:fixed;bottom:0;left:0;right:0;z-index:30;
     display:flex;justify-content:center;
   }
+  /* Cerut direct, gasit prin testare riguroasa, cu capturi reale: bara
+     de jos permanenta a aplicatiei (aici) nu se ascundea NICIODATA
+     intre ecrane, cu z-index (30) mai mare decat orice buton propriu
+     al unui ecran nou (Salta/Prossimo la Carico, z-index 20) - le
+     acoperea complet, invizibile pentru sofer. Ascunsa explicit doar
+     cat timp se lucreaza la Carico - un flux imersiv, cu propriile
+     butoane jos, la fel cum a fost gandit initial si Percorso. */
+  body.carico-active .bottomnav{ display:none; }
   /* ION clarified what was actually happening: the bar's own white
      background box was too tall, with the buttons sitting too high up
      inside it (a lot of empty white space below them, still within the

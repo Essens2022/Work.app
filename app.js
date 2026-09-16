@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v639"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v640"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -886,6 +886,7 @@
 
   function showScreen(name) {
     currentScreen = name;
+    document.body.classList.toggle('carico-active', name === 'carico');
     ['home', 'consegne-oggi', 'carico', 'foglio', 'archivio', 'pdf', 'navigatore'].forEach(function (n) {
       document.getElementById('screen-' + n).classList.toggle('active', n === name);
     });
@@ -1025,7 +1026,17 @@
     var el = document.getElementById('screen-home');
     var sheet = currentSheet();
     if (!sheet) {
+      // Cerut direct, gasit prin testare riguroasa: "Consegne di
+      // oggi" si "Percorso" sunt functii COMPLET SEPARATE de foaia
+      // de parcurs lunara - un sofer care inca nu si-a creat foaia
+      // (poate abia s-a alaturat flotei) tot trebuie sa poata vedea
+      // si incarca livrarile lui de azi, fara sa fie blocat de acest
+      // ecran gol.
       el.innerHTML =
+        '<div style="padding:16px 16px 0;display:flex;gap:10px;">' +
+        '<button class="btn btn-light" style="flex:1" id="home-consegne-oggi">Consegne di oggi' + (todayDeliveryCountBadge ? ' <span style="background:#fff;color:var(--accent);border-radius:100px;padding:1px 7px;font-size:11px;font-weight:800;margin-left:4px;">' + todayDeliveryCountBadge + '</span>' : '') + '</button>' +
+        '<button class="btn btn-accent" style="flex:1" id="home-percorso"><svg viewBox="0 0 640 512" width="18" height="15" fill="currentColor"><path d="M112 0C85.5 0 64 21.5 64 48V96H16c-8.8 0-16 7.2-16 16s7.2 16 16 16H64 272c8.8 0 16 7.2 16 16s-7.2 16-16 16H64 48c-8.8 0-16 7.2-16 16s7.2 16 16 16H64 240c8.8 0 16 7.2 16 16s-7.2 16-16 16H64 16c-8.8 0-16 7.2-16 16s7.2 16 16 16H64 208c8.8 0 16 7.2 16 16s-7.2 16-16 16H64V416c0 53 43 96 96 96s96-43 96-96H384c0 53 43 96 96 96s96-43 96-96h32c17.7 0 32-14.3 32-32s-14.3-32-32-32V288 256 237.3c0-17-6.7-33.3-18.7-45.3L512 114.7c-12-12-28.3-18.7-45.3-18.7H416V48c0-26.5-21.5-48-48-48H112zM544 237.3V256H416V160h50.7L544 237.3zM160 464c-26.5 0-48-21.5-48-48s21.5-48 48-48s48 21.5 48 48s-21.5 48-48 48zm368-48c0 26.5-21.5 48-48 48s-48-21.5-48-48s21.5-48 48-48s48 21.5 48 48z"/></svg>Percorso</button>' +
+        '</div>' +
         '<div class="empty-state">' +
         '<div class="icon">' + svgIcon('truck') + '</div>' +
         '<h3>Nessun foglio ancora</h3>' +
@@ -1033,6 +1044,8 @@
         '<button class="btn btn-accent" id="home-create">Crea il primo foglio</button>' +
         '</div>';
       document.getElementById('home-create').addEventListener('click', openNewSheetFlow);
+      document.getElementById('home-consegne-oggi').addEventListener('click', function () { showScreen('consegne-oggi'); });
+      document.getElementById('home-percorso').addEventListener('click', function () { showScreen('navigatore'); });
       return;
     }
     var lc = lastCompletedDay(sheet);
@@ -1354,35 +1367,35 @@
     var el = document.getElementById('screen-carico');
     var it = caricoOrder[caricoIdx];
     var tot = caricoTotals(caricoIdx);
-    var html = '<div style="position:fixed;top:0;left:0;right:0;background:var(--surface,#151517);border-bottom:1px solid var(--line,#2a2a2e);padding:14px 16px;z-index:20;">' +
+    var html = '<div style="position:fixed;top:0;left:0;right:0;background:var(--surface);border-bottom:1px solid var(--line);padding:14px 16px;z-index:20;">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
-      '<button id="carico-exit-btn" style="background:none;border:none;color:var(--ink-soft,#9a9a9e);font-size:20px;">←</button>' +
-      '<b style="font-size:14px;">Carico camion</b><span style="width:20px;"></span></div>' +
+      '<button id="carico-exit-btn" style="background:none;border:none;color:var(--ink-soft);font-size:20px;">←</button>' +
+      '<b style="font-size:14px;color:var(--ink);">Carico camion</b><span style="width:20px;"></span></div>' +
       '<div style="display:flex;gap:8px;">' +
-      '<div style="flex:1;background:var(--surface-2,#1c1c1e);border-radius:10px;padding:6px 8px;text-align:center;font-size:11px;color:var(--ink-soft,#9a9a9e);"><b style="display:block;font-size:15px;color:#fff;">' + tot.clienti + '/' + caricoOrder.length + '</b>Clienti</div>' +
-      '<div style="flex:1;background:var(--surface-2,#1c1c1e);border-radius:10px;padding:6px 8px;text-align:center;font-size:11px;color:var(--ink-soft,#9a9a9e);"><b style="display:block;font-size:15px;color:#fff;">' + tot.boli + '</b>Bolle</div>' +
-      '<div style="flex:1;background:var(--surface-2,#1c1c1e);border-radius:10px;padding:6px 8px;text-align:center;font-size:11px;color:var(--ink-soft,#9a9a9e);"><b style="display:block;font-size:15px;color:#fff;">' + tot.colli + '</b>Colli</div>' +
+      '<div style="flex:1;background:var(--surface-2);border-radius:10px;padding:6px 8px;text-align:center;font-size:11px;color:var(--ink-soft);"><b style="display:block;font-size:15px;color:var(--ink);">' + tot.clienti + '/' + caricoOrder.length + '</b>Clienti</div>' +
+      '<div style="flex:1;background:var(--surface-2);border-radius:10px;padding:6px 8px;text-align:center;font-size:11px;color:var(--ink-soft);"><b style="display:block;font-size:15px;color:var(--ink);">' + tot.boli + '</b>Bolle</div>' +
+      '<div style="flex:1;background:var(--surface-2);border-radius:10px;padding:6px 8px;text-align:center;font-size:11px;color:var(--ink-soft);"><b style="display:block;font-size:15px;color:var(--ink);">' + tot.colli + '</b>Colli</div>' +
       '</div></div>';
     html += '<div style="padding:126px 16px 110px;">';
-    html += '<h2 style="margin:6px 0 14px;font-size:19px;">' + escapeHtml(it.client_name) + '</h2>';
+    html += '<h2 style="margin:6px 0 14px;font-size:19px;color:var(--ink);">' + escapeHtml(it.client_name) + '</h2>';
     if (it.bolle && it.bolle.length) {
       it.bolle.forEach(function (b) {
-        html += '<div style="background:var(--surface,#151517);border-radius:14px;padding:14px 16px;margin-bottom:10px;">' +
-          '<h4 style="margin:0 0 8px;font-size:13px;color:var(--ink-soft,#9a9a9e);font-weight:700;">Bolla ' + escapeHtml(b.numero || '—') + '</h4>';
+        html += '<div style="background:var(--surface);border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:var(--shadow-sm);">' +
+          '<h4 style="margin:0 0 8px;font-size:13px;color:var(--ink-soft);font-weight:700;">Bolla ' + escapeHtml(b.numero || '—') + '</h4>';
         (b.prodotti || []).forEach(function (p, i) {
-          html += '<div style="display:flex;justify-content:space-between;padding:7px 0;' + (i > 0 ? 'border-top:1px solid var(--line,#2a2a2e);' : '') + 'font-size:13.5px;">' +
+          html += '<div style="display:flex;justify-content:space-between;padding:7px 0;' + (i > 0 ? 'border-top:1px solid var(--line);' : '') + 'font-size:13.5px;color:var(--ink);">' +
             '<span>' + escapeHtml(p.codice || '') + (p.codice && p.descrizione ? ' — ' : '') + escapeHtml(p.descrizione || '') + '</span>' +
             '<b>' + (p.quantita != null ? 'x' + p.quantita + ' ' : '') + (p.colli != null ? '(' + p.colli + ' colli)' : '') + '</b></div>';
         });
         html += '</div>';
       });
     } else {
-      html += '<div style="background:var(--surface,#151517);border-radius:14px;padding:14px 16px;">' +
-        (it.merchandise_note ? escapeHtml(it.merchandise_note) : '<span style="color:var(--ink-soft,#9a9a9e);">Nessun dettaglio prodotto disponibile per questo cliente.</span>') + '</div>';
+      html += '<div style="background:var(--surface);border-radius:14px;padding:14px 16px;color:var(--ink);box-shadow:var(--shadow-sm);">' +
+        (it.merchandise_note ? escapeHtml(it.merchandise_note) : '<span style="color:var(--ink-soft);">Nessun dettaglio prodotto disponibile per questo cliente.</span>') + '</div>';
     }
     html += '</div>';
-    html += '<div style="position:fixed;bottom:0;left:0;right:0;background:var(--surface,#151517);border-top:1px solid var(--line,#2a2a2e);padding:14px 16px calc(14px + env(safe-area-inset-bottom,0px));display:flex;gap:10px;z-index:20;">' +
-      '<button class="btn btn-danger-outline" id="carico-salta-btn" style="border:1.5px solid var(--danger,#D64545);color:var(--danger,#D64545);background:transparent;">Salta</button>' +
+    html += '<div style="position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--line);padding:14px 16px calc(14px + env(safe-area-inset-bottom,0px));display:flex;gap:10px;z-index:20;">' +
+      '<button class="btn btn-danger-outline" id="carico-salta-btn" style="border:1.5px solid var(--danger);color:var(--danger);background:transparent;">Salta</button>' +
       '<button class="btn btn-accent" id="carico-prossimo-btn" style="flex:2;">Prossimo →</button></div>';
     el.innerHTML = html;
     document.getElementById('carico-exit-btn').addEventListener('click', function () { showScreen('consegne-oggi'); });
@@ -1406,14 +1419,14 @@
   function caricoOpenSalta() {
     caricoSelectedReason = null;
     var reasons = ['Manca la bolla', 'Manca un pacco', 'Pacco danneggiato', 'Cliente non in giro oggi'];
-    var html = '<div style="position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:30;display:flex;align-items:flex-end;" id="carico-salta-backdrop">' +
-      '<div style="background:var(--surface,#151517);width:100%;border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));">' +
-      '<b style="font-size:15px;">Perché salti questo cliente?</b><div style="margin-top:14px;" id="carico-reason-list">';
+    var html = '<div style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:30;display:flex;align-items:flex-end;" id="carico-salta-backdrop">' +
+      '<div style="background:var(--surface);width:100%;border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));">' +
+      '<b style="font-size:15px;color:var(--ink);">Perché salti questo cliente?</b><div style="margin-top:14px;" id="carico-reason-list">';
     reasons.forEach(function (r) {
-      html += '<button class="carico-reason-opt" data-reason="' + escapeHtml(r) + '" style="display:block;width:100%;text-align:left;background:var(--surface-2,#1c1c1e);border:1.5px solid transparent;border-radius:12px;padding:12px 14px;margin-bottom:8px;color:#fff;font-size:14px;">' + escapeHtml(r) + '</button>';
+      html += '<button class="carico-reason-opt" data-reason="' + escapeHtml(r) + '" style="display:block;width:100%;text-align:left;background:var(--surface-2);border:1.5px solid transparent;border-radius:12px;padding:12px 14px;margin-bottom:8px;color:var(--ink);font-size:14px;">' + escapeHtml(r) + '</button>';
     });
-    html += '<button class="carico-reason-opt" data-reason="Altro" style="display:block;width:100%;text-align:left;background:var(--surface-2,#1c1c1e);border:1.5px solid transparent;border-radius:12px;padding:12px 14px;margin-bottom:8px;color:#fff;font-size:14px;">Altro (scrivi tu)</button>' +
-      '<textarea id="carico-reason-custom" rows="2" placeholder="Descrivi il motivo..." style="display:none;width:100%;background:var(--surface-2,#1c1c1e);border:1px solid var(--line,#2a2a2e);border-radius:10px;color:#fff;padding:10px;font-size:13px;"></textarea></div>' +
+    html += '<button class="carico-reason-opt" data-reason="Altro" style="display:block;width:100%;text-align:left;background:var(--surface-2);border:1.5px solid transparent;border-radius:12px;padding:12px 14px;margin-bottom:8px;color:var(--ink);font-size:14px;">Altro (scrivi tu)</button>' +
+      '<textarea id="carico-reason-custom" rows="2" placeholder="Descrivi il motivo..." style="display:none;width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;color:var(--ink);padding:10px;font-size:13px;"></textarea></div>' +
       '<div style="display:flex;gap:10px;margin-top:16px;">' +
       '<button class="btn btn-light" id="carico-salta-cancel" style="flex:1;">Annulla</button>' +
       '<button class="btn btn-accent" id="carico-salta-confirm" style="flex:1;">Conferma</button></div></div></div>';
@@ -1446,22 +1459,22 @@
     var tot = caricoTotals(caricoOrder.length);
     var skipped = caricoResults.filter(function (r) { return r.status === 'skipped'; });
     var html = '<div style="padding:40px 16px;text-align:center;">' +
-      '<div style="width:64px;height:64px;border-radius:50%;background:var(--teal-soft,rgba(15,157,140,.14));color:var(--teal,#0F9D8C);display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 16px;">✓</div>' +
-      '<h2 style="margin:0 0 20px;">Carico completato</h2>' +
+      '<div style="width:64px;height:64px;border-radius:50%;background:var(--teal-soft);color:var(--teal);display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 16px;">✓</div>' +
+      '<h2 style="margin:0 0 20px;color:var(--ink);">Carico completato</h2>' +
       '<div style="display:flex;gap:8px;margin-bottom:20px;">' +
-      '<div style="flex:1;background:var(--surface-2,#1c1c1e);border-radius:10px;padding:10px;"><b style="display:block;font-size:20px;">' + caricoOrder.length + '</b><span style="font-size:11px;color:var(--ink-soft,#9a9a9e);">Clienti</span></div>' +
-      '<div style="flex:1;background:var(--surface-2,#1c1c1e);border-radius:10px;padding:10px;"><b style="display:block;font-size:20px;">' + tot.boli + '</b><span style="font-size:11px;color:var(--ink-soft,#9a9a9e);">Bolle</span></div>' +
-      '<div style="flex:1;background:var(--surface-2,#1c1c1e);border-radius:10px;padding:10px;"><b style="display:block;font-size:20px;">' + tot.colli + '</b><span style="font-size:11px;color:var(--ink-soft,#9a9a9e);">Colli</span></div>' +
+      '<div style="flex:1;background:var(--surface-2);border-radius:10px;padding:10px;"><b style="display:block;font-size:20px;color:var(--ink);">' + caricoOrder.length + '</b><span style="font-size:11px;color:var(--ink-soft);">Clienti</span></div>' +
+      '<div style="flex:1;background:var(--surface-2);border-radius:10px;padding:10px;"><b style="display:block;font-size:20px;color:var(--ink);">' + tot.boli + '</b><span style="font-size:11px;color:var(--ink-soft);">Bolle</span></div>' +
+      '<div style="flex:1;background:var(--surface-2);border-radius:10px;padding:10px;"><b style="display:block;font-size:20px;color:var(--ink);">' + tot.colli + '</b><span style="font-size:11px;color:var(--ink-soft);">Colli</span></div>' +
       '</div>';
     if (skipped.length) {
       skipped.forEach(function (r, i) {
         var name = caricoOrder[caricoResults.indexOf(r)] ? caricoOrder[caricoResults.indexOf(r)].client_name : '';
-        html += '<div style="display:flex;align-items:center;gap:10px;background:var(--surface,#151517);border-radius:12px;padding:12px 14px;margin-bottom:8px;text-align:left;">' +
-          '<div style="width:22px;height:22px;border-radius:50%;background:var(--danger,#D64545);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none;">!</div>' +
-          '<div><b>' + escapeHtml(name) + '</b><div style="font-size:12px;color:var(--ink-soft,#9a9a9e);">' + escapeHtml(r.reason) + '</div></div></div>';
+        html += '<div style="display:flex;align-items:center;gap:10px;background:var(--surface);border-radius:12px;padding:12px 14px;margin-bottom:8px;text-align:left;box-shadow:var(--shadow-sm);">' +
+          '<div style="width:22px;height:22px;border-radius:50%;background:var(--danger);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;flex:none;">!</div>' +
+          '<div><b style="color:var(--ink);">' + escapeHtml(name) + '</b><div style="font-size:12px;color:var(--ink-soft);">' + escapeHtml(r.reason) + '</div></div></div>';
       });
     } else {
-      html += '<div style="color:var(--teal,#0F9D8C);font-weight:700;">Tutto caricato senza problemi ✓</div>';
+      html += '<div style="color:var(--teal);font-weight:700;">Tutto caricato senza problemi ✓</div>';
     }
     html += '<button class="btn btn-accent" style="width:100%;margin-top:20px;" id="carico-back-btn">Torna a Consegne di oggi</button></div>';
     el.innerHTML = html;
