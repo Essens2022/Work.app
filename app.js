@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v638"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v639"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -2219,7 +2219,7 @@
       var addedAny = false;
       resolved.forEach(function (r) {
         if (!r.result) return; // indirizzo non geocodificabile — saltato, non blocca gli altri
-        state.deliveryRun.clients.push({
+        dpInsertNewStop({
           id: uid(), deliveryItemId: r.item.id, nome: r.item.client_name, indirizzo: r.item.address,
           lat: r.result.lat, lon: r.result.lon, status: 'pending', scadenza: '', nonPrimaDi: ''
         });
@@ -3209,6 +3209,23 @@
   // just without closing that OTHER modal (which isn't even open
   // here) and with its own toast confirmation instead, since nothing
   // else visually signals success in this context.
+  // Cerut direct ("cand se adauga clienti noi... si deja sunt
+  // clienti care au fost consegnati, cei noi... trebuie sa fie mereu
+  // deasupra celor consegnati, nu trebuie sa plece la fundul
+  // listei"): un client nou, adaugat oricand in timpul zilei, nu se
+  // mai pune pur si simplu la finalul listei (unde ar ajunge SUB
+  // opririle deja bifate ca livrate) - se introduce chiar inaintea
+  // primei opriri deja "completed", ramanand mereu printre cele
+  // inca de facut, niciodata dupa una deja terminata.
+  function dpInsertNewStop(stopObj) {
+    var firstCompletedIdx = state.deliveryRun.clients.findIndex(function (c) { return c.status === 'completed'; });
+    if (firstCompletedIdx === -1) {
+      state.deliveryRun.clients.push(stopObj);
+    } else {
+      state.deliveryRun.clients.splice(firstCompletedIdx, 0, stopObj);
+    }
+  }
+
   function dpArchiveAddToTodayRun(savedClientId) {
     var saved = state.deliveryClients.find(function (c) { return c.id === savedClientId; });
     if (!saved) return;
@@ -3216,7 +3233,7 @@
       toast(saved.nome + ' è già nel percorso di oggi', 2200);
       return;
     }
-    state.deliveryRun.clients.push({
+    dpInsertNewStop({
       id: uid(), clientId: saved.id, nome: saved.nome, indirizzo: saved.indirizzo,
       lat: saved.lat, lon: saved.lon, status: 'pending', scadenza: saved.scadenza || '', nonPrimaDi: saved.nonPrimaDi || ''
     });
@@ -3635,7 +3652,7 @@
       toast(saved.nome + ' è già nel percorso di oggi', 2200);
       return;
     }
-    state.deliveryRun.clients.push({
+    dpInsertNewStop({
       id: uid(), clientId: saved.id, nome: saved.nome, indirizzo: saved.indirizzo,
       lat: saved.lat, lon: saved.lon, status: 'pending', scadenza: saved.scadenza || '', nonPrimaDi: saved.nonPrimaDi || ''
     });
@@ -3713,7 +3730,7 @@
     };
     state.deliveryClients.push(saved);
     saveDeliveryClients(state.deliveryClients);
-    state.deliveryRun.clients.push({
+    dpInsertNewStop({
       id: uid(), clientId: saved.id, nome: nome, indirizzo: indirizzo, lat: null, lon: null, status: 'pending', scadenza: saved.scadenza, nonPrimaDi: saved.nonPrimaDi
     });
     saveDeliveryRun(state.deliveryRun);
