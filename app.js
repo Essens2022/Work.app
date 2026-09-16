@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v648"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v649"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -1201,6 +1201,12 @@
       '<button id="consegne-oggi-back" aria-label="Indietro" style="width:36px;height:36px;border:1px solid var(--line,#333);background:var(--surface,#151517);color:var(--ink,#fff);border-radius:10px;display:flex;align-items:center;justify-content:center;">' +
       '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>' +
       '<h2 style="margin:0;font-size:18px;">Consegne di oggi</h2></div>';
+    // Cerut direct ("dupa ce s-a incarcat... acele date sa fie fixate
+    // in parte de sus... jos raman clientii, toti, scrollabili"):
+    // container gol, populat mai jos doar cand incarcarea e completa
+    // pentru toti clientii zilei - inaintea listei, care ramane ca
+    // pana acum, scrollabila pe sub aceasta bara.
+    html += '<div id="consegne-oggi-carico-summary"></div>';
     html += '<div style="padding:12px 16px 100px;" id="consegne-oggi-list"><div style="color:var(--ink-soft,#9a9a9e);font-size:13px;">Caricamento…</div></div>';
     // Cerut direct, aprobat prin machet ("un buton... apare deasupra
     // barei cam 2-3 cm... nu scroleaza... apare atunci cand se
@@ -1224,7 +1230,71 @@
       var caricoFab = document.getElementById('carico-fab');
       if (caricoFab) caricoFab.style.display = todayDeliveryItems.some(function (i) { return i.load_status !== 'loaded'; }) ? 'block' : 'none';
       dpAddTodayDeliveriesToRun(todayDeliveryItems);
+      renderConsegneOggiCaricoSummary();
       renderConsegneOggiList();
+    });
+  }
+
+  // Cerut direct ("dupa ce a fost incarcat... acele date fixate in
+  // parte de sus... si butonul sa o reiei de la inceput"): odata ce
+  // TOTI clientii zilei au fost procesati la Carico (niciunul nu mai
+  // e 'pending'), se arata aici un rezumat fix, deasupra listei
+  // (care ramane vizibila, scrollabila, dedesubt) - exact ca la
+  // sumarul din Carico, dar ramas la vedere aici, nu doar o data,
+  // trecator. Cat timp mai exista clienti neprocesati, containerul
+  // ramane gol - lista simpla, ca pana acum.
+  function renderConsegneOggiCaricoSummary() {
+    var container = document.getElementById('consegne-oggi-carico-summary');
+    if (!container) return;
+    var relevant = todayDeliveryItems.filter(function (i) { return i.status !== 'delivered'; });
+    var allDone = relevant.length > 0 && relevant.every(function (i) { return i.load_status !== 'pending'; });
+    if (!allDone) { container.innerHTML = ''; return; }
+    var loaded = relevant.filter(function (i) { return i.load_status === 'loaded'; });
+    var skipped = relevant.filter(function (i) { return i.load_status === 'skipped'; });
+    var bolle = 0, colli = 0;
+    loaded.forEach(function (it) {
+      if (it.bolle && it.bolle.length) {
+        bolle += it.bolle.length;
+        it.bolle.forEach(function (b) { (b.prodotti || []).forEach(function (p) { colli += Number(p.colli) || 0; }); });
+      } else { bolle += 1; }
+    });
+    var html = '<div style="padding:0 16px 12px;">' +
+      '<div style="background:var(--surface);border-radius:14px;padding:14px 16px;box-shadow:var(--shadow-sm);">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">' +
+      '<b style="font-size:13px;color:var(--ink);"><span style="color:var(--teal);">✓</span> Carico completato</b>' +
+      '<button id="consegne-oggi-restart-carico" style="background:none;border:none;color:var(--ink-soft);font-size:13px;text-decoration:underline;">Ricomincia</button></div>' +
+      '<div style="display:flex;gap:8px;">' +
+      '<div style="flex:1;background:var(--surface-2);border-radius:10px;padding:6px 8px;text-align:center;font-size:11px;color:var(--ink-soft);"><b style="display:block;font-size:15px;color:var(--ink);">' + loaded.length + '/' + relevant.length + '</b>Clienti</div>' +
+      '<div style="flex:1;background:var(--surface-2);border-radius:10px;padding:6px 8px;text-align:center;font-size:11px;color:var(--ink-soft);"><b style="display:block;font-size:15px;color:var(--ink);">' + bolle + '</b>Bolle</div>' +
+      '<div style="flex:1;background:var(--surface-2);border-radius:10px;padding:6px 8px;text-align:center;font-size:11px;color:var(--ink-soft);"><b style="display:block;font-size:15px;color:var(--ink);">' + colli + '</b>Colli</div>' +
+      '</div>' +
+      (skipped.length ? '<div style="margin-top:8px;font-size:12px;color:var(--danger);">' + skipped.length + ' cliente' + (skipped.length > 1 ? 'i' : '') + ' saltat' + (skipped.length > 1 ? 'i' : 'o') + '</div>' : '') +
+      '</div></div>';
+    container.innerHTML = html;
+    document.getElementById('consegne-oggi-restart-carico').addEventListener('click', consegneOggiRestartCarico);
+  }
+
+  // Cerut direct ("cum pot sa o reiau de la capat incarcatura, poate
+  // soferul vrea sa mai verifice odata"): spre deosebire de butonul
+  // de reluare din interiorul lui Carico (care doar reseteaza local,
+  // in sesiunea curenta), acesta reseteaza CU ADEVARAT pe server -
+  // pentru ca esti deja AFARA din Carico cand il apesi, iar daca ai
+  // reintra fara resetare reala, Carico ar sari peste toti clientii
+  // (deja marcati 'loaded'). Trimite reseteaza fiecare rand in
+  // paralel, apoi deschide Carico direct, gata pentru o verificare
+  // completa, de la primul client.
+  function consegneOggiRestartCarico() {
+    if (!window.confirm('Ricominciare il carico dall\'inizio per tutti i clienti di oggi?')) return;
+    var email = currentAccountEmail();
+    var relevant = todayDeliveryItems.filter(function (i) { return i.status !== 'delivered' && i.load_status !== 'pending'; });
+    Promise.all(relevant.map(function (it) {
+      return fleetCall({ action: 'driver_update_load_status', account_email: email, item_id: it.id, load_status: 'pending' });
+    })).then(function () {
+      relevant.forEach(function (it) { it.load_status = 'pending'; });
+      var caricoFab = document.getElementById('carico-fab');
+      if (caricoFab) caricoFab.style.display = 'block';
+      renderConsegneOggiCaricoSummary();
+      showScreen('carico');
     });
   }
 
