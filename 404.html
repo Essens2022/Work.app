@@ -1046,9 +1046,9 @@
              tot in aplicatie) - nu mai e un al doilea element separat,
              pozitionat prin cod, sub titlu. Un singur bloc fix, nu
              doua suprapuse - elimina complet acea clasa de probleme. -->
-        <div class="clients-tabs" style="display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:4px;">
-          <button type="button" class="consegne-tab on" data-consegne-tab="borderolo" style="border:0;background:var(--accent);color:#fff;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:750;cursor:pointer;">Borderò di oggi</button>
-          <button type="button" class="consegne-tab" data-consegne-tab="storico" style="border:0;background:transparent;color:var(--ink-soft);border-radius:10px;padding:9px 16px;font-size:13px;font-weight:750;cursor:pointer;">Storico</button>
+        <div class="clients-tabs" style="display:flex;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:4px;width:100%;">
+          <button type="button" class="consegne-tab on" data-consegne-tab="borderolo" style="border:0;background:var(--accent);color:#fff;border-radius:10px;padding:9px 12px;font-size:13px;font-weight:750;cursor:pointer;flex:1;text-align:center;">Borderò di oggi</button>
+          <button type="button" class="consegne-tab" data-consegne-tab="storico" style="border:0;background:transparent;color:var(--ink-soft);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:750;cursor:pointer;flex:1;text-align:center;">Storico</button>
         </div>
         <div class="filter-row filter-row-inline" id="consegneStoricoFilters" style="display:none;">
           <select class="filter-select" id="storicoDriverFilter"><option value="">Tutti gli autisti</option></select>
@@ -1348,45 +1348,44 @@
       <a href="https://adbsmart.it/clienti" target="_blank" rel="noopener" class="rail-item" style="text-decoration:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg>Aggiungi clienti</a>
     </div>
     <div class="main">
-      <div class="topline">
-        <div>
-          <h1 class="page-title">Clienti</h1>
+      <div class="topline topline-compact">
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;">
+          <div>
+            <h1 class="page-title">Clienti</h1>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn btn-ghost owner-only" id="openZoneRulesModalBtn">Zone e autisti</button>
+            <!-- Cerut direct ("clientii trebuie sai pot incarca din mai
+                 multe tipuri de documente inclusiv si excel"): un
+                 singur buton, o singura libreria (SheetJS) capabila sa
+                 citeasca deja Excel (.xlsx, .xls), CSV si ODS - fara sa
+                 fie nevoie de mai multe unelte diferite pentru fiecare
+                 tip de fisier in parte. Fisierul se citeste chiar in
+                 telefon/calculator, nu se trimite nicaieri pana nu
+                 apesi explicit "Importa" pe fereastra de previzualizare. -->
+            <input type="file" id="importClientsFileInput" accept=".xlsx,.xls,.csv,.ods" style="display:none;">
+            <button class="btn btn-ghost owner-only" id="openImportClientsBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+              Importa file
+            </button>
+            <button class="btn btn-accent owner-only" id="openAddClientModalBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+              Nuovo cliente
+            </button>
+          </div>
         </div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;">
-          <button class="btn btn-ghost owner-only" id="openZoneRulesModalBtn">Zone e autisti</button>
-          <!-- Cerut direct ("clientii trebuie sai pot incarca din mai
-               multe tipuri de documente inclusiv si excel"): un
-               singur buton, o singura libreria (SheetJS) capabila sa
-               citeasca deja Excel (.xlsx, .xls), CSV si ODS - fara sa
-               fie nevoie de mai multe unelte diferite pentru fiecare
-               tip de fisier in parte. Fisierul se citeste chiar in
-               telefon/calculator, nu se trimite nicaieri pana nu
-               apesi explicit "Importa" pe fereastra de previzualizare. -->
-          <input type="file" id="importClientsFileInput" accept=".xlsx,.xls,.csv,.ods" style="display:none;">
-          <button class="btn btn-ghost owner-only" id="openImportClientsBtn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
-            Importa file
-          </button>
-          <button class="btn btn-accent owner-only" id="openAddClientModalBtn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
-            Nuovo cliente
-          </button>
+        <!-- Cerut direct, a doua oara ("aceasta sectiune... nu este
+             fixa... ea se misca... sistemati si acestea"): mutate
+             DIRECT in .topline (acelasi element deja dovedit stabil),
+             exact ca la Consegne - nu mai e un element separat,
+             pozitionat prin cod, sub titlu. -->
+        <div class="clients-tabs" style="display:flex;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:4px;margin-top:14px;width:100%;">
+          <button type="button" class="clients-tab on" data-clients-tab="drivers" style="border:0;background:var(--accent);color:#fff;border-radius:10px;padding:9px 12px;font-size:13px;font-weight:750;cursor:pointer;flex:1;text-align:center;">Per autista</button>
+          <button type="button" class="clients-tab" data-clients-tab="all" style="border:0;background:transparent;color:var(--ink-soft);border-radius:10px;padding:9px 12px;font-size:13px;font-weight:750;cursor:pointer;flex:1;text-align:center;">Tutti i clienti</button>
         </div>
+        <input type="text" id="clientSearchInput" placeholder="Cerca per nome, città, zona…" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:11px 14px;color:var(--ink);font-size:14px;margin-top:10px;">
       </div>
       <div class="main-inner">
-        <!-- Cerut direct ("doua sectiuni... per autista... tutti i
-             clienti... taburile si cautarea trebuie sa fie fixe,
-             doar clientii/soferii se scroleaza"): tot blocul de sus
-             (taburi + cautare, comuna pentru ambele vederi) ramane
-             fix - acelasi principiu deja folosit si dovedit la
-             Annunci (.sticky-header), aplicat aici la fel. -->
-        <div class="clients-sticky-header" id="clientsStickyHeader" style="position:relative;z-index:5;background:var(--bg);padding-top:2px;margin:0 0 14px;">
-          <div class="clients-tabs" style="display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:14px;padding:4px;margin-bottom:10px;">
-            <button type="button" class="clients-tab on" data-clients-tab="drivers" style="border:0;background:var(--accent);color:#fff;border-radius:10px;padding:9px 16px;font-size:13px;font-weight:750;cursor:pointer;">Per autista</button>
-            <button type="button" class="clients-tab" data-clients-tab="all" style="border:0;background:transparent;color:var(--ink-soft);border-radius:10px;padding:9px 16px;font-size:13px;font-weight:750;cursor:pointer;">Tutti i clienti</button>
-          </div>
-          <input type="text" id="clientSearchInput" placeholder="Cerca per nome, città, zona…" style="width:100%;box-sizing:border-box;background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:11px 14px;color:var(--ink);font-size:14px;">
-        </div>
         <div id="clientsByDriverView">
           <div id="clientsByDriverList"></div>
         </div>
@@ -2466,7 +2465,7 @@
       if (name === 'consegne') { loadStorico(); loadBorderoloView(); }
       if (name === 'documenti') loadDocumenti();
       if (name === 'veicoli') loadVehicles();
-      if (name === 'clienti') { loadClients(); if (repositionClientsHeader) repositionClientsHeader(); }
+      if (name === 'clienti') loadClients();
       if (name === 'bilancio') loadBilancio();
       if (name === 'notifiche') loadNotifiche();
       if (name === 'impostazioni') loadTeam();
@@ -4276,7 +4275,6 @@
       }
       return reposition;
     }
-    var repositionClientsHeader = pinBelowTopline(document.getElementById('clientsStickyHeader'));
 
     // Cerut direct, a treia oara ("mai trebuie spatiu... automat, sa
     // verifice bine lungimea listei, ultimul client sa fie mai sus de
