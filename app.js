@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v641"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v643"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -2233,13 +2233,32 @@
     state.deliveryRun.clients.forEach(function (c) { if (c.deliveryItemId) existingIds[c.deliveryItemId] = true; });
     var toAdd = items.filter(function (it) { return it.address && !existingIds[it.id] && it.status !== 'delivered'; });
     if (!toAdd.length) return;
-    var geocodePromises = toAdd.map(function (it) {
+    // Cerut direct ("ordinea inconsistenta... geocodarea care esueaza
+    // la cereri multe simultane"): clientii care au deja coordonate
+    // memorate (dintr-o geocodare anterioara reusita, pastrate pe
+    // fisa lor) intra DIRECT, fara nicio cerere noua catre serviciul
+    // de geocodare - doar cei INCA NECUNOSCUTI ajung sa fie geocodati
+    // acum, unul cate unul. Elimina aproape complet riscul de limita
+    // depasita la incarcari repetate ale acelorasi clienti.
+    var alreadyKnown = toAdd.filter(function (it) { return it.client_lat != null && it.client_lon != null; });
+    var stillUnknown = toAdd.filter(function (it) { return !(it.client_lat != null && it.client_lon != null); });
+
+    var addedAny = false;
+    alreadyKnown.forEach(function (it) {
+      dpInsertNewStop({
+        id: uid(), deliveryItemId: it.id, nome: it.client_name, indirizzo: it.address,
+        lat: it.client_lat, lon: it.client_lon, status: 'pending', scadenza: '', nonPrimaDi: ''
+      });
+      addedAny = true;
+    });
+
+    var geocodePromises = stillUnknown.map(function (it) {
       return geocodeAddress(it.address).then(function (result) {
         return { item: it, result: result };
       }).catch(function () { return { item: it, result: null }; });
     });
     Promise.all(geocodePromises).then(function (resolved) {
-      var addedAny = false;
+      var email = currentAccountEmail();
       resolved.forEach(function (r) {
         if (!r.result) return; // indirizzo non geocodificabile — saltato, non blocca gli altri
         dpInsertNewStop({
@@ -2247,12 +2266,25 @@
           lat: r.result.lat, lon: r.result.lon, status: 'pending', scadenza: '', nonPrimaDi: ''
         });
         addedAny = true;
+        // Memorat o singura data, pe fisa clientului - urmatoarele
+        // incarcari ale aceluiasi client vin deja cu coordonata gata,
+        // prin alreadyKnown de mai sus. Trimis fara sa astepte
+        // raspuns (nu blocheaza fluxul soferului) si fara sa opreasca
+        // nimic daca esueaza - va reincerca pur si simplu geocodarea
+        // normal, data viitoare.
+        if (r.item.client_id) {
+          fleetCall({ action: 'driver_save_client_coords', account_email: email, client_id: r.item.client_id, lat: r.result.lat, lon: r.result.lon, label: r.result.label || '' });
+        }
       });
       if (addedAny) {
         saveDeliveryRun(state.deliveryRun);
         if (currentScreen === 'navigatore') renderDeliveryPlanner();
       }
     });
+    if (addedAny) {
+      saveDeliveryRun(state.deliveryRun);
+      if (currentScreen === 'navigatore') renderDeliveryPlanner();
+    }
   }
 
   // Cand un'opprire aggiunta cosi' viene segnata consegnata dentro
