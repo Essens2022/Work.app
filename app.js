@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v646"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v647"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -1370,7 +1370,8 @@
     var html = '<div style="position:fixed;top:0;left:0;right:0;background:var(--surface);border-bottom:1px solid var(--line);padding:calc(14px + var(--safe-top,0px)) 16px 14px;z-index:20;">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
       '<button id="carico-exit-btn" style="background:none;border:none;color:var(--ink-soft);font-size:20px;">←</button>' +
-      '<b style="font-size:14px;color:var(--ink);">Carico camion</b><span style="width:20px;"></span></div>' +
+      '<b style="font-size:14px;color:var(--ink);">Carico camion</b>' +
+      '<button id="carico-restart-btn" title="Ricomincia dall\'inizio" style="background:none;border:none;color:var(--ink-soft);font-size:18px;width:20px;">↺</button></div>' +
       '<div style="display:flex;gap:8px;">' +
       '<div style="flex:1;background:var(--surface-2);border-radius:10px;padding:6px 8px;text-align:center;font-size:11px;color:var(--ink-soft);"><b style="display:block;font-size:15px;color:var(--ink);">' + tot.clienti + '/' + caricoOrder.length + '</b>Clienti</div>' +
       '<div style="flex:1;background:var(--surface-2);border-radius:10px;padding:6px 8px;text-align:center;font-size:11px;color:var(--ink-soft);"><b style="display:block;font-size:15px;color:var(--ink);">' + tot.boli + '</b>Bolle</div>' +
@@ -1399,8 +1400,23 @@
       '<button class="btn btn-accent" id="carico-prossimo-btn" style="flex:2;">Prossimo →</button></div>';
     el.innerHTML = html;
     document.getElementById('carico-exit-btn').addEventListener('click', caricoGoBack);
+    document.getElementById('carico-restart-btn').addEventListener('click', caricoRestart);
     document.getElementById('carico-prossimo-btn').addEventListener('click', caricoNext);
     document.getElementById('carico-salta-btn').addEventListener('click', caricoOpenSalta);
+  }
+
+  // Cerut direct ("cum pot sa o reiau de la capat... poate soferul
+  // vrea sa mai verifice odata"): reincepe tot fluxul, de la primul
+  // client, indiferent unde te afli acum - util daca soferul vrea sa
+  // verifice din nou toata incarcatura. Cere confirmare explicita,
+  // ca sa nu se piarda progresul din greseala, la o apasare
+  // accidentala.
+  function caricoRestart() {
+    if (!window.confirm('Ricominciare il carico dall\'inizio? Le conferme già date per questa sessione andranno perse.')) return;
+    caricoOrder.forEach(function (it) { it.load_status = 'pending'; });
+    caricoIdx = 0;
+    caricoResults = [];
+    caricoRenderClient();
   }
 
   // Cerut direct ("cand apesi butonul in urma trebuie sa mearga cu
@@ -1501,9 +1517,11 @@
     } else {
       html += '<div style="color:var(--teal);font-weight:700;">Tutto caricato senza problemi ✓</div>';
     }
-    html += '<button class="btn btn-accent" style="width:100%;margin-top:20px;" id="carico-back-btn">Torna a Consegne di oggi</button></div>';
+    html += '<button class="btn btn-accent" style="width:100%;margin-top:20px;" id="carico-back-btn">Torna a Consegne di oggi</button>' +
+      '<button class="btn btn-light" style="width:100%;margin-top:10px;" id="carico-restart-summary-btn">Ricomincia il carico</button></div>';
     el.innerHTML = html;
     document.getElementById('carico-back-btn').addEventListener('click', function () { showScreen('consegne-oggi'); });
+    document.getElementById('carico-restart-summary-btn').addEventListener('click', caricoRestart);
     document.getElementById('carico-summary-exit-btn').addEventListener('click', function () { showScreen('consegne-oggi'); });
   }
 
