@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v644"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v645"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -1367,7 +1367,7 @@
     var el = document.getElementById('screen-carico');
     var it = caricoOrder[caricoIdx];
     var tot = caricoTotals(caricoIdx);
-    var html = '<div style="position:fixed;top:0;left:0;right:0;background:var(--surface);border-bottom:1px solid var(--line);padding:14px 16px;z-index:20;">' +
+    var html = '<div style="position:fixed;top:0;left:0;right:0;background:var(--surface);border-bottom:1px solid var(--line);padding:calc(14px + var(--safe-top,0px)) 16px 14px;z-index:20;">' +
       '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">' +
       '<button id="carico-exit-btn" style="background:none;border:none;color:var(--ink-soft);font-size:20px;">←</button>' +
       '<b style="font-size:14px;color:var(--ink);">Carico camion</b><span style="width:20px;"></span></div>' +
@@ -1376,7 +1376,7 @@
       '<div style="flex:1;background:var(--surface-2);border-radius:10px;padding:6px 8px;text-align:center;font-size:11px;color:var(--ink-soft);"><b style="display:block;font-size:15px;color:var(--ink);">' + tot.boli + '</b>Bolle</div>' +
       '<div style="flex:1;background:var(--surface-2);border-radius:10px;padding:6px 8px;text-align:center;font-size:11px;color:var(--ink-soft);"><b style="display:block;font-size:15px;color:var(--ink);">' + tot.colli + '</b>Colli</div>' +
       '</div></div>';
-    html += '<div style="padding:126px 16px 110px;">';
+    html += '<div style="padding:calc(126px + var(--safe-top,0px)) 16px 110px;">';
     html += '<h2 style="margin:6px 0 14px;font-size:19px;color:var(--ink);">' + escapeHtml(it.client_name) + '</h2>';
     if (it.bolle && it.bolle.length) {
       it.bolle.forEach(function (b) {
@@ -1464,10 +1464,10 @@
     // sub ecran daca lista de clienti sariti era lunga, dand exact
     // senzatia ca nu exista nicio cale de intoarcere. Adaugata acum
     // aceeasi bara fixa, cu sageata, ca la ecranul cu fiecare client.
-    var html = '<div style="position:fixed;top:0;left:0;right:0;background:var(--surface);border-bottom:1px solid var(--line);padding:14px 16px;z-index:20;display:flex;align-items:center;gap:10px;">' +
+    var html = '<div style="position:fixed;top:0;left:0;right:0;background:var(--surface);border-bottom:1px solid var(--line);padding:calc(14px + var(--safe-top,0px)) 16px 14px;z-index:20;display:flex;align-items:center;gap:10px;">' +
       '<button id="carico-summary-exit-btn" style="background:none;border:none;color:var(--ink-soft);font-size:20px;">←</button>' +
       '<b style="font-size:14px;color:var(--ink);">Carico camion</b></div>';
-    html += '<div style="padding:70px 16px 40px;text-align:center;">' +
+    html += '<div style="padding:calc(70px + var(--safe-top,0px)) 16px 40px;text-align:center;">' +
       '<div style="width:64px;height:64px;border-radius:50%;background:var(--teal-soft);color:var(--teal);display:flex;align-items:center;justify-content:center;font-size:32px;margin:0 auto 16px;">✓</div>' +
       '<h2 style="margin:0 0 20px;color:var(--ink);">Carico completato</h2>' +
       '<div style="display:flex;gap:8px;margin-bottom:20px;">' +
