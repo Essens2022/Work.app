@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v649"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v650"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -1197,16 +1197,22 @@
   function renderConsegneOggi() {
     var el = document.getElementById('screen-consegne-oggi');
     var email = currentAccountEmail();
-    var html = '<div style="display:flex;align-items:center;gap:10px;padding:16px 16px 4px;">' +
+    // Cerut direct, gasit din captura reala trimisa de sofer:
+    // antetul, rezumatul de carico (cand exista) SI mesajul de
+    // avertizare ("Queste consegne sono nel tuo Percorso...") trebuie
+    // sa ramana fixate impreuna, sus - inainte, mesajul de avertizare
+    // se scrolla odata cu lista de clienti, dandu-i o senzatie de
+    // "sarit" fata de restul barei fixe. Toate trei intr-un singur
+    // bloc lipicios (position:sticky), care ramane la locul lui
+    // indiferent cat se scroleaza lista de dedesubt.
+    var html = '<div style="position:sticky;top:0;z-index:10;background:var(--bg);">';
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:16px 16px 4px;">' +
       '<button id="consegne-oggi-back" aria-label="Indietro" style="width:36px;height:36px;border:1px solid var(--line,#333);background:var(--surface,#151517);color:var(--ink,#fff);border-radius:10px;display:flex;align-items:center;justify-content:center;">' +
       '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>' +
       '<h2 style="margin:0;font-size:18px;">Consegne di oggi</h2></div>';
-    // Cerut direct ("dupa ce s-a incarcat... acele date sa fie fixate
-    // in parte de sus... jos raman clientii, toti, scrollabili"):
-    // container gol, populat mai jos doar cand incarcarea e completa
-    // pentru toti clientii zilei - inaintea listei, care ramane ca
-    // pana acum, scrollabila pe sub aceasta bara.
     html += '<div id="consegne-oggi-carico-summary"></div>';
+    html += '<div id="consegne-oggi-warning"></div>';
+    html += '</div>';
     html += '<div style="padding:12px 16px 100px;" id="consegne-oggi-list"><div style="color:var(--ink-soft,#9a9a9e);font-size:13px;">Caricamento…</div></div>';
     // Cerut direct, aprobat prin machet ("un buton... apare deasupra
     // barei cam 2-3 cm... nu scroleaza... apare atunci cand se
@@ -1228,7 +1234,12 @@
       var pending = todayDeliveryItems.filter(function (i) { return i.status !== 'delivered'; }).length;
       todayDeliveryCountBadge = pending || '';
       var caricoFab = document.getElementById('carico-fab');
-      if (caricoFab) caricoFab.style.display = todayDeliveryItems.some(function (i) { return i.load_status !== 'loaded'; }) ? 'block' : 'none';
+      // REAL BUG, gasit din captura reala trimisa de sofer: conditia
+      // verifica doar 'loaded', dar un client SARIT (load_status:
+      // 'skipped') e la fel de PROCESAT ca unul incarcat - butonul
+      // Carico ramanea vizibil la nesfarsit daca exista macar un
+      // client sarit, chiar daca toti ceilalti erau deja incarcati.
+      if (caricoFab) caricoFab.style.display = todayDeliveryItems.some(function (i) { return i.load_status === 'pending'; }) ? 'block' : 'none';
       dpAddTodayDeliveriesToRun(todayDeliveryItems);
       renderConsegneOggiCaricoSummary();
       renderConsegneOggiList();
@@ -1268,10 +1279,37 @@
       '<div style="flex:1;background:var(--surface-2);border-radius:10px;padding:6px 8px;text-align:center;font-size:11px;color:var(--ink-soft);"><b style="display:block;font-size:15px;color:var(--ink);">' + bolle + '</b>Bolle</div>' +
       '<div style="flex:1;background:var(--surface-2);border-radius:10px;padding:6px 8px;text-align:center;font-size:11px;color:var(--ink-soft);"><b style="display:block;font-size:15px;color:var(--ink);">' + colli + '</b>Colli</div>' +
       '</div>' +
-      (skipped.length ? '<div style="margin-top:8px;font-size:12px;color:var(--danger);">' + skipped.length + ' cliente' + (skipped.length > 1 ? 'i' : '') + ' saltat' + (skipped.length > 1 ? 'i' : 'o') + '</div>' : '') +
+      (skipped.length ? '<button id="consegne-oggi-skipped-btn" style="margin-top:8px;background:none;border:none;padding:0;font-size:12px;color:var(--danger);text-decoration:underline;cursor:pointer;">' + (skipped.length > 1 ? skipped.length + ' clienti saltati' : '1 cliente saltato') + '</button>' : '') +
       '</div></div>';
     container.innerHTML = html;
     document.getElementById('consegne-oggi-restart-carico').addEventListener('click', consegneOggiRestartCarico);
+    var skippedBtn = document.getElementById('consegne-oggi-skipped-btn');
+    if (skippedBtn) skippedBtn.addEventListener('click', function () { consegneOggiShowSkippedDetails(skipped); });
+  }
+
+  // Cerut direct ("clientii care sunt salvati... trebuie sa poata
+  // apasa si sa-i se deschida acei clienti, sa-i poata demonstra"):
+  // soferul poate arata unui responsabil, direct din aplicatie, care
+  // clienti au fost sariti la incarcare si de ce - o foaie simpla,
+  // cu numele fiecaruia si motivul ales sau scris la momentul
+  // respectiv (Salta), fara sa fie nevoie sa reintre in Carico.
+  function consegneOggiShowSkippedDetails(skipped) {
+    var rows = skipped.map(function (it) {
+      return '<div style="background:var(--surface-2);border-radius:12px;padding:12px 14px;margin-bottom:8px;text-align:left;">' +
+        '<b style="color:var(--ink);font-size:14px;">' + escapeHtml(it.client_name) + '</b>' +
+        '<div style="font-size:12.5px;color:var(--ink-soft);margin-top:3px;">' + escapeHtml(it.load_skip_reason || 'Nessun motivo indicato') + '</div></div>';
+    }).join('');
+    var html = '<div style="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:30;display:flex;align-items:flex-end;" id="consegne-oggi-skipped-backdrop">' +
+      '<div style="background:var(--surface);width:100%;border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));max-height:70vh;overflow-y:auto;">' +
+      '<b style="font-size:15px;color:var(--ink);display:block;margin-bottom:14px;">Clienti saltati al carico</b>' +
+      rows +
+      '<button class="btn btn-light" style="width:100%;margin-top:6px;" id="consegne-oggi-skipped-close">Chiudi</button></div></div>';
+    var wrap = document.createElement('div');
+    wrap.innerHTML = html;
+    document.body.appendChild(wrap.firstChild);
+    var backdrop = document.getElementById('consegne-oggi-skipped-backdrop');
+    document.getElementById('consegne-oggi-skipped-close').addEventListener('click', function () { backdrop.remove(); });
+    backdrop.addEventListener('click', function (e) { if (e.target === backdrop) backdrop.remove(); });
   }
 
   // Cerut direct ("cum pot sa o reiau de la capat incarcatura, poate
@@ -1320,8 +1358,13 @@
 
   function renderConsegneOggiList() {
     var listEl = document.getElementById('consegne-oggi-list');
+    var warningEl = document.getElementById('consegne-oggi-warning');
     if (!listEl) return;
-    if (!todayDeliveryItems.length) { listEl.innerHTML = '<div style="color:var(--ink-soft,#9a9a9e);font-size:13px;">Nessuna consegna assegnata per oggi.</div>'; return; }
+    if (!todayDeliveryItems.length) {
+      listEl.innerHTML = '<div style="color:var(--ink-soft,#9a9a9e);font-size:13px;">Nessuna consegna assegnata per oggi.</div>';
+      if (warningEl) warningEl.innerHTML = '';
+      return;
+    }
     var byId = {};
     todayDeliveryItems.forEach(function (it) { byId[it.id] = it; });
     var runClients = dpRunClientsForDeliveryItems();
@@ -1330,7 +1373,8 @@
     // nu au inca o pozitie in ruta pe care s-o schimbe.
     var notYetInRun = todayDeliveryItems.filter(function (it) { return !runClients.some(function (c) { return c.deliveryItemId === it.id; }); });
 
-    var html = '<div style="background:var(--accent-soft,rgba(232,84,43,.1));color:var(--accent,#E8542B);border-radius:12px;padding:10px 14px;font-size:12.5px;font-weight:700;margin-bottom:14px;">Queste consegne sono nel tuo Percorso — segnale consegnate da lì. Qui puoi solo riordinare o rimuovere.</div>';
+    if (warningEl) warningEl.innerHTML = runClients.length ? '<div style="margin:0 16px 12px;background:var(--accent-soft,rgba(232,84,43,.1));color:var(--accent,#E8542B);border-radius:12px;padding:10px 14px;font-size:12.5px;font-weight:700;">Queste consegne sono nel tuo Percorso — segnale consegnate da lì. Qui puoi solo riordinare o rimuovere.</div>' : '';
+    var html = '';
 
     runClients.forEach(function (c, idx) {
       var it = byId[c.deliveryItemId];
