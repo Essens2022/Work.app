@@ -345,6 +345,14 @@
   body.nav-fullbleed .topbar{display:none;}
   body.nav-fullbleed #presence-diagnostic{display:none;}
   body.nav-fullbleed main{padding:0;padding-bottom:calc(24px + var(--bottomnav-h, 90px));}
+  /* Cerut direct, gasit din captura reala trimisa de sofer: acelasi
+     antet permanent (aici, sus) exista si la Carico, exact ca
+     .bottomnav jos - fara aceasta regula, bara proprie a Carico
+     (sageata + Clienti/Bolle/Colli) nu inlocuia deloc antetul
+     obisnuit, ci ramanea ascunsa dedesubtul lui (sau nici nu se
+     mai vedea in captura reala - doar antetul standard aparea). */
+  body.carico-active .topbar{display:none;}
+  body.carico-active main{padding-top:0;}
   body.nav-fullbleed #screen-navigatore{padding:0;}
 
   /* Delivery Planner — everything above the client list (title,
