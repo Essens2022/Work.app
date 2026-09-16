@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v633"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v634"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -9853,9 +9853,15 @@
       var receipts = monthFuel[d];
       var date = new Date(fuelActiveYear, fuelActiveMonth - 1, d);
       var dow = GIORNI_SETT[date.getDay()].slice(0, 3);
+      // Cerut direct ("la scontrini, la fel sa se evidentieze sambata
+      // si duminica... acolo unde incarc bonurile pentru gazoliu"):
+      // acelasi reper vizual deja folosit in Foglio - weekend-ul iese
+      // in evidenta cu rosu, indiferent daca are deja un scontrin
+      // atasat sau nu.
+      var isWeekend = date.getDay() === 0 || date.getDay() === 6;
       var count = (receipts && receipts.length) || 0;
       if (count > 0) lastReceiptDay = d;
-      html += '<div class="day-row' + (count > 0 ? ' filled' : '') + '" data-fuel-day="' + d + '">';
+      html += '<div class="day-row' + (count > 0 ? ' filled' : '') + (isWeekend ? ' weekend' : '') + '" data-fuel-day="' + d + '">';
       html += '<div class="day-num">' + d + '</div>';
       var subLabel = count === 0 ? 'nessuno scontrino' : (count === 1 ? '1 scontrino allegato' : count + ' scontrini allegati');
       html += '<div class="day-main"><div class="dest">Giorno ' + d + '</div><div class="sub">' + dow + ' · ' + subLabel + '</div></div>';
