@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v645"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v646"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -1398,9 +1398,25 @@
       '<button class="btn btn-danger-outline" id="carico-salta-btn" style="border:1.5px solid var(--danger);color:var(--danger);background:transparent;">Salta</button>' +
       '<button class="btn btn-accent" id="carico-prossimo-btn" style="flex:2;">Prossimo →</button></div>';
     el.innerHTML = html;
-    document.getElementById('carico-exit-btn').addEventListener('click', function () { showScreen('consegne-oggi'); });
+    document.getElementById('carico-exit-btn').addEventListener('click', caricoGoBack);
     document.getElementById('carico-prossimo-btn').addEventListener('click', caricoNext);
     document.getElementById('carico-salta-btn').addEventListener('click', caricoOpenSalta);
+  }
+
+  // Cerut direct ("cand apesi butonul in urma trebuie sa mearga cu
+  // un pas in urma nu de tot"): sageata de sus nu mai iese direct
+  // din Carico - merge un pas inapoi, la clientul anterior, exact ca
+  // Prossimo dar in cealalta directie. Doar la primul client (nimic
+  // inainte de el) sageata chiar iese din Carico, catre Consegne di
+  // oggi. La intoarcere, rezultatul dat anterior pentru acel client
+  // (incarcat/sarit) se anuleaza local - poate fi dat din nou, cu
+  // Prossimo sau Salta, ca si cum n-ar fi fost inca decis.
+  function caricoGoBack() {
+    if (caricoIdx <= 0) { showScreen('consegne-oggi'); return; }
+    caricoIdx--;
+    caricoResults.pop();
+    caricoOrder[caricoIdx].load_status = 'pending';
+    caricoRenderClient();
   }
 
   function caricoMarkAndAdvance(result) {
