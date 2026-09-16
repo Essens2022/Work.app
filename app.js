@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v650"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v651"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -887,6 +887,7 @@
   function showScreen(name) {
     currentScreen = name;
     document.body.classList.toggle('carico-active', name === 'carico');
+    document.body.classList.toggle('consegne-oggi-active', name === 'consegne-oggi');
     ['home', 'consegne-oggi', 'carico', 'foglio', 'archivio', 'pdf', 'navigatore'].forEach(function (n) {
       document.getElementById('screen-' + n).classList.toggle('active', n === name);
     });
@@ -1206,7 +1207,7 @@
     // bloc lipicios (position:sticky), care ramane la locul lui
     // indiferent cat se scroleaza lista de dedesubt.
     var html = '<div style="position:sticky;top:0;z-index:10;background:var(--bg);">';
-    html += '<div style="display:flex;align-items:center;gap:10px;padding:16px 16px 4px;">' +
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:0 16px 4px;">' +
       '<button id="consegne-oggi-back" aria-label="Indietro" style="width:36px;height:36px;border:1px solid var(--line,#333);background:var(--surface,#151517);color:var(--ink,#fff);border-radius:10px;display:flex;align-items:center;justify-content:center;">' +
       '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></button>' +
       '<h2 style="margin:0;font-size:18px;">Consegne di oggi</h2></div>';

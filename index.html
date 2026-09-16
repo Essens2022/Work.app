@@ -345,6 +345,19 @@
   body.nav-fullbleed .topbar{display:none;}
   body.nav-fullbleed #presence-diagnostic{display:none;}
   body.nav-fullbleed main{padding:0;padding-bottom:calc(24px + var(--bottomnav-h, 90px));}
+  /* Cerut direct ("sectiunea blocata... sa nu ramana spatiu intre
+     bara aplicatiei de sus si ea"): main are peste tot un padding
+     de sus fix (18px in plus fata de inaltimea barei vechi), pentru
+     toate ecranele - o margine negativa pe ecran NU functioneaza
+     aici, pentru ca main are overflow-y:auto, care blocheaza exact
+     acest efect (o noua zona de formatare, care "opreste" marginea
+     negativa la marginea padding-ului, in loc s-o lase sa treaca
+     peste). Redus in schimb padding-top-ul lui main direct, DOAR
+     pentru acest ecran (bara veche, .topbar, ramane vizibila aici,
+     spre deosebire de Carico - de-aia se pastreaza inaltimea ei,
+     scade doar cele 18px in plus).
+  */
+  body.consegne-oggi-active main{padding-top:var(--topbar-h, 70px);}
   /* Cerut direct, gasit din captura reala trimisa de sofer: acelasi
      antet permanent (aici, sus) exista si la Carico, exact ca
      .bottomnav jos - fara aceasta regula, bara proprie a Carico
