@@ -633,26 +633,29 @@ function toggleFavorite(id, btn){
   if(!currentUser){ alert('Accedi con Google per salvare gli annunci.'); return; }
   const wasFavorited = favoritedIds.has(id);
   const action = wasFavorited ? 'unfavorite' : 'favorite';
-  // Cerut direct ("apesi si nu se pune la preferate, vizual nu se
-  // vede"): starea vizuala schimba acum INSTANT, in aceeasi clipa in
-  // care se apasa - nu mai asteapta raspunsul serverului (care poate
-  // intarzia sau, in retele mai lente, sa para ca "nu s-a intamplat
-  // nimic"). Daca serverul chiar refuza cererea, revenim vizual
-  // inapoi si anuntam explicit ca ceva nu a mers.
   if(wasFavorited){ favoritedIds.delete(id); } else { favoritedIds.add(id); }
   applyFavoriteButtonState(btn, !wasFavorited);
   supabaseClient.auth.getSession().then(res => {
     const token = res.data && res.data.session && res.data.session.access_token;
+    // Cerut direct ("nu e posibila salvarea"): daca tocmai aici lipseste
+    // tokenul de sesiune (motivul cel mai probabil al erorii semnalate),
+    // spunem exact asta, in loc de un mesaj generic care nu ajuta la
+    // gasirea cauzei reale.
+    if(!token) throw new Error('missing_token');
     return fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action, access_token: token, annuncio_id: id }) });
   }).then(r => r.json()).then(res => {
     if(res.ok) return;
     if(wasFavorited){ favoritedIds.add(id); } else { favoritedIds.delete(id); }
     applyFavoriteButtonState(btn, wasFavorited);
-    alert('Non è stato possibile salvare — riprova.');
-  }).catch(() => {
+    // Cerut direct: mesajul arata acum motivul real intors de server
+    // (de exemplu 'auth_required'), nu doar un 'riprova' generic - ca
+    // sa se poata gasi exact cauza data viitoare cand se intampla.
+    alert('Salvataggio non riuscito (' + (res.error || 'errore sconosciuto') + '). Prova a uscire e accedere di nuovo con Google.');
+  }).catch(e => {
     if(wasFavorited){ favoritedIds.add(id); } else { favoritedIds.delete(id); }
     applyFavoriteButtonState(btn, wasFavorited);
-    alert('Errore di connessione — riprova.');
+    if(e && e.message === 'missing_token') alert('La sessione sembra scaduta — esci e accedi di nuovo con Google.');
+    else alert('Errore di connessione — riprova.');
   });
 }
 function applyFavoriteButtonState(btn, isFavorited){
