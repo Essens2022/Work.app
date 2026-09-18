@@ -16,6 +16,11 @@
 <title>Bacheca — ADB Smart</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Cerut direct ("deja folosim logarea prin google... este deajuns
+     sa folosesti acel google"): acelasi client Supabase, cu acelasi
+     provider Google deja configurat, folosit deja de aplicatia
+     soferului (app.js) - fara nimic nou de creat in Google Cloud. -->
+<script src="/vendor/supabase.js"></script>
 <style>
 :root{
   --bg:#F4F5F7; --card:#FFFFFF; --ink:#181A1E; --ink-soft:#666B76; --line:#E4E6EA;
@@ -285,7 +290,7 @@ a{color:inherit;text-decoration:none}
     <h2>Pubblica un annuncio</h2>
     <div id="postModalAuthPrompt">
       <p style="color:var(--ink-soft);font-size:13px;margin-top:0;">Accedi per continuare — protegge la bacheca da annunci falsi.</p>
-      <button class="google-btn" onclick="simulateGoogleLogin()"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.5 0 10.4-1.9 14.3-5.1l-6.6-5.6C29.6 35 26.9 36 24 36c-5.2 0-9.6-3.3-11.2-8l-6.6 5.1C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.6 5.6C41.9 36 44 30.5 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>Continua con Google</button>
+      <button class="google-btn" onclick="loginWithGoogle()"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.5 0 10.4-1.9 14.3-5.1l-6.6-5.6C29.6 35 26.9 36 24 36c-5.2 0-9.6-3.3-11.2-8l-6.6 5.1C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.6 5.6C41.9 36 44 30.5 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>Continua con Google</button>
       <div class="divider">poi compila i dettagli</div>
     </div>
     <div class="modal-field"><label>Categoria</label><select><option>Lavoro</option><option>Trasporti</option><option>Marketplace</option><option>Servizi</option></select></div>
@@ -354,8 +359,24 @@ let sortMode = 'recent';
 // ale ACESTUI document, nu intre doua adrese diferite). Comutarea
 // intre Bacheca si Account e instanta (show/hide), niciodata o
 // incarcare noua de pagina.
-const AUTH_KEY = 'adb_bacheca_user';
-let currentUser = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null');
+// Cerut direct ("deja folosim logarea prin google... este deajuns
+// sa folosesti acel google"): acelasi client Supabase si acelasi
+// provider Google, deja configurat si folosit de aplicatia soferului
+// - nimic nou de creat, nicio simulare. Supabase insusi tine minte
+// sesiunea (in propriul localStorage), inclusiv dupa reincarcare.
+var supabaseClient = (typeof supabase !== 'undefined' && supabase.createClient)
+  ? supabase.createClient('https://chboalgzigdglygnnist.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoYm9hbGd6aWdkZ2x5Z25uaXN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY1NTc4MjMsImV4cCI6MjEwMjEzMzgyM30.vorEiww3SvVAadgnAqFH42M-MjbpXOojAlhNm-cIeMI')
+  : null;
+let currentUser = null;
+
+function userFromSession(session){
+  if(!session || !session.user) return null;
+  var u = session.user;
+  var name = (u.user_metadata && (u.user_metadata.full_name || u.user_metadata.name)) || u.email || 'Utente';
+  var email = u.email || '';
+  var initials = name.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase() || 'U';
+  return { name: name, email: email, initials: initials };
+}
 
 function showScreen(name){
   document.getElementById('screen-bacheca').classList.toggle('active', name==='bacheca');
@@ -385,19 +406,17 @@ function refreshPostModalAuth(){
     prompt.innerHTML = `<div style="text-align:center;color:var(--ink-soft);font-size:13.5px;padding:6px 0 14px;">✓ Accesso effettuato come ${currentUser.name}</div>`;
   } else {
     prompt.innerHTML = `<p style="color:var(--ink-soft);font-size:13px;margin-top:0;">Accedi per continuare — protegge la bacheca da annunci falsi.</p>
-      <button class="google-btn" onclick="simulateGoogleLogin()"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.5 0 10.4-1.9 14.3-5.1l-6.6-5.6C29.6 35 26.9 36 24 36c-5.2 0-9.6-3.3-11.2-8l-6.6 5.1C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.6 5.6C41.9 36 44 30.5 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>Continua con Google</button>
+      <button class="google-btn" onclick="loginWithGoogle()"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.5 0 10.4-1.9 14.3-5.1l-6.6-5.6C29.6 35 26.9 36 24 36c-5.2 0-9.6-3.3-11.2-8l-6.6 5.1C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.6 5.6C41.9 36 44 30.5 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>Continua con Google</button>
       <div class="divider">poi compila i dettagli</div>`;
   }
 }
-function simulateGoogleLogin(){
-  currentUser = { name:'Mario Rossi', email:'mario.rossi@gmail.com', initials:'MR' };
-  localStorage.setItem(AUTH_KEY, JSON.stringify(currentUser));
-  renderAuthArea();
-  refreshPostModalAuth();
+function loginWithGoogle(){
+  if(!supabaseClient){ alert('Servizio non disponibile — verifica la connessione'); return; }
+  supabaseClient.auth.signInWithOAuth({ provider:'google', options:{ redirectTo: window.location.href } });
 }
 function logout(){
+  if(supabaseClient) supabaseClient.auth.signOut();
   currentUser = null;
-  localStorage.removeItem(AUTH_KEY);
   renderAuthArea();
   showScreen('bacheca');
 }
@@ -534,7 +553,26 @@ function renderInvoices(){
 }
 
 document.getElementById('search').addEventListener('input', render);
-renderAuthArea();
+// Cerut direct: sesiunea reala Supabase, verificata la incarcare -
+// acopera atat un vizitator care revine deja logat, cat si intoarcerea
+// exacta dupa ce Google confirma accesul (acelasi domeniu redirectioneaza
+// aici, cu sesiunea deja activa). onAuthStateChange tine interfata la zi
+// automat, oricand se schimba starea (login, logout, refresh de token).
+if(supabaseClient){
+  supabaseClient.auth.getSession().then(function(res){
+    currentUser = userFromSession(res.data && res.data.session);
+    renderAuthArea();
+    if(currentUser && document.getElementById('screen-account').classList.contains('active')) renderAccountData();
+  });
+  supabaseClient.auth.onAuthStateChange(function(event, session){
+    currentUser = userFromSession(session);
+    renderAuthArea();
+    refreshPostModalAuth();
+    if(currentUser && document.getElementById('screen-account').classList.contains('active')) renderAccountData();
+  });
+} else {
+  renderAuthArea();
+}
 loadAds();
 </script>
 </body>
