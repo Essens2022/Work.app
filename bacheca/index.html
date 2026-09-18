@@ -113,7 +113,7 @@ a{color:inherit;text-decoration:none}
 .modal-field label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:4px;}
 .modal-field input,.modal-field textarea,.modal-field select{width:100%;border:1.5px solid var(--line);border-radius:8px;padding:9px 11px;font-size:14px;font-family:inherit;color:var(--ink);background:var(--bg);}
 .google-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:var(--bg);border:1.5px solid var(--line);border-radius:8px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink);}
-.submit-btn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:13px;font-weight:700;font-size:14.5px;cursor:pointer;font-family:inherit;margin-top:6px;}
+.submit-btn{box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:100%;height:48px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:0 13px;font-weight:700;font-size:14.5px;cursor:pointer;font-family:inherit;margin-top:6px;}
 .divider{display:flex;align-items:center;gap:10px;margin:16px 0;color:var(--ink-soft);font-size:12px;}
 .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--line);}
 
@@ -616,7 +616,7 @@ function contactButtonsHtml(contact){
   }
   if(looksLikePhone){
     const waNumber = digitsOnly.replace(/^0+/,'').replace('+','');
-    html += `<a href="https://wa.me/${waNumber}" target="_blank" rel="noopener" title="Apri WhatsApp" style="flex:none;width:48px;display:flex;align-items:center;justify-content:center;background:#25D366;color:#fff;border-radius:8px;">
+    html += `<a href="https://wa.me/${waNumber}" target="_blank" rel="noopener" title="Apri WhatsApp" style="box-sizing:border-box;flex:none;width:48px;height:48px;display:flex;align-items:center;justify-content:center;background:#25D366;color:#fff;border-radius:8px;">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.36 5.07L2 22l5.06-1.32C8.5 21.5 10.2 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm5.2 14.2c-.22.62-1.28 1.18-1.78 1.24-.46.06-1.03.08-1.66-.1-.38-.12-.87-.28-1.5-.55-2.64-1.14-4.36-3.8-4.5-3.98-.13-.18-1.08-1.44-1.08-2.75s.68-1.95.92-2.22c.24-.26.53-.33.7-.33h.5c.16 0 .38-.06.6.46.22.53.75 1.83.82 1.96.07.13.11.29.02.47-.09.18-.14.29-.27.44-.13.16-.28.35-.4.47-.13.13-.27.27-.12.53.16.26.7 1.16 1.5 1.87 1.03.92 1.9 1.2 2.16 1.34.26.13.42.11.57-.07.16-.18.66-.77.84-1.04.18-.26.35-.22.6-.13.24.09 1.55.73 1.82.87.26.13.44.2.5.31.06.13.06.71-.16 1.33z"/></svg>
     </a>`;
   }
@@ -633,13 +633,26 @@ function toggleFavorite(id, btn){
   if(!currentUser){ alert('Accedi con Google per salvare gli annunci.'); return; }
   const wasFavorited = favoritedIds.has(id);
   const action = wasFavorited ? 'unfavorite' : 'favorite';
+  // Cerut direct ("apesi si nu se pune la preferate, vizual nu se
+  // vede"): starea vizuala schimba acum INSTANT, in aceeasi clipa in
+  // care se apasa - nu mai asteapta raspunsul serverului (care poate
+  // intarzia sau, in retele mai lente, sa para ca "nu s-a intamplat
+  // nimic"). Daca serverul chiar refuza cererea, revenim vizual
+  // inapoi si anuntam explicit ca ceva nu a mers.
+  if(wasFavorited){ favoritedIds.delete(id); } else { favoritedIds.add(id); }
+  applyFavoriteButtonState(btn, !wasFavorited);
   supabaseClient.auth.getSession().then(res => {
     const token = res.data && res.data.session && res.data.session.access_token;
     return fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action, access_token: token, annuncio_id: id }) });
   }).then(r => r.json()).then(res => {
-    if(!res.ok) return;
-    if(wasFavorited){ favoritedIds.delete(id); } else { favoritedIds.add(id); }
-    applyFavoriteButtonState(btn, !wasFavorited);
+    if(res.ok) return;
+    if(wasFavorited){ favoritedIds.add(id); } else { favoritedIds.delete(id); }
+    applyFavoriteButtonState(btn, wasFavorited);
+    alert('Non è stato possibile salvare — riprova.');
+  }).catch(() => {
+    if(wasFavorited){ favoritedIds.add(id); } else { favoritedIds.delete(id); }
+    applyFavoriteButtonState(btn, wasFavorited);
+    alert('Errore di connessione — riprova.');
   });
 }
 function applyFavoriteButtonState(btn, isFavorited){
@@ -659,9 +672,9 @@ function openDetail(ad){
     ${ad.image_url ? `<img src="${ad.image_url}" alt="" style="width:100%;border-radius:10px;margin-bottom:14px;display:block;object-fit:cover;max-height:280px;">` : ''}
     ${ad.price_label ? `<p style="font-weight:700;font-size:17px;margin:0 0 12px;">${ad.price_label}</p>` : ''}
     <p style="line-height:1.6;font-size:14px;">${ad.description ? escapeHtml(ad.description) : 'Nessuna descrizione disponibile.'}</p>
-    <div style="display:flex;gap:8px;">
+    <div style="display:flex;gap:8px;align-items:stretch;">
       ${contactButtonsHtml(ad.contact)}
-      <button class="btn-ghost" style="flex:none;width:48px;padding:0;" id="favBtn"></button>
+      <button class="btn-ghost" style="box-sizing:border-box;flex:none;width:48px;height:48px;padding:0;display:flex;align-items:center;justify-content:center;" id="favBtn"></button>
     </div>
   `;
   document.getElementById('detailModal').classList.add('open');
