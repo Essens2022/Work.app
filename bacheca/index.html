@@ -1,14 +1,16 @@
 <!doctype html>
-<!-- Cerut direct ("adauga si da-mi linkul dupa"): prima versiune
-     publica a Bachecii, la adbsmart.it/bacheca - un singur document
+<!-- Bacheca publica, adbsmart.it/bacheca - un singur document
      (Bacheca + Cont personal, un intreg unic, comutare instanta,
-     fara reincarcare de pagina). STARE ACTUALA, de retinut pentru
-     continuare: anunturile de mai jos (SAMPLE_ADS) sunt date de
-     exemplu, nu vin inca din baza de date reala (adb_annunci); iar
-     "Continua con Google" simuleaza accesul (localStorage), fara
-     OAuth real inca - amandoua trebuie conectate la infrastructura
-     reala inainte ca pagina sa primeasca anunturi si conturi
-     adevarate. -->
+     fara reincarcare de pagina). Anunturile de mai jos vin acum din
+     baza de date reala (adb_annunci, prin functia deja existenta
+     "annunci", actiunea publica "list") - niciun anunt fals ramas in
+     cod. RAMANE de facut: "Continua con Google" inca simuleaza
+     accesul (localStorage) - are nevoie de un Client ID real de
+     Google OAuth (creat de ION in Google Cloud Console) inainte sa
+     devina autentificare reala; iar publicarea propriu-zisa de pe
+     aceasta pagina inca nu exista pe server (actiunea "create" de pe
+     functia "annunci" accepta deocamdata doar flote autentificate,
+     nu utilizatori Google obisnuiti). -->
 <html lang="it">
 <head>
 <meta charset="utf-8">
@@ -309,22 +311,29 @@ a{color:inherit;text-decoration:none}
 </div>
 
 <script>
-const SAMPLE_ADS = [
-  { id:'1', type:'job', title:'Cerco Autista Patente B', company:'Padova Express Courier Srl', location:'Padova', category:'Patente B', price_label:'1950 € - 2350 €', work_mode:'Full-time', extra:'Furgone', badge:'new', created_at:'2026-09-11' },
-  { id:'2', type:'job', title:'Autista Patente CE con ADR', company:'Trasporti Bianchi Srl', location:'Verona', category:'Patente CE', price_label:'2400 € - 2800 €', work_mode:'Full-time', extra:'Cisterna', badge:null, created_at:'2026-09-15' },
-  { id:'3', type:'job', title:'Autista notturno consegne GDO', company:'Logistica del Nord Spa', location:'Vicenza', category:'Patente C', price_label:'2100 € + straordinari', work_mode:'Turno notte', extra:null, badge:'urgent', created_at:'2026-09-16' },
-  { id:'4', type:'job', title:'Padroncino cercasi per conto terzi', company:'Rossi Autotrasporti', location:'Treviso', category:'Patente CE', price_label:'A cottimo, ottime tariffe', work_mode:'Partita IVA', extra:null, badge:null, created_at:'2026-09-14' },
-  { id:'5', type:'client', title:'Cerco autotrasportatore zona Nordest', company:'Ceramiche Del Piave', location:'Treviso · zona Nordest', category:'Conto terzi', price_label:null, work_mode:'Continuativo', extra:'2 viaggi/settimana', badge:'new', created_at:'2026-09-17' },
-  { id:'6', type:'client', title:'Trasporto merce refrigerata, tratta fissa', company:'Ortofrutta Serenissima', location:'Padova → Bologna', category:'Frigo', price_label:'A viaggio, da concordare', work_mode:'3 volte/settimana', extra:null, badge:null, created_at:'2026-09-13' },
-  { id:'7', type:'client', title:'Cerco padroncino per traslochi', company:'Studio Legale Marin', location:'Padova centro', category:'Occasionale', price_label:'300 € a intervento', work_mode:'Occasionale', extra:null, badge:null, created_at:'2026-09-10' },
-  { id:'8', type:'marketplace', title:'Vendo Iveco Daily 35C15, 2021', company:'Privato', location:'Padova', category:'Furgone', price_label:'18.500 €', work_mode:null, extra:'62.000 km', badge:null, created_at:'2026-09-16' },
-  { id:'9', type:'marketplace', title:'Rimorchio frigo Schmitz, revisionato', company:'Autofficina Rialto', location:'Vicenza', category:'Rimorchio', price_label:'9.900 €', work_mode:null, extra:'Anno 2018', badge:null, created_at:'2026-09-09' },
-  { id:'10', type:'marketplace', title:'Cerco motrice CE usata, buone condizioni', company:'Privato', location:'Verona e provincia', category:'Motrice', price_label:'Fino a 25.000 €', work_mode:null, extra:null, badge:null, created_at:'2026-09-12' },
-  { id:'11', type:'service', title:'Officina mobile, interventi su strada', company:'Assistenza Camion 24h', location:'Triveneto', category:'Meccanico', price_label:'Su chiamata', work_mode:'24 ore su 24', extra:null, badge:'new', created_at:'2026-09-15' },
-  { id:'12', type:'service', title:'Commercialista specializzato autotrasporto', company:'Studio Ferretto', location:'Padova', category:'Contabilita', price_label:'Preventivo gratuito', work_mode:null, extra:null, badge:null, created_at:'2026-09-08' },
-  { id:'13', type:'job', title:'Autista part-time zona Padova', company:'Corriere Veneto Srl', location:'Padova', category:'Patente B', price_label:'1200 € - 1400 €', work_mode:'Part-time', extra:null, badge:null, created_at:'2026-09-07' },
-  { id:'14', type:'service', title:'Lavaggio e sanificazione mezzi pesanti', company:'CleanTruck Nordest', location:'Padova, Vicenza, Treviso', category:'Lavaggio', price_label:'Da 40 €', work_mode:null, extra:null, badge:null, created_at:'2026-09-11' },
-];
+// Cerut direct ("nu trebuie nimic hardcodat... odata urcat live
+// trebuie sa fie gata de folosit"): anunturile vin acum din baza de
+// date reala (adb_annunci, prin functia deja existenta "annunci"),
+// niciun anunt fals ramas in cod. Actiunea "list" e publica, fara
+// autentificare - la fel cum functioneaza deja in aplicatia soferului
+// si in portalul flotei.
+const ANNUNCI_API = 'https://chboalgzigdglygnnist.supabase.co/functions/v1/annunci';
+let SAMPLE_ADS = [];
+async function fetchAllAds(){
+  document.getElementById('list').innerHTML = '<div class="empty">Caricamento annunci…</div>';
+  const types = ['job','client','marketplace','service'];
+  try {
+    const results = await Promise.all(types.map(t =>
+      fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ action:'list', type:t }) })
+        .then(r => r.json())
+        .then(d => d.ok ? d.items : [])
+    ));
+    SAMPLE_ADS = results.flat();
+  } catch(e) {
+    SAMPLE_ADS = [];
+  }
+  render();
+}
 const TYPE_LABEL = {job:'Lavoro', client:'Trasporti', marketplace:'Marketplace', service:'Servizi'};
 const TYPE_COLOR_VAR = {job:'job', client:'client', marketplace:'market', service:'service'};
 const TYPE_ICON = {
@@ -395,6 +404,7 @@ function openPost(){
   document.getElementById('postModal').classList.add('open');
 }
 function initials(s){ return s.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase(); }
+function formatAdDate(iso){ try { return new Date(iso).toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'}); } catch(e){ return iso; } }
 
 function openDetail(ad){
   document.getElementById('detailBody').innerHTML = `
@@ -438,7 +448,11 @@ function render(){
   if(sortMode==='recent') items = items.slice().sort((a,b)=> b.created_at.localeCompare(a.created_at));
   document.getElementById('resultCount').textContent = items.length + (items.length===1?' risultato':' risultati');
   const list = document.getElementById('list');
-  if(!items.length){ list.innerHTML = '<div class="empty">Nessun annuncio trovato con questi filtri.</div>'; return; }
+  if(!items.length){
+    const msg = SAMPLE_ADS.length ? 'Nessun annuncio trovato con questi filtri.' : 'Ancora nessun annuncio pubblicato — sii il primo!';
+    list.innerHTML = '<div class="empty">' + msg + '</div>';
+    return;
+  }
   list.innerHTML = items.map(ad => `
     <div class="row" onclick='openDetail(${JSON.stringify(ad).replace(/'/g,"&#39;")})'>
       <div class="row-accent" style="background:var(--${TYPE_COLOR_VAR[ad.type]});"></div>
@@ -456,7 +470,7 @@ function render(){
       </div>
       <div class="row-right">
         ${ad.price_label ? `<div class="price">${ad.price_label}</div>` : ''}
-        <div class="date">${ad.created_at}</div>
+        <div class="date">${formatAdDate(ad.created_at)}</div>
       </div>
     </div>
   `).join('');
@@ -518,7 +532,7 @@ function renderInvoices(){
 
 document.getElementById('search').addEventListener('input', render);
 renderAuthArea();
-render();
+fetchAllAds();
 </script>
 </body>
 </html>
