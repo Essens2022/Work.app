@@ -27,6 +27,7 @@
   --accent:#E8542B; --accent-ink:#FFFFFF; --accent-soft:#FCE7DF;
   --job:#E8542B; --client:#B4791C; --market:#2E8062; --service:#7A4FB0;
   --ok:#1F7A46; --ok-soft:#DCF3E6; --warn:#B4791C; --warn-soft:#F7EAD2;
+  --money:#1F8A4C;
 }
 :root[data-theme="dark"]{ --bg:#111214; --card:#1A1C20; --ink:#F2F1EF; --ink-soft:#94969C; --line:#2A2D33; --accent-soft:#3A2216; }
 *{box-sizing:border-box}
@@ -98,7 +99,7 @@ a{color:inherit;text-decoration:none}
 .row .meta{font-size:12.5px;color:var(--ink-soft);margin-top:6px;display:flex;gap:14px;flex-wrap:wrap;}
 .row-right{text-align:right;flex:none;padding:16px 18px 16px 0;}
 .row-right-line{display:flex;align-items:center;gap:10px;}
-.row-right .price{font-weight:700;font-size:14.5px;color:var(--ink);white-space:nowrap;}
+.row-right .price{font-weight:700;font-size:14.5px;color:var(--money);white-space:nowrap;}
 .row-right .date{font-size:11.5px;color:var(--ink-soft);white-space:nowrap;}
 .badge-new{background:#DCF3E6;color:#1F7A46;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:5px;}
 
@@ -666,14 +667,33 @@ function applyFavoriteButtonState(btn, isFavorited){
   btn.style.borderColor = isFavorited ? 'var(--accent)' : 'var(--line)';
 }
 
+// Cerut direct ("la fiecare anunt au datele lor in baza la ce este...
+// pe lavoro e stipendio, marketplace e prezzo"): aceleasi campuri
+// generice din baza de date (price_label, work_mode, category, extra)
+// capata eticheta potrivita fiecarei categorii - fara sa fie nevoie
+// de campuri noi, doar "citite" diferit, dupa tipul anuntului.
+const DETAIL_FIELDS = {
+  job: [ {label:'Stipendio', get:ad=>ad.price_label, money:true}, {label:'Contratto', get:ad=>ad.work_mode}, {label:'Patente', get:ad=>ad.category} ],
+  client: [ {label:'Compenso', get:ad=>ad.price_label, money:true}, {label:'Frequenza', get:ad=>ad.work_mode}, {label:'Tipo', get:ad=>ad.category} ],
+  marketplace: [ {label:'Prezzo', get:ad=>ad.price_label, money:true}, {label:'Info', get:ad=>ad.extra}, {label:'Categoria', get:ad=>ad.category} ],
+  service: [ {label:'Tariffa', get:ad=>ad.price_label, money:true}, {label:'Disponibilità', get:ad=>ad.work_mode}, {label:'Categoria', get:ad=>ad.category} ],
+};
+function detailFicheHtml(ad){
+  const fields = (DETAIL_FIELDS[ad.type] || DETAIL_FIELDS.job).filter(f => f.get(ad));
+  const rows = fields.map(f => `<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);"><span style="color:var(--ink-soft);font-size:13px;">${f.label}</span><b style="font-size:13.5px;${f.money?'color:var(--money);':''}">${escapeHtml(f.get(ad))}</b></div>`).join('');
+  return `<div style="background:var(--bg);border-radius:10px;padding:4px 14px;margin:14px 0;">${rows}
+    <div style="display:flex;justify-content:space-between;padding:10px 0;"><span style="color:var(--ink-soft);font-size:13px;">Pubblicato</span><b style="font-size:13.5px;">${formatDate(ad.created_at)}</b></div>
+  </div>`;
+}
+
 function openDetail(ad){
   document.getElementById('detailBody').innerHTML = `
     <button class="close" onclick="document.getElementById('detailModal').classList.remove('open')">×</button>
     <span class="tag ${ad.type}">${TYPE_LABEL[ad.type]}</span>
     <h2>${ad.title}</h2>
     <p style="color:var(--ink-soft);margin:2px 0 14px;font-size:13.5px;">${ad.company} · ${ad.location}</p>
-    ${ad.image_url ? `<img src="${ad.image_url}" alt="" style="width:100%;border-radius:10px;margin-bottom:14px;display:block;object-fit:cover;max-height:280px;">` : ''}
-    ${ad.price_label ? `<p style="font-weight:700;font-size:17px;margin:0 0 12px;">${ad.price_label}</p>` : ''}
+    ${ad.image_url ? `<img src="${ad.image_url}" alt="" style="width:100%;aspect-ratio:4/3;border-radius:10px;display:block;object-fit:cover;">` : ''}
+    ${detailFicheHtml(ad)}
     <p style="line-height:1.6;font-size:14px;">${ad.description ? escapeHtml(ad.description) : 'Nessuna descrizione disponibile.'}</p>
     <div style="display:flex;gap:8px;align-items:stretch;">
       ${contactButtonsHtml(ad.contact)}
