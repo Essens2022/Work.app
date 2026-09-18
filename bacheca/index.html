@@ -407,6 +407,10 @@ function openPost(){
 }
 function initials(s){ return s.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase(); }
 function formatDate(iso){ try { return new Date(iso).toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'}); } catch(e){ return iso; } }
+// Cerut direct - descrierea vine acum din date reale, scrise de
+// utilizatori (nu mai e text fix, scris de noi) - trece prin asta
+// inainte de a intra in pagina, ca sa nu poata introduce cod strain.
+function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 
 function openDetail(ad){
   document.getElementById('detailBody').innerHTML = `
@@ -414,8 +418,9 @@ function openDetail(ad){
     <span class="tag ${ad.type}">${TYPE_LABEL[ad.type]}</span>
     <h2>${ad.title}</h2>
     <p style="color:var(--ink-soft);margin:2px 0 14px;font-size:13.5px;">${ad.company} · ${ad.location}</p>
+    ${ad.image_url ? `<img src="${ad.image_url}" alt="" style="width:100%;border-radius:10px;margin-bottom:14px;display:block;object-fit:cover;max-height:280px;">` : ''}
     ${ad.price_label ? `<p style="font-weight:700;font-size:17px;margin:0 0 12px;">${ad.price_label}</p>` : ''}
-    <p style="line-height:1.6;font-size:14px;">Annuncio di esempio per confronto grafico — qui comparirebbe la descrizione completa e i contatti.</p>
+    <p style="line-height:1.6;font-size:14px;">${ad.description ? escapeHtml(ad.description) : 'Nessuna descrizione disponibile.'}</p>
     <button class="submit-btn">Contatta</button>
   `;
   document.getElementById('detailModal').classList.add('open');
@@ -455,7 +460,7 @@ function render(){
     <div class="row" onclick='openDetail(${JSON.stringify(ad).replace(/'/g,"&#39;")})'>
       <div class="row-accent" style="background:var(--${TYPE_COLOR_VAR[ad.type]});"></div>
       <div class="row-body">
-        <div class="avatar">${initials(ad.company)}</div>
+        ${ad.image_url ? `<img class="avatar" src="${ad.image_url}" alt="" style="object-fit:cover;">` : `<div class="avatar">${initials(ad.company)}</div>`}
         <div class="row-main">
           <div class="row-top">
             <h3>${ad.title}</h3>
