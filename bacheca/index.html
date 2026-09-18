@@ -438,7 +438,13 @@ function refreshPostModalAuth(){
 }
 function loginWithGoogle(){
   if(!supabaseClient){ alert('Servizio non disponibile — verifica la connessione'); return; }
-  supabaseClient.auth.signInWithOAuth({ provider:'google', options:{ redirectTo: window.location.href } });
+  // Cerut direct ("nu se logheaza oricum"): window.location.href
+  // putea contine # sau parametri ramasi de la o incercare anterioara,
+  // riscand sa nu se potriveasca exact cu adresa permisa in Supabase
+  // (Authentication -> URL Configuration -> Redirect URLs). O adresa
+  // curata, stabila (fara #, fara parametri), se potriveste mult mai
+  // sigur cu o intrare exacta din acea lista.
+  supabaseClient.auth.signInWithOAuth({ provider:'google', options:{ redirectTo: window.location.origin + window.location.pathname } });
 }
 function logout(){
   if(supabaseClient) supabaseClient.auth.signOut();
