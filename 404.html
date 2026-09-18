@@ -1420,6 +1420,24 @@
   </div>
 </div>
 
+<!-- MODAL: foile unui sofer, cate una per client (per conto di chi
+     a lucrat) - cerut direct ("cand apas pe un sofer... sa vad foile
+     lui... daca are multe, doar 3-4 vizibile, restul scrollabile").
+     Spre deosebire de modalul de mai sus (clienti asignati, care
+     scaleaza cu ecranul, 80vh), aici inaltimea e fixa, calculata pe
+     numarul de randuri (~4 randuri x ~58px inaltime fiecare) - asa
+     ramane consecventa indiferent de ecran, nu doar "cat incape". -->
+<div class="modal-backdrop" id="driverSheetsModalBackdrop">
+  <div class="modal" style="max-width:480px;display:flex;flex-direction:column;padding:0;overflow:hidden;">
+    <div style="display:flex;align-items:center;gap:12px;padding:18px 20px;border-bottom:1px solid var(--line);">
+      <div id="driverSheetsAvatar" style="width:34px;height:34px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;flex:none;"></div>
+      <b id="driverSheetsName" style="font-size:15px;"></b>
+      <button type="button" id="driverSheetsModalClose" style="margin-left:auto;width:28px;height:28px;border:0;border-radius:8px;background:var(--surface-2);color:var(--ink-soft);font-size:15px;cursor:pointer;">×</button>
+    </div>
+    <div id="driverSheetsListBody" style="overflow-y:auto;max-height:232px;padding:4px 20px 16px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;"></div>
+  </div>
+</div>
+
 <!-- MODAL: add/edit client -->
 <div class="modal-backdrop" id="clientModalBackdrop">
   <div class="modal">
@@ -3137,7 +3155,7 @@
           '<div class="driver-col-status"><span class="status-dot" style="background:' + statusColor + ';"></span>' + statusLabel + '</div>' +
           '<div class="driver-col-consegne"><span class="driver-mobile-label">Consegne oggi:</span><span class="driver-consegne-value">' + todayCount + '</span></div>' +
           '<div class="driver-col-veicolo"><span class="driver-mobile-label">Veicolo: </span>' + esc(d.targa || '—') + '</div>' +
-          '<div class="driver-col-actions"><button class="doc-actions-btn owner-only remove-btn" data-email="' + esc(d.account_email) + '" data-name="' + esc(d.nome || d.account_email) + '" style="background:none;border:none;color:var(--ink-soft);cursor:pointer;font-size:13px;">Rimuovi</button></div>' +
+          '<div class="driver-col-actions"><button class="doc-actions-btn sheets-btn" data-email="' + esc(d.account_email) + '" data-name="' + esc(d.nome || d.account_email) + '" style="background:none;border:none;color:var(--accent);cursor:pointer;font-size:13px;margin-right:10px;">Foglio</button><button class="doc-actions-btn owner-only remove-btn" data-email="' + esc(d.account_email) + '" data-name="' + esc(d.nome || d.account_email) + '" style="background:none;border:none;color:var(--ink-soft);cursor:pointer;font-size:13px;">Rimuovi</button></div>' +
           '</div>';
       });
       el.innerHTML = html;
@@ -3146,6 +3164,12 @@
           e.stopPropagation();
           if (!confirm('Rimuovere ' + btn.dataset.name + ' dalla flotta?')) return;
           call({ action: 'fleet_remove_driver', slug: slug, password: password, account_email: btn.dataset.email }).then(refresh);
+        });
+      });
+      el.querySelectorAll('.sheets-btn').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          openDriverSheetsModal(btn.dataset.email, btn.dataset.name);
         });
       });
       el.querySelectorAll('.driver-card[data-expandable]').forEach(function (card) {
@@ -3768,6 +3792,37 @@
       document.getElementById('driverClientsRemoveBtn').disabled = !n;
       document.getElementById('driverClientsRemoveBtn').style.opacity = n ? '1' : '.5';
     }
+
+    // Cerut direct ("cand apas pe un sofer... sa vad foile lui,
+    // fiecare legata de un client... daca are multe, doar 3-4
+    // vizibile, restul scrollabile"): un sofer poate avea foi pentru
+    // mai multi clienti (fiecare foaie = o luna de lucru pentru un
+    // anumit client, ex. "GM Global") - toate, indiferent de luna,
+    // cele mai recente primele.
+    function openDriverSheetsModal(email, nome) {
+      document.getElementById('driverSheetsAvatar').textContent = badgeInitials(nome || email);
+      document.getElementById('driverSheetsName').textContent = nome || email;
+      var body = document.getElementById('driverSheetsListBody');
+      body.innerHTML = '<div class="empty-note">Caricamento…</div>';
+      document.getElementById('driverSheetsModalBackdrop').classList.add('open');
+      call({ action: 'fleet_get_driver_sheets', slug: slug, password: password, account_email: email }).then(function (res) {
+        if (!res.ok) { body.innerHTML = '<div class="empty-note">Errore nel caricamento.</div>'; return; }
+        if (!res.sheets.length) { body.innerHTML = '<div class="empty-note">Nessun foglio ancora per questo autista.</div>'; return; }
+        var html = '';
+        res.sheets.forEach(function (s) {
+          html += '<div style="display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line);">' +
+            '<div style="flex:1;min-width:0;"><b style="font-size:13.5px;display:block;">' + esc(s.client) + '</b>' +
+            '<span style="color:var(--ink-soft);font-size:11.5px;">' + MESI_IT[s.month - 1] + ' ' + s.year + '</span></div>' +
+            '<div style="text-align:right;flex:none;"><b style="font-size:13px;">' + Math.round(s.total_km) + ' km</b>' +
+            '<div style="color:var(--ink-soft);font-size:11px;">' + s.giorni_count + ' giorni</div></div>' +
+            '</div>';
+        });
+        body.innerHTML = html;
+      });
+    }
+    document.getElementById('driverSheetsModalClose').addEventListener('click', function () {
+      document.getElementById('driverSheetsModalBackdrop').classList.remove('open');
+    });
 
     function openDriverClientsModal(email) {
       driverModalCurrentEmail = email || '';
