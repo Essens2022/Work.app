@@ -258,17 +258,13 @@ a{color:inherit;text-decoration:none}
         <div class="section-head">
           <div><h1>Fatturazione</h1><p>Il tuo piano attuale e lo storico dei pagamenti.</p></div>
         </div>
-        <div class="plancard">
+        <div class="plancard" id="plancardBlock">
           <div>
-            <h3>Piano Base</h3>
-            <p>1 annuncio attivo incluso · rinnovo mensile automatico</p>
-          </div>
-          <div style="display:flex;align-items:center;gap:18px;">
-            <div class="plan-price">4,99 € <span>/ mese</span></div>
-            <button class="upgradebtn">Passa a Pro</button>
+            <h3>Piano Gratuito</h3>
+            <p>La pubblicazione a pagamento non è ancora attiva — per ora tutti gli annunci sono gratuiti.</p>
           </div>
         </div>
-        <div class="invoice-table" id="invoiceTable"></div>
+        <div id="invoiceTable"></div>
       </div>
 
       <div class="section" id="sec-account">
@@ -689,11 +685,6 @@ function render(){
 }
 
 // --- Account (personale) ---
-const INVOICES = [
-  { date:'01 set 2026', desc:'Piano Base — rinnovo mensile', amount:'4,99 €' },
-  { date:'01 ago 2026', desc:'Piano Base — rinnovo mensile', amount:'4,99 €' },
-  { date:'15 lug 2026', desc:'Annuncio singolo — 30 giorni', amount:'2,99 €' },
-];
 const STATUS_LABEL = {active:'Attivo', expiring:'In scadenza', expired:'Scaduto'};
 
 // Cerut direct ("in miei anunci apar anunturi hardcodate... nu real
@@ -764,10 +755,14 @@ function renderAds(items){
     </div>
   `;}).join('');
 }
+// Cerut direct ("Fatturazione date hardcodate"): nu exista inca un
+// sistem real de plati (Stripe sau altul) - in loc sa aratam facturi
+// inventate, aratam clar starea reala: nimeni nu a platit nimic inca,
+// pentru ca publicarea e gratuita deocamdata. Cand plata reala va
+// exista, aici se va conecta lista adevarata de tranzactii.
 function renderInvoices(){
   const el = document.getElementById('invoiceTable');
-  el.innerHTML = '<div class="inv-row inv-head"><div>Data</div><div>Descrizione</div><div style="text-align:right;">Importo</div><div></div></div>' +
-    INVOICES.map(i => `<div class="inv-row"><div>${i.date}</div><div>${i.desc}</div><div class="inv-amount">${i.amount}</div><div class="inv-dl">Scarica PDF</div></div>`).join('');
+  el.innerHTML = '<div class="empty">Nessun pagamento registrato — la pubblicazione è gratuita per ora.</div>';
 }
 
 // Cerut direct ("trebuie sa fie si sectiunea preferiti"): lista de
