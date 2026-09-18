@@ -159,11 +159,28 @@ Deno.serve(async (req) => {
       return json({ ok:true, items:data || [] });
     }
 
-    const fleetOk = await verifyFleet(body.fleet_slug, body.fleet_password);
-    if (!fleetOk) return json({ ok:false, error:'fleet_auth_required' },401);
+    // Cerut direct ("verifica la publicare... publicarea nu era doar
+    // pentru flote"): oricine logat cu Google, prin Bacheca publica,
+    // poate acum publica si gestiona propriile anunturi - nu doar
+    // flotele. Verificam intai daca a fost trimis un token de sesiune
+    // Supabase (contul Google); daca nu, cadem inapoi pe verificarea
+    // de flota, ca inainte - niciuna dintre cele doua cai nu o
+    // schimba pe cealalta.
+    let authorFilter: { column: string; value: string } | null = null;
+    if (body.access_token) {
+      const { data: userData, error: userErr } = await admin.auth.getUser(body.access_token);
+      if (!userErr && userData?.user?.email) {
+        authorFilter = { column: 'author_user_email', value: userData.user.email.toLowerCase() };
+      }
+    }
+    if (!authorFilter) {
+      const fleetOk = await verifyFleet(body.fleet_slug, body.fleet_password);
+      if (fleetOk) authorFilter = { column: 'author_fleet_slug', value: body.fleet_slug };
+    }
+    if (!authorFilter) return json({ ok:false, error:'auth_required' },401);
 
     if (action === 'mine') {
-      const { data, error } = await admin.from('adb_annunci').select('*').eq('author_fleet_slug',body.fleet_slug).neq('visibility','archived').order('created_at',{ascending:false});
+      const { data, error } = await admin.from('adb_annunci').select('*').eq(authorFilter.column,authorFilter.value).neq('visibility','archived').order('created_at',{ascending:false});
       if (error) throw error;
       return json({ ok:true, items:data || [] });
     }
@@ -179,26 +196,29 @@ Deno.serve(async (req) => {
       if (item.type === 'job' && !item.price_label) return json({ok:false,error:'missing_required_fields'},400);
       const id = crypto.randomUUID();
       const image = await uploadImage(body.item?.image_data || null,id);
-      const { data, error } = await admin.from('adb_annunci').insert({ id, ...item, ...image, author_kind:'fleet', author_fleet_slug:body.fleet_slug }).select().single();
+      const authorFields = authorFilter.column === 'author_user_email'
+        ? { author_kind:'user', author_user_email: authorFilter.value }
+        : { author_kind:'fleet', author_fleet_slug: authorFilter.value };
+      const { data, error } = await admin.from('adb_annunci').insert({ id, ...item, ...image, ...authorFields }).select().single();
       if (error) throw error;
       return json({ ok:true, item:data });
     }
 
     if (action === 'update') {
       const id = cleanText(body.id,60); const item = normalizeItem(body.item || {});
-      const { data: old, error: oldErr } = await admin.from('adb_annunci').select('id,image_path').eq('id',id).eq('author_fleet_slug',body.fleet_slug).single();
+      const { data: old, error: oldErr } = await admin.from('adb_annunci').select('id,image_path').eq('id',id).eq(authorFilter.column,authorFilter.value).single();
       if (oldErr || !old) return json({ok:false,error:'not_found'},404);
       let image:any = {};
       if (body.item?.image_data) image = await uploadImage(body.item.image_data,id);
-      const { data, error } = await admin.from('adb_annunci').update({ ...item, ...image }).eq('id',id).eq('author_fleet_slug',body.fleet_slug).select().single();
+      const { data, error } = await admin.from('adb_annunci').update({ ...item, ...image }).eq('id',id).eq(authorFilter.column,authorFilter.value).select().single();
       if (error) throw error;
       return json({ok:true,item:data});
     }
 
     if (action === 'delete') {
       const id = cleanText(body.id,60);
-      const { data: old } = await admin.from('adb_annunci').select('image_path').eq('id',id).eq('author_fleet_slug',body.fleet_slug).maybeSingle();
-      const { error } = await admin.from('adb_annunci').delete().eq('id',id).eq('author_fleet_slug',body.fleet_slug);
+      const { data: old } = await admin.from('adb_annunci').select('image_path').eq('id',id).eq(authorFilter.column,authorFilter.value).maybeSingle();
+      const { error } = await admin.from('adb_annunci').delete().eq('id',id).eq(authorFilter.column,authorFilter.value);
       if (error) throw error;
       if (old?.image_path) await admin.storage.from('adb-annunci').remove([old.image_path]);
       return json({ok:true});
