@@ -309,22 +309,33 @@ a{color:inherit;text-decoration:none}
 </div>
 
 <script>
-const SAMPLE_ADS = [
-  { id:'1', type:'job', title:'Cerco Autista Patente B', company:'Padova Express Courier Srl', location:'Padova', category:'Patente B', price_label:'1950 € - 2350 €', work_mode:'Full-time', extra:'Furgone', badge:'new', created_at:'2026-09-11' },
-  { id:'2', type:'job', title:'Autista Patente CE con ADR', company:'Trasporti Bianchi Srl', location:'Verona', category:'Patente CE', price_label:'2400 € - 2800 €', work_mode:'Full-time', extra:'Cisterna', badge:null, created_at:'2026-09-15' },
-  { id:'3', type:'job', title:'Autista notturno consegne GDO', company:'Logistica del Nord Spa', location:'Vicenza', category:'Patente C', price_label:'2100 € + straordinari', work_mode:'Turno notte', extra:null, badge:'urgent', created_at:'2026-09-16' },
-  { id:'4', type:'job', title:'Padroncino cercasi per conto terzi', company:'Rossi Autotrasporti', location:'Treviso', category:'Patente CE', price_label:'A cottimo, ottime tariffe', work_mode:'Partita IVA', extra:null, badge:null, created_at:'2026-09-14' },
-  { id:'5', type:'client', title:'Cerco autotrasportatore zona Nordest', company:'Ceramiche Del Piave', location:'Treviso · zona Nordest', category:'Conto terzi', price_label:null, work_mode:'Continuativo', extra:'2 viaggi/settimana', badge:'new', created_at:'2026-09-17' },
-  { id:'6', type:'client', title:'Trasporto merce refrigerata, tratta fissa', company:'Ortofrutta Serenissima', location:'Padova → Bologna', category:'Frigo', price_label:'A viaggio, da concordare', work_mode:'3 volte/settimana', extra:null, badge:null, created_at:'2026-09-13' },
-  { id:'7', type:'client', title:'Cerco padroncino per traslochi', company:'Studio Legale Marin', location:'Padova centro', category:'Occasionale', price_label:'300 € a intervento', work_mode:'Occasionale', extra:null, badge:null, created_at:'2026-09-10' },
-  { id:'8', type:'marketplace', title:'Vendo Iveco Daily 35C15, 2021', company:'Privato', location:'Padova', category:'Furgone', price_label:'18.500 €', work_mode:null, extra:'62.000 km', badge:null, created_at:'2026-09-16' },
-  { id:'9', type:'marketplace', title:'Rimorchio frigo Schmitz, revisionato', company:'Autofficina Rialto', location:'Vicenza', category:'Rimorchio', price_label:'9.900 €', work_mode:null, extra:'Anno 2018', badge:null, created_at:'2026-09-09' },
-  { id:'10', type:'marketplace', title:'Cerco motrice CE usata, buone condizioni', company:'Privato', location:'Verona e provincia', category:'Motrice', price_label:'Fino a 25.000 €', work_mode:null, extra:null, badge:null, created_at:'2026-09-12' },
-  { id:'11', type:'service', title:'Officina mobile, interventi su strada', company:'Assistenza Camion 24h', location:'Triveneto', category:'Meccanico', price_label:'Su chiamata', work_mode:'24 ore su 24', extra:null, badge:'new', created_at:'2026-09-15' },
-  { id:'12', type:'service', title:'Commercialista specializzato autotrasporto', company:'Studio Ferretto', location:'Padova', category:'Contabilita', price_label:'Preventivo gratuito', work_mode:null, extra:null, badge:null, created_at:'2026-09-08' },
-  { id:'13', type:'job', title:'Autista part-time zona Padova', company:'Corriere Veneto Srl', location:'Padova', category:'Patente B', price_label:'1200 € - 1400 €', work_mode:'Part-time', extra:null, badge:null, created_at:'2026-09-07' },
-  { id:'14', type:'service', title:'Lavaggio e sanificazione mezzi pesanti', company:'CleanTruck Nordest', location:'Padova, Vicenza, Treviso', category:'Lavaggio', price_label:'Da 40 €', work_mode:null, extra:null, badge:null, created_at:'2026-09-11' },
-];
+let SAMPLE_ADS = [];
+
+// Cerut direct ("sistemeaza hardcodarea"): anunturile vin acum din
+// functia deja existenta si publica (fara autentificare necesara
+// pentru citire), aceeasi folosita deja de /annunci (aplicatia
+// soferului) si de portalul flotei. Actiunea 'list' cere un singur
+// tip pe cerere - le luam pe toate 4 in paralel, apoi le unim intr-
+// un singur tablou, exact ca inainte (SAMPLE_ADS), ca tot restul
+// codului (filtre, cautare, randare) sa ramana neschimbat.
+const ANNUNCI_API = 'https://chboalgzigdglygnnist.supabase.co/functions/v1/annunci';
+async function loadAds(){
+  document.getElementById('list').innerHTML = '<div class="empty">Caricamento annunci…</div>';
+  try {
+    const types = ['job','client','marketplace','service'];
+    const results = await Promise.all(types.map(t =>
+      fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'list', type:t }) })
+        .then(r => r.json())
+    ));
+    SAMPLE_ADS = results.flatMap(r => (r.ok && r.items) ? r.items : []);
+  } catch(e) {
+    SAMPLE_ADS = [];
+    document.getElementById('list').innerHTML = '<div class="empty">Impossibile caricare gli annunci al momento. Riprova tra poco.</div>';
+    console.error('Errore caricamento annunci:', e);
+    return;
+  }
+  render();
+}
 const TYPE_LABEL = {job:'Lavoro', client:'Trasporti', marketplace:'Marketplace', service:'Servizi'};
 const TYPE_COLOR_VAR = {job:'job', client:'client', marketplace:'market', service:'service'};
 const TYPE_ICON = {
@@ -395,6 +406,7 @@ function openPost(){
   document.getElementById('postModal').classList.add('open');
 }
 function initials(s){ return s.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase(); }
+function formatDate(iso){ try { return new Date(iso).toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'}); } catch(e){ return iso; } }
 
 function openDetail(ad){
   document.getElementById('detailBody').innerHTML = `
@@ -456,7 +468,7 @@ function render(){
       </div>
       <div class="row-right">
         ${ad.price_label ? `<div class="price">${ad.price_label}</div>` : ''}
-        <div class="date">${ad.created_at}</div>
+        <div class="date">${formatDate(ad.created_at)}</div>
       </div>
     </div>
   `).join('');
@@ -518,7 +530,7 @@ function renderInvoices(){
 
 document.getElementById('search').addEventListener('input', render);
 renderAuthArea();
-render();
+loadAds();
 </script>
 </body>
 </html>
