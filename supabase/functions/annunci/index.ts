@@ -260,6 +260,13 @@ Deno.serve(async (req) => {
     return json({ok:false,error:'unknown_action'},400);
   } catch (e) {
     console.error(e);
-    return json({ok:false,error:e instanceof Error ? e.message : 'internal_error'},500);
+    // Cerut direct ("Pubblicazione non riuscita: internal_error") -
+    // gasit real: erorile venite de la Postgres/Supabase (ex. o
+    // constrangere incalcata) NU sunt instante reale de Error in
+    // JavaScript, sunt obiecte simple cu .message - verificarea de
+    // dinainte (instanceof Error) le rata pe toate, aratand mereu
+    // 'internal_error' in loc de motivul real, util pentru diagnostic.
+    const message = (e && typeof e === 'object' && 'message' in e) ? String((e as any).message) : (e instanceof Error ? e.message : 'internal_error');
+    return json({ok:false,error:message},500);
   }
 });
