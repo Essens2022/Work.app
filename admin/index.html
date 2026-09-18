@@ -1072,8 +1072,15 @@
       html += '<div class="detail-row"><span class="detail-label">Guadagno ' + MESI[g.activeMonth - 1] + '</span><span class="detail-value" style="color:#3CB878;">€' + currentMonthEarnings.toFixed(0) + '</span></div>';
     }
 
+    // Cerut direct, gasit din captura reala trimisa ("cine are prea
+    // multe [foi], ele merg in jos si... scrolezi intreaga pagina...
+    // ziceam sa se vada 3-4, restul se scroleaza in sus in jos"):
+    // lista de foi (fiecare cate un client) creste altfel la
+    // nesfarsit, impingand toata pagina in jos - numele soferului,
+    // targa, compensul raman vizibile, DOAR lista de foi capata o
+    // inaltime fixa (~4 randuri) si scroll propriu, in interior.
     if (g.sheets.length) {
-      html += '<div style="margin-top:4px;">';
+      html += '<div style="margin-top:4px;max-height:248px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;">';
       g.sheets.forEach(function (s) { html += sheetDetailHtml(s, g.dailyRate); });
       html += '</div>';
     } else {
