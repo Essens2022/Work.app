@@ -76,6 +76,7 @@ a{color:inherit;text-decoration:none}
 @media (max-width:560px){ .pillgroup{flex-wrap:wrap;} .fpill{flex:1 1 calc(50% - 4px);} }
 @media (max-width:600px){
   .row{flex-direction:column;}
+  .row-top h3{padding-right:112px;}
 }
 
 .wrap{max-width:1080px;margin:0 auto;padding:22px 24px 80px;}
@@ -89,9 +90,16 @@ a{color:inherit;text-decoration:none}
 .row-body{display:flex;gap:14px;align-items:flex-start;padding:16px 18px;flex:1;min-width:0;}
 .avatar{width:42px;height:42px;border-radius:9px;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex:none;}
 .row-main{flex:1;min-width:0;}
-.row-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
-.row-top h3{font-size:15.5px;font-weight:600;margin:0;}
-.tag{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:3px 8px;border-radius:5px;color:#fff;}
+.row-top{position:relative;}
+/* Cerut direct ("etichetele... trebuie sa aiba pozitia lor fixa pe
+   partea dreapta sus... titlul daca e prea lung porneste din rand
+   nou"): eticheta (si "Nuovo", cand exista) raman FIXATE in coltul
+   din dreapta sus, indiferent de titlu - titlul are rezervat spatiu
+   suficient in dreapta (padding-right), ca sa treaca singur pe randul
+   urmator, fara sa impinga sau sa se suprapuna cu eticheta. */
+.row-top h3{font-size:15.5px;font-weight:600;margin:0;padding-right:150px;}
+.row-top-badges{position:absolute;top:0;right:0;display:flex;align-items:center;gap:6px;}
+.tag{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:3px 8px;border-radius:5px;color:#fff;white-space:nowrap;}
 .tag.job{background:var(--job)} .tag.client{background:var(--client)} .tag.marketplace{background:var(--market)} .tag.service{background:var(--service)}
 .row .company{font-size:13.5px;color:var(--ink-soft);margin-top:3px;}
 .row .meta{font-size:12.5px;color:var(--ink-soft);margin-top:6px;display:flex;gap:14px;flex-wrap:wrap;}
@@ -819,8 +827,10 @@ function adRowHtml(ad, indexAttr){
         <div class="row-main">
           <div class="row-top">
             <h3>${ad.title}</h3>
-            <span class="tag ${ad.type}">${TYPE_LABEL[ad.type]}</span>
-            ${ad.badge==='new' ? '<span class="badge-new">Nuovo</span>' : ''}
+            <div class="row-top-badges">
+              ${ad.badge==='new' ? '<span class="badge-new">Nuovo</span>' : ''}
+              <span class="tag ${ad.type}">${TYPE_LABEL[ad.type]}</span>
+            </div>
           </div>
           <div class="company">${ad.company} · ${ad.location}</div>
           <div class="meta">${[ad.category, ad.work_mode, ad.extra].filter(Boolean).join(' · ')}</div>
