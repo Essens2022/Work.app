@@ -592,20 +592,62 @@ function submitAnnuncio(){
 // Cerut direct, in continuare ("sa poata conecta si whatsapp"): daca
 // pare un numar de telefon (majoritatea cifre), apare si un buton
 // separat, gata sa deschida direct o conversatie WhatsApp cu acel
-// numar - fara ca autorul sa faca nimic in plus, doar sa scrie
-// numarul o singura data.
-function revealContact(contact){
-  const el = document.getElementById('contactReveal');
+// Cerut direct ("cand apesi contatta se deschide direct in telefon
+// pentru a fi contatat... alaturi de contatta sa fie buton logoul
+// de la whatsapp"): Contatta e acum un link real (tel: sau mailto:),
+// deschide direct telefonul/mail-ul, fara niciun pas intermediar de
+// "dezvaluire" - eliminat complet mecanismul vechi (care crea
+// suprapunerea raportata intre Salva si WhatsApp). WhatsApp e propriul
+// buton, mereu vizibil alaturi, cand contactul arata a numar de telefon.
+function contactButtonsHtml(contact){
+  if(!contact){
+    return '<button class="submit-btn" style="flex:1;" disabled>Nessun contatto indicato</button>';
+  }
+  const isEmail = contact.includes('@');
   const digitsOnly = contact.replace(/[^0-9+]/g,'');
-  const looksLikePhone = digitsOnly.replace(/\\+/g,'').length >= 8;
-  let html = `<div style="background:var(--bg);border-radius:8px;padding:12px 14px;font-weight:600;font-size:14.5px;">${escapeHtml(contact)}</div>`;
+  const looksLikePhone = !isEmail && digitsOnly.replace(/\+/g,'').length >= 8;
+  let html = '';
+  if(isEmail){
+    html += `<a href="mailto:${encodeURIComponent(contact)}" class="submit-btn" style="flex:1;text-align:center;">Contatta</a>`;
+  } else if(looksLikePhone){
+    html += `<a href="tel:${digitsOnly}" class="submit-btn" style="flex:1;text-align:center;">Contatta</a>`;
+  } else {
+    html += `<div class="submit-btn" style="flex:1;text-align:center;opacity:.7;">${escapeHtml(contact)}</div>`;
+  }
   if(looksLikePhone){
     const waNumber = digitsOnly.replace(/^0+/,'').replace('+','');
-    html += `<a href="https://wa.me/${waNumber}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:8px;background:#25D366;color:#fff;border-radius:8px;padding:12px;font-weight:700;font-size:14px;margin-top:8px;">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.36 5.07L2 22l5.06-1.32C8.5 21.5 10.2 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm5.2 14.2c-.22.62-1.28 1.18-1.78 1.24-.46.06-1.03.08-1.66-.1-.38-.12-.87-.28-1.5-.55-2.64-1.14-4.36-3.8-4.5-3.98-.13-.18-1.08-1.44-1.08-2.75s.68-1.95.92-2.22c.24-.26.53-.33.7-.33h.5c.16 0 .38-.06.6.46.22.53.75 1.83.82 1.96.07.13.11.29.02.47-.09.18-.14.29-.27.44-.13.16-.28.35-.4.47-.13.13-.27.27-.12.53.16.26.7 1.16 1.5 1.87 1.03.92 1.9 1.2 2.16 1.34.26.13.42.11.57-.07.16-.18.66-.77.84-1.04.18-.26.35-.22.6-.13.24.09 1.55.73 1.82.87.26.13.44.2.5.31.06.13.06.71-.16 1.33z"/></svg>
-      Apri WhatsApp</a>`;
+    html += `<a href="https://wa.me/${waNumber}" target="_blank" rel="noopener" title="Apri WhatsApp" style="flex:none;width:48px;display:flex;align-items:center;justify-content:center;background:#25D366;color:#fff;border-radius:8px;">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.36 5.07L2 22l5.06-1.32C8.5 21.5 10.2 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm5.2 14.2c-.22.62-1.28 1.18-1.78 1.24-.46.06-1.03.08-1.66-.1-.38-.12-.87-.28-1.5-.55-2.64-1.14-4.36-3.8-4.5-3.98-.13-.18-1.08-1.44-1.08-2.75s.68-1.95.92-2.22c.24-.26.53-.33.7-.33h.5c.16 0 .38-.06.6.46.22.53.75 1.83.82 1.96.07.13.11.29.02.47-.09.18-.14.29-.27.44-.13.16-.28.35-.4.47-.13.13-.27.27-.12.53.16.26.7 1.16 1.5 1.87 1.03.92 1.9 1.2 2.16 1.34.26.13.42.11.57-.07.16-.18.66-.77.84-1.04.18-.26.35-.22.6-.13.24.09 1.55.73 1.82.87.26.13.44.2.5.31.06.13.06.71-.16 1.33z"/></svg>
+    </a>`;
   }
-  el.innerHTML = html;
+  return html;
+}
+
+const HEART_OUTLINE = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.6l-1-1a5.5 5.5 0 00-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 000-7.8z"/></svg>';
+const HEART_FILLED = '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.6l-1-1a5.5 5.5 0 00-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 000-7.8z"/></svg>';
+// Cerut direct ("butonul preferiti nu arata ca a fost apasat"): stare
+// vizuala clara - inima plina + fundal colorat cand e salvat, goala
+// cand nu e - si comuta corect inainte-inapoi (salveaza/scoate).
+let favoritedIds = new Set();
+function toggleFavorite(id, btn){
+  if(!currentUser){ alert('Accedi con Google per salvare gli annunci.'); return; }
+  const wasFavorited = favoritedIds.has(id);
+  const action = wasFavorited ? 'unfavorite' : 'favorite';
+  supabaseClient.auth.getSession().then(res => {
+    const token = res.data && res.data.session && res.data.session.access_token;
+    return fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action, access_token: token, annuncio_id: id }) });
+  }).then(r => r.json()).then(res => {
+    if(!res.ok) return;
+    if(wasFavorited){ favoritedIds.delete(id); } else { favoritedIds.add(id); }
+    applyFavoriteButtonState(btn, !wasFavorited);
+  });
+}
+function applyFavoriteButtonState(btn, isFavorited){
+  if(!btn) return;
+  btn.innerHTML = isFavorited ? HEART_FILLED : HEART_OUTLINE;
+  btn.style.color = isFavorited ? '#fff' : 'var(--ink)';
+  btn.style.background = isFavorited ? 'var(--accent)' : 'var(--bg)';
+  btn.style.borderColor = isFavorited ? 'var(--accent)' : 'var(--line)';
 }
 
 function openDetail(ad){
@@ -617,18 +659,15 @@ function openDetail(ad){
     ${ad.image_url ? `<img src="${ad.image_url}" alt="" style="width:100%;border-radius:10px;margin-bottom:14px;display:block;object-fit:cover;max-height:280px;">` : ''}
     ${ad.price_label ? `<p style="font-weight:700;font-size:17px;margin:0 0 12px;">${ad.price_label}</p>` : ''}
     <p style="line-height:1.6;font-size:14px;">${ad.description ? escapeHtml(ad.description) : 'Nessuna descrizione disponibile.'}</p>
-    <div id="contactReveal"></div>
     <div style="display:flex;gap:8px;">
-      <button class="submit-btn" id="contattaBtn" style="flex:1;">Contatta</button>
-      <button class="btn-ghost" style="flex:none;width:auto;padding:0 16px;" id="favBtn" onclick="favoriteAd('${ad.id}', this)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.6l-1-1a5.5 5.5 0 00-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 000-7.8z"/></svg> Salva</button>
+      ${contactButtonsHtml(ad.contact)}
+      <button class="btn-ghost" style="flex:none;width:48px;padding:0;" id="favBtn"></button>
     </div>
   `;
   document.getElementById('detailModal').classList.add('open');
-  document.getElementById('contattaBtn').addEventListener('click', function(){
-    if(!ad.contact){ revealContact('Nessun contatto indicato per questo annuncio.'); }
-    else { revealContact(ad.contact); }
-    this.style.display = 'none';
-  });
+  const favBtn = document.getElementById('favBtn');
+  applyFavoriteButtonState(favBtn, favoritedIds.has(ad.id));
+  favBtn.addEventListener('click', function(){ toggleFavorite(ad.id, favBtn); });
 }
 
 function renderFilters(){
@@ -661,8 +700,12 @@ function render(){
   document.getElementById('resultCount').textContent = items.length + (items.length===1?' risultato':' risultati');
   const list = document.getElementById('list');
   if(!items.length){ list.innerHTML = '<div class="empty">Nessun annuncio trovato con questi filtri.</div>'; return; }
-  list.innerHTML = items.map(ad => `
-    <div class="row" onclick='openDetail(${JSON.stringify(ad).replace(/'/g,"&#39;")})'>
+  // Cerut direct ("anunturile din preferite nu se deschid bine"):
+  // aceeasi reparatie, si aici - deschidem dupa INDEX (currentListItems),
+  // niciodata cu JSON scris direct intr-un atribut onclick.
+  currentListItems = items;
+  list.innerHTML = items.map((ad, i) => `
+    <div class="row" data-list-index="${i}">
       <div class="row-accent" style="background:var(--${TYPE_COLOR_VAR[ad.type]});"></div>
       <div class="row-body">
         ${ad.image_url ? `<img class="avatar" src="${ad.image_url}" alt="" style="object-fit:cover;">` : `<div class="avatar">${initials(ad.company)}</div>`}
@@ -682,7 +725,11 @@ function render(){
       </div>
     </div>
   `).join('');
+  list.querySelectorAll('[data-list-index]').forEach(function(node){
+    node.addEventListener('click', function(){ openDetail(currentListItems[Number(node.dataset.listIndex)]); });
+  });
 }
+let currentListItems = [];
 
 // --- Account (personale) ---
 const STATUS_LABEL = {active:'Attivo', expiring:'In scadenza', expired:'Scaduto'};
@@ -779,34 +826,40 @@ function loadFavorites(){
   }).then(r => r.json()).then(res => {
     if(!res.ok){ el.innerHTML = '<div class="empty">Impossibile caricare i preferiti.</div>'; return; }
     if(!res.items.length){ el.innerHTML = '<div class="empty">Non hai ancora salvato nessun annuncio.</div>'; return; }
-    el.innerHTML = res.items.map(ad => `
+    // Cerut direct ("anunturile din preferite nu se deschid bine"):
+    // JSON-ul intreg, bagat direct intr-un atribut onclick, se rupea
+    // usor pe descrieri lungi sau cu caractere speciale. Pastram
+    // datele intr-o lista separata (favoriteItems) si deschidem dupa
+    // INDEX, prin addEventListener - fara nicio scriere/citire de
+    // JSON in atribute HTML.
+    favoriteItems = res.items;
+    favoriteItems.forEach(ad => favoritedIds.add(ad.id));
+    el.innerHTML = res.items.map((ad, i) => `
       <div class="adcard">
         <div class="adcard-accent" style="background:var(--${TYPE_COLOR_VAR[ad.type]});"></div>
-        <div class="adcard-body" style="cursor:pointer;" onclick='openDetail(${JSON.stringify(ad).replace(/'/g,"&#39;")})'>
+        <div class="adcard-body" style="cursor:pointer;" data-fav-index="${i}">
           <div class="adcard-top"><h3>${escapeHtml(ad.title)}</h3></div>
           <div class="sub">${TYPE_LABEL[ad.type]} · ${escapeHtml(ad.company)} · ${escapeHtml(ad.location)}</div>
         </div>
         <div class="adactions">
-          <button class="iconbtn" title="Rimuovi dai preferiti" onclick="unfavoriteAd('${ad.id}')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
+          <button class="iconbtn" title="Rimuovi dai preferiti" data-unfav-id="${ad.id}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
         </div>
       </div>
     `).join('');
+    el.querySelectorAll('[data-fav-index]').forEach(function(node){
+      node.addEventListener('click', function(){ openDetail(favoriteItems[Number(node.dataset.favIndex)]); });
+    });
+    el.querySelectorAll('[data-unfav-id]').forEach(function(node){
+      node.addEventListener('click', function(){ unfavoriteAd(node.dataset.unfavId); });
+    });
   }).catch(() => { el.innerHTML = '<div class="empty">Errore di connessione — riprova.</div>'; });
 }
+let favoriteItems = [];
 function unfavoriteAd(id){
   supabaseClient.auth.getSession().then(res => {
     const token = res.data && res.data.session && res.data.session.access_token;
     return fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'unfavorite', access_token: token, annuncio_id: id }) });
-  }).then(() => loadFavorites());
-}
-function favoriteAd(id, btn){
-  if(!currentUser){ alert('Accedi con Google per salvare gli annunci.'); return; }
-  supabaseClient.auth.getSession().then(res => {
-    const token = res.data && res.data.session && res.data.session.access_token;
-    return fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'favorite', access_token: token, annuncio_id: id }) });
-  }).then(r => r.json()).then(res => {
-    if(res.ok && btn) btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.6l-1-1a5.5 5.5 0 00-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 000-7.8z"/></svg> Salvato';
-  });
+  }).then(() => { favoritedIds.delete(id); loadFavorites(); });
 }
 
 document.getElementById('search').addEventListener('input', render);
