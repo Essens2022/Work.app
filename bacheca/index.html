@@ -52,7 +52,7 @@ a{color:inherit;text-decoration:none}
 .backlink{color:var(--ink-soft);font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;font-family:inherit;padding:0;}
 .searchbar{flex:1;display:flex;gap:8px;background:var(--bg);border:1.5px solid var(--line);border-radius:10px;padding:4px;max-width:480px;}
 .searchbar svg{margin:0 0 0 10px;flex:none;color:var(--ink-soft);align-self:center;}
-.searchbar input{flex:1;border:none;background:none;padding:9px 8px;font-size:14px;color:var(--ink);font-family:inherit;}
+.searchbar input{flex:1;border:none;background:none;padding:9px 8px;font-size:16px;color:var(--ink);font-family:inherit;}
 .searchbar input:focus{outline:none;}
 .searchbar button{background:var(--accent);color:#fff;border:none;border-radius:7px;padding:0 18px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;}
 .postbtn{background:var(--ink);color:var(--card);border:none;border-radius:8px;padding:10px 18px;font-weight:600;font-size:13.5px;cursor:pointer;font-family:inherit;white-space:nowrap;display:flex;align-items:center;gap:7px;}
@@ -112,7 +112,7 @@ a{color:inherit;text-decoration:none}
 .modal .close{float:right;background:none;border:none;font-size:20px;color:var(--ink-soft);cursor:pointer;}
 .modal-field{margin:14px 0;}
 .modal-field label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:4px;}
-.modal-field input,.modal-field textarea,.modal-field select{width:100%;border:1.5px solid var(--line);border-radius:8px;padding:9px 11px;font-size:14px;font-family:inherit;color:var(--ink);background:var(--bg);}
+.modal-field input,.modal-field textarea,.modal-field select{width:100%;border:1.5px solid var(--line);border-radius:8px;padding:9px 11px;font-size:16px;font-family:inherit;color:var(--ink);background:var(--bg);}
 .google-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:var(--bg);border:1.5px solid var(--line);border-radius:8px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink);}
 .submit-btn{-webkit-appearance:none;appearance:none;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:100%;height:48px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:0 13px;font-weight:700;font-size:14.5px;cursor:pointer;font-family:inherit;margin-top:6px;}
 .divider{display:flex;align-items:center;gap:10px;margin:16px 0;color:var(--ink-soft);font-size:12px;}
@@ -304,7 +304,11 @@ a{color:inherit;text-decoration:none}
     <div class="modal-field"><label>Categoria</label><select id="fType"><option value="job">Lavoro</option><option value="client">Trasporti</option><option value="marketplace">Marketplace</option><option value="service">Servizi</option></select></div>
     <div class="modal-field"><label>Titolo</label><input id="fTitle" placeholder="Es. Cerco autista patente CE"></div>
     <div class="modal-field"><label>Azienda / nome</label><input id="fCompany" placeholder="Chi pubblica l'annuncio"></div>
-    <div class="modal-field"><label>Località</label><input id="fLocation" placeholder="Città o zona"></div>
+    <div class="modal-field" style="position:relative;">
+      <label>Località</label>
+      <input id="fLocation" placeholder="Città o zona" autocomplete="off">
+      <div id="fLocationSuggest" style="display:none;position:absolute;left:0;right:0;top:100%;margin-top:4px;background:var(--card);border:1.5px solid var(--line);border-radius:8px;max-height:220px;overflow-y:auto;z-index:10;box-shadow:0 4px 14px rgba(0,0,0,.08);"></div>
+    </div>
     <!-- Cerut direct ("in baza la ce publica, poate si mai multe
          campuri"): trei campuri libere, cu eticheta care se adapteaza
          la categoria aleasa mai sus - compenso pentru un loc de
@@ -358,6 +362,21 @@ let SAMPLE_ADS = [];
 // un singur tablou, exact ca inainte (SAMPLE_ADS), ca tot restul
 // codului (filtre, cautare, randare) sa ramana neschimbat.
 const ANNUNCI_API = 'https://chboalgzigdglygnnist.supabase.co/functions/v1/annunci';
+// Cerut direct ("la anuntul nedeschis, posibilitatea de a trimite
+// anuntul"): foloseste acelasi link de distribuire deja functional
+// (server, actiune GET, cu imagine/titlu corecte la partajare), doar
+// ca acum e accesibil si direct din lista, fara sa deschizi anuntul
+// intai. navigator.share cand exista (telefon); altfel, copiat in
+// clipboard, cu confirmare vizuala.
+function shareAd(id, title){
+  const url = ANNUNCI_API + '?id=' + encodeURIComponent(id);
+  fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'track_share', id }) }).catch(()=>{});
+  if(navigator.share){
+    navigator.share({ title: title, url: url }).catch(()=>{});
+  } else {
+    navigator.clipboard.writeText(url).then(() => alert('Link copiato negli appunti.')).catch(() => prompt('Copia questo link:', url));
+  }
+}
 async function loadAds(){
   document.getElementById('list').innerHTML = '<div class="empty">Caricamento annunci…</div>';
   try {
@@ -704,6 +723,15 @@ function openDetail(ad){
   const favBtn = document.getElementById('favBtn');
   applyFavoriteButtonState(favBtn, favoritedIds.has(ad.id));
   favBtn.addEventListener('click', function(){ toggleFavorite(ad.id, favBtn); });
+  // Cerut direct ("sa se vada vizualizarile clickurile"): fara asta,
+  // aceste numere raman mereu 0 - nimic nu le crestea pana acum.
+  // "Fire and forget" - nu blocheaza deschiderea anuntului daca reteaua
+  // e lenta, si o eroare aici nu trebuie sa opreasca nimic vizibil.
+  fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'track_view', id: ad.id }) }).catch(()=>{});
+  const contattaLink = document.querySelector('#detailBody a.submit-btn');
+  if(contattaLink) contattaLink.addEventListener('click', function(){
+    fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'track_click', id: ad.id }) }).catch(()=>{});
+  });
 }
 
 function renderFilters(){
@@ -728,20 +756,14 @@ function toggleType(t){
   render();
 }
 
-function render(){
-  renderFilters();
-  const q = document.getElementById('search').value.trim().toLowerCase();
-  let items = SAMPLE_ADS.filter(ad => activeTypes.has(ad.type) && (!q || (ad.title+ad.company+ad.location).toLowerCase().includes(q)));
-  if(sortMode==='recent') items = items.slice().sort((a,b)=> b.created_at.localeCompare(a.created_at));
-  document.getElementById('resultCount').textContent = items.length + (items.length===1?' risultato':' risultati');
-  const list = document.getElementById('list');
-  if(!items.length){ list.innerHTML = '<div class="empty">Nessun annuncio trovato con questi filtri.</div>'; return; }
-  // Cerut direct ("anunturile din preferite nu se deschid bine"):
-  // aceeasi reparatie, si aici - deschidem dupa INDEX (currentListItems),
-  // niciodata cu JSON scris direct intr-un atribut onclick.
-  currentListItems = items;
-  list.innerHTML = items.map((ad, i) => `
-    <div class="row" data-list-index="${i}">
+// Cerut direct ("in preferite se adauga exact cum sunt anunturile de
+// pe pagina principala"): un singur sablon de randare a unui anunt
+// (rowHtml), folosit AICI si in Preferiti - nu mai exista doua
+// variante diferite, una simplificata pentru Preferiti - arata
+// mereu identic, oriunde apare lista de anunturi.
+function adRowHtml(ad, indexAttr){
+  return `
+    <div class="row" ${indexAttr}>
       <div class="row-accent" style="background:var(--${TYPE_COLOR_VAR[ad.type]});"></div>
       <div class="row-body">
         ${ad.image_url ? `<img class="avatar" src="${ad.image_url}" alt="" style="object-fit:cover;">` : `<div class="avatar">${initials(ad.company)}</div>`}
@@ -759,18 +781,56 @@ function render(){
         <div class="row-right-line">
           ${ad.price_label ? `<span class="price">${ad.price_label}</span>` : ''}
           <span class="date">${formatDate(ad.created_at)}</span>
-          <button class="row-fav" data-row-fav="${ad.id}" title="Salva nei preferiti" style="flex:none;width:28px;height:28px;border:1.5px solid var(--line);border-radius:7px;background:var(--card);display:flex;align-items:center;justify-content:center;color:var(--ink);cursor:pointer;">${favoritedIds.has(ad.id) ? HEART_FILLED : HEART_OUTLINE}</button>
+          <div style="display:flex;gap:6px;flex:none;">
+            <button class="row-share" data-row-share="${ad.id}" data-row-share-title="${escapeHtml(ad.title)}" title="Condividi" style="flex:none;width:28px;height:28px;border:1.5px solid var(--line);border-radius:7px;background:var(--card);display:flex;align-items:center;justify-content:center;color:var(--ink);cursor:pointer;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 3.9M15.4 6.6L8.6 10.5"/></svg>
+            </button>
+            <button class="row-fav" data-row-fav="${ad.id}" title="Salva nei preferiti" style="flex:none;width:28px;height:28px;border:1.5px solid var(--line);border-radius:7px;background:var(--card);display:flex;align-items:center;justify-content:center;color:var(--ink);cursor:pointer;">${favoritedIds.has(ad.id) ? HEART_FILLED : HEART_OUTLINE}</button>
+          </div>
         </div>
       </div>
     </div>
-  `).join('');
-  list.querySelectorAll('[data-row-fav]').forEach(function(node){
+  `;
+}
+function wireAdRowEvents(container, items){
+  container.querySelectorAll('[data-row-share]').forEach(function(node){
+    node.addEventListener('click', function(e){
+      e.stopPropagation();
+      shareAd(node.dataset.rowShare, node.dataset.rowShareTitle);
+    });
+  });
+  container.querySelectorAll('[data-row-fav]').forEach(function(node){
     if(favoritedIds.has(node.dataset.rowFav)){ node.style.background='var(--accent)'; node.style.borderColor='var(--accent)'; node.style.color='#fff'; }
-    node.addEventListener('click', function(e){ e.stopPropagation(); toggleFavorite(node.dataset.rowFav, node); });
+    node.addEventListener('click', function(e){
+      e.stopPropagation();
+      // Cerut direct: in Preferiti, apasarea inimii scoate anuntul
+      // direct din lista (nu doar schimba culoarea, ca in restul
+      // paginii) - aici "salvat" chiar inseamna "e in aceasta lista".
+      if(container.id === 'favoritesList'){
+        const row = node.closest('.row');
+        if(row) row.remove();
+        unfavoriteAd(node.dataset.rowFav);
+      } else {
+        toggleFavorite(node.dataset.rowFav, node);
+      }
+    });
   });
-  list.querySelectorAll('[data-list-index]').forEach(function(node){
-    node.addEventListener('click', function(){ openDetail(currentListItems[Number(node.dataset.listIndex)]); });
+  container.querySelectorAll('[data-list-index]').forEach(function(node){
+    node.addEventListener('click', function(){ openDetail(items[Number(node.dataset.listIndex)]); });
   });
+}
+
+function render(){
+  renderFilters();
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  let items = SAMPLE_ADS.filter(ad => activeTypes.has(ad.type) && (!q || (ad.title+ad.company+ad.location).toLowerCase().includes(q)));
+  if(sortMode==='recent') items = items.slice().sort((a,b)=> b.created_at.localeCompare(a.created_at));
+  document.getElementById('resultCount').textContent = items.length + (items.length===1?' risultato':' risultati');
+  const list = document.getElementById('list');
+  if(!items.length){ list.innerHTML = '<div class="empty">Nessun annuncio trovato con questi filtri.</div>'; return; }
+  currentListItems = items;
+  list.innerHTML = items.map((ad, i) => adRowHtml(ad, `data-list-index="${i}"`)).join('');
+  wireAdRowEvents(list, items);
 }
 let currentListItems = [];
 
@@ -837,6 +897,8 @@ function renderAds(items){
         <div class="adstats">
           <div class="adstat"><b>${ad.views_count||0}</b>Visualizzazioni</div>
           <div class="adstat"><b>${ad.clicks_count||0}</b>Contatti ricevuti</div>
+          <div class="adstat"><b>${ad.saves_count||0}</b>Salvato nei preferiti</div>
+          <div class="adstat"><b>${ad.shares_count||0}</b>Condivisioni</div>
         </div>
       </div>
       <div class="adactions">
@@ -877,24 +939,8 @@ function loadFavorites(){
     // JSON in atribute HTML.
     favoriteItems = res.items;
     favoriteItems.forEach(ad => favoritedIds.add(ad.id));
-    el.innerHTML = res.items.map((ad, i) => `
-      <div class="adcard">
-        <div class="adcard-accent" style="background:var(--${TYPE_COLOR_VAR[ad.type]});"></div>
-        <div class="adcard-body" style="cursor:pointer;" data-fav-index="${i}">
-          <div class="adcard-top"><h3>${escapeHtml(ad.title)}</h3></div>
-          <div class="sub">${TYPE_LABEL[ad.type]} · ${escapeHtml(ad.company)} · ${escapeHtml(ad.location)}</div>
-        </div>
-        <div class="adactions">
-          <button class="iconbtn" title="Rimuovi dai preferiti" data-unfav-id="${ad.id}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
-        </div>
-      </div>
-    `).join('');
-    el.querySelectorAll('[data-fav-index]').forEach(function(node){
-      node.addEventListener('click', function(){ openDetail(favoriteItems[Number(node.dataset.favIndex)]); });
-    });
-    el.querySelectorAll('[data-unfav-id]').forEach(function(node){
-      node.addEventListener('click', function(){ unfavoriteAd(node.dataset.unfavId); });
-    });
+    el.innerHTML = res.items.map((ad, i) => adRowHtml(ad, `data-list-index="${i}"`)).join('');
+    wireAdRowEvents(el, favoriteItems);
   }).catch(() => { el.innerHTML = '<div class="empty">Errore di connessione — riprova.</div>'; });
 }
 let favoriteItems = [];
