@@ -1,0 +1,524 @@
+<!doctype html>
+<!-- Cerut direct ("adauga si da-mi linkul dupa"): prima versiune
+     publica a Bachecii, la adbsmart.it/bacheca - un singur document
+     (Bacheca + Cont personal, un intreg unic, comutare instanta,
+     fara reincarcare de pagina). STARE ACTUALA, de retinut pentru
+     continuare: anunturile de mai jos (SAMPLE_ADS) sunt date de
+     exemplu, nu vin inca din baza de date reala (adb_annunci); iar
+     "Continua con Google" simuleaza accesul (localStorage), fara
+     OAuth real inca - amandoua trebuie conectate la infrastructura
+     reala inainte ca pagina sa primeasca anunturi si conturi
+     adevarate. -->
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Bacheca — ADB Smart</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F4F5F7; --card:#FFFFFF; --ink:#181A1E; --ink-soft:#666B76; --line:#E4E6EA;
+  --accent:#E8542B; --accent-ink:#FFFFFF; --accent-soft:#FCE7DF;
+  --job:#E8542B; --client:#B4791C; --market:#2E8062; --service:#7A4FB0;
+  --ok:#1F7A46; --ok-soft:#DCF3E6; --warn:#B4791C; --warn-soft:#F7EAD2;
+}
+:root[data-theme="dark"]{ --bg:#111214; --card:#1A1C20; --ink:#F2F1EF; --ink-soft:#94969C; --line:#2A2D33; --accent-soft:#3A2216; }
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif;}
+a{color:inherit;text-decoration:none}
+/* Cerut direct ("nu poti sa faci separat ca ele sa se incarce greu...
+   trebuie sa faci sa se porneasca imediat, dintr-o data"): Bacheca si
+   pagina personala sunt acum UN SINGUR document - comutarea intre ele
+   e doar un show/hide intern (functia showScreen), instant, fara nicio
+   incarcare noua de pagina si fara sa depinda de localStorage impartit
+   intre doua adrese separate (care oricum nu ar fi mers pe doua
+   artefacte publicate diferit, la doua URL-uri diferite). */
+.app-screen{display:none;}
+.app-screen.active{display:block;}
+
+.topbar{position:sticky;top:0;z-index:20;background:color-mix(in srgb, var(--card) 88%, transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border-bottom:1px solid var(--line);}
+.headwrap{max-width:1080px;margin:0 auto;padding:16px 24px 0;display:flex;align-items:center;gap:20px;}
+#screen-account .headwrap{padding:14px 24px;}
+.logo{font-weight:700;font-size:19px;letter-spacing:-.01em;flex:none;display:flex;align-items:center;gap:8px;}
+.logo-mark{width:30px;height:30px;flex:none;object-fit:contain;}
+.logo span{color:var(--accent);}
+.backlink{color:var(--ink-soft);font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;font-family:inherit;padding:0;}
+.searchbar{flex:1;display:flex;gap:8px;background:var(--bg);border:1.5px solid var(--line);border-radius:10px;padding:4px;max-width:480px;}
+.searchbar svg{margin:0 0 0 10px;flex:none;color:var(--ink-soft);align-self:center;}
+.searchbar input{flex:1;border:none;background:none;padding:9px 8px;font-size:14px;color:var(--ink);font-family:inherit;}
+.searchbar input:focus{outline:none;}
+.searchbar button{background:var(--accent);color:#fff;border:none;border-radius:7px;padding:0 18px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;}
+.postbtn{background:var(--ink);color:var(--card);border:none;border-radius:8px;padding:10px 18px;font-weight:600;font-size:13.5px;cursor:pointer;font-family:inherit;white-space:nowrap;display:flex;align-items:center;gap:7px;}
+/* Cerut direct ("cand contul deja s-a logat... apasand pe numele sau
+   intra in profilul sau", nu mai cere login din nou): cip-ul e acum
+   un buton simplu care schimba direct ecranul - nicio verificare,
+   niciun link catre alta pagina, nicio cerere de logare repetata. */
+.authchip{display:flex;align-items:center;gap:9px;cursor:pointer;background:none;border:none;font-family:inherit;padding:0;}
+.authchip .avatar{width:32px;height:32px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12.5px;flex:none;}
+.authchip .name{font-size:13.5px;font-weight:600;white-space:nowrap;color:var(--ink);}
+.google-mini-btn{display:flex;align-items:center;gap:8px;background:var(--card);border:1.5px solid var(--line);border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink);white-space:nowrap;}
+
+.filterbar{max-width:1080px;margin:0 auto;padding:12px 24px 14px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.fpill{display:flex;align-items:center;justify-content:center;gap:7px;border:1.5px solid var(--line);background:var(--card);color:var(--ink-soft);padding:8px 14px;border-radius:100px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:border-color .12s, color .12s;flex:1;min-width:0;white-space:nowrap;}
+.pillgroup{display:flex;gap:8px;flex:1;min-width:0;}
+.fpill svg{width:15px;height:15px;flex:none;}
+.fpill[aria-pressed="true"]{border-color:var(--pill-color, var(--accent));color:var(--pill-color, var(--accent));background:var(--pill-bg, var(--accent-soft));}
+.fpill .n{color:inherit;opacity:.65;font-weight:500;}
+.sortsel{margin-left:auto;border:1.5px solid var(--line);background:var(--card);color:var(--ink-soft);padding:8px 12px;border-radius:100px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;}
+@media (max-width:760px){ #screen-bacheca .headwrap{flex-wrap:wrap;padding-bottom:10px;} .searchbar{order:3;max-width:none;width:100%;} #screen-bacheca .postbtn{order:2;} .sortsel{margin-left:0;width:100%;order:99;} }
+@media (max-width:560px){ .pillgroup{flex-wrap:wrap;} .fpill{flex:1 1 calc(50% - 4px);} }
+@media (max-width:600px){
+  .row{flex-direction:column;}
+  .row-right{text-align:left;padding:0 18px 16px;display:flex;align-items:center;gap:10px;}
+  .row-right .date{margin-top:0;}
+  .row-right .price::after{content:'·';margin-left:10px;color:var(--line);font-weight:400;}
+}
+
+.wrap{max-width:1080px;margin:0 auto;padding:22px 24px 80px;}
+.results-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;}
+.results-head h2{font-size:15px;font-weight:600;margin:0;}
+.results-head span{color:var(--ink-soft);font-size:13px;}
+
+.row{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:0;margin-bottom:10px;cursor:pointer;display:flex;gap:0;align-items:stretch;transition:transform .12s ease, box-shadow .12s ease;overflow:hidden;}
+.row:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(24,26,30,.07);}
+.row-accent{width:4px;flex:none;}
+.row-body{display:flex;gap:14px;align-items:flex-start;padding:16px 18px;flex:1;min-width:0;}
+.avatar{width:42px;height:42px;border-radius:9px;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex:none;}
+.row-main{flex:1;min-width:0;}
+.row-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.row-top h3{font-size:15.5px;font-weight:600;margin:0;}
+.tag{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:3px 8px;border-radius:5px;color:#fff;}
+.tag.job{background:var(--job)} .tag.client{background:var(--client)} .tag.marketplace{background:var(--market)} .tag.service{background:var(--service)}
+.row .company{font-size:13.5px;color:var(--ink-soft);margin-top:3px;}
+.row .meta{font-size:12.5px;color:var(--ink-soft);margin-top:6px;display:flex;gap:14px;flex-wrap:wrap;}
+.row-right{text-align:right;flex:none;padding:16px 18px 16px 0;}
+.row-right .price{font-weight:700;font-size:14.5px;color:var(--ink);}
+.row-right .date{font-size:11.5px;color:var(--ink-soft);margin-top:4px;}
+.badge-new{background:#DCF3E6;color:#1F7A46;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:5px;}
+
+.empty{text-align:center;color:var(--ink-soft);padding:60px 0;font-size:14px;}
+
+.modal-bg{position:fixed;inset:0;background:rgba(10,10,12,.5);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;}
+.modal-bg.open{display:flex;}
+.modal{background:var(--card);width:100%;max-width:520px;border-radius:16px;padding:26px;max-height:86vh;overflow-y:auto;}
+.modal h2{font-size:20px;margin:8px 0 4px;}
+.modal .close{float:right;background:none;border:none;font-size:20px;color:var(--ink-soft);cursor:pointer;}
+.modal-field{margin:14px 0;}
+.modal-field label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:4px;}
+.modal-field input,.modal-field textarea,.modal-field select{width:100%;border:1.5px solid var(--line);border-radius:8px;padding:9px 11px;font-size:14px;font-family:inherit;color:var(--ink);background:var(--bg);}
+.google-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:var(--bg);border:1.5px solid var(--line);border-radius:8px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink);}
+.submit-btn{width:100%;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:13px;font-weight:700;font-size:14.5px;cursor:pointer;font-family:inherit;margin-top:6px;}
+.divider{display:flex;align-items:center;gap:10px;margin:16px 0;color:var(--ink-soft);font-size:12px;}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--line);}
+
+/* --- Account --- */
+.acc-wrap{max-width:1080px;margin:0 auto;padding:30px 24px 90px;display:grid;grid-template-columns:220px 1fr;gap:28px;}
+@media (max-width:820px){ .acc-wrap{grid-template-columns:1fr;} }
+.navcol{display:flex;flex-direction:column;gap:2px;}
+.navitem{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;font-size:13.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;border:none;background:none;text-align:left;font-family:inherit;}
+.navitem svg{width:17px;height:17px;flex:none;}
+.navitem[aria-current="true"]{background:var(--accent-soft);color:var(--accent);}
+.navcol hr{border:none;border-top:1px solid var(--line);margin:10px 4px;}
+.section{display:none;}
+.section.active{display:block;}
+.section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;gap:12px;flex-wrap:wrap;}
+.section-head h1{font-size:21px;margin:0;}
+.section-head p{margin:4px 0 0;color:var(--ink-soft);font-size:13.5px;}
+.newbtn{background:var(--ink);color:var(--card);border:none;border-radius:8px;padding:10px 16px;font-weight:600;font-size:13.5px;cursor:pointer;font-family:inherit;display:flex;align-items:center;gap:7px;white-space:nowrap;}
+.adcard{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:0;margin-bottom:10px;display:flex;overflow:hidden;}
+.adcard-accent{width:4px;flex:none;}
+.adcard-body{flex:1;padding:16px 18px;min-width:0;}
+.adcard-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.adcard-top h3{font-size:15px;font-weight:600;margin:0;}
+.status{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:3px 8px;border-radius:5px;}
+.status.active{background:var(--ok-soft);color:var(--ok);}
+.status.expiring{background:var(--warn-soft);color:var(--warn);}
+.status.expired{background:var(--line);color:var(--ink-soft);}
+.adcard .sub{font-size:13px;color:var(--ink-soft);margin-top:3px;}
+.adstats{display:flex;gap:20px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);}
+.adstat{font-size:12.5px;color:var(--ink-soft);}
+.adstat b{color:var(--ink);font-size:14px;display:block;}
+.adactions{display:flex;align-items:center;gap:8px;padding:16px 18px;flex:none;border-left:1px solid var(--line);}
+.iconbtn{width:34px;height:34px;border:1px solid var(--line);background:var(--card);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink-soft);}
+.iconbtn:hover{border-color:var(--accent);color:var(--accent);}
+@media (max-width:600px){ .adcard{flex-direction:column;} .adactions{border-left:none;border-top:1px solid var(--line);justify-content:flex-end;} }
+.plancard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:24px;}
+.plancard h3{font-size:16px;margin:0 0 4px;}
+.plancard p{margin:0;color:var(--ink-soft);font-size:13px;}
+.plan-price{font-size:26px;font-weight:700;text-align:right;}
+.plan-price span{font-size:13px;font-weight:500;color:var(--ink-soft);}
+.upgradebtn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:11px 18px;font-weight:600;font-size:13.5px;cursor:pointer;font-family:inherit;white-space:nowrap;}
+.invoice-table{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;}
+.inv-row{display:grid;grid-template-columns:110px 1fr 100px 90px;gap:12px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);font-size:13.5px;}
+.inv-row:last-child{border-bottom:none;}
+.inv-head{color:var(--ink-soft);font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;}
+.inv-amount{font-weight:600;text-align:right;}
+.inv-dl{color:var(--accent);font-weight:600;text-align:right;cursor:pointer;font-size:13px;}
+@media (max-width:600px){ .inv-row{grid-template-columns:1fr auto;grid-template-areas:"date amount" "desc desc" "dl dl";row-gap:4px;} .inv-head{display:none;} }
+.accountfield{display:flex;align-items:center;justify-content:space-between;padding:16px 0;border-bottom:1px solid var(--line);gap:16px;}
+.accountfield:last-child{border-bottom:none;}
+.accountfield .l{font-size:13px;color:var(--ink-soft);}
+.accountfield .v{font-size:14px;font-weight:600;}
+.card-block{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 20px;}
+.modal-actions{display:flex;gap:10px;}
+.btn-ghost{flex:1;background:var(--bg);border:1.5px solid var(--line);border-radius:8px;padding:11px;font-weight:600;font-size:13.5px;cursor:pointer;font-family:inherit;color:var(--ink);}
+.btn-danger{flex:1;background:#C0392B;color:#fff;border:none;border-radius:8px;padding:11px;font-weight:600;font-size:13.5px;cursor:pointer;font-family:inherit;}
+</style>
+</head>
+<body>
+
+<!-- ============ SCHERMATA 1: BACHECA (pubblica) ============ -->
+<div class="app-screen active" id="screen-bacheca">
+  <div class="topbar">
+    <div class="headwrap">
+      <div class="logo"><img class="logo-mark" src="data:image/png;base64,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" alt="ADB Smart">ADB <span>Bacheca</span></div>
+      <div class="searchbar">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input id="search" type="text" placeholder="Titolo, azienda o città…">
+        <button onclick="render()">Cerca</button>
+      </div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
+        <button class="postbtn" onclick="openPost()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>Pubblica</button>
+        <div id="authArea"></div>
+      </div>
+    </div>
+    <div class="filterbar" id="filterbar"></div>
+  </div>
+
+  <div class="wrap">
+    <div class="results-head">
+      <h2>Annunci</h2>
+      <span id="resultCount"></span>
+    </div>
+    <div id="list"></div>
+  </div>
+</div>
+
+<!-- ============ SCHERMATA 2: ACCOUNT (personale) ============ -->
+<div class="app-screen" id="screen-account">
+  <div class="topbar">
+    <div class="headwrap">
+      <button class="backlink" onclick="showScreen('bacheca')"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <div class="logo"><img class="logo-mark" src="data:image/png;base64,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" alt="ADB Smart">ADB <span>Bacheca</span></div>
+      <div class="authchip" id="userchip" style="margin-left:auto;" onclick="showScreen('account')">
+        <div class="avatar">MR</div>
+        <div class="name">Mario Rossi</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="acc-wrap">
+    <div class="navcol">
+      <button class="navitem" aria-current="true" onclick="showAccSection('annunci', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18M3 7l1 12a1 1 0 001 1h14a1 1 0 001-1l1-12M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+        I miei annunci
+      </button>
+      <button class="navitem" onclick="showAccSection('fatturazione', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h4"/></svg>
+        Fatturazione
+      </button>
+      <button class="navitem" onclick="showAccSection('account', this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
+        Account
+      </button>
+      <hr>
+      <button class="navitem" onclick="showScreen('bacheca')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+        Vai alla bacheca
+      </button>
+    </div>
+
+    <div>
+      <div class="section active" id="sec-annunci">
+        <div class="section-head">
+          <div><h1>I miei annunci</h1><p>Gestisci, modifica o rinnova le tue pubblicazioni.</p></div>
+          <button class="newbtn" onclick="showScreen('bacheca');openPost();"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>Nuovo annuncio</button>
+        </div>
+        <div id="adsList"></div>
+      </div>
+
+      <div class="section" id="sec-fatturazione">
+        <div class="section-head">
+          <div><h1>Fatturazione</h1><p>Il tuo piano attuale e lo storico dei pagamenti.</p></div>
+        </div>
+        <div class="plancard">
+          <div>
+            <h3>Piano Base</h3>
+            <p>1 annuncio attivo incluso · rinnovo mensile automatico</p>
+          </div>
+          <div style="display:flex;align-items:center;gap:18px;">
+            <div class="plan-price">4,99 € <span>/ mese</span></div>
+            <button class="upgradebtn">Passa a Pro</button>
+          </div>
+        </div>
+        <div class="invoice-table" id="invoiceTable"></div>
+      </div>
+
+      <div class="section" id="sec-account">
+        <div class="section-head">
+          <div><h1>Account</h1><p>Le informazioni collegate al tuo accesso Google.</p></div>
+        </div>
+        <div class="card-block">
+          <div class="accountfield"><div class="l">Nome</div><div class="v" id="acc-nome">Mario Rossi</div></div>
+          <div class="accountfield"><div class="l">Email</div><div class="v" id="acc-email">mario.rossi@gmail.com</div></div>
+          <div class="accountfield"><div class="l">Accesso</div><div class="v">Google · connesso</div></div>
+          <div class="accountfield"><div class="l">Membro dal</div><div class="v">Settembre 2026</div></div>
+        </div>
+        <div style="margin-top:22px;display:flex;gap:10px;">
+          <button class="btn-ghost" style="width:auto;padding:11px 20px;" onclick="logout()">Esci</button>
+          <button class="btn-danger" style="width:auto;padding:11px 20px;" onclick="document.getElementById('deleteModal').classList.add('open')">Elimina account</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODALI CONDIVISI ============ -->
+<div class="modal-bg" id="detailModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal" id="detailBody"></div>
+</div>
+
+<div class="modal-bg" id="postModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal">
+    <button class="close" onclick="document.getElementById('postModal').classList.remove('open')">×</button>
+    <h2>Pubblica un annuncio</h2>
+    <div id="postModalAuthPrompt">
+      <p style="color:var(--ink-soft);font-size:13px;margin-top:0;">Accedi per continuare — protegge la bacheca da annunci falsi.</p>
+      <button class="google-btn" onclick="simulateGoogleLogin()"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.5 0 10.4-1.9 14.3-5.1l-6.6-5.6C29.6 35 26.9 36 24 36c-5.2 0-9.6-3.3-11.2-8l-6.6 5.1C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.6 5.6C41.9 36 44 30.5 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>Continua con Google</button>
+      <div class="divider">poi compila i dettagli</div>
+    </div>
+    <div class="modal-field"><label>Categoria</label><select><option>Lavoro</option><option>Trasporti</option><option>Marketplace</option><option>Servizi</option></select></div>
+    <div class="modal-field"><label>Titolo</label><input placeholder="Es. Cerco autista patente CE"></div>
+    <div class="modal-field"><label>Località</label><input placeholder="Città o zona"></div>
+    <div class="modal-field"><label>Descrizione</label><textarea rows="4" placeholder="Dettagli, requisiti, contatti…"></textarea></div>
+    <button class="submit-btn">Pubblica</button>
+  </div>
+</div>
+
+<div class="modal-bg" id="deleteModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal">
+    <button class="close" onclick="document.getElementById('deleteModal').classList.remove('open')">×</button>
+    <h2>Eliminare l'account?</h2>
+    <p style="color:var(--ink-soft);font-size:13.5px;line-height:1.5;">I tuoi annunci pubblicati verranno rimossi dalla bacheca. Questa azione non può essere annullata.</p>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="document.getElementById('deleteModal').classList.remove('open')">Annulla</button>
+      <button class="btn-danger">Elimina definitivamente</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SAMPLE_ADS = [
+  { id:'1', type:'job', title:'Cerco Autista Patente B', company:'Padova Express Courier Srl', location:'Padova', category:'Patente B', price_label:'1950 € - 2350 €', work_mode:'Full-time', extra:'Furgone', badge:'new', created_at:'2026-09-11' },
+  { id:'2', type:'job', title:'Autista Patente CE con ADR', company:'Trasporti Bianchi Srl', location:'Verona', category:'Patente CE', price_label:'2400 € - 2800 €', work_mode:'Full-time', extra:'Cisterna', badge:null, created_at:'2026-09-15' },
+  { id:'3', type:'job', title:'Autista notturno consegne GDO', company:'Logistica del Nord Spa', location:'Vicenza', category:'Patente C', price_label:'2100 € + straordinari', work_mode:'Turno notte', extra:null, badge:'urgent', created_at:'2026-09-16' },
+  { id:'4', type:'job', title:'Padroncino cercasi per conto terzi', company:'Rossi Autotrasporti', location:'Treviso', category:'Patente CE', price_label:'A cottimo, ottime tariffe', work_mode:'Partita IVA', extra:null, badge:null, created_at:'2026-09-14' },
+  { id:'5', type:'client', title:'Cerco autotrasportatore zona Nordest', company:'Ceramiche Del Piave', location:'Treviso · zona Nordest', category:'Conto terzi', price_label:null, work_mode:'Continuativo', extra:'2 viaggi/settimana', badge:'new', created_at:'2026-09-17' },
+  { id:'6', type:'client', title:'Trasporto merce refrigerata, tratta fissa', company:'Ortofrutta Serenissima', location:'Padova → Bologna', category:'Frigo', price_label:'A viaggio, da concordare', work_mode:'3 volte/settimana', extra:null, badge:null, created_at:'2026-09-13' },
+  { id:'7', type:'client', title:'Cerco padroncino per traslochi', company:'Studio Legale Marin', location:'Padova centro', category:'Occasionale', price_label:'300 € a intervento', work_mode:'Occasionale', extra:null, badge:null, created_at:'2026-09-10' },
+  { id:'8', type:'marketplace', title:'Vendo Iveco Daily 35C15, 2021', company:'Privato', location:'Padova', category:'Furgone', price_label:'18.500 €', work_mode:null, extra:'62.000 km', badge:null, created_at:'2026-09-16' },
+  { id:'9', type:'marketplace', title:'Rimorchio frigo Schmitz, revisionato', company:'Autofficina Rialto', location:'Vicenza', category:'Rimorchio', price_label:'9.900 €', work_mode:null, extra:'Anno 2018', badge:null, created_at:'2026-09-09' },
+  { id:'10', type:'marketplace', title:'Cerco motrice CE usata, buone condizioni', company:'Privato', location:'Verona e provincia', category:'Motrice', price_label:'Fino a 25.000 €', work_mode:null, extra:null, badge:null, created_at:'2026-09-12' },
+  { id:'11', type:'service', title:'Officina mobile, interventi su strada', company:'Assistenza Camion 24h', location:'Triveneto', category:'Meccanico', price_label:'Su chiamata', work_mode:'24 ore su 24', extra:null, badge:'new', created_at:'2026-09-15' },
+  { id:'12', type:'service', title:'Commercialista specializzato autotrasporto', company:'Studio Ferretto', location:'Padova', category:'Contabilita', price_label:'Preventivo gratuito', work_mode:null, extra:null, badge:null, created_at:'2026-09-08' },
+  { id:'13', type:'job', title:'Autista part-time zona Padova', company:'Corriere Veneto Srl', location:'Padova', category:'Patente B', price_label:'1200 € - 1400 €', work_mode:'Part-time', extra:null, badge:null, created_at:'2026-09-07' },
+  { id:'14', type:'service', title:'Lavaggio e sanificazione mezzi pesanti', company:'CleanTruck Nordest', location:'Padova, Vicenza, Treviso', category:'Lavaggio', price_label:'Da 40 €', work_mode:null, extra:null, badge:null, created_at:'2026-09-11' },
+];
+const TYPE_LABEL = {job:'Lavoro', client:'Trasporti', marketplace:'Marketplace', service:'Servizi'};
+const TYPE_COLOR_VAR = {job:'job', client:'client', marketplace:'market', service:'service'};
+const TYPE_ICON = {
+  job: '<path d="M3 7h18M3 7l1 12a1 1 0 001 1h14a1 1 0 001-1l1-12M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2"/>',
+  client: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
+  marketplace: '<path d="M3 9l1-5h16l1 5M3 9v10a1 1 0 001 1h16a1 1 0 001-1V9M3 9h18M9 13h6"/>',
+  service: '<path d="M14 7l3 3-8 8-3-3zM17.5 6.5l0 0a2.1 2.1 0 013 3l0 0M4 20l1.5-4.5L9 19z"/>',
+};
+let activeTypes = new Set(['job','client','marketplace','service']);
+let sortMode = 'recent';
+
+// Cerut direct ("faci sa se porneasca imediat, dintr-o data... un
+// singur intreg"): NU mai exista doua pagini/adrese separate - un
+// singur document, o singura variabila in memorie pentru starea de
+// logare (plus localStorage doar ca sa tina minte intre reincarcari
+// ale ACESTUI document, nu intre doua adrese diferite). Comutarea
+// intre Bacheca si Account e instanta (show/hide), niciodata o
+// incarcare noua de pagina.
+const AUTH_KEY = 'adb_bacheca_user';
+let currentUser = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null');
+
+function showScreen(name){
+  document.getElementById('screen-bacheca').classList.toggle('active', name==='bacheca');
+  document.getElementById('screen-account').classList.toggle('active', name==='account');
+  if(name==='account') renderAccountData();
+}
+function showAccSection(id, btn){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('sec-'+id).classList.add('active');
+  document.querySelectorAll('.navitem[aria-current]').forEach(n=>n.removeAttribute('aria-current'));
+  if(btn) btn.setAttribute('aria-current','true');
+}
+
+function renderAuthArea(){
+  const el = document.getElementById('authArea');
+  if(currentUser){
+    // Cerut direct: cont deja logat -> apasarea numelui intra direct
+    // in profil, fara sa mai ceara login inca o data.
+    el.innerHTML = `<button class="authchip" onclick="showScreen('account')"><div class="avatar">${currentUser.initials}</div><div class="name">${currentUser.name}</div></button>`;
+  } else {
+    el.innerHTML = `<button class="google-mini-btn" onclick="openPost()"><svg width="16" height="16" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.5 0 10.4-1.9 14.3-5.1l-6.6-5.6C29.6 35 26.9 36 24 36c-5.2 0-9.6-3.3-11.2-8l-6.6 5.1C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.6 5.6C41.9 36 44 30.5 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>Accedi</button>`;
+  }
+}
+function refreshPostModalAuth(){
+  const prompt = document.getElementById('postModalAuthPrompt');
+  if(currentUser){
+    prompt.innerHTML = `<div style="text-align:center;color:var(--ink-soft);font-size:13.5px;padding:6px 0 14px;">✓ Accesso effettuato come ${currentUser.name}</div>`;
+  } else {
+    prompt.innerHTML = `<p style="color:var(--ink-soft);font-size:13px;margin-top:0;">Accedi per continuare — protegge la bacheca da annunci falsi.</p>
+      <button class="google-btn" onclick="simulateGoogleLogin()"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.5 0 10.4-1.9 14.3-5.1l-6.6-5.6C29.6 35 26.9 36 24 36c-5.2 0-9.6-3.3-11.2-8l-6.6 5.1C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.6 5.6C41.9 36 44 30.5 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>Continua con Google</button>
+      <div class="divider">poi compila i dettagli</div>`;
+  }
+}
+function simulateGoogleLogin(){
+  currentUser = { name:'Mario Rossi', email:'mario.rossi@gmail.com', initials:'MR' };
+  localStorage.setItem(AUTH_KEY, JSON.stringify(currentUser));
+  renderAuthArea();
+  refreshPostModalAuth();
+}
+function logout(){
+  currentUser = null;
+  localStorage.removeItem(AUTH_KEY);
+  renderAuthArea();
+  showScreen('bacheca');
+}
+function openPost(){
+  refreshPostModalAuth();
+  document.getElementById('postModal').classList.add('open');
+}
+function initials(s){ return s.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase(); }
+
+function openDetail(ad){
+  document.getElementById('detailBody').innerHTML = `
+    <button class="close" onclick="document.getElementById('detailModal').classList.remove('open')">×</button>
+    <span class="tag ${ad.type}">${TYPE_LABEL[ad.type]}</span>
+    <h2>${ad.title}</h2>
+    <p style="color:var(--ink-soft);margin:2px 0 14px;font-size:13.5px;">${ad.company} · ${ad.location}</p>
+    ${ad.price_label ? `<p style="font-weight:700;font-size:17px;margin:0 0 12px;">${ad.price_label}</p>` : ''}
+    <p style="line-height:1.6;font-size:14px;">Annuncio di esempio per confronto grafico — qui comparirebbe la descrizione completa e i contatti.</p>
+    <button class="submit-btn">Contatta</button>
+  `;
+  document.getElementById('detailModal').classList.add('open');
+}
+
+function renderFilters(){
+  const types = ['job','client','service','marketplace'];
+  const pillsHtml = types.map(t => {
+    const n = SAMPLE_ADS.filter(a=>a.type===t).length;
+    const on = activeTypes.has(t);
+    const cv = TYPE_COLOR_VAR[t];
+    return `<button class="fpill" aria-pressed="${on}" style="--pill-color:var(--${cv});--pill-bg:color-mix(in srgb, var(--${cv}) 12%, transparent);" onclick="toggleType('${t}')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${TYPE_ICON[t]}</svg>
+      ${TYPE_LABEL[t]}<span class="n">${n}</span>
+    </button>`;
+  }).join('');
+  document.getElementById('filterbar').innerHTML = `<div class="pillgroup">${pillsHtml}</div>
+    <select class="sortsel" onchange="sortMode=this.value;render()">
+      <option value="recent">Più recenti</option>
+      <option value="price">Ordina per compenso</option>
+    </select>`;
+}
+function toggleType(t){
+  if(activeTypes.has(t)) activeTypes.delete(t); else activeTypes.add(t);
+  render();
+}
+
+function render(){
+  renderFilters();
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  let items = SAMPLE_ADS.filter(ad => activeTypes.has(ad.type) && (!q || (ad.title+ad.company+ad.location).toLowerCase().includes(q)));
+  if(sortMode==='recent') items = items.slice().sort((a,b)=> b.created_at.localeCompare(a.created_at));
+  document.getElementById('resultCount').textContent = items.length + (items.length===1?' risultato':' risultati');
+  const list = document.getElementById('list');
+  if(!items.length){ list.innerHTML = '<div class="empty">Nessun annuncio trovato con questi filtri.</div>'; return; }
+  list.innerHTML = items.map(ad => `
+    <div class="row" onclick='openDetail(${JSON.stringify(ad).replace(/'/g,"&#39;")})'>
+      <div class="row-accent" style="background:var(--${TYPE_COLOR_VAR[ad.type]});"></div>
+      <div class="row-body">
+        <div class="avatar">${initials(ad.company)}</div>
+        <div class="row-main">
+          <div class="row-top">
+            <h3>${ad.title}</h3>
+            <span class="tag ${ad.type}">${TYPE_LABEL[ad.type]}</span>
+            ${ad.badge==='new' ? '<span class="badge-new">Nuovo</span>' : ''}
+          </div>
+          <div class="company">${ad.company} · ${ad.location}</div>
+          <div class="meta">${[ad.category, ad.work_mode, ad.extra].filter(Boolean).join(' · ')}</div>
+        </div>
+      </div>
+      <div class="row-right">
+        ${ad.price_label ? `<div class="price">${ad.price_label}</div>` : ''}
+        <div class="date">${ad.created_at}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// --- Account (personale) ---
+const MY_ADS = [
+  { id:'1', type:'job', title:'Cerco Autista Patente B', location:'Padova', status:'active', views:214, clicks:18, expires:'12 ott 2026' },
+  { id:'2', type:'marketplace', title:'Vendo Iveco Daily 35C15, 2021', location:'Padova', status:'expiring', views:89, clicks:6, expires:'20 set 2026' },
+  { id:'3', type:'service', title:'Officina mobile, interventi su strada', location:'Triveneto', status:'expired', views:301, clicks:24, expires:'02 set 2026' },
+];
+const INVOICES = [
+  { date:'01 set 2026', desc:'Piano Base — rinnovo mensile', amount:'4,99 €' },
+  { date:'01 ago 2026', desc:'Piano Base — rinnovo mensile', amount:'4,99 €' },
+  { date:'15 lug 2026', desc:'Annuncio singolo — 30 giorni', amount:'2,99 €' },
+];
+const STATUS_LABEL = {active:'Attivo', expiring:'In scadenza', expired:'Scaduto'};
+
+function renderAccountData(){
+  if(currentUser){
+    document.getElementById('userchip').querySelector('.avatar').textContent = currentUser.initials;
+    document.getElementById('userchip').querySelector('.name').textContent = currentUser.name;
+    document.getElementById('acc-nome').textContent = currentUser.name;
+    document.getElementById('acc-email').textContent = currentUser.email;
+  }
+  renderAds();
+  renderInvoices();
+}
+function renderAds(){
+  const el = document.getElementById('adsList');
+  if(!MY_ADS.length){ el.innerHTML = '<div class="empty">Non hai ancora pubblicato annunci.</div>'; return; }
+  el.innerHTML = MY_ADS.map(ad => `
+    <div class="adcard">
+      <div class="adcard-accent" style="background:var(--${TYPE_COLOR_VAR[ad.type]});"></div>
+      <div class="adcard-body">
+        <div class="adcard-top">
+          <h3>${ad.title}</h3>
+          <span class="status ${ad.status}">${STATUS_LABEL[ad.status]}</span>
+        </div>
+        <div class="sub">${TYPE_LABEL[ad.type]} · ${ad.location} · scade il ${ad.expires}</div>
+        <div class="adstats">
+          <div class="adstat"><b>${ad.views}</b>Visualizzazioni</div>
+          <div class="adstat"><b>${ad.clicks}</b>Contatti ricevuti</div>
+        </div>
+      </div>
+      <div class="adactions">
+        <button class="iconbtn" title="Modifica"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z"/></svg></button>
+        <button class="iconbtn" title="Rinnova"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-3-6.7M21 3v6h-6"/></svg></button>
+        <button class="iconbtn" title="Elimina"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg></button>
+      </div>
+    </div>
+  `).join('');
+}
+function renderInvoices(){
+  const el = document.getElementById('invoiceTable');
+  el.innerHTML = '<div class="inv-row inv-head"><div>Data</div><div>Descrizione</div><div style="text-align:right;">Importo</div><div></div></div>' +
+    INVOICES.map(i => `<div class="inv-row"><div>${i.date}</div><div>${i.desc}</div><div class="inv-amount">${i.amount}</div><div class="inv-dl">Scarica PDF</div></div>`).join('');
+}
+
+document.getElementById('search').addEventListener('input', render);
+renderAuthArea();
+render();
+</script>
+</body>
+</html>
