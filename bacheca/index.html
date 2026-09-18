@@ -75,9 +75,7 @@ a{color:inherit;text-decoration:none}
 @media (max-width:560px){ .pillgroup{flex-wrap:wrap;} .fpill{flex:1 1 calc(50% - 4px);} }
 @media (max-width:600px){
   .row{flex-direction:column;}
-  .row-right{text-align:left;padding:0 18px 16px;display:flex;align-items:center;gap:10px;}
-  .row-right .date{margin-top:0;}
-  .row-right .price::after{content:'·';margin-left:10px;color:var(--line);font-weight:400;}
+  .row-right{text-align:left;padding:0 18px 16px;}
 }
 
 .wrap{max-width:1080px;margin:0 auto;padding:22px 24px 80px;}
@@ -98,8 +96,9 @@ a{color:inherit;text-decoration:none}
 .row .company{font-size:13.5px;color:var(--ink-soft);margin-top:3px;}
 .row .meta{font-size:12.5px;color:var(--ink-soft);margin-top:6px;display:flex;gap:14px;flex-wrap:wrap;}
 .row-right{text-align:right;flex:none;padding:16px 18px 16px 0;}
-.row-right .price{font-weight:700;font-size:14.5px;color:var(--ink);}
-.row-right .date{font-size:11.5px;color:var(--ink-soft);margin-top:4px;}
+.row-right-line{display:flex;align-items:center;gap:10px;}
+.row-right .price{font-weight:700;font-size:14.5px;color:var(--ink);white-space:nowrap;}
+.row-right .date{font-size:11.5px;color:var(--ink-soft);white-space:nowrap;}
 .badge-new{background:#DCF3E6;color:#1F7A46;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:5px;}
 
 .empty{text-align:center;color:var(--ink-soft);padding:60px 0;font-size:14px;}
@@ -736,10 +735,12 @@ function render(){
         </div>
       </div>
       <div class="row-right">
-        ${ad.price_label ? `<div class="price">${ad.price_label}</div>` : ''}
-        <div class="date">${formatDate(ad.created_at)}</div>
+        <div class="row-right-line">
+          ${ad.price_label ? `<span class="price">${ad.price_label}</span>` : ''}
+          <span class="date">${formatDate(ad.created_at)}</span>
+          <button class="row-fav" data-row-fav="${ad.id}" title="Salva nei preferiti" style="flex:none;width:28px;height:28px;border:1.5px solid var(--line);border-radius:7px;background:var(--card);display:flex;align-items:center;justify-content:center;color:var(--ink);cursor:pointer;">${favoritedIds.has(ad.id) ? HEART_FILLED : HEART_OUTLINE}</button>
+        </div>
       </div>
-      <button class="row-fav" data-row-fav="${ad.id}" title="Salva nei preferiti" style="flex:none;align-self:center;width:36px;height:36px;border:1.5px solid var(--line);border-radius:8px;background:var(--card);display:flex;align-items:center;justify-content:center;color:var(--ink);cursor:pointer;margin-left:6px;">${favoritedIds.has(ad.id) ? HEART_FILLED : HEART_OUTLINE}</button>
     </div>
   `).join('');
   list.querySelectorAll('[data-row-fav]').forEach(function(node){
