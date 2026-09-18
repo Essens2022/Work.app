@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v651"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v653"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -1678,6 +1678,8 @@
       // evidenta, mai usor de observat dintr-o privire decat citind
       // textul zilei saptamanii de langa fiecare rand.
       var isWeekend = exists && (date.getDay() === 0 || date.getDay() === 6);
+      var todayObj = new Date();
+      var isToday = exists && d === todayObj.getDate() && sheet.month === (todayObj.getMonth() + 1) && sheet.year === todayObj.getFullYear();
       if (!exists) {
         html += '<div class="day-row disabled"><div class="day-num">' + d + '</div><div class="day-main"><span class="placeholder">Giorno inesistente</span></div></div>';
         continue;
@@ -1695,7 +1697,7 @@
       if (g && g.kmInizio2 !== "" && g.kmInizio2 !== undefined && g.kmFine2 !== "" && g.kmFine2 !== undefined && !isNaN(g.kmFine2 - g.kmInizio2)) {
         kmtot = (kmtot || 0) + (Number(g.kmFine2) - Number(g.kmInizio2));
       }
-      html += '<div class="day-row ' + (filled ? 'filled' : '') + (isWeekend ? ' weekend' : '') + '" data-day="' + d + '">';
+      html += '<div class="day-row ' + (filled ? 'filled' : '') + (isWeekend ? ' weekend' : '') + (isToday ? ' is-today' : '') + '" data-day="' + d + '">';
       html += '<div class="day-num">' + d + '</div>';
       html += '<div class="day-main">';
       if (filled) {
@@ -10255,9 +10257,11 @@
       // in evidenta cu rosu, indiferent daca are deja un scontrin
       // atasat sau nu.
       var isWeekend = date.getDay() === 0 || date.getDay() === 6;
+      var todayObj = new Date();
+      var isToday = d === todayObj.getDate() && fuelActiveMonth === (todayObj.getMonth() + 1) && fuelActiveYear === todayObj.getFullYear();
       var count = (receipts && receipts.length) || 0;
       if (count > 0) lastReceiptDay = d;
-      html += '<div class="day-row' + (count > 0 ? ' filled' : '') + (isWeekend ? ' weekend' : '') + '" data-fuel-day="' + d + '">';
+      html += '<div class="day-row' + (count > 0 ? ' filled' : '') + (isWeekend ? ' weekend' : '') + (isToday ? ' is-today' : '') + '" data-fuel-day="' + d + '">';
       html += '<div class="day-num">' + d + '</div>';
       var subLabel = count === 0 ? 'nessuno scontrino' : (count === 1 ? '1 scontrino allegato' : count + ' scontrini allegati');
       html += '<div class="day-main"><div class="dest">Giorno ' + d + '</div><div class="sub">' + dow + ' · ' + subLabel + '</div></div>';
