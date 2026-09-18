@@ -190,7 +190,7 @@ Deno.serve(async (req) => {
         { onConflict: 'user_email,annuncio_id' }
       );
       if (error) throw error;
-      admin.rpc('adb_annunci_increment_save', { p_id: annuncioId }).catch(() => {});
+      try { await admin.rpc('adb_annunci_increment_save', { p_id: annuncioId }); } catch { /* contorul e doar informativ, nu blocheaza salvarea */ }
       return json({ ok:true });
     }
     if (action === 'unfavorite') {

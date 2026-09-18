@@ -739,8 +739,13 @@ function render(){
         ${ad.price_label ? `<div class="price">${ad.price_label}</div>` : ''}
         <div class="date">${formatDate(ad.created_at)}</div>
       </div>
+      <button class="row-fav" data-row-fav="${ad.id}" title="Salva nei preferiti" style="flex:none;align-self:center;width:36px;height:36px;border:1.5px solid var(--line);border-radius:8px;background:var(--card);display:flex;align-items:center;justify-content:center;color:var(--ink);cursor:pointer;margin-left:6px;">${favoritedIds.has(ad.id) ? HEART_FILLED : HEART_OUTLINE}</button>
     </div>
   `).join('');
+  list.querySelectorAll('[data-row-fav]').forEach(function(node){
+    if(favoritedIds.has(node.dataset.rowFav)){ node.style.background='var(--accent)'; node.style.borderColor='var(--accent)'; node.style.color='#fff'; }
+    node.addEventListener('click', function(e){ e.stopPropagation(); toggleFavorite(node.dataset.rowFav, node); });
+  });
   list.querySelectorAll('[data-list-index]').forEach(function(node){
     node.addEventListener('click', function(){ openDetail(currentListItems[Number(node.dataset.listIndex)]); });
   });
