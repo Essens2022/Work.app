@@ -293,11 +293,37 @@ a{color:inherit;text-decoration:none}
       <button class="google-btn" onclick="loginWithGoogle()"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.6 6.1 29.6 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.5 0 10.4-1.9 14.3-5.1l-6.6-5.6C29.6 35 26.9 36 24 36c-5.2 0-9.6-3.3-11.2-8l-6.6 5.1C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.6l6.6 5.6C41.9 36 44 30.5 44 24c0-1.3-.1-2.7-.4-3.5z"/></svg>Continua con Google</button>
       <div class="divider">poi compila i dettagli</div>
     </div>
-    <div class="modal-field"><label>Categoria</label><select><option>Lavoro</option><option>Trasporti</option><option>Marketplace</option><option>Servizi</option></select></div>
-    <div class="modal-field"><label>Titolo</label><input placeholder="Es. Cerco autista patente CE"></div>
-    <div class="modal-field"><label>Località</label><input placeholder="Città o zona"></div>
-    <div class="modal-field"><label>Descrizione</label><textarea rows="4" placeholder="Dettagli, requisiti, contatti…"></textarea></div>
-    <button class="submit-btn">Pubblica</button>
+    <div class="modal-field"><label>Categoria</label><select id="fType"><option value="job">Lavoro</option><option value="client">Trasporti</option><option value="marketplace">Marketplace</option><option value="service">Servizi</option></select></div>
+    <div class="modal-field"><label>Titolo</label><input id="fTitle" placeholder="Es. Cerco autista patente CE"></div>
+    <div class="modal-field"><label>Azienda / nome</label><input id="fCompany" placeholder="Chi pubblica l'annuncio"></div>
+    <div class="modal-field"><label>Località</label><input id="fLocation" placeholder="Città o zona"></div>
+    <!-- Cerut direct ("in baza la ce publica, poate si mai multe
+         campuri"): trei campuri libere, cu eticheta care se adapteaza
+         la categoria aleasa mai sus - compenso pentru un loc de
+         munca, prezzo pentru un anunt de vanzare, ambele salvate in
+         acelasi camp (price_label) pe server. -->
+    <div class="modal-field"><label id="fPriceLabel">Compenso</label><input id="fPrice" placeholder="Es. 2000 € - 2400 €"></div>
+    <div class="modal-field"><label id="fWorkLabel">Tipo di contratto</label><input id="fWork" placeholder="Es. Full-time"></div>
+    <div class="modal-field"><label>Descrizione</label><textarea id="fDescription" rows="4" placeholder="Dettagli, requisiti…"></textarea></div>
+    <!-- Cerut direct ("nr tel nu se publica, doar apasa contatta si
+         ii iese numarul"): telefonul (sau email-ul) NU apare scris in
+         anunt - se arata doar cand cineva apasa Contatta, in fereastra
+         de detaliu. Aici e doar locul unde autorul il scrie, o
+         singura data, la publicare. -->
+    <div class="modal-field"><label>Telefono o email di contatto</label><input id="fContact" placeholder="Non mostrato direttamente — solo al tocco di Contatta"></div>
+    <!-- Cerut direct ("sa se publice si logo poza, logo poza ramane
+         sub 20kb"): comprimata automat in browser (redimensionata +
+         calitate redusa treptat) pana ajunge sub 20kb, inainte sa fie
+         trimisa - fara sa fie nevoie ca autorul sa stie sau sa faca
+         ceva in plus, doar alege poza. -->
+    <div class="modal-field">
+      <label>Foto (opzionale)</label>
+      <input id="fImageFile" type="file" accept="image/png,image/jpeg,image/webp">
+      <div id="fImageStatus" style="font-size:12px;color:var(--ink-soft);margin-top:6px;"></div>
+      <img id="fImagePreview" style="display:none;max-width:100%;max-height:120px;border-radius:8px;margin-top:8px;">
+    </div>
+    <div id="publishError" style="display:none;color:#C0392B;font-size:13px;margin:10px 0;"></div>
+    <button class="submit-btn" id="publishSubmitBtn" onclick="submitAnnuncio()">Pubblica</button>
   </div>
 </div>
 
@@ -422,6 +448,8 @@ function logout(){
 }
 function openPost(){
   refreshPostModalAuth();
+  updateFormLabels();
+  document.getElementById('publishError').style.display = 'none';
   document.getElementById('postModal').classList.add('open');
 }
 function initials(s){ return s.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase(); }
@@ -430,6 +458,142 @@ function formatDate(iso){ try { return new Date(iso).toLocaleDateString('it-IT',
 // utilizatori (nu mai e text fix, scris de noi) - trece prin asta
 // inainte de a intra in pagina, ca sa nu poata introduce cod strain.
 function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+// Cerut direct ("in baza la ce publica, poate si mai multe campuri"):
+// eticheta celor doua campuri libere se schimba dupa categoria
+// aleasa - un loc de munca cere "Compenso", un anunt de vanzare
+// cere "Prezzo", etc. - acelasi camp e trimis mai departe (price_label).
+const FIELD_LABELS = {
+  job: { price:'Compenso', work:'Tipo di contratto' },
+  client: { price:'Compenso offerto', work:'Frequenza' },
+  marketplace: { price:'Prezzo', work:'Condizioni' },
+  service: { price:'Tariffa', work:'Disponibilità' },
+};
+function updateFormLabels(){
+  const t = document.getElementById('fType').value;
+  const l = FIELD_LABELS[t] || FIELD_LABELS.job;
+  document.getElementById('fPriceLabel').textContent = l.price;
+  document.getElementById('fWorkLabel').textContent = l.work;
+}
+document.getElementById('fType').addEventListener('change', updateFormLabels);
+
+// Cerut direct ("logo poza ramane sub 20kb"): redimensionata pe rand
+// mai mica (pana incape) si calitatea JPEG scazuta treptat, pana
+// rezultatul ajunge sub 20kb - fara ca autorul sa faca ceva in plus,
+// doar alege poza.
+const MAX_IMAGE_BYTES = 20 * 1024;
+let pendingImageData = null;
+function compressImage(file){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = () => { img.src = reader.result; };
+    reader.onerror = reject;
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      function tryAt(maxDim, quality){
+        const scale = Math.min(1, maxDim / Math.max(w, h));
+        canvas.width = Math.round(w * scale);
+        canvas.height = Math.round(h * scale);
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL('image/jpeg', quality);
+      }
+      const sizes = [480, 360, 260, 180, 120];
+      const qualities = [0.7, 0.55, 0.4, 0.28, 0.18];
+      for (const maxDim of sizes){
+        for (const q of qualities){
+          const dataUri = tryAt(maxDim, q);
+          const bytes = Math.ceil(dataUri.length * 3/4);
+          if (bytes <= MAX_IMAGE_BYTES){ resolve(dataUri); return; }
+        }
+      }
+      resolve(tryAt(sizes[sizes.length-1], qualities[qualities.length-1]));
+    };
+    img.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+document.getElementById('fImageFile').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  const statusEl = document.getElementById('fImageStatus');
+  if(!file){ pendingImageData = null; return; }
+  statusEl.textContent = 'Compressione in corso…';
+  compressImage(file).then(dataUri => {
+    pendingImageData = dataUri;
+    const kb = Math.round(dataUri.length * 3/4 / 1024);
+    statusEl.textContent = `Pronta — ${kb} KB (sotto i 20 KB richiesti)`;
+    const prev = document.getElementById('fImagePreview');
+    prev.src = dataUri;
+    prev.style.display = 'block';
+  }).catch(() => { statusEl.textContent = 'Impossibile elaborare la foto.'; pendingImageData = null; });
+});
+
+function submitAnnuncio(){
+  if(!currentUser){ alert('Accedi prima con Google.'); return; }
+  const item = {
+    type: document.getElementById('fType').value,
+    title: document.getElementById('fTitle').value.trim(),
+    company: document.getElementById('fCompany').value.trim(),
+    location: document.getElementById('fLocation').value.trim(),
+    price_label: document.getElementById('fPrice').value.trim(),
+    work_mode: document.getElementById('fWork').value.trim(),
+    description: document.getElementById('fDescription').value.trim(),
+    contact: document.getElementById('fContact').value.trim(),
+    image_data: pendingImageData,
+  };
+  const errEl = document.getElementById('publishError');
+  if(!item.title || !item.company || !item.location || !item.description){
+    errEl.textContent = 'Compila almeno titolo, azienda/nome, località e descrizione.';
+    errEl.style.display = 'block';
+    return;
+  }
+  if(item.type === 'job' && !item.price_label){
+    errEl.textContent = 'Il compenso è obbligatorio per gli annunci di lavoro.';
+    errEl.style.display = 'block';
+    return;
+  }
+  errEl.style.display = 'none';
+  const btn = document.getElementById('publishSubmitBtn');
+  btn.disabled = true; btn.textContent = 'Pubblicazione…';
+  supabaseClient.auth.getSession().then(res => {
+    const token = res.data && res.data.session && res.data.session.access_token;
+    return fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'create', access_token: token, item }) });
+  }).then(r => r.json()).then(res => {
+    if(!res.ok){ errEl.textContent = 'Pubblicazione non riuscita: ' + (res.error || 'errore sconosciuto'); errEl.style.display = 'block'; return; }
+    document.getElementById('postModal').classList.remove('open');
+    ['fTitle','fCompany','fLocation','fPrice','fWork','fDescription','fContact'].forEach(id => document.getElementById(id).value = '');
+    pendingImageData = null;
+    document.getElementById('fImagePreview').style.display = 'none';
+    document.getElementById('fImageStatus').textContent = '';
+    loadAds();
+  }).catch(() => { errEl.textContent = 'Errore di connessione — riprova.'; errEl.style.display = 'block'; })
+  .finally(() => { btn.disabled = false; btn.textContent = 'Pubblica'; });
+}
+
+// Cerut direct ("nr tel nu se publica, doar apasa contatta si ii
+// iese numarul"): contactul nu e mai afisat scris in pagina - un
+// buton Contatta il dezvaluie doar cand cineva chiar il apasa.
+// Cerut direct, in continuare ("sa poata conecta si whatsapp"): daca
+// pare un numar de telefon (majoritatea cifre), apare si un buton
+// separat, gata sa deschida direct o conversatie WhatsApp cu acel
+// numar - fara ca autorul sa faca nimic in plus, doar sa scrie
+// numarul o singura data.
+function revealContact(contact){
+  const el = document.getElementById('contactReveal');
+  const digitsOnly = contact.replace(/[^0-9+]/g,'');
+  const looksLikePhone = digitsOnly.replace(/\\+/g,'').length >= 8;
+  let html = `<div style="background:var(--bg);border-radius:8px;padding:12px 14px;font-weight:600;font-size:14.5px;">${escapeHtml(contact)}</div>`;
+  if(looksLikePhone){
+    const waNumber = digitsOnly.replace(/^0+/,'').replace('+','');
+    html += `<a href="https://wa.me/${waNumber}" target="_blank" rel="noopener" style="display:flex;align-items:center;justify-content:center;gap:8px;background:#25D366;color:#fff;border-radius:8px;padding:12px;font-weight:700;font-size:14px;margin-top:8px;">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.36 5.07L2 22l5.06-1.32C8.5 21.5 10.2 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm5.2 14.2c-.22.62-1.28 1.18-1.78 1.24-.46.06-1.03.08-1.66-.1-.38-.12-.87-.28-1.5-.55-2.64-1.14-4.36-3.8-4.5-3.98-.13-.18-1.08-1.44-1.08-2.75s.68-1.95.92-2.22c.24-.26.53-.33.7-.33h.5c.16 0 .38-.06.6.46.22.53.75 1.83.82 1.96.07.13.11.29.02.47-.09.18-.14.29-.27.44-.13.16-.28.35-.4.47-.13.13-.27.27-.12.53.16.26.7 1.16 1.5 1.87 1.03.92 1.9 1.2 2.16 1.34.26.13.42.11.57-.07.16-.18.66-.77.84-1.04.18-.26.35-.22.6-.13.24.09 1.55.73 1.82.87.26.13.44.2.5.31.06.13.06.71-.16 1.33z"/></svg>
+      Apri WhatsApp</a>`;
+  }
+  el.innerHTML = html;
+}
 
 function openDetail(ad){
   document.getElementById('detailBody').innerHTML = `
@@ -440,9 +604,15 @@ function openDetail(ad){
     ${ad.image_url ? `<img src="${ad.image_url}" alt="" style="width:100%;border-radius:10px;margin-bottom:14px;display:block;object-fit:cover;max-height:280px;">` : ''}
     ${ad.price_label ? `<p style="font-weight:700;font-size:17px;margin:0 0 12px;">${ad.price_label}</p>` : ''}
     <p style="line-height:1.6;font-size:14px;">${ad.description ? escapeHtml(ad.description) : 'Nessuna descrizione disponibile.'}</p>
-    <button class="submit-btn">Contatta</button>
+    <div id="contactReveal"></div>
+    <button class="submit-btn" id="contattaBtn">Contatta</button>
   `;
   document.getElementById('detailModal').classList.add('open');
+  document.getElementById('contattaBtn').addEventListener('click', function(){
+    if(!ad.contact){ revealContact('Nessun contatto indicato per questo annuncio.'); }
+    else { revealContact(ad.contact); }
+    this.style.display = 'none';
+  });
 }
 
 function renderFilters(){
