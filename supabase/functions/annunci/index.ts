@@ -179,6 +179,39 @@ Deno.serve(async (req) => {
     }
     if (!authorFilter) return json({ ok:false, error:'auth_required' },401);
 
+    // Cerut direct ("trebuie sa fie si sectiunea preferiti"): salvarea
+    // ca preferat foloseste acelasi cont Google logat (authorFilter),
+    // indiferent daca e author_user_email sau, teoretic, o flota.
+    if (action === 'favorite') {
+      const annuncioId = cleanText(body.annuncio_id,60);
+      if (!annuncioId) return json({ ok:false, error:'missing_annuncio_id' },400);
+      const { error } = await admin.from('adb_annunci_favorites').upsert(
+        { user_email: authorFilter.value, annuncio_id: annuncioId },
+        { onConflict: 'user_email,annuncio_id' }
+      );
+      if (error) throw error;
+      admin.rpc('adb_annunci_increment_save', { p_id: annuncioId }).catch(() => {});
+      return json({ ok:true });
+    }
+    if (action === 'unfavorite') {
+      const annuncioId = cleanText(body.annuncio_id,60);
+      const { error } = await admin.from('adb_annunci_favorites').delete().eq('user_email',authorFilter.value).eq('annuncio_id',annuncioId);
+      if (error) throw error;
+      return json({ ok:true });
+    }
+    if (action === 'list_favorites') {
+      const { data: favRows, error: favErr } = await admin.from('adb_annunci_favorites').select('annuncio_id').eq('user_email',authorFilter.value).order('created_at',{ascending:false});
+      if (favErr) throw favErr;
+      const ids = (favRows || []).map((r: any) => r.annuncio_id);
+      if (!ids.length) return json({ ok:true, items: [] });
+      const { data, error } = await admin.from('adb_annunci').select('*').in('id', ids);
+      if (error) throw error;
+      // Pastram ordinea (cele mai recent salvate primele), nu ordinea arbitrara intoarsa de "in".
+      const byId: Record<string, any> = {};
+      (data || []).forEach((item: any) => { byId[item.id] = item; });
+      return json({ ok:true, items: ids.map((id: string) => byId[id]).filter(Boolean) });
+    }
+
     if (action === 'mine') {
       const { data, error } = await admin.from('adb_annunci').select('*').eq(authorFilter.column,authorFilter.value).neq('visibility','archived').order('created_at',{ascending:false});
       if (error) throw error;
