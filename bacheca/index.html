@@ -723,23 +723,36 @@ function renderInvoices(){
 }
 
 document.getElementById('search').addEventListener('input', render);
-// Cerut direct: sesiunea reala Supabase, verificata la incarcare -
-// acopera atat un vizitator care revine deja logat, cat si intoarcerea
-// exacta dupa ce Google confirma accesul (acelasi domeniu redirectioneaza
-// aici, cu sesiunea deja activa). onAuthStateChange tine interfata la zi
-// automat, oricand se schimba starea (login, logout, refresh de token).
-if(supabaseClient){
+// Cerut direct ("bug la logarea prin google, mai ales daca se
+// instaleaza pe schermata home... se intoarce in aplicatie, dar
+// arata tot delogat"): pe un telefon cu aplicatia instalata pe
+// ecranul de start, intoarcerea de la Google NU incarca pagina din
+// nou de la zero - sistemul readuce in prim-plan instanta SUSPENDATA
+// de dinainte, exact cum era, fara sa ruleze din nou scriptul de la
+// inceput. Verificarea sesiunii facuta o SINGURA DATA, la incarcare,
+// nu mai apuca niciodata sa vada ca between timp a aparut o sesiune
+// noua - de aici bug-ul exact descris. Reparat: aceeasi verificare,
+// intr-o functie separata, rulata din nou de fiecare data cand
+// pagina revine in prim-plan (vizibila din nou), nu doar o singura
+// data la pornire.
+function checkSessionNow(){
+  if(!supabaseClient) return;
   supabaseClient.auth.getSession().then(function(res){
     currentUser = userFromSession(res.data && res.data.session);
     renderAuthArea();
     if(currentUser && document.getElementById('screen-account').classList.contains('active')) renderAccountData();
   });
+}
+if(supabaseClient){
+  checkSessionNow();
   supabaseClient.auth.onAuthStateChange(function(event, session){
     currentUser = userFromSession(session);
     renderAuthArea();
     refreshPostModalAuth();
     if(currentUser && document.getElementById('screen-account').classList.contains('active')) renderAccountData();
   });
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState === 'visible') checkSessionNow(); });
+  window.addEventListener('pageshow', function(){ checkSessionNow(); });
 } else {
   renderAuthArea();
 }
