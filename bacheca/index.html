@@ -582,7 +582,7 @@ function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; 
 const FIELD_LABELS = {
   job: { category:'Tipo patente', categoryPh:'Es. Patente CE', price:'Compenso', work:'Tipo di contratto', workPh:'Es. Full-time' },
   client: { category:'Tipo trasporto', categoryPh:'Es. Conto terzi', price:'Compenso offerto', work:'Frequenza', workPh:'Es. Continuativo, 2 viaggi/settimana' },
-  marketplace: { category:'Tipo mezzo', categoryPh:'Es. Furgone, rimorchio, motrice', price:'Prezzo', work:'Anno e chilometraggio', workPh:'Es. 2021, 62.000 km' },
+  marketplace: { category:'Categoria', categoryPh:'Es. Furgone, pneumatico, ricambio, attrezzatura', price:'Prezzo', work:'Condizioni', workPh:'Es. Usato, buono stato / Nuovo, mai aperto' },
   service: { category:'Tipo servizio', categoryPh:'Es. Meccanico, lavaggio', price:'Tariffa', work:'Disponibilità', workPh:'Es. 24 ore su 24' },
 };
 function updateFormLabels(){
@@ -640,6 +640,14 @@ document.addEventListener('click', function(e){
 // doar alege poza.
 const MAX_IMAGE_BYTES = 20 * 1024;
 let pendingImageData = null;
+// Cerut direct ("orice imagine adaugata sau modificata nu trebuie sa
+// depaseasca 20kb... indiferent cat are originalul, sa o converteasca
+// in maxim 20kb"): pasii de mai jos incearca succesiv dimensiuni tot
+// mai mici - dar pentru o poza foarte incarcata de detalii, ultima
+// incercare de dinainte tot putea depasi 20kb, in timp ce mesajul
+// spunea mereu "sub 20 KB", indiferent daca era adevarat. Adaugati
+// pasi si mai mici la coada listei, si mesajul verifica acum
+// rezultatul REAL, nu presupune ca a reusit.
 function compressImage(file){
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -652,22 +660,27 @@ function compressImage(file){
       const ctx = canvas.getContext('2d');
       function tryAt(maxDim, quality){
         const scale = Math.min(1, maxDim / Math.max(w, h));
-        canvas.width = Math.round(w * scale);
-        canvas.height = Math.round(h * scale);
+        canvas.width = Math.max(1, Math.round(w * scale));
+        canvas.height = Math.max(1, Math.round(h * scale));
         ctx.clearRect(0,0,canvas.width,canvas.height);
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         return canvas.toDataURL('image/jpeg', quality);
       }
-      const sizes = [480, 360, 260, 180, 120];
-      const qualities = [0.7, 0.55, 0.4, 0.28, 0.18];
+      const sizes = [480, 360, 260, 180, 120, 90, 64, 48];
+      const qualities = [0.7, 0.55, 0.4, 0.28, 0.18, 0.12, 0.08];
+      let best = null, bestBytes = Infinity;
       for (const maxDim of sizes){
         for (const q of qualities){
           const dataUri = tryAt(maxDim, q);
           const bytes = Math.ceil(dataUri.length * 3/4);
           if (bytes <= MAX_IMAGE_BYTES){ resolve(dataUri); return; }
+          if (bytes < bestBytes){ best = dataUri; bestBytes = bytes; }
         }
       }
-      resolve(tryAt(sizes[sizes.length-1], qualities[qualities.length-1]));
+      // Niciuna dintre incercari n-a ajuns sub 20kb (poza extrem de
+      // incarcata) - se trimite oricum cea mai mica reusita, dar
+      // statusul de mai jos va spune adevarul, nu "sub 20 KB".
+      resolve(best);
     };
     img.onerror = reject;
     reader.readAsDataURL(file);
@@ -681,7 +694,7 @@ document.getElementById('fImageFile').addEventListener('change', function(e){
   compressImage(file).then(dataUri => {
     pendingImageData = dataUri;
     const kb = Math.round(dataUri.length * 3/4 / 1024);
-    statusEl.textContent = `Pronta — ${kb} KB (sotto i 20 KB richiesti)`;
+    statusEl.textContent = kb <= 20 ? `Pronta — ${kb} KB (sotto i 20 KB richiesti)` : `Attenzione — ${kb} KB, l'immagine è troppo complessa per scendere sotto i 20 KB. Prova con una foto più semplice.`;
     const prev = document.getElementById('fImagePreview');
     prev.src = dataUri;
     prev.style.display = 'block';
@@ -826,7 +839,7 @@ function applyFavoriteButtonState(btn, isFavorited){
 const DETAIL_FIELDS = {
   job: [ {label:'Stipendio', get:ad=>ad.price_label, money:true}, {label:'Contratto', get:ad=>ad.work_mode}, {label:'Patente', get:ad=>ad.category} ],
   client: [ {label:'Compenso', get:ad=>ad.price_label, money:true}, {label:'Frequenza', get:ad=>ad.work_mode}, {label:'Tipo', get:ad=>ad.category} ],
-  marketplace: [ {label:'Prezzo', get:ad=>ad.price_label, money:true}, {label:'Anno e km', get:ad=>ad.work_mode}, {label:'Tipo mezzo', get:ad=>ad.category} ],
+  marketplace: [ {label:'Prezzo', get:ad=>ad.price_label, money:true}, {label:'Condizioni', get:ad=>ad.work_mode}, {label:'Categoria', get:ad=>ad.category} ],
   service: [ {label:'Tariffa', get:ad=>ad.price_label, money:true}, {label:'Disponibilità', get:ad=>ad.work_mode}, {label:'Tipo servizio', get:ad=>ad.category} ],
 };
 function detailFicheHtml(ad){
