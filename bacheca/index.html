@@ -591,6 +591,44 @@ function updateFormLabels(){
 }
 document.getElementById('fType').addEventListener('change', updateFormLabels);
 
+// Cerut direct ("cand apasam pe localitate, in automat apar deja
+// orasele... scriem P-A, ne apar orasele care se incep cu P-A"):
+// acelasi serviciu de geocodare deja folosit de aplicatia soferului
+// (OpenRouteService), filtrat doar pe orase/localitati din Italia -
+// nu adrese complete, doar nume de localitate.
+const ORS_API_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjA3YzdmZTgwZTc5YjQ0OTliNjYxYzdlZGFiY2JlZDdlIiwiaCI6Im11cm11cjY0In0=";
+let locationSuggestTimer = null;
+const fLocationInput = document.getElementById('fLocation');
+const fLocationSuggestEl = document.getElementById('fLocationSuggest');
+fLocationInput.addEventListener('input', function(){
+  const q = this.value.trim();
+  clearTimeout(locationSuggestTimer);
+  if(q.length < 2){ fLocationSuggestEl.style.display = 'none'; return; }
+  locationSuggestTimer = setTimeout(function(){
+    fetch('https://api.openrouteservice.org/geocode/autocomplete?api_key=' + ORS_API_KEY + '&text=' + encodeURIComponent(q) + '&boundary.country=ITA&layers=locality&size=6')
+      .then(r => r.json())
+      .then(data => {
+        const features = (data && data.features) || [];
+        if(!features.length){ fLocationSuggestEl.style.display = 'none'; return; }
+        fLocationSuggestEl.innerHTML = features.map(f => {
+          const name = f.properties.locality || f.properties.name || '';
+          const region = f.properties.region || '';
+          return `<div class="loc-suggest-item" data-loc="${escapeHtml(name)}" style="padding:10px 12px;cursor:pointer;font-size:14px;border-bottom:1px solid var(--line);">${escapeHtml(name)}${region ? `<span style="color:var(--ink-soft);font-size:12.5px;"> · ${escapeHtml(region)}</span>` : ''}</div>`;
+        }).join('');
+        fLocationSuggestEl.style.display = 'block';
+        fLocationSuggestEl.querySelectorAll('[data-loc]').forEach(item => {
+          item.addEventListener('click', function(){
+            fLocationInput.value = this.dataset.loc;
+            fLocationSuggestEl.style.display = 'none';
+          });
+        });
+      }).catch(() => { fLocationSuggestEl.style.display = 'none'; });
+  }, 300);
+});
+document.addEventListener('click', function(e){
+  if(e.target !== fLocationInput && !fLocationSuggestEl.contains(e.target)) fLocationSuggestEl.style.display = 'none';
+});
+
 // Cerut direct ("logo poza ramane sub 20kb"): redimensionata pe rand
 // mai mica (pana incape) si calitatea JPEG scazuta treptat, pana
 // rezultatul ajunge sub 20kb - fara ca autorul sa faca ceva in plus,
@@ -865,8 +903,8 @@ function adRowHtml(ad, indexAttr, extraLine){
               <span class="tag ${ad.type}">${TYPE_LABEL[ad.type]}</span>
             </div>
           </div>
-          <div class="company">${ad.company} · ${ad.location}</div>
-          <div class="meta">${[ad.category, ad.work_mode, ad.extra].filter(Boolean).join(' · ')}</div>
+          <div class="company">${ad.company}</div>
+          <div class="meta">${[ad.location, ad.category, ad.work_mode, ad.extra].filter(Boolean).join(' · ')}</div>
           ${extraLine || ''}
         </div>
       </div>
