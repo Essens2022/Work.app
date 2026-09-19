@@ -580,8 +580,12 @@ function relativeTime(iso){
     if(d < 60) return 'adesso';
     if(d < 3600) return Math.floor(d/60) + ' min fa';
     if(d < 86400) return Math.floor(d/3600) + ' ore fa';
-    if(d < 604800) return Math.floor(d/86400) + ' giorni fa';
-    if(d < 2592000) return Math.floor(d/604800) + ' settimane fa';
+    // Cerut direct ("2 sett trebuie sa fie pus asa, ca sa nu
+    // influenteze lungimea textului la locul sectiunii"): prescurtat
+    // giorni -> gg si settimane -> sett, ca textul sa ramana scurt si
+    // sa nu strice alinierea in zona ingusta unde apare data.
+    if(d < 604800) return Math.floor(d/86400) + ' gg fa';
+    if(d < 2592000) return Math.floor(d/604800) + ' sett fa';
     if(d < 31536000) return Math.floor(d/2592000) + ' mesi fa';
     return Math.floor(d/31536000) + ' anni fa';
   } catch(e){ return iso; }
