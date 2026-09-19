@@ -286,7 +286,7 @@ function favs(){try{return JSON.parse(localStorage.getItem('adb_annunci_favs')||
 // ca celelalte trei (vizualizari/click-uri/distribuiri), nu o stare
 // curenta care ar putea scadea.
 function toggleFav(id){var f=favs(),i=f.indexOf(id);if(i>=0)f.splice(i,1);else{f.push(id);if(!String(id).startsWith('demo'))apiCall('track_save',{id:id}).catch(function(){})}localStorage.setItem('adb_annunci_favs',JSON.stringify(f));render()}
-function relativeTime(x){var d=(Date.now()-new Date(x).getTime())/1000;if(d<3600)return Math.max(1,Math.floor(d/60))+' min fa';if(d<86400)return Math.floor(d/3600)+' ore fa';return Math.floor(d/86400)+' giorni fa'}
+function relativeTime(x){var d=(Date.now()-new Date(x).getTime())/1000;if(d<60)return 'adesso';if(d<3600)return Math.floor(d/60)+' min fa';if(d<86400)return Math.floor(d/3600)+' ore fa';if(d<604800)return Math.floor(d/86400)+' gg fa';if(d<2592000)return Math.floor(d/604800)+' sett fa';if(d<31536000)return Math.floor(d/2592000)+' mesi fa';return Math.floor(d/31536000)+' anni fa'}
 function cardImage(it){if(it.image_url)return '<img class="thumb" src="'+esc(it.image_url)+'" alt="" loading="lazy" decoding="async">';return '<div class="thumb placeholder">'+icon(it.type)+'</div>'}
 
 // Cerut direct ("cate ori a fost vizualizata... cand trece privirea
