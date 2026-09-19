@@ -124,6 +124,15 @@ a{color:inherit;text-decoration:none}
 .modal-bg{position:fixed;inset:0;background:rgba(10,10,12,.5);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;}
 .modal-bg.open{display:flex;}
 .modal{background:var(--card);width:100%;max-width:520px;border-radius:16px;padding:26px;max-height:86vh;overflow-y:auto;}
+/* Cerut direct ("fiecare anunt... pagina are marimile sale... ar fi
+   bine sa aiba toate acea marime... daca e mai multa informatie, sa
+   se scroleze"): fereastra de detaliu avea doar o inaltime MAXIMA,
+   fara una FIXA - un anunt scurt o facea mica, unul lung o facea
+   mare, o marime diferita de fiecare data. Acum are o inaltime FIXA,
+   aceeasi pentru orice anunt - continutul care nu incape se
+   scroleaza in interior (chiar acest element, care e deja singurul,
+   fara alt invelis), fara sa schimbe marimea ferestrei insasi. */
+#detailBody.modal{height:min(680px,86vh);}
 .modal h2{font-size:20px;margin:8px 0 4px;}
 .modal .close{float:right;background:none;border:none;font-size:20px;color:var(--ink-soft);cursor:pointer;}
 .modal-field{margin:14px 0;}
