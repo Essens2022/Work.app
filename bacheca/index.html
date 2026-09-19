@@ -122,9 +122,9 @@ a{color:inherit;text-decoration:none}
    aliniau intre anunturi diferite. Acum fiecare are o latime FIXA -
    coloanele se aliniaza exact, indiferent cat de lung e textul din
    fiecare. */
-.row-right .price{font-weight:700;font-size:14.5px;color:var(--money);white-space:nowrap;width:92px;flex:none;text-align:right;overflow:hidden;text-overflow:ellipsis;}
-.row-right .date{font-size:11.5px;color:var(--ink-soft);white-space:nowrap;width:64px;flex:none;text-align:right;}
-.row-right-icons{display:flex;gap:6px;flex:none;width:62px;justify-content:flex-end;}
+.row-right .price{font-weight:700;font-size:14.5px;color:var(--money);white-space:nowrap;flex:1;text-align:right;}
+.row-right .date{font-size:11px;color:var(--ink-soft);white-space:nowrap;text-align:right;margin-top:4px;}
+.row-right-icons{display:flex;gap:6px;flex:none;justify-content:flex-end;}
 .badge-new{background:#DCF3E6;color:#1F7A46;font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:5px;}
 
 .empty{text-align:center;color:var(--ink-soft);padding:60px 0;font-size:14px;}
@@ -958,7 +958,6 @@ function adRowHtml(ad, indexAttr, extraLine){
       <div class="row-right">
         <div class="row-right-line">
           <span class="price">${ad.price_label || ''}</span>
-          <span class="date">${relativeTime(ad.created_at)}</span>
           <div class="row-right-icons">
             <button class="row-share" data-row-share="${ad.id}" data-row-share-title="${escapeHtml(ad.title)}" title="Condividi" style="flex:none;width:28px;height:28px;border:1.5px solid var(--line);border-radius:7px;background:var(--card);display:flex;align-items:center;justify-content:center;color:var(--ink);cursor:pointer;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 3.9M15.4 6.6L8.6 10.5"/></svg>
@@ -966,6 +965,7 @@ function adRowHtml(ad, indexAttr, extraLine){
             <button class="row-fav" data-row-fav="${ad.id}" title="Salva nei preferiti" style="flex:none;width:28px;height:28px;border:1.5px solid var(--line);border-radius:7px;background:var(--card);display:flex;align-items:center;justify-content:center;color:var(--ink);cursor:pointer;">${favoritedIds.has(ad.id) ? HEART_FILLED : HEART_OUTLINE}</button>
           </div>
         </div>
+        <div class="date">${relativeTime(ad.created_at)}</div>
       </div>
     </div>
   `;
