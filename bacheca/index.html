@@ -76,7 +76,7 @@ a{color:inherit;text-decoration:none}
 @media (max-width:560px){ .pillgroup{flex-wrap:wrap;} .fpill{flex:1 1 calc(50% - 4px);} }
 @media (max-width:600px){
   .row{flex-direction:column;}
-  .row-top h3{padding-right:112px;}
+  .row-top h3{padding-right:100px;}
 }
 
 .wrap{max-width:1080px;margin:0 auto;padding:22px 24px 80px;}
@@ -191,6 +191,17 @@ a{color:inherit;text-decoration:none}
    aleasa dintre cele 5 aratate): coloana fixa, pe toata inaltimea
    casetei, in dreapta - acelasi loc mereu, cu sau fara poza reala. */
 .myad-sidebar{flex:none;width:42px;background:var(--bg);border-left:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;}
+/* Cerut direct ("pe telefon s-a strans totul prea tare"): regula de
+   mai sus (coloana fixa in dreapta, buna pe ecran larg) trebuie sa
+   vina INAINTE de aceasta, nu invers - altfel cea de mai sus o
+   suprascrie mereu, indiferent de ecran (aceeasi capcana intalnita
+   si la pozitia pretului). Pe mobil, coloana devine o bara
+   orizontala, subtire, jos - nu mai concureaza pentru latime cu
+   restul continutului (deja stramtorat de spatiul rezervat etichetei). */
+@media (max-width:600px){
+  .myad-wrap{flex-direction:column;}
+  .myad-sidebar{flex-direction:row;width:100%;border-left:none;border-top:1px solid var(--line);padding:6px 0;gap:16px;}
+}
 .myad-sidebar .iconbtn{border:none;background:none;}
 .plancard{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:24px;}
 .plancard h3{font-size:16px;margin:0 0 4px;}
