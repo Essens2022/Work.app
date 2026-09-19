@@ -570,6 +570,22 @@ function openEditAd(ad){
 }
 function initials(s){ return s.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase(); }
 function formatDate(iso){ try { return new Date(iso).toLocaleDateString('it-IT',{day:'2-digit',month:'2-digit',year:'numeric'}); } catch(e){ return iso; } }
+// Cerut direct ("anunturile trebuie sa arate cate minute ore zile
+// saptamani luni ani de cand a fost publicat, nu data luna anul"):
+// aceeasi functie, cu aceleasi praguri, deja folosita in aplicatia
+// soferului (annunci.js) - acelasi limbaj, oriunde apare un anunt.
+function relativeTime(iso){
+  try {
+    var d = (Date.now() - new Date(iso).getTime()) / 1000;
+    if(d < 60) return 'adesso';
+    if(d < 3600) return Math.floor(d/60) + ' min fa';
+    if(d < 86400) return Math.floor(d/3600) + ' ore fa';
+    if(d < 604800) return Math.floor(d/86400) + ' giorni fa';
+    if(d < 2592000) return Math.floor(d/604800) + ' settimane fa';
+    if(d < 31536000) return Math.floor(d/2592000) + ' mesi fa';
+    return Math.floor(d/31536000) + ' anni fa';
+  } catch(e){ return iso; }
+}
 // Cerut direct - descrierea vine acum din date reale, scrise de
 // utilizatori (nu mai e text fix, scris de noi) - trece prin asta
 // inainte de a intra in pagina, ca sa nu poata introduce cod strain.
@@ -846,7 +862,7 @@ function detailFicheHtml(ad){
   const fields = (DETAIL_FIELDS[ad.type] || DETAIL_FIELDS.job).filter(f => f.get(ad));
   const rows = fields.map(f => `<div style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);"><span style="color:var(--ink-soft);font-size:13px;">${f.label}</span><b style="font-size:13.5px;${f.money?'color:var(--money);':''}">${escapeHtml(f.get(ad))}</b></div>`).join('');
   return `<div style="background:var(--bg);border-radius:10px;padding:4px 14px;margin:14px 0;">${rows}
-    <div style="display:flex;justify-content:space-between;padding:10px 0;"><span style="color:var(--ink-soft);font-size:13px;">Pubblicato</span><b style="font-size:13.5px;">${formatDate(ad.created_at)}</b></div>
+    <div style="display:flex;justify-content:space-between;padding:10px 0;"><span style="color:var(--ink-soft);font-size:13px;">Pubblicato</span><b style="font-size:13.5px;">${relativeTime(ad.created_at)}</b></div>
   </div>`;
 }
 
@@ -930,7 +946,7 @@ function adRowHtml(ad, indexAttr, extraLine){
       <div class="row-right">
         <div class="row-right-line">
           ${ad.price_label ? `<span class="price">${ad.price_label}</span>` : ''}
-          <span class="date">${formatDate(ad.created_at)}</span>
+          <span class="date">${relativeTime(ad.created_at)}</span>
           <div style="display:flex;gap:6px;flex:none;">
             <button class="row-share" data-row-share="${ad.id}" data-row-share-title="${escapeHtml(ad.title)}" title="Condividi" style="flex:none;width:28px;height:28px;border:1.5px solid var(--line);border-radius:7px;background:var(--card);display:flex;align-items:center;justify-content:center;color:var(--ink);cursor:pointer;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 3.9M15.4 6.6L8.6 10.5"/></svg>
