@@ -362,6 +362,7 @@ a{color:inherit;text-decoration:none}
          la categoria aleasa mai sus - compenso pentru un loc de
          munca, prezzo pentru un anunt de vanzare, ambele salvate in
          acelasi camp (price_label) pe server. -->
+    <div class="modal-field"><label id="fCategoryLabel">Tipo patente</label><input id="fCategory" placeholder="Es. Patente CE"></div>
     <div class="modal-field"><label id="fPriceLabel">Compenso</label><input id="fPrice" placeholder="Es. 2000 € - 2400 €"></div>
     <div class="modal-field"><label id="fWorkLabel">Tipo di contratto</label><input id="fWork" placeholder="Es. Full-time"></div>
     <div class="modal-field"><label>Descrizione</label><textarea id="fDescription" rows="4" placeholder="Dettagli, requisiti…"></textarea></div>
@@ -532,7 +533,7 @@ function openPost(){
   editingAdId = null;
   document.getElementById('publishSubmitBtn').textContent = 'Pubblica';
   document.getElementById('postModalTitle').textContent = 'Pubblica un annuncio';
-  ['fTitle','fCompany','fLocation','fPrice','fWork','fDescription','fContact'].forEach(id => document.getElementById(id).value = '');
+  ['fTitle','fCompany','fLocation','fCategory','fPrice','fWork','fDescription','fContact'].forEach(id => document.getElementById(id).value = '');
   pendingImageData = null;
   document.getElementById('fImagePreview').style.display = 'none';
   document.getElementById('fImageStatus').textContent = '';
@@ -551,6 +552,7 @@ function openEditAd(ad){
   document.getElementById('fTitle').value = ad.title || '';
   document.getElementById('fCompany').value = ad.company || '';
   document.getElementById('fLocation').value = ad.location || '';
+  document.getElementById('fCategory').value = ad.category || '';
   document.getElementById('fPrice').value = ad.price_label || '';
   document.getElementById('fWork').value = ad.work_mode || '';
   document.getElementById('fDescription').value = ad.description || '';
@@ -578,16 +580,19 @@ function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; 
 // aleasa - un loc de munca cere "Compenso", un anunt de vanzare
 // cere "Prezzo", etc. - acelasi camp e trimis mai departe (price_label).
 const FIELD_LABELS = {
-  job: { price:'Compenso', work:'Tipo di contratto' },
-  client: { price:'Compenso offerto', work:'Frequenza' },
-  marketplace: { price:'Prezzo', work:'Condizioni' },
-  service: { price:'Tariffa', work:'Disponibilità' },
+  job: { category:'Tipo patente', categoryPh:'Es. Patente CE', price:'Compenso', work:'Tipo di contratto', workPh:'Es. Full-time' },
+  client: { category:'Tipo trasporto', categoryPh:'Es. Conto terzi', price:'Compenso offerto', work:'Frequenza', workPh:'Es. Continuativo, 2 viaggi/settimana' },
+  marketplace: { category:'Tipo mezzo', categoryPh:'Es. Furgone, rimorchio, motrice', price:'Prezzo', work:'Anno e chilometraggio', workPh:'Es. 2021, 62.000 km' },
+  service: { category:'Tipo servizio', categoryPh:'Es. Meccanico, lavaggio', price:'Tariffa', work:'Disponibilità', workPh:'Es. 24 ore su 24' },
 };
 function updateFormLabels(){
   const t = document.getElementById('fType').value;
   const l = FIELD_LABELS[t] || FIELD_LABELS.job;
+  document.getElementById('fCategoryLabel').textContent = l.category;
+  document.getElementById('fCategory').placeholder = l.categoryPh;
   document.getElementById('fPriceLabel').textContent = l.price;
   document.getElementById('fWorkLabel').textContent = l.work;
+  document.getElementById('fWork').placeholder = l.workPh;
 }
 document.getElementById('fType').addEventListener('change', updateFormLabels);
 
@@ -690,6 +695,7 @@ function submitAnnuncio(){
     title: document.getElementById('fTitle').value.trim(),
     company: document.getElementById('fCompany').value.trim(),
     location: document.getElementById('fLocation').value.trim(),
+    category: document.getElementById('fCategory').value.trim(),
     price_label: document.getElementById('fPrice').value.trim(),
     work_mode: document.getElementById('fWork').value.trim(),
     description: document.getElementById('fDescription').value.trim(),
@@ -721,7 +727,7 @@ function submitAnnuncio(){
     if(!res.ok){ errEl.textContent = (isEditing ? 'Salvataggio non riuscito: ' : 'Pubblicazione non riuscita: ') + (res.error || 'errore sconosciuto'); errEl.style.display = 'block'; return; }
     document.getElementById('postModal').classList.remove('open');
     editingAdId = null;
-    ['fTitle','fCompany','fLocation','fPrice','fWork','fDescription','fContact'].forEach(id => document.getElementById(id).value = '');
+    ['fTitle','fCompany','fLocation','fCategory','fPrice','fWork','fDescription','fContact'].forEach(id => document.getElementById(id).value = '');
     pendingImageData = null;
     document.getElementById('fImagePreview').style.display = 'none';
     document.getElementById('fImageStatus').textContent = '';
@@ -820,8 +826,8 @@ function applyFavoriteButtonState(btn, isFavorited){
 const DETAIL_FIELDS = {
   job: [ {label:'Stipendio', get:ad=>ad.price_label, money:true}, {label:'Contratto', get:ad=>ad.work_mode}, {label:'Patente', get:ad=>ad.category} ],
   client: [ {label:'Compenso', get:ad=>ad.price_label, money:true}, {label:'Frequenza', get:ad=>ad.work_mode}, {label:'Tipo', get:ad=>ad.category} ],
-  marketplace: [ {label:'Prezzo', get:ad=>ad.price_label, money:true}, {label:'Info', get:ad=>ad.extra}, {label:'Categoria', get:ad=>ad.category} ],
-  service: [ {label:'Tariffa', get:ad=>ad.price_label, money:true}, {label:'Disponibilità', get:ad=>ad.work_mode}, {label:'Categoria', get:ad=>ad.category} ],
+  marketplace: [ {label:'Prezzo', get:ad=>ad.price_label, money:true}, {label:'Anno e km', get:ad=>ad.work_mode}, {label:'Tipo mezzo', get:ad=>ad.category} ],
+  service: [ {label:'Tariffa', get:ad=>ad.price_label, money:true}, {label:'Disponibilità', get:ad=>ad.work_mode}, {label:'Tipo servizio', get:ad=>ad.category} ],
 };
 function detailFicheHtml(ad){
   const fields = (DETAIL_FIELDS[ad.type] || DETAIL_FIELDS.job).filter(f => f.get(ad));
