@@ -132,9 +132,17 @@ a{color:inherit;text-decoration:none}
    aceeasi pentru orice anunt - continutul care nu incape se
    scroleaza in interior (chiar acest element, care e deja singurul,
    fara alt invelis), fara sa schimbe marimea ferestrei insasi. */
-#detailBody.modal{height:min(680px,86vh);}
+/* Cerut direct ("butoanele de jos ar trebui sa ramana mereu fixe...
+   scroleaza doar restul informatiei, insa butoanele mereu acolo"):
+   detailBody devine cadrul fix (flex, coloana) - inauntru, doar
+   .detail-scroll (titlu, poza, fisa, descriere) se scroleaza; butoanele
+   (.detail-footer) raman pe loc, sub el, mereu vizibile. */
+#detailBody.modal{height:min(680px,86vh);display:flex;flex-direction:column;overflow:hidden;padding:0;position:relative;}
+.detail-scroll{overflow-y:auto;flex:1;min-height:0;padding:26px;}
+.detail-footer{flex:none;display:flex;gap:8px;align-items:stretch;padding:16px 26px;border-top:1px solid var(--line);}
 .modal h2{font-size:20px;margin:8px 0 4px;}
 .modal .close{float:right;background:none;border:none;font-size:20px;color:var(--ink-soft);cursor:pointer;}
+#detailBody .close{position:absolute;top:16px;right:20px;z-index:2;background:var(--card);width:30px;height:30px;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.12);}
 .modal-field{margin:14px 0;}
 .modal-field label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:4px;}
 .modal-field input,.modal-field textarea,.modal-field select{width:100%;border:1.5px solid var(--line);border-radius:8px;padding:9px 11px;font-size:16px;font-family:inherit;color:var(--ink);background:var(--bg);}
@@ -775,13 +783,15 @@ function detailFicheHtml(ad){
 function openDetail(ad){
   document.getElementById('detailBody').innerHTML = `
     <button class="close" onclick="document.getElementById('detailModal').classList.remove('open')">×</button>
-    <span class="tag ${ad.type}">${TYPE_LABEL[ad.type]}</span>
-    <h2>${ad.title}</h2>
-    <p style="color:var(--ink-soft);margin:2px 0 14px;font-size:13.5px;">${ad.company} · ${ad.location}</p>
-    ${ad.image_url ? `<img src="${ad.image_url}" alt="" style="width:100%;aspect-ratio:4/3;border-radius:10px;display:block;object-fit:cover;">` : ''}
-    ${detailFicheHtml(ad)}
-    <p style="line-height:1.6;font-size:14px;">${ad.description ? escapeHtml(ad.description) : 'Nessuna descrizione disponibile.'}</p>
-    <div style="display:flex;gap:8px;align-items:stretch;">
+    <div class="detail-scroll">
+      <span class="tag ${ad.type}">${TYPE_LABEL[ad.type]}</span>
+      <h2>${ad.title}</h2>
+      <p style="color:var(--ink-soft);margin:2px 0 14px;font-size:13.5px;">${ad.company} · ${ad.location}</p>
+      ${ad.image_url ? `<img src="${ad.image_url}" alt="" style="width:100%;aspect-ratio:4/3;border-radius:10px;display:block;object-fit:cover;">` : ''}
+      ${detailFicheHtml(ad)}
+      <p style="line-height:1.6;font-size:14px;">${ad.description ? escapeHtml(ad.description) : 'Nessuna descrizione disponibile.'}</p>
+    </div>
+    <div class="detail-footer">
       ${contactButtonsHtml(ad.contact)}
       <button class="btn-ghost" style="box-sizing:border-box;flex:none;width:48px;height:48px;padding:0;display:flex;align-items:center;justify-content:center;" id="favBtn"></button>
     </div>
