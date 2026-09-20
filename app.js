@@ -1099,7 +1099,7 @@
     // doar spatiul de deasupra acestei UNEI instante de titlu e
     // micsorat, nicaieri altundeva.
     html += '<div style="display:flex;justify-content:flex-end;margin:8px 0 0;line-height:0;">' +
-      '<img id="home-job-offers-btn" class="home-job-offers-btn" src="job-offers-button.png" alt="Offerte di lavoro" style="height:34px;width:auto;display:block;cursor:pointer;">' +
+      '<img id="home-job-offers-btn" class="home-job-offers-btn" src="bacheca-button.png" alt="Bacheca" style="height:34px;width:auto;display:block;cursor:pointer;">' +
       '</div>';
 
     // 2) Viaggi totali / KM totali — the whole month, all clients combined.
