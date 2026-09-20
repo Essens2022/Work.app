@@ -2482,6 +2482,28 @@
     }
     window.addEventListener('resize', updateToplineHeight);
 
+    // Cerut direct, cu screenshot ("vezi bara care este in plus"):
+    // pagina Annunci (iframe) rezerva jos un spatiu fix, GHICIT (70px),
+    // ca sa nu-si ascunda cardurile sub bara FIXA de jos a flotei
+    // (invizibila de acolo, fiind in afara cadrului) - diferita de
+    // inaltimea ei REALA (care variaza dupa telefon, safe area etc.),
+    // lasand un gol vizibil intre continut si bara, exact cel marcat.
+    // Masurata aici (unde bara chiar exista in DOM) si trimisa paginii
+    // dinauntru prin postMessage, ca rezerva ei sa fie exacta, nu
+    // ghicita - la incarcarea cadrului si de cate ori bara isi schimba
+    // inaltimea (ex. rotatia telefonului).
+    function updateBottomNavHeight() {
+      var nav = document.getElementById('bottomNav');
+      var frame = document.getElementById('fleetAnnunciFrame');
+      if (!nav || !frame || !frame.contentWindow) return;
+      frame.contentWindow.postMessage({ type: 'adb-annunci-bottomnav-h', height: nav.offsetHeight }, '*');
+    }
+    (function () {
+      var nav = document.getElementById('bottomNav');
+      if (nav && window.ResizeObserver) new ResizeObserver(updateBottomNavHeight).observe(nav);
+    })();
+    window.addEventListener('resize', updateBottomNavHeight);
+
     function goToScreen(name) {
       document.querySelectorAll('.screen').forEach(function (s) { s.classList.remove('active'); });
       var target = document.getElementById(SCREEN_ID_BY_NAME[name]);
@@ -2603,6 +2625,12 @@
         var fleetIsLight = document.documentElement.getAttribute('data-theme') === 'light';
         localStorage.setItem('adb_annunci_theme', fleetIsLight ? 'light' : 'dark');
         frame.setAttribute('src', '/annunci/?mode=fleet&fleet=' + encodeURIComponent(slug) + '&embedded=1');
+        // Cadrul isi porneste propriul document abia acum - ascultatorul
+        // lui pentru inaltimea barei de jos (vezi updateBottomNavHeight)
+        // nu exista inca in clipa in care am trimis mesajul mai devreme
+        // (daca l-am trimis), deci trimitem din nou aici, dupa ce chiar
+        // s-a incarcat, ca mesajul sa nu se piarda.
+        frame.addEventListener('load', updateBottomNavHeight);
       }
       goToScreen('annunci');
       // La fel ca la Mappa (MapLibre) mai jos: antetul acestui ecran nu
@@ -2611,6 +2639,7 @@
       // chiar devine vizibil, altfel cadrul de dedesubt ramanea cu un
       // spatiu de sus gresit (0), acoperit de antetul fix de deasupra.
       requestAnimationFrame(function () { if (typeof updateToplineHeight === 'function') updateToplineHeight(); });
+      updateBottomNavHeight();
     }
     // Cerut direct ("esiste ancora i bordi sotto e sopra... guarda che
     // bello si vede in bacheca"): pagina Annunci (alt document, in

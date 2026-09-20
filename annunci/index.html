@@ -60,6 +60,21 @@
     document.documentElement.style.setProperty('--safe-top','0px');
     document.documentElement.setAttribute('data-embedded','1');
   }
+  // Cerut direct ("guarda che bello si vede in bacheca"... aparuse un
+  // gol/bara alba nedorita, deasupra barei reale de jos a flotei):
+  // spatiul de jos rezervat mai jos (in .layout, cand pagina e
+  // incorporata) ca sa nu ascunda cardurile sub bara FIXA de jos a
+  // flotei (in afara acestui cadru/iframe, deci invizibila de aici)
+  // folosea o valoare GHICITA (70px) pentru inaltimea acelei bare -
+  // diferita de inaltimea ei REALA (care variaza dupa telefon, safe
+  // area etc.), lasand un gol vizibil intre continut si bara. Portalul
+  // de flota (parintele) masoara acum bara reala si trimite inaltimea
+  // ei exacta aici, prin postMessage - stocata intr-o variabila CSS
+  // proprie, folosita in loc de valoarea ghicita.
+  window.addEventListener('message',function(ev){
+    if(!ev.data||ev.data.type!=='adb-annunci-bottomnav-h')return;
+    document.documentElement.style.setProperty('--fleet-bottomnav-h',ev.data.height+'px');
+  });
 })();</script>
 <style>
 :root{--bg:#0d0e10;--panel:#151619;--panel2:#1b1c20;--line:#292b31;--text:#f6f5f3;--muted:#9b9ca2;--accent:#E8542B;--accent2:#ff6b3f;--green:#32bd72;--amber:#e9a83a;--danger:#e45555;--shadow:0 12px 34px rgba(0,0,0,.22);--r:16px;--safe-top:env(safe-area-inset-top,0px)}
@@ -90,8 +105,16 @@ html[data-embedded="1"] .layout{padding-top:0}
      jos rezervat aici (82px, gandit pentru pagina de sine statatoare,
      fara nicio alta bara dedesubt) nu mai era suficient, lasand un
      gol vizibil intre continut si acea bara. Marit doar aici, cand
-     e integrat - pagina de sine statatoare (soferi) ramane neatinsa. */
-  html[data-embedded="1"] .layout{padding-bottom:calc(82px + 70px)}
+     e integrat - pagina de sine statatoare (soferi) ramane neatinsa.
+     Raportat din nou, cu screenshot ("vezi bara care este in plus"):
+     cei 70px adaugati mai sus erau o valoare GHICITA pentru inaltimea
+     barei reale a flotei - mai mica decat inaltimea ei REALA (care
+     variaza dupa telefon, safe area etc.), lasand un gol vizibil intre
+     continut si bara, marcat direct in screenshot. Inlocuit cu
+     inaltimea REALA, masurata si trimisa de portalul de flota (vezi
+     scriptul de sus, inainte de <style>) - cu aceeasi valoare ghicita
+     ca prima incercare, pana ajunge masuratoarea reala. */
+  html[data-embedded="1"] .layout{padding-bottom:calc(82px + var(--fleet-bottomnav-h, 70px))}
 /* Raportat direct ("aceste pagini noi... nu se extind pe intregul
    ecran, cum se extind alte pagini"): limita proprie de latime a
    paginii (1240px) era mai ingusta decat spatiul disponibil oferit
