@@ -505,6 +505,52 @@ a{color:inherit;text-decoration:none}
 </div>
 
 <script>
+// Cerut direct ("apare doar pe aplicatia bacheca instalata pe ecranul
+// telefonului, cand apas direct din browser nu apare"): CAUZA REALA,
+// gasita chiar din aceasta observatie - o pagina instalata pe ecranul
+// principal (iOS) nu se "redeschide" mereu de la zero cand atingi
+// iconita. Telefonul o SUSPENDA (o inghenta in memorie) cat timp stai
+// in alta aplicatie, iar la revenire de multe ori doar RELUA acea
+// sesiune inghetata, fara nicio navigare noua si fara nicio cerere
+// reala catre server - deci orice reparatie publicata intre timp
+// (exact ca .mp-slot-empty/.mp-slot-img de la #921) ramane invizibila
+// ore intregi, pana cand utilizatorul inchide manual aplicatia din
+// task-switcher. Intr-un tab obisnuit de Safari, in schimb, fiecare
+// deschidere e o navigare reala, deci ia mereu ultima versiune.
+//
+// Acelasi mecanism deja dovedit in app.js (aplicatia soferului),
+// adaptat aici: se verifica version.json (fara cache) la incarcare SI
+// de fiecare data cand pagina redevine vizibila - exact momentul in
+// care iOS "trezeste" o sesiune inghetata - iar daca versiunea nu se
+// potriveste, pagina se reincarca singura. Nu reincarca niciodata cat
+// timp fereastra de Pubblica e deschisa, ca sa nu se piarda un
+// formular pe jumatate completat.
+const BACHECA_VERSION = 'bacheca-v1';
+(function(){
+  try {
+    var RELOAD_COOLDOWN_MS = 20000;
+    function checkBachecaVersion(){
+      var last = sessionStorage.getItem('bacheca_last_auto_reload');
+      if(last && (Date.now() - parseInt(last,10)) < RELOAD_COOLDOWN_MS) return;
+      var postModalEl = document.getElementById('postModal');
+      if(postModalEl && postModalEl.classList.contains('open')) return;
+      fetch('/version.json', { cache:'no-store' })
+        .then(function(r){ return r.json(); })
+        .then(function(data){
+          if(data && data.bacheca && data.bacheca !== BACHECA_VERSION){
+            try { sessionStorage.setItem('bacheca_last_auto_reload', String(Date.now())); } catch(e){}
+            window.location.reload();
+          }
+        })
+        .catch(function(){ /* offline sau blocat - reincercam la urmatoarea revenire */ });
+    }
+    checkBachecaVersion();
+    document.addEventListener('visibilitychange', function(){
+      if(document.visibilityState === 'visible') checkBachecaVersion();
+    });
+  } catch(e) { /* verificarea insasi nu trebuie sa poata strica pagina */ }
+})();
+
 // Cerut direct ("quando scrollo lì si scrolla anche la pagina
 // dietro"): A DOUA cauza reala, mai importanta decat prima
 // (overscroll-behavior de mai sus, care opreste doar "imprumutul"
