@@ -567,7 +567,19 @@ async function loadAds(){
       fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'list', type:t }) })
         .then(r => r.json())
     ));
-    SAMPLE_ADS = results.flatMap(r => (r.ok && r.items) ? r.items : []);
+    // Cerut direct ("anunturile deja din start trebuie sa fie puse
+    // sus cel mai recent, chiar cand se afla la tutti"): CAUZA REALA -
+    // fiecare categorie e ceruta separat de la server (fiecare
+    // sortata corect intern, dupa data), dar apoi sunt lipite una
+    // dupa alta, in ordinea FIXA a categoriilor (Lavoro, Trasporti,
+    // Marketplace, Servizi) - nu amestecate cronologic intre ele. Un
+    // anunt de Lavoro de acum o saptamana ajungea deasupra unui
+    // anunt de Marketplace de acum 5 minute, doar pentru ca blocul
+    // Lavoro vine primul la lipire. Sortam o singura data aici, la
+    // sursa, dupa data reala - "Tutti" (care nu mai reordoneaza
+    // nimic) arata acum corect cele mai recente sus, din prima.
+    SAMPLE_ADS = results.flatMap(r => (r.ok && r.items) ? r.items : [])
+      .sort((a,b) => String(b.created_at).localeCompare(String(a.created_at)));
   } catch(e) {
     SAMPLE_ADS = [];
     document.getElementById('list').innerHTML = '<div class="empty">Impossibile caricare gli annunci al momento. Riprova tra poco.</div>';
