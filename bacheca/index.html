@@ -465,7 +465,11 @@ const TYPE_ICON = {
   service: '<path d="M14 7l3 3-8 8-3-3zM17.5 6.5l0 0a2.1 2.1 0 013 3l0 0M4 20l1.5-4.5L9 19z"/>',
 };
 let activeTypes = new Set(['job','client','marketplace','service']);
-let sortMode = 'recent';
+// Cerut direct ("cand pune tutti si el sa fie primul, se ramane asa
+// in baza la cum au fost incarcate deja"): pornim pe 'all' - ordinea
+// exact cum vine de la server, neatinsa - si abia daca autorul alege
+// altceva se rearanjeaza lista.
+let sortMode = 'all';
 
 // Cerut direct ("faci sa se porneasca imediat, dintr-o data... un
 // singur intreg"): NU mai exista doua pagini/adrese separate - un
@@ -914,6 +918,84 @@ function openDetail(ad){
   });
 }
 
+// Cerut direct ("ordina per... nu arata corect... ar mai trebui sa fie
+// si tutti"): trei optiuni, in ordinea ceruta - "Tutti" prima si
+// implicita.
+//
+// CAUZA REALA gasita pentru "nu arata corect": lista de mai jos era
+// rescrisa din temelii (innerHTML) la FIECARE redesenare a paginii -
+// iar un <select> nou-nout porneste mereu de la prima lui optiune.
+// Deci alegerea facuta de om era stearsa vizual imediat dupa ce o
+// facea, chiar daca in memorie ramanea retinuta: parea ca optiunea
+// "nu se aplica". Acum optiunea aleasa e marcata explicit (selected)
+// la fiecare redesenare, deci ramane vizibil aleasa.
+//
+// Si a doua cauza, la fel de reala: "Ordina per compenso" nu era
+// tratata absolut deloc in codul de sortare de mai jos - alegerea nu
+// facea nimic, lista ramanea exact cum era.
+const SORT_OPTIONS = [
+  { value:'all',    label:'Tutti' },
+  { value:'recent', label:'Più recenti' },
+  { value:'price',  label:'Per compenso' },
+];
+function setSortMode(v){
+  sortMode = SORT_OPTIONS.some(o => o.value === v) ? v : 'all';
+  render();
+}
+
+// Cerut direct ("sa se calculeze corect - daca arata o vanzare ca este
+// la 25 000€ si un lucru ca este intre 2000€-2500€, clar ca primul in
+// lista va fi 25 000€"): compensul e scris de oameni, in text liber
+// ("25 000 €", "25.000€", "2000 € - 2500 €", "€ 1.800/mese", "25k"),
+// deci nu poate fi comparat ca text - "2500" ar sta inaintea lui
+// "25 000" la o simpla comparatie de siruri, exact invers decat
+// trebuie. Aici scoatem din text numarul real.
+//
+// Separatoarele sunt capcana: in Italia "1.800" inseamna o mie opt
+// sute, nu unu virgula opt. Regula folosita mai jos: un singur
+// separator urmat de EXACT trei cifre inseamna mii (1.800 -> 1800,
+// 25,000 -> 25000); orice altceva dupa separator inseamna zecimale
+// (1,5 -> 1.5; 25,00 -> 25).
+function parseAmountToken(token){
+  let t = token.replace(/[\u00A0\u202F\u2009]/g, ' ').trim();
+  // Spatiul apare DOAR ca separator de mii ("25 000"), niciodata ca zecimale.
+  if(/^\d{1,3}(?: \d{3})+$/.test(t)) return Number(t.replace(/ /g, ''));
+  t = t.replace(/ /g, '');
+  const hasDot = t.indexOf('.') >= 0, hasComma = t.indexOf(',') >= 0;
+  if(hasDot && hasComma){
+    // Amandoua prezente ("1.800,50"): ultimul dintre ele e cel zecimal.
+    return t.lastIndexOf(',') > t.lastIndexOf('.')
+      ? Number(t.replace(/\./g, '').replace(',', '.'))
+      : Number(t.replace(/,/g, ''));
+  }
+  const sep = hasDot ? '.' : (hasComma ? ',' : null);
+  if(!sep) return Number(t);
+  const parts = t.split(sep);
+  if(parts.length > 2) return Number(parts.join(''));      // 1.234.567 - mereu mii
+  if(parts[1].length === 3) return Number(parts.join(''));  // 1.800 / 25,000 - mii
+  return Number(parts[0] + '.' + parts[1]);                 // 1,5 / 25,00 - zecimale
+}
+// Cerut direct ("porneste de la suma cea mai mare"): dintr-un interval
+// ("2000€-2500€") retinem capatul de SUS, ca anuntul sa fie judecat
+// dupa cat poate ajunge sa valoreze, nu dupa minimul lui.
+function priceValue(ad){
+  const label = String(ad && ad.price_label || '');
+  if(!label) return null;
+  let best = null;
+  // "k" inseamna mii ("25k"), dar numai daca nu e inceputul altui
+  // cuvant - altfel "2000 km" ar deveni doua milioane.
+  const re = /(\d+(?:[.,\u00A0\u202F ]\d+)*)\s*([kK](?![a-zA-Z]))?/g;
+  let m;
+  while((m = re.exec(label)) !== null){
+    if(!m[1]) continue;
+    let n = parseAmountToken(m[1]);
+    if(!isFinite(n)) continue;
+    if(m[2]) n *= 1000;
+    if(best === null || n > best) best = n;
+  }
+  return best;
+}
+
 function renderFilters(){
   const types = ['job','client','service','marketplace'];
   const pillsHtml = types.map(t => {
@@ -926,9 +1008,8 @@ function renderFilters(){
     </button>`;
   }).join('');
   document.getElementById('filterbar').innerHTML = `<div class="pillgroup">${pillsHtml}</div>
-    <select class="sortsel" onchange="sortMode=this.value;render()">
-      <option value="recent">Più recenti</option>
-      <option value="price">Ordina per compenso</option>
+    <select class="sortsel" onchange="setSortMode(this.value)">
+      ${SORT_OPTIONS.map(o => `<option value="${o.value}"${o.value===sortMode?' selected':''}>${o.label}</option>`).join('')}
     </select>`;
 }
 function toggleType(t){
@@ -1007,7 +1088,24 @@ function render(){
   renderFilters();
   const q = document.getElementById('search').value.trim().toLowerCase();
   let items = SAMPLE_ADS.filter(ad => activeTypes.has(ad.type) && (!q || (ad.title+ad.company+ad.location).toLowerCase().includes(q)));
-  if(sortMode==='recent') items = items.slice().sort((a,b)=> b.created_at.localeCompare(a.created_at));
+  // "Tutti" nu atinge ordinea: anunturile raman exact cum au venit de
+  // la server. Celelalte doua rearanjeaza o COPIE (slice), ca ordinea
+  // originala sa fie mereu recuperabila intorcandu-se la "Tutti".
+  if(sortMode === 'recent'){
+    items = items.slice().sort((a,b) => String(b.created_at).localeCompare(String(a.created_at)));
+  } else if(sortMode === 'price'){
+    // Anunturile fara nicio suma scrisa ("Da concordare", camp gol) nu
+    // pot fi comparate cu cele cu pret - ar cadea arbitrar printre
+    // ele. Stau mereu la coada, iar intre ele se ordoneaza dupa data.
+    items = items.slice().sort((a,b) => {
+      const va = priceValue(a), vb = priceValue(b);
+      if(va === null && vb === null) return String(b.created_at).localeCompare(String(a.created_at));
+      if(va === null) return 1;
+      if(vb === null) return -1;
+      if(vb !== va) return vb - va;
+      return String(b.created_at).localeCompare(String(a.created_at));
+    });
+  }
   document.getElementById('resultCount').textContent = items.length + (items.length===1?' risultato':' risultati');
   const list = document.getElementById('list');
   if(!items.length){ list.innerHTML = '<div class="empty">Nessun annuncio trovato con questi filtri.</div>'; return; }
