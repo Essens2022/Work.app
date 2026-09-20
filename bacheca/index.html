@@ -141,6 +141,18 @@ a{color:inherit;text-decoration:none}
 .row-top h3{padding-right:100px;}
 
 .wrap{max-width:760px;margin:0 auto;padding:22px 24px 80px;}
+/* Cerut direct ("o pagina cu trei intrari"): incorporata intr-un
+   cadru (iframe) din portalul de flota, aceasta pagina nu mai are
+   nevoie de propria sigla (portalul are deja propriul antet cu
+   titlul "Annunci" deasupra cadrului) - dubla branding, redundanta.
+   Bara de cautare si contul (acum "Fleet", vezi FLEET_MODE mai sus)
+   raman neschimbate. Rezervam si spatiu de jos suplimentar, cat
+   inaltimea REALA a barei de navigare a flotei (masurata de portal,
+   trimisa prin postMessage - vezi 'adb-annunci-bottomnav-h' mai jos),
+   care sta FIXA in afara acestui cadru si ar acoperi altfel ultimele
+   anunturi din lista. */
+html[data-embedded="1"] .headwrap .logo{display:none}
+html[data-embedded="1"] .wrap{padding-bottom:calc(80px + var(--fleet-bottomnav-h,70px))}
 .results-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;}
 .results-head h2{font-size:15px;font-weight:600;margin:0;}
 .results-head span{color:var(--ink-soft);font-size:13px;}
@@ -417,11 +429,16 @@ a{color:inherit;text-decoration:none}
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.6l-1-1a5.5 5.5 0 00-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 000-7.8z"/></svg>
         Preferiti
       </button>
-      <button class="navitem" onclick="showAccSection('fatturazione', this)">
+      <!-- Cerut direct ("o pagina cu trei intrari"): "Fatturazione" si
+           "Account" tin de contul Google (facturare individuala,
+           stergere cont Google) - nu au sens pentru o flota (fara
+           cont Google, cu propria facturare separata) - ascunse doar
+           pentru ea, cu id="fleetHideNav" (vezi FLEET_MODE mai jos). -->
+      <button class="navitem" id="navFatturazione" onclick="showAccSection('fatturazione', this)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h4"/></svg>
         Fatturazione
       </button>
-      <button class="navitem" onclick="showAccSection('account', this)">
+      <button class="navitem" id="navAccount" onclick="showAccSection('account', this)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg>
         Account
       </button>
@@ -495,6 +512,17 @@ a{color:inherit;text-decoration:none}
       <div class="divider">poi compila i dettagli</div>
     </div>
     <div class="modal-field"><label>Categoria</label><select id="fType"><option value="job">Lavoro</option><option value="client">Trasportatori</option><option value="marketplace">Marketplace</option><option value="service">Servizi</option></select></div>
+    <!-- Cerut direct ("o pagina cu trei intrari... anche i campi
+         Stato/Pubblicazione/Promozione"): campuri de administrare,
+         disponibile doar pentru flota (server-ul le accepta deja
+         pentru orice autor, dar un sofer/vizitator obisnuit nu are
+         nevoie sa aleaga singur un badge sau o promotie platita -
+         raman ascunse pentru ei, cu valorile implicite normale). -->
+    <div id="fFleetAdminFields" style="display:none;">
+      <div class="modal-field"><label>Stato</label><select id="fBadge"><option value="">Normale</option><option value="new">Nuovo</option><option value="urgent">Urgente</option><option value="sponsored">Sponsorizzato</option></select></div>
+      <div class="modal-field"><label>Pubblicazione</label><select id="fVisibility"><option value="public">Pubblico</option><option value="draft">Bozza</option></select></div>
+      <div class="modal-field"><label>Promozione</label><select id="fPromotion"><option value="standard">Standard</option><option value="featured">In evidenza</option><option value="sponsored">Sponsorizzato</option></select></div>
+    </div>
     <div class="modal-field"><label>Titolo</label><input id="fTitle" placeholder="Es. Cerco autista patente CE"></div>
     <div class="modal-field"><label>Azienda / nome</label><input id="fCompany" placeholder="Chi pubblica l'annuncio"></div>
     <div class="modal-field" style="position:relative;">
@@ -803,6 +831,37 @@ let SAMPLE_ADS = [];
 // un singur tablou, exact ca inainte (SAMPLE_ADS), ca tot restul
 // codului (filtre, cautare, randare) sa ramana neschimbat.
 const ANNUNCI_API = 'https://chboalgzigdglygnnist.supabase.co/functions/v1/annunci';
+// Cerut direct ("sa unim la fletul la bacheca si pagina de la
+// soferi... bacheca este o pagina cu trei intrari... persoane direct
+// din app soferi, app fleet si deja cei care se logheaza prin
+// google"): a treia intrare, Fleet, portata acum DIRECT aici, in loc
+// sa mai traiasca separat in annunci/index.html+annunci.js - o copie
+// separata insemna ca orice functie noua trebuia adaugata de doua ori
+// (uitata mereu intr-o parte: categorii, galerie foto, whatsapp).
+// Acelasi tipar folosit deja de fostul annunci.js: modul si datele
+// flotei vin din URL (?mode=fleet&fleet=<slug>&embedded=1), parola
+// flotei din sessionStorage (setata de portalul de flota inainte de
+// a incarca aceasta pagina).
+const bachecaParams = new URLSearchParams(location.search);
+const FLEET_MODE = bachecaParams.get('mode') === 'fleet';
+const EMBEDDED = bachecaParams.get('embedded') === '1';
+const fleetSlug = bachecaParams.get('fleet') || '';
+const fleetPassword = fleetSlug ? (sessionStorage.getItem('adb_fleet_pw_' + fleetSlug) || '') : '';
+if (EMBEDDED) document.documentElement.setAttribute('data-embedded', '1');
+if (FLEET_MODE) document.documentElement.setAttribute('data-fleet', '1');
+// O flota nu se logheaza niciodata prin Google - identitatea ei
+// (fleet_slug + fleet_password) inlocuieste access_token-ul de sesiune
+// Supabase la fiecare cerere care are nevoie de autor (create/update/
+// delete/mine/favorite) - server-ul (supabase/functions/annunci)
+// accepta deja ambele cai, folosite pana acum separat de bacheca
+// (access_token) si de annunci.js (fleet_slug/fleet_password).
+function getAuthFields(){
+  if (FLEET_MODE) return Promise.resolve({ mode:'fleet', fleet_slug: fleetSlug, fleet_password: fleetPassword });
+  return supabaseClient.auth.getSession().then(function(res){
+    var token = res.data && res.data.session && res.data.session.access_token;
+    return { access_token: token };
+  });
+}
 // Cerut direct ("la anuntul nedeschis, posibilitatea de a trimite
 // anuntul"): foloseste acelasi link de distribuire deja functional
 // (server, actiune GET, cu imagine/titlu corecte la partajare), doar
@@ -959,6 +1018,10 @@ function openPost(){
   // cineva sa aleaga vreo categorie.
   document.getElementById('fType').value = 'job';
   ['fTitle','fCompany','fLocation','fCategory','fPrice','fWork','fDescription','fContact','fWhatsapp'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('fFleetAdminFields').style.display = FLEET_MODE ? 'block' : 'none';
+  document.getElementById('fBadge').value = '';
+  document.getElementById('fVisibility').value = 'public';
+  document.getElementById('fPromotion').value = 'standard';
   setMarketplaceCategoryValue('');
   setJobPatenteValue('');
   setJobContrattoValue('');
@@ -987,6 +1050,10 @@ function openPost(){
 function openEditAd(ad){
   editingAdId = ad.id;
   document.getElementById('fType').value = ad.type;
+  document.getElementById('fFleetAdminFields').style.display = FLEET_MODE ? 'block' : 'none';
+  document.getElementById('fBadge').value = ad.badge || '';
+  document.getElementById('fVisibility').value = ad.visibility || 'public';
+  document.getElementById('fPromotion').value = ad.promotion || 'standard';
   document.getElementById('fTitle').value = ad.title || '';
   document.getElementById('fCompany').value = ad.company || '';
   document.getElementById('fLocation').value = ad.location || '';
@@ -1650,6 +1717,11 @@ function submitAnnuncio(){
     contact: document.getElementById('fContact').value.trim(),
     whatsapp: document.getElementById('fWhatsapp').value.trim(),
   };
+  if(FLEET_MODE){
+    item.badge = document.getElementById('fBadge').value;
+    item.visibility = document.getElementById('fVisibility').value;
+    item.promotion = document.getElementById('fPromotion').value;
+  }
   // Cerut direct ("marketplace... fino a tre foto"): server-ul asteapta
   // un tablou "images" DOAR pentru Marketplace - celelalte categorii
   // raman pe drumul vechi, cu o singura poza (image_data). Sloturile
@@ -1690,11 +1762,11 @@ function submitAnnuncio(){
   const btn = document.getElementById('publishSubmitBtn');
   const isEditing = !!editingAdId;
   btn.disabled = true; btn.textContent = isEditing ? 'Salvataggio…' : 'Pubblicazione…';
-  supabaseClient.auth.getSession().then(res => {
-    const token = res.data && res.data.session && res.data.session.access_token;
-    const payload = isEditing
-      ? { action:'update', access_token: token, id: editingAdId, item }
-      : { action:'create', access_token: token, item };
+  getAuthFields().then(auth => {
+    const payload = Object.assign(
+      isEditing ? { action:'update', id: editingAdId, item } : { action:'create', item },
+      auth
+    );
     return fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
   }).then(r => r.json()).then(res => {
     if(!res.ok){ errEl.textContent = (isEditing ? 'Salvataggio non riuscito: ' : 'Pubblicazione non riuscita: ') + (res.error || 'errore sconosciuto'); errEl.style.display = 'block'; return; }
@@ -1783,14 +1855,14 @@ function toggleFavorite(id, btn){
   const action = wasFavorited ? 'unfavorite' : 'favorite';
   if(wasFavorited){ favoritedIds.delete(id); } else { favoritedIds.add(id); }
   applyFavoriteButtonState(btn, !wasFavorited);
-  supabaseClient.auth.getSession().then(res => {
-    const token = res.data && res.data.session && res.data.session.access_token;
+  getAuthFields().then(auth => {
     // Cerut direct ("nu e posibila salvarea"): daca tocmai aici lipseste
     // tokenul de sesiune (motivul cel mai probabil al erorii semnalate),
     // spunem exact asta, in loc de un mesaj generic care nu ajuta la
-    // gasirea cauzei reale.
-    if(!token) throw new Error('missing_token');
-    return fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action, access_token: token, annuncio_id: id }) });
+    // gasirea cauzei reale. O flota (fara token, dar cu fleet_slug) nu
+    // trebuie sa declanseze aceasta eroare.
+    if(!FLEET_MODE && !auth.access_token) throw new Error('missing_token');
+    return fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(Object.assign({ action, annuncio_id: id }, auth)) });
   }).then(r => r.json()).then(res => {
     if(res.ok) return;
     if(wasFavorited){ favoritedIds.add(id); } else { favoritedIds.delete(id); }
@@ -2033,7 +2105,7 @@ function adRowHtml(ad, indexAttr, extraLine){
           <div class="row-top">
             <h3>${ad.title}</h3>
             <div class="row-top-badges">
-              ${ad.badge==='new' ? '<span class="badge-new">Nuovo</span>' : ''}
+              ${ad.badge==='new' ? '<span class="badge-new">Nuovo</span>' : ad.badge==='urgent' ? '<span class="badge-new" style="background:var(--warn-soft);color:var(--warn);">Urgente</span>' : ad.badge==='sponsored' ? '<span class="badge-new" style="background:var(--accent-soft);color:var(--accent);">Sponsorizzato</span>' : ''}
               <span class="tag ${ad.type}">${TYPE_LABEL[ad.type]}</span>
             </div>
           </div>
@@ -2132,9 +2204,8 @@ function loadMyAds(){
   const el = document.getElementById('adsList');
   el.innerHTML = '<div class="empty">Caricamento…</div>';
   if(!currentUser){ el.innerHTML = '<div class="empty">Accedi per vedere i tuoi annunci.</div>'; return; }
-  supabaseClient.auth.getSession().then(res => {
-    const token = res.data && res.data.session && res.data.session.access_token;
-    return fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'mine', access_token: token }) });
+  getAuthFields().then(auth => {
+    return fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(Object.assign({ action:'mine' }, auth)) });
   }).then(r => r.json()).then(res => {
     if(!res.ok){ el.innerHTML = '<div class="empty">Impossibile caricare i tuoi annunci.</div>'; return; }
     renderAds(res.items || []);
@@ -2142,9 +2213,8 @@ function loadMyAds(){
 }
 function deleteMyAd(id){
   if(!confirm('Eliminare questo annuncio? Non può essere annullato.')) return;
-  supabaseClient.auth.getSession().then(res => {
-    const token = res.data && res.data.session && res.data.session.access_token;
-    return fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'delete', access_token: token, id }) });
+  getAuthFields().then(auth => {
+    return fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(Object.assign({ action:'delete', id }, auth)) });
   }).then(r => r.json()).then(res => {
     if(res.ok) loadMyAds(); else alert('Eliminazione non riuscita.');
   });
@@ -2217,9 +2287,8 @@ function loadFavorites(){
   const el = document.getElementById('favoritesList');
   el.innerHTML = '<div class="empty">Caricamento…</div>';
   if(!currentUser){ el.innerHTML = '<div class="empty">Accedi per vedere i tuoi preferiti.</div>'; return; }
-  supabaseClient.auth.getSession().then(res => {
-    const token = res.data && res.data.session && res.data.session.access_token;
-    return fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'list_favorites', access_token: token }) });
+  getAuthFields().then(auth => {
+    return fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(Object.assign({ action:'list_favorites' }, auth)) });
   }).then(r => r.json()).then(res => {
     if(!res.ok){ el.innerHTML = '<div class="empty">Impossibile caricare i preferiti.</div>'; return; }
     if(!res.items.length){ el.innerHTML = '<div class="empty">Non hai ancora salvato nessun annuncio.</div>'; return; }
@@ -2237,9 +2306,8 @@ function loadFavorites(){
 }
 let favoriteItems = [];
 function unfavoriteAd(id){
-  supabaseClient.auth.getSession().then(res => {
-    const token = res.data && res.data.session && res.data.session.access_token;
-    return fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'unfavorite', access_token: token, annuncio_id: id }) });
+  getAuthFields().then(auth => {
+    return fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(Object.assign({ action:'unfavorite', annuncio_id: id }, auth)) });
   }).then(() => { favoritedIds.delete(id); loadFavorites(); });
 }
 
@@ -2264,7 +2332,22 @@ function checkSessionNow(){
     if(currentUser && document.getElementById('screen-account').classList.contains('active')) renderAccountData();
   });
 }
-if(supabaseClient){
+// Cerut direct ("bacheca este o pagina cu trei intrari... deja
+// logat"): o flota nu trece niciodata prin ecranul de login Google -
+// e deja autentificata prin propriul portal (fleet_slug+fleet_password,
+// vezi getAuthFields mai sus). Contul "curent" e setat direct aici,
+// fara niciun apel catre Supabase Auth - restul codului (care doar
+// verifica `if(currentUser)` peste tot) functioneaza neschimbat.
+if(FLEET_MODE){
+  currentUser = { name:'Fleet', email:'', initials:'FL', isFleet:true };
+  renderAuthArea();
+  if(document.getElementById('screen-account').classList.contains('active')) renderAccountData();
+  // "Fatturazione" (facturare individuala) si "Account" (date contului
+  // Google, stergere cont) nu au sens pentru o flota - ramane doar
+  // "I miei annunci" si "Preferiti", ambele valabile si aici.
+  document.getElementById('navFatturazione').style.display = 'none';
+  document.getElementById('navAccount').style.display = 'none';
+} else if(supabaseClient){
   checkSessionNow();
   supabaseClient.auth.onAuthStateChange(function(event, session){
     currentUser = userFromSession(session);
@@ -2279,6 +2362,38 @@ if(supabaseClient){
   renderAuthArea();
 }
 loadAds();
+
+// Cerut direct: aceleasi 3 tipuri de mesaje folosite pana acum de
+// fostul annunci.js, intre aceasta pagina (acum sursa unica) si
+// portalul de flota (404.html) - portalul nu se schimba, doar tinta
+// cadrului lui (annunci/ -> bacheca/).
+if(EMBEDDED){
+  window.addEventListener('message', function(ev){
+    if(!ev.data) return;
+    if(ev.data.type === 'adb-annunci-bottomnav-h'){
+      document.documentElement.style.setProperty('--fleet-bottomnav-h', ev.data.height + 'px');
+    } else if(ev.data.type === 'adb-annunci-refresh'){
+      if(document.getElementById('screen-account').classList.contains('active')){ loadMyAds(); loadFavorites(); }
+      else { loadAds(); }
+    }
+  });
+  // Portalul de flota extinde cadrul peste tot ecranul cat timp un
+  // modal e deschis aici inauntru (vezi .annunci-modal-fullscreen in
+  // 404.html) - are nevoie sa stie exact cand se deschide/inchide
+  // ORICARE dintre cele 3 modale (.modal-bg) ale acestei pagini.
+  // MutationObserver, nu o functie centralizata de open/close (care
+  // nu exista aici - fiecare modal se deschide/inchide direct, in
+  // ~15 locuri diferite) - observa rezultatul (clasa 'open'), nu
+  // fiecare loc care o schimba, deci nu rateaza niciunul.
+  if(window.MutationObserver){
+    var modalBgs = document.querySelectorAll('.modal-bg');
+    var notifyModalState = function(){
+      var anyOpen = Array.prototype.some.call(modalBgs, function(m){ return m.classList.contains('open'); });
+      if(window.parent && window.parent !== window) window.parent.postMessage({ type:'adb-annunci-modal', open: anyOpen }, '*');
+    };
+    modalBgs.forEach(function(m){ new MutationObserver(notifyModalState).observe(m, { attributes:true, attributeFilter:['class'] }); });
+  }
+}
 </script>
 </body>
 </html>
