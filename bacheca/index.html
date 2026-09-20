@@ -738,7 +738,7 @@ a{color:inherit;text-decoration:none}
 // potriveste, pagina se reincarca singura. Nu reincarca niciodata cat
 // timp fereastra de Pubblica e deschisa, ca sa nu se piarda un
 // formular pe jumatate completat.
-const BACHECA_VERSION = 'bacheca-v15';
+const BACHECA_VERSION = 'bacheca-v16';
 (function(){
   try {
     var RELOAD_COOLDOWN_MS = 20000;
@@ -1362,21 +1362,40 @@ function syncScheduleUI(touchDescription){
   });
   if(touchDescription !== false) updateScheduleDescription();
 }
-// Cerut direct ("fa orariile preimpostate de la 08:00-12:00 13:00-17:00...
-// cand alege ora sa porneasca de la aceste orarii deja, daca difera
-// putin fiecare le schimba"): orarul obisnuit de lucru vine deja
-// completat pentru toate cele 7 zile - autorul doar corecteaza ce
-// difera (o zi cu program mai scurt, o zi inchisa), in loc sa
-// completeze 28 de casute goale de la zero de fiecare data.
-const SCHEDULE_DEFAULT = { mFrom:'08:00', mTo:'12:00', pFrom:'13:00', pTo:'17:00' };
+// Cerut direct ("casetele la orarii trebuie sa fie goale, insa cand
+// apasa pe caseta sa puna orariile trebuie sa fie preimpostate la
+// acele orarii"): casetele RAMAN goale vizual (nimic pretins ca ar fi
+// deja completat) - abia cand autorul atinge o caseta goala anume, ii
+// punem valoarea obisnuita (08:00/12:00/13:00/17:00) chiar in acel
+// moment, inainte sa se deschida roata de selectie a orei - astfel
+// roata porneste deja de la acea ora, gata doar de confirmat sau
+// ajustat, nu de la miezul noptii. O caseta care are deja o valoare
+// (fie scrisa de autor, fie preluata astfel) nu mai e atinsa.
+const SCHEDULE_DEFAULT_BY_CLASS = {
+  'schedule-m-from': '08:00', 'schedule-m-to': '12:00',
+  'schedule-p-from': '13:00', 'schedule-p-to': '17:00',
+};
+function handleScheduleTimeFocus(e){
+  const inp = e.target;
+  if(!inp.matches || !inp.matches('input[type=time]') || inp.value) return;
+  const cls = Object.keys(SCHEDULE_DEFAULT_BY_CLASS).find(c => inp.classList.contains(c));
+  if(!cls) return;
+  inp.value = SCHEDULE_DEFAULT_BY_CLASS[cls];
+  syncScheduleUI();
+}
 function resetScheduleWidget(touchDescription){
   document.getElementById('fSchedule247').checked = false;
   scheduleFieldEl().querySelectorAll('.schedule-day').forEach(row => {
     row.querySelector('.schedule-closed').checked = false;
-    row.querySelector('.schedule-m-from').value = SCHEDULE_DEFAULT.mFrom;
-    row.querySelector('.schedule-m-to').value = SCHEDULE_DEFAULT.mTo;
-    row.querySelector('.schedule-p-from').value = SCHEDULE_DEFAULT.pFrom;
-    row.querySelector('.schedule-p-to').value = SCHEDULE_DEFAULT.pTo;
+    // Gasit real: o caseta de ora INCA focalizata (autorul tocmai a
+    // atins-o, apoi s-a publicat/inchis formularul fara sa apese in
+    // alta parte intai) ignora silentios un inp.value='' - browserul
+    // pastreaza valoarea pana cand pierde focusul. blur() explicit
+    // inainte garanteaza golirea, indiferent de ordinea evenimentelor.
+    row.querySelectorAll('input[type=time]').forEach(inp => {
+      if(document.activeElement === inp) inp.blur();
+      inp.value = '';
+    });
   });
   syncScheduleUI(touchDescription);
 }
@@ -1384,6 +1403,10 @@ function resetScheduleWidget(touchDescription){
   const el = scheduleFieldEl();
   el.addEventListener('input', syncScheduleUI);
   el.addEventListener('change', syncScheduleUI);
+  // focusin (nu focus) - singurul care se propaga (bubbles), necesar
+  // pentru un listener delegat pe tot containerul, nu pe fiecare din
+  // cele 28 de casute individual.
+  el.addEventListener('focusin', handleScheduleTimeFocus);
 })();
 function updateFormLabels(){
   const t = document.getElementById('fType').value;
@@ -1417,8 +1440,9 @@ function updateFormLabels(){
   document.getElementById('fWorkFieldClient').style.display = isClient ? '' : 'none';
   // Cerut direct ("orarul... au mereu locul lor structurat corect"):
   // widget-ul de orar apare doar la Servizi. La comutarea PE Servizi,
-  // orarul implicit (deja completat in widget) intra imediat in
-  // Descrizione - autorul vede dintr-o data cum arata, gata de corectat.
+  // orice ora deja aleasa in widget (daca autorul comuta intre
+  // categorii inainte si dupa) intra/ramane sincronizata in Descrizione
+  // - fara efect cand widget-ul e inca gol.
   document.getElementById('fScheduleField').style.display = isService ? '' : 'none';
   if(isService) updateScheduleDescription();
   if(isMarket) updateMarketplaceDescHint();
