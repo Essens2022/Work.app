@@ -593,7 +593,7 @@ a{color:inherit;text-decoration:none}
 // potriveste, pagina se reincarca singura. Nu reincarca niciodata cat
 // timp fereastra de Pubblica e deschisa, ca sa nu se piarda un
 // formular pe jumatate completat.
-const BACHECA_VERSION = 'bacheca-v7';
+const BACHECA_VERSION = 'bacheca-v8';
 (function(){
   try {
     var RELOAD_COOLDOWN_MS = 20000;
@@ -700,6 +700,11 @@ async function loadAds(){
     console.error('Errore caricamento annunci:', e);
     return;
   }
+  // renderFilters() reconstruieste bara intreaga (numaratoarea de
+  // anunturi per categorie s-a putut schimba) - are rost doar aici,
+  // cand chiar s-au incarcat anunturi noi. La toggleType()/cautare/
+  // sortare bara ramane neatinsa, doar lista de anunturi se schimba.
+  renderFilters();
   render();
 }
 const TYPE_LABEL = {job:'Lavoro', client:'Trasportatori', marketplace:'Marketplace', service:'Servizi'};
@@ -1598,7 +1603,7 @@ function renderFilters(){
     const n = SAMPLE_ADS.filter(a=>a.type===t).length;
     const on = activeTypes.has(t);
     const cv = TYPE_COLOR_VAR[t];
-    return `<button class="fpill" aria-pressed="${on}" style="--pill-color:var(--${cv});--pill-bg:color-mix(in srgb, var(--${cv}) 12%, transparent);" onclick="toggleType('${t}')">
+    return `<button class="fpill" data-type="${t}" aria-pressed="${on}" style="--pill-color:var(--${cv});--pill-bg:color-mix(in srgb, var(--${cv}) 12%, transparent);" onclick="toggleType('${t}')">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${TYPE_ICON[t]}</svg>
       ${TYPE_LABEL[t]}<span class="n">${n}</span>
     </button>`;
@@ -1615,8 +1620,25 @@ function renderFilters(){
       <button class="postbtn" onclick="openPost()"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>Pubblica</button>
     </div>`;
 }
+// Cerut direct ("cand apas pe marketplace sa scot categoria apare un
+// tik vizual pe partea barei cu toate categoriile, pe o secunda se
+// vede ceva fundal si dupa revine"): CAUZA REALA - toggleType() apela
+// render(), care la randul lui apela mereu renderFilters() - inclusiv
+// bara de filtre INTREAGA era distrusa si recreata din HTML doar ca
+// sa schimbe starea "apasat" a unui singur buton. Bara e sticky
+// (ramane lipita sus la scroll) - inlocuirea ei completa de fiecare
+// data facea vizibil fundalul paginii pentru o clipa, in spatele
+// zonei sticky, pana se reaseza noile elemente. Acum se schimba doar
+// atributul aria-pressed pe butonul respectiv, fara sa se atinga
+// restul DOM-ului din bara.
+function updatePillPressedStates(){
+  document.querySelectorAll('#filterbar .fpill[data-type]').forEach(btn => {
+    btn.setAttribute('aria-pressed', activeTypes.has(btn.dataset.type));
+  });
+}
 function toggleType(t){
   if(activeTypes.has(t)) activeTypes.delete(t); else activeTypes.add(t);
+  updatePillPressedStates();
   render();
 }
 
@@ -1688,7 +1710,6 @@ function wireAdRowEvents(container, items){
 }
 
 function render(){
-  renderFilters();
   const q = document.getElementById('search').value.trim().toLowerCase();
   let items = SAMPLE_ADS.filter(ad => activeTypes.has(ad.type) && (!q || (ad.title+ad.company+ad.location).toLowerCase().includes(q)));
   // "Tutti" nu atinge ordinea: anunturile raman exact cum au venit de
