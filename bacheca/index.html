@@ -55,7 +55,20 @@ a{color:inherit;text-decoration:none}
    cauza reala gasita in acest fisier. Inlocuit cu un fundal opac -
    acelasi aspect de bara solida, dar calculat o singura data, nu la
    fiecare cadru. */
-.topbar{position:sticky;top:0;z-index:20;background:var(--card);border-bottom:1px solid var(--line);}
+/* Cerut direct ("cand dezactivez marketplace se vede partea de anunt
+   de dedesubt care intra sub bara"): CAUZA REALA, a doua fata a
+   aceleiasi probleme - Safari/WebKit nu recalculeaza mereu imediat
+   pozitia unui element sticky cand inaltimea continutului de sub el
+   se schimba brusc, sincron, in afara unui eveniment de scroll real
+   (exact ce se intampla la togglarea unei categorii: lista de
+   anunturi se scurteaza instant). Pentru o clipa bara ramane
+   "nelipita" corect, iar un rand de anunt de mai jos apare vizibil
+   deasupra ei, inainte sa se repozitioneze la urmatorul repaint. Fix
+   documentat pentru acest bug de WebKit: bara e mutata pe stratul ei
+   grafic propriu (translateZ(0) + will-change:transform), ca sa fie
+   recompusa independent, stabil, nu recalculata din context la
+   fiecare schimbare de sub ea. */
+.topbar{position:sticky;top:0;z-index:20;background:var(--card);border-bottom:1px solid var(--line);transform:translateZ(0);-webkit-transform:translateZ(0);will-change:transform;}
 .headwrap{max-width:760px;margin:0 auto;padding:16px 24px 0;display:flex;align-items:center;gap:20px;}
 #screen-account .headwrap{padding:14px 24px;}
 .logo{font-weight:700;font-size:19px;letter-spacing:-.01em;flex:none;display:flex;align-items:center;gap:8px;}
@@ -593,7 +606,7 @@ a{color:inherit;text-decoration:none}
 // potriveste, pagina se reincarca singura. Nu reincarca niciodata cat
 // timp fereastra de Pubblica e deschisa, ca sa nu se piarda un
 // formular pe jumatate completat.
-const BACHECA_VERSION = 'bacheca-v8';
+const BACHECA_VERSION = 'bacheca-v9';
 (function(){
   try {
     var RELOAD_COOLDOWN_MS = 20000;
