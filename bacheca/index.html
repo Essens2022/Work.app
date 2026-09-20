@@ -2362,6 +2362,25 @@ if(FLEET_MODE){
   renderAuthArea();
 }
 loadAds();
+// Cerut indirect (necesar pentru unificare - fosta pagina annunci/
+// deschidea automat un anunt distribuit prin link, ?ad=<id>; server-ul
+// (supabase/functions/annunci) redirectioneaza deja mereu aici pentru
+// orice link distribuit, WhatsApp/Facebook/etc. inclus): cauta anuntul
+// cerut in cele 4 liste publice (nu exista o actiune dedicata "un
+// singur anunt dupa id") si il deschide direct, indiferent de tab-ul
+// curent.
+function openSharedAdIfPresent(){
+  const id = bachecaParams.get('ad');
+  if(!id) return;
+  const types = ['job','client','marketplace','service'];
+  Promise.all(types.map(t => fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'list', type:t }) }).then(r => r.json())))
+    .then(results => {
+      const all = results.flatMap(r => (r.ok && r.items) ? r.items : []);
+      const ad = all.find(a => a.id === id);
+      if(ad) openDetail(ad);
+    }).catch(() => {});
+}
+openSharedAdIfPresent();
 
 // Cerut direct: aceleasi 3 tipuri de mesaje folosite pana acum de
 // fostul annunci.js, intre aceasta pagina (acum sursa unica) si

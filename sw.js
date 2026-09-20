@@ -10,7 +10,13 @@
 //    stay CACHE-FIRST, so they don't get re-downloaded on every load.
 
 const CACHE_VERSION = 'pt-foglio-v655';
-const CORE_ASSETS = ['./', './index.html', './app.js', './manifest.json', './version.json', './annunci/', './annunci/index.html', './annunci/annunci.js'];
+// Cerut direct ("sa unim la fletul la bacheca... o pagina cu trei
+// intrari"): pagina Annunci separata (./annunci/) a fost retrasa -
+// bacheca/index.html e acum sursa unica, folosita si de aplicatia
+// soferului ("Offerte di lavoro") - acelasi tratament de retea (mai
+// jos: network-first, cu fallback din cache pe conexiuni instabile)
+// care ii facea bine paginii vechi.
+const CORE_ASSETS = ['./', './index.html', './app.js', './manifest.json', './version.json', './bacheca/', './bacheca/index.html'];
 // REAL BUG, reported directly, TWICE — a first attempt excluded these
 // pages from the service worker entirely, reasoning that removing a
 // broken safety net was safer than a broken one. That held up fine on

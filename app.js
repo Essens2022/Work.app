@@ -1158,7 +1158,7 @@
     // Cerut direct: pagina reala de oferte nu e inca construita — pana
     // atunci, la apasare arata doar un mesaj scurt, ca soferul sa nu
     // creada ca butonul e stricat/nu face nimic.
-    document.getElementById('home-job-offers-btn').addEventListener('click', function () { window.location.href = '/annunci/?mode=driver'; });
+    document.getElementById('home-job-offers-btn').addEventListener('click', function () { window.location.href = '/bacheca/?mode=driver'; });
     document.getElementById('home-fuel').addEventListener('click', openFuelScreen);
     document.getElementById('home-calendar').addEventListener('click', function () { openCalendarModal(sheet.month, sheet.year); });
     var jumpBtn = document.getElementById('home-jump-latest');
@@ -13985,7 +13985,7 @@
       var dx = e.touches[0].clientX - startX, dy = e.touches[0].clientY - startY;
       if (dx < -60 && Math.abs(dx) > Math.abs(dy) * 2) {
         swiped = true;
-        window.location.href = '/annunci/?mode=driver';
+        window.location.href = '/bacheca/?mode=driver';
       }
     }, { passive: true });
     target.addEventListener('touchend', function () { tracking = false; }, { passive: true });
