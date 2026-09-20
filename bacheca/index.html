@@ -738,7 +738,7 @@ a{color:inherit;text-decoration:none}
 // potriveste, pagina se reincarca singura. Nu reincarca niciodata cat
 // timp fereastra de Pubblica e deschisa, ca sa nu se piarda un
 // formular pe jumatate completat.
-const BACHECA_VERSION = 'bacheca-v16';
+const BACHECA_VERSION = 'bacheca-v17';
 (function(){
   try {
     var RELOAD_COOLDOWN_MS = 20000;
@@ -1366,11 +1366,16 @@ function syncScheduleUI(touchDescription){
 // apasa pe caseta sa puna orariile trebuie sa fie preimpostate la
 // acele orarii"): casetele RAMAN goale vizual (nimic pretins ca ar fi
 // deja completat) - abia cand autorul atinge o caseta goala anume, ii
-// punem valoarea obisnuita (08:00/12:00/13:00/17:00) chiar in acel
-// moment, inainte sa se deschida roata de selectie a orei - astfel
-// roata porneste deja de la acea ora, gata doar de confirmat sau
-// ajustat, nu de la miezul noptii. O caseta care are deja o valoare
-// (fie scrisa de autor, fie preluata astfel) nu mai e atinsa.
+// punem valoarea obisnuita (08:00/12:00/13:00/17:00). O caseta care
+// are deja o valoare (fie scrisa de autor, fie preluata astfel) nu mai
+// e atinsa.
+// Gasit real (confirmat cu o captura de pe telefon - roata se deschidea
+// pe ora curenta, 17:30, in loc de 08:00): pe iOS, roata de selectie
+// isi calculeaza pozitia de start in momentul evenimentului "focus" -
+// daca abia ATUNCI punem valoarea (asa cum facea varianta anterioara),
+// e prea tarziu, roata a pornit deja de la ora curenta. Trebuie pusa
+// mai devreme, chiar la atingere (touchstart/mousedown), inainte ca
+// sistemul sa apuce sa deschida roata.
 const SCHEDULE_DEFAULT_BY_CLASS = {
   'schedule-m-from': '08:00', 'schedule-m-to': '12:00',
   'schedule-p-from': '13:00', 'schedule-p-to': '17:00',
@@ -1403,9 +1408,14 @@ function resetScheduleWidget(touchDescription){
   const el = scheduleFieldEl();
   el.addEventListener('input', syncScheduleUI);
   el.addEventListener('change', syncScheduleUI);
-  // focusin (nu focus) - singurul care se propaga (bubbles), necesar
-  // pentru un listener delegat pe tot containerul, nu pe fiecare din
-  // cele 28 de casute individual.
+  // touchstart/mousedown (NU doar focusin) - ambele se propaga
+  // (bubbles), necesare pentru un listener delegat pe tot containerul.
+  // Pornesc INAINTE de focus, exact cat sa apucam sa punem valoarea
+  // implicita cu o clipa mai devreme decat sistemul de pe iOS calculeaza
+  // pozitia de start a rotii de selectie. focusin ramane ca rezerva,
+  // pentru accesare de la tastatura (Tab), unde nu exista touchstart.
+  el.addEventListener('touchstart', handleScheduleTimeFocus, { passive:true });
+  el.addEventListener('mousedown', handleScheduleTimeFocus);
   el.addEventListener('focusin', handleScheduleTimeFocus);
 })();
 function updateFormLabels(){
