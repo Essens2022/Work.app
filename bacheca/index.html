@@ -822,11 +822,20 @@ function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; 
 // eticheta celor doua campuri libere se schimba dupa categoria
 // aleasa - un loc de munca cere "Compenso", un anunt de vanzare
 // cere "Prezzo", etc. - acelasi camp e trimis mai departe (price_label).
+//
+// Cerut direct ("in marketplace nu poate fi la titlu 'cerco autista',
+// in marketplace se vinde, se cumpara, nu incurca - fiecare categorie
+// are ale sale"): CAUZA REALA - exemplul din campul Titolo era scris
+// o singura data, direct in HTML ("Es. Cerco autista patente CE"), si
+// nu se schimba niciodata, indiferent de categoria aleasa - un anunt
+// de vanzare la Marketplace arata acelasi exemplu ca la un post de
+// sofer. Acum fiecare categorie are exemplul ei (titlePh mai jos),
+// aplicat de updateFormLabels() exact ca la Categoria/Compenso.
 const FIELD_LABELS = {
-  job: { category:'Tipo patente', categoryPh:'Es. Patente CE', price:'Compenso', work:'Tipo di contratto', workPh:'Es. Full-time' },
-  client: { category:'Tipo trasporto', categoryPh:'Es. Conto terzi', price:'Compenso offerto', work:'Frequenza', workPh:'Es. Continuativo, 2 viaggi/settimana' },
-  marketplace: { category:'Categoria', categoryPh:'Es. Furgone, pneumatico, ricambio, attrezzatura', price:'Prezzo', work:'Condizioni', workPh:'Es. Usato, buono stato / Nuovo, mai aperto' },
-  service: { category:'Tipo servizio', categoryPh:'Es. Meccanico, lavaggio', price:'Tariffa', work:'Disponibilità', workPh:'Es. 24 ore su 24' },
+  job: { titlePh:'Es. Cerco autista patente CE', category:'Tipo patente', categoryPh:'Es. Patente CE', price:'Compenso', work:'Tipo di contratto', workPh:'Es. Full-time' },
+  client: { titlePh:'Es. Trasporto merci, Padova → Vicenza', category:'Tipo trasporto', categoryPh:'Es. Conto terzi', price:'Compenso offerto', work:'Frequenza', workPh:'Es. Continuativo, 2 viaggi/settimana' },
+  marketplace: { titlePh:'Es. Furgone Iveco Daily in vendita', category:'Categoria', categoryPh:'Es. Furgone, pneumatico, ricambio, attrezzatura', price:'Prezzo', work:'Condizioni', workPh:'Es. Usato, buono stato / Nuovo, mai aperto' },
+  service: { titlePh:'Es. Meccanico specializzato mezzi pesanti', category:'Tipo servizio', categoryPh:'Es. Meccanico, lavaggio', price:'Tariffa', work:'Disponibilità', workPh:'Es. 24 ore su 24' },
 };
 // Cerut direct ("marketplace... acolo poate sa se vanda orice, de la
 // masina, piese, capanoane si multe altele... trebuie sa inteleaga ce
@@ -896,6 +905,7 @@ function setMarketplaceCategoryValue(value){
 function updateFormLabels(){
   const t = document.getElementById('fType').value;
   const l = FIELD_LABELS[t] || FIELD_LABELS.job;
+  document.getElementById('fTitle').placeholder = l.titlePh;
   document.getElementById('fCategoryLabel').textContent = l.category;
   document.getElementById('fCategory').placeholder = l.categoryPh;
   document.getElementById('fPriceLabel').textContent = l.price;
