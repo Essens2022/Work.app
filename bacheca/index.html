@@ -239,14 +239,17 @@ a{color:inherit;text-decoration:none}
 .schedule-widget{border:1.5px solid var(--line);border-radius:8px;padding:4px 12px;background:var(--bg);}
 .schedule-247{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--ink);padding:9px 0;cursor:pointer;}
 .schedule-247 input{width:auto;}
-.schedule-day{display:flex;align-items:center;gap:10px;padding:8px 0;flex-wrap:wrap;border-top:1px solid var(--line);}
-.schedule-day-name{width:72px;flex:none;font-size:13px;font-weight:600;color:var(--ink);}
-.schedule-day-closed{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ink-soft);flex:none;cursor:pointer;white-space:nowrap;}
+.schedule-day{padding:8px 0;border-top:1px solid var(--line);}
+.schedule-day-head{display:flex;align-items:center;gap:10px;margin-bottom:7px;}
+.schedule-day-name{width:64px;flex:none;font-size:13px;font-weight:600;color:var(--ink);}
+.schedule-day-closed{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ink-soft);cursor:pointer;white-space:nowrap;}
 .schedule-day-closed input{width:auto;}
-.schedule-times{display:flex;align-items:center;gap:5px;flex-wrap:wrap;flex:1;min-width:0;}
-.schedule-times span{font-size:11.5px;color:var(--ink-soft);}
-.schedule-times input[type=time]{width:auto;padding:5px 6px;font-size:13px;border:1.5px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);}
-.schedule-times input[type=time]:disabled,.schedule-day-closed input:disabled{opacity:.5;}
+.schedule-times{display:flex;flex-direction:column;gap:6px;}
+.schedule-range{display:grid;grid-template-columns:66px 1fr 12px 1fr;align-items:center;gap:6px;max-width:280px;}
+.schedule-range span{font-size:11.5px;color:var(--ink-soft);}
+.schedule-range span.sep{text-align:center;}
+.schedule-range input[type=time]{width:100%;box-sizing:border-box;padding:5px 4px;font-size:12.5px;border:1.5px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);}
+.schedule-range input[type=time]:disabled,.schedule-day-closed input:disabled{opacity:.5;}
 /* Cele 3 sloturi de poze pentru Marketplace - numerotate, ca ordinea
    (care e prima/a doua/a treia) sa fie mereu limpede dintr-o privire. */
 .mp-photos{display:flex;gap:8px;}
@@ -562,59 +565,73 @@ a{color:inherit;text-decoration:none}
       <div class="schedule-widget">
         <label class="schedule-247"><input type="checkbox" id="fSchedule247">Aperto 24/7 (tutti i giorni)</label>
         <div class="schedule-day" data-day="Lunedì">
-          <span class="schedule-day-name">Lunedì</span>
-          <label class="schedule-day-closed"><input type="checkbox" class="schedule-closed">Chiuso</label>
+          <div class="schedule-day-head">
+            <span class="schedule-day-name">Lunedì</span>
+            <label class="schedule-day-closed"><input type="checkbox" class="schedule-closed">Chiuso</label>
+          </div>
           <div class="schedule-times">
-            <span>Mattina</span><input type="time" class="schedule-m-from"><span>–</span><input type="time" class="schedule-m-to">
-            <span>Pomeriggio</span><input type="time" class="schedule-p-from"><span>–</span><input type="time" class="schedule-p-to">
+            <div class="schedule-range"><span>Mattina</span><input type="time" class="schedule-m-from"><span class="sep">–</span><input type="time" class="schedule-m-to"></div>
+            <div class="schedule-range"><span>Pomeriggio</span><input type="time" class="schedule-p-from"><span class="sep">–</span><input type="time" class="schedule-p-to"></div>
           </div>
         </div>
         <div class="schedule-day" data-day="Martedì">
-          <span class="schedule-day-name">Martedì</span>
-          <label class="schedule-day-closed"><input type="checkbox" class="schedule-closed">Chiuso</label>
+          <div class="schedule-day-head">
+            <span class="schedule-day-name">Martedì</span>
+            <label class="schedule-day-closed"><input type="checkbox" class="schedule-closed">Chiuso</label>
+          </div>
           <div class="schedule-times">
-            <span>Mattina</span><input type="time" class="schedule-m-from"><span>–</span><input type="time" class="schedule-m-to">
-            <span>Pomeriggio</span><input type="time" class="schedule-p-from"><span>–</span><input type="time" class="schedule-p-to">
+            <div class="schedule-range"><span>Mattina</span><input type="time" class="schedule-m-from"><span class="sep">–</span><input type="time" class="schedule-m-to"></div>
+            <div class="schedule-range"><span>Pomeriggio</span><input type="time" class="schedule-p-from"><span class="sep">–</span><input type="time" class="schedule-p-to"></div>
           </div>
         </div>
         <div class="schedule-day" data-day="Mercoledì">
-          <span class="schedule-day-name">Mercoledì</span>
-          <label class="schedule-day-closed"><input type="checkbox" class="schedule-closed">Chiuso</label>
+          <div class="schedule-day-head">
+            <span class="schedule-day-name">Mercoledì</span>
+            <label class="schedule-day-closed"><input type="checkbox" class="schedule-closed">Chiuso</label>
+          </div>
           <div class="schedule-times">
-            <span>Mattina</span><input type="time" class="schedule-m-from"><span>–</span><input type="time" class="schedule-m-to">
-            <span>Pomeriggio</span><input type="time" class="schedule-p-from"><span>–</span><input type="time" class="schedule-p-to">
+            <div class="schedule-range"><span>Mattina</span><input type="time" class="schedule-m-from"><span class="sep">–</span><input type="time" class="schedule-m-to"></div>
+            <div class="schedule-range"><span>Pomeriggio</span><input type="time" class="schedule-p-from"><span class="sep">–</span><input type="time" class="schedule-p-to"></div>
           </div>
         </div>
         <div class="schedule-day" data-day="Giovedì">
-          <span class="schedule-day-name">Giovedì</span>
-          <label class="schedule-day-closed"><input type="checkbox" class="schedule-closed">Chiuso</label>
+          <div class="schedule-day-head">
+            <span class="schedule-day-name">Giovedì</span>
+            <label class="schedule-day-closed"><input type="checkbox" class="schedule-closed">Chiuso</label>
+          </div>
           <div class="schedule-times">
-            <span>Mattina</span><input type="time" class="schedule-m-from"><span>–</span><input type="time" class="schedule-m-to">
-            <span>Pomeriggio</span><input type="time" class="schedule-p-from"><span>–</span><input type="time" class="schedule-p-to">
+            <div class="schedule-range"><span>Mattina</span><input type="time" class="schedule-m-from"><span class="sep">–</span><input type="time" class="schedule-m-to"></div>
+            <div class="schedule-range"><span>Pomeriggio</span><input type="time" class="schedule-p-from"><span class="sep">–</span><input type="time" class="schedule-p-to"></div>
           </div>
         </div>
         <div class="schedule-day" data-day="Venerdì">
-          <span class="schedule-day-name">Venerdì</span>
-          <label class="schedule-day-closed"><input type="checkbox" class="schedule-closed">Chiuso</label>
+          <div class="schedule-day-head">
+            <span class="schedule-day-name">Venerdì</span>
+            <label class="schedule-day-closed"><input type="checkbox" class="schedule-closed">Chiuso</label>
+          </div>
           <div class="schedule-times">
-            <span>Mattina</span><input type="time" class="schedule-m-from"><span>–</span><input type="time" class="schedule-m-to">
-            <span>Pomeriggio</span><input type="time" class="schedule-p-from"><span>–</span><input type="time" class="schedule-p-to">
+            <div class="schedule-range"><span>Mattina</span><input type="time" class="schedule-m-from"><span class="sep">–</span><input type="time" class="schedule-m-to"></div>
+            <div class="schedule-range"><span>Pomeriggio</span><input type="time" class="schedule-p-from"><span class="sep">–</span><input type="time" class="schedule-p-to"></div>
           </div>
         </div>
         <div class="schedule-day" data-day="Sabato">
-          <span class="schedule-day-name">Sabato</span>
-          <label class="schedule-day-closed"><input type="checkbox" class="schedule-closed">Chiuso</label>
+          <div class="schedule-day-head">
+            <span class="schedule-day-name">Sabato</span>
+            <label class="schedule-day-closed"><input type="checkbox" class="schedule-closed">Chiuso</label>
+          </div>
           <div class="schedule-times">
-            <span>Mattina</span><input type="time" class="schedule-m-from"><span>–</span><input type="time" class="schedule-m-to">
-            <span>Pomeriggio</span><input type="time" class="schedule-p-from"><span>–</span><input type="time" class="schedule-p-to">
+            <div class="schedule-range"><span>Mattina</span><input type="time" class="schedule-m-from"><span class="sep">–</span><input type="time" class="schedule-m-to"></div>
+            <div class="schedule-range"><span>Pomeriggio</span><input type="time" class="schedule-p-from"><span class="sep">–</span><input type="time" class="schedule-p-to"></div>
           </div>
         </div>
         <div class="schedule-day" data-day="Domenica">
-          <span class="schedule-day-name">Domenica</span>
-          <label class="schedule-day-closed"><input type="checkbox" class="schedule-closed">Chiuso</label>
+          <div class="schedule-day-head">
+            <span class="schedule-day-name">Domenica</span>
+            <label class="schedule-day-closed"><input type="checkbox" class="schedule-closed">Chiuso</label>
+          </div>
           <div class="schedule-times">
-            <span>Mattina</span><input type="time" class="schedule-m-from"><span>–</span><input type="time" class="schedule-m-to">
-            <span>Pomeriggio</span><input type="time" class="schedule-p-from"><span>–</span><input type="time" class="schedule-p-to">
+            <div class="schedule-range"><span>Mattina</span><input type="time" class="schedule-m-from"><span class="sep">–</span><input type="time" class="schedule-m-to"></div>
+            <div class="schedule-range"><span>Pomeriggio</span><input type="time" class="schedule-p-from"><span class="sep">–</span><input type="time" class="schedule-p-to"></div>
           </div>
         </div>
       </div>
@@ -713,7 +730,7 @@ a{color:inherit;text-decoration:none}
 // potriveste, pagina se reincarca singura. Nu reincarca niciodata cat
 // timp fereastra de Pubblica e deschisa, ca sa nu se piarda un
 // formular pe jumatate completat.
-const BACHECA_VERSION = 'bacheca-v12';
+const BACHECA_VERSION = 'bacheca-v13';
 (function(){
   try {
     var RELOAD_COOLDOWN_MS = 20000;
