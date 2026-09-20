@@ -158,7 +158,20 @@
      compensare in plus. */
   .annunci-frame-wrap { padding: 0; height: calc(100dvh - var(--topline-h, 90px)); box-sizing: border-box; }
   @media (max-width: 860px) {
-    .annunci-frame-wrap { padding-top: calc(var(--topline-h, 90px) + 12px); height: 100dvh; }
+    /* Cerut direct ("pagina anunturi are borduri suplimentare, laterale
+       si jos, nu doar sus"): CAUZA REALA - regula generala .main-inner
+       de mai jos in fisier (gandita pentru Panoramica/Autisti/etc., cu
+       spatiu de rezerva lateral si de jos pentru bara fixa de navigare)
+       se aplica din greseala si aici, prin ACEEASI clasa .main-inner pe
+       care .annunci-frame-wrap o poarta si ea. Regula de mai sus reseta
+       doar padding-top - stanga/dreapta/jos ramaneau mostenite de la
+       acea regula generala, mai tarzie in fisier (16px lateral, ~70px
+       jos), desi .annunci-frame-wrap trebuia sa ramana complet "full
+       bleed" (doar compensarea de sus, pentru .topline). Selector
+       compus (.main-inner.annunci-frame-wrap), cu specificitate mai
+       mare decat simplul .main-inner - castiga garantat, indiferent de
+       ordinea reala din fisier. */
+    .main-inner.annunci-frame-wrap { padding: calc(var(--topline-h, 90px) + 12px) 0 0 0; height: 100dvh; }
   }
   .eyebrow { font-size: 13px; color: var(--ink-soft); font-weight: 600; margin-bottom: 6px; }
   .page-title { font-size: 34px; line-height: 1; }
