@@ -171,7 +171,21 @@
        compus (.main-inner.annunci-frame-wrap), cu specificitate mai
        mare decat simplul .main-inner - castiga garantat, indiferent de
        ordinea reala din fisier. */
-    .main-inner.annunci-frame-wrap { padding: calc(var(--topline-h, 90px) + 12px) 0 0 0; height: 100dvh; }
+    /* Raportat din nou, cu screenshot marcat direct pe telefon ("bara
+       care este lipita de bara de jos"): CAUZA REALA - .main (parintele
+       direct al acestui cadru) foloseste height:100vh (inaltimea "mare"
+       a ecranului, presupunand bara browserului ascunsa), dar cadrul
+       insusi folosea height:100dvh (inaltimea REALA, curenta - mai mica
+       decat 100vh cat timp bara browserului e vizibila, pe multe
+       telefoane). Cele doua unitati NU sunt mereu egale - diferenta
+       (chiar inaltimea barei browserului) ramanea drept un gol vizibil
+       sub cadru, unde se vedea fundalul alb al lui .main insusi, chiar
+       deasupra barei fixe de jos a flotei (care e mereu la marginea
+       REALA a ecranului, deci ramanea sub acel gol). Folosind 100%
+       (mostenit direct din inaltimea REALA a lui .main, orice unitate
+       ar folosi ea), cele doua raman mereu identice - fara nicio
+       neregula posibila intre ele. */
+    .main-inner.annunci-frame-wrap { padding: calc(var(--topline-h, 90px) + 12px) 0 0 0; height: 100%; }
   }
   /* Cerut direct ("esiste ancora i bordi sotto e sopra... guarda che
      bello si vede in bacheca"): pagina Annunci traieste intr-un cadru
@@ -184,7 +198,15 @@
      inchiderea unui modal) se extinde acum, temporar, peste tot ecranul
      real (z-index mai mare decat antetul si bara de jos), ca fundalul
      modalului sa acopere chiar totul, exact ca in bacheca. */
-  .annunci-frame-wrap.annunci-modal-fullscreen { position: fixed; inset: 0; z-index: 50; height: 100dvh; padding: 0; }
+  /* Acelasi motiv ca mai sus (100dvh vs 100vh): aici height:100dvh intra
+     chiar in conflict cu inset:0 (care fixeaza deja sus SI jos la
+     marginea reala a ecranului) - cand cele doua nu coincid (bara
+     browserului vizibila), 'height' explicit castiga, iar 'bottom'
+     calculat din inset e ignorat, lasand acelasi gol dedesubt. Fara
+     nicio inaltime explicita aici, inset:0 singur fixeaza cadrul exact
+     pe marginile reale ale ecranului, fara nicio unitate care sa poata
+     sa nu se potriveasca. */
+  .annunci-frame-wrap.annunci-modal-fullscreen { position: fixed; inset: 0; z-index: 50; padding: 0; }
   .eyebrow { font-size: 13px; color: var(--ink-soft); font-weight: 600; margin-bottom: 6px; }
   .page-title { font-size: 34px; line-height: 1; }
   /* Requested directly: the descriptive line under a page title
