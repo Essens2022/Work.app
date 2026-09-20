@@ -29,25 +29,71 @@ function normalizeItem(raw: any) {
     title: cleanText(raw.title,80), company: cleanText(raw.company,80), location: cleanText(raw.location,120),
     category: cleanText(raw.category,80) || null, price_label: cleanText(raw.price_label,80) || null,
     work_mode: cleanText(raw.work_mode,80) || null, extra: cleanText(raw.extra,120) || null,
-    contact: cleanText(raw.contact,180) || null, description: cleanText(raw.description,1800),
+    // Cerut direct ("i dati di contatto devono essere il numero di
+    // cellulare... un'altra riga deve essere per lo WhatsApp... il
+    // numero di contatto potrebbe essere un numero di ufficio che non
+    // ha WhatsApp"): doua campuri separate - contact (telefon, cerut)
+    // si whatsapp (optional, autorul il completeaza doar daca vrea).
+    // Email nu mai e nevoie in anunturi.
+    contact: cleanText(raw.contact,180) || null, whatsapp: cleanText(raw.whatsapp,40) || null, description: cleanText(raw.description,1800),
     badge: allowedBadge.includes(raw.badge) && raw.badge ? raw.badge : null,
     promotion: allowedPromotion.includes(raw.promotion) ? raw.promotion : 'standard',
     visibility: allowedVisibility.includes(raw.visibility) ? raw.visibility : 'public'
   };
 }
 
-async function uploadImage(dataUri: string | null | undefined, id: string) {
+async function uploadImage(dataUri: string | null | undefined, id: string, suffix = '') {
   if (!dataUri) return { image_url:null, image_path:null };
   const m = dataUri.match(/^data:(image\/(?:webp|jpeg|png));base64,(.+)$/);
   if (!m) throw new Error('invalid_image');
   const bytes = Uint8Array.from(atob(m[2]), c => c.charCodeAt(0));
   if (bytes.byteLength > 204800) throw new Error('image_too_large');
   const ext = m[1] === 'image/jpeg' ? 'jpg' : m[1].split('/')[1];
-  const path = `${new Date().getUTCFullYear()}/${id}.${ext}`;
+  const path = `${new Date().getUTCFullYear()}/${id}${suffix}.${ext}`;
   const { error } = await admin.storage.from('adb-annunci').upload(path, bytes, { contentType:m[1], upsert:true, cacheControl:'86400' });
   if (error) throw error;
   const { data } = admin.storage.from('adb-annunci').getPublicUrl(path);
-  return { image_url:data.publicUrl, image_path:path };
+  // Gasit real (acelasi bug ca la partajarea WhatsApp, dar aici lovea
+  // aplicatia principala): fisierul e mereu suprascris la ACEEASI
+  // adresa (upsert, acelasi nume) si e cache-uit 24h (cacheControl).
+  // Cand cineva schimba poza, telefonul care tocmai a incarcat-o vede
+  // versiunea noua (nu avea nimic in cache), dar orice alt dispozitiv
+  // (calculatorul) care vazuse deja poza veche o tine in cache si tot
+  // aia continua sa arate. Adaugam un parametru de versiune chiar in
+  // adresa STOCATA in baza de date, ca fiecare inlocuire de poza sa
+  // primeasca o adresa noua peste tot, garantat, indiferent de cache.
+  const versionedUrl = `${data.publicUrl}?v=${Date.now()}`;
+  return { image_url:versionedUrl, image_path:path };
+}
+
+// Cerut direct ("la categoria marketplace fiecare anunt are
+// posibilitate sa incarce pana la 3 poze, cu posibilitatea de a alege
+// pe care sa o modifice care sa fie prima care a doua si care a
+// treia"): clientul trimite o lista ordonata de pana la 3 "sloturi"
+// (body.item.images) - prima devine imaginea principala (image_url/
+// image_path, ca inainte), urmatoarele devin extra_images, in ordinea
+// exacta trimisa. Fiecare slot e ORICE dintre:
+//  - un data URI nou ("data:image/...") -> se incarca acum;
+//  - "keep:<path>" -> o poza deja incarcata, ramasa neschimbata (sau
+//    doar mutata pe alta pozitie/rol) - NU se reincarca, se refoloseste
+//    direct adresa ei existenta, ca sa nu iroseasca incarcari inutile.
+async function resolveImageSlot(entry: unknown, id: string, suffix: string, oldByPath: Map<string, { image_url: string; image_path: string }>) {
+  if (typeof entry !== 'string' || !entry) return null;
+  if (entry.startsWith('data:image/')) return await uploadImage(entry, id, suffix);
+  if (entry.startsWith('keep:')) {
+    const path = entry.slice(5);
+    return oldByPath.get(path) || null;
+  }
+  return null;
+}
+async function resolveMarketplaceImages(images: unknown, id: string, oldByPath: Map<string, { image_url: string; image_path: string }>) {
+  const slots = Array.isArray(images) ? images.slice(0, 3) : [];
+  const resolved: { image_url: string; image_path: string }[] = [];
+  for (let i = 0; i < slots.length; i++) {
+    const r = await resolveImageSlot(slots[i], id, i === 0 ? '' : `-${i + 1}`, oldByPath);
+    if (r && r.image_url && r.image_path) resolved.push(r);
+  }
+  return resolved;
 }
 
 function escapeHtml(s: string) {
@@ -82,13 +128,11 @@ Deno.serve(async (req) => {
       const title = data ? escapeHtml(data.title) : 'ADB Smart — Annunci';
       const desc = data ? escapeHtml(`${data.company} · ${data.location}`) : 'Offerte di lavoro, marketplace e servizi per autisti.';
       // Cerut direct ("imaginea tot continua sa nu se primeasca"):
-      // WhatsApp cacheaza si imaginea insasi, separat de pagina - iar
-      // adresa fisierului din depozit RAMANE ACEEASI chiar si dupa ce
-      // continutul e inlocuit (upsert, acelasi nume de fisier).
-      // Adaugat un parametru legat de data ultimei actualizari, ca
-      // adresa imaginii insasi sa se schimbe la fiecare inlocuire.
-      const imgVersion = data?.updated_at ? new Date(data.updated_at).getTime() : Date.now();
-      const image = data?.image_url ? escapeHtml(data.image_url + (data.image_url.includes('?') ? '&' : '?') + 'v=' + imgVersion) : 'https://adbsmart.it/icon-512.png';
+      // WhatsApp cacheaza si imaginea insasi, separat de pagina.
+      // image_url are acum mereu propriul parametru de versiune bagat
+      // direct la incarcare (vezi uploadImage), asa ca nu mai trebuie
+      // adaugat unul aici - il folosim asa cum e, garantat proaspat.
+      const image = data?.image_url ? escapeHtml(data.image_url) : 'https://adbsmart.it/icon-512.png';
       const html = `<!doctype html><html><head><meta charset="utf-8">
 <meta property="og:title" content="${title}">
 <meta property="og:description" content="${desc}">
@@ -157,7 +201,7 @@ Deno.serve(async (req) => {
 
     if (action === 'list') {
       const type = ['job','client','marketplace','service'].includes(body.type) ? body.type : 'job';
-      let q = admin.from('adb_annunci').select('id,type,title,company,location,category,price_label,work_mode,extra,contact,description,image_url,badge,promotion,visibility,author_fleet_slug,created_at,updated_at,expires_at').eq('type',type).eq('visibility','public').gt('expires_at',new Date().toISOString()).order('created_at',{ascending:false}).limit(100);
+      let q = admin.from('adb_annunci').select('id,type,title,company,location,category,price_label,work_mode,extra,contact,whatsapp,description,image_url,extra_images,badge,promotion,visibility,author_fleet_slug,created_at,updated_at,expires_at').eq('type',type).eq('visibility','public').gt('expires_at',new Date().toISOString()).order('created_at',{ascending:false}).limit(100);
       const { data, error } = await q;
       if (error) throw error;
       return json({ ok:true, items:data || [] });
@@ -232,32 +276,78 @@ Deno.serve(async (req) => {
       // fara aceasta informatie.
       if (item.type === 'job' && !item.price_label) return json({ok:false,error:'missing_required_fields'},400);
       const id = crypto.randomUUID();
-      const image = await uploadImage(body.item?.image_data || null,id);
+      let image: any = {};
+      let extraImages: any[] = [];
+      if (item.type === 'marketplace' && Array.isArray(body.item?.images)) {
+        // Un anunt nou nu are poze vechi de pastrat - harta e goala,
+        // deci orice "keep:" trimis (n-ar trebui sa se intample) e ignorat.
+        const resolved = await resolveMarketplaceImages(body.item.images, id, new Map());
+        image = resolved[0] ? { image_url: resolved[0].image_url, image_path: resolved[0].image_path } : {};
+        extraImages = resolved.slice(1);
+      } else {
+        image = await uploadImage(body.item?.image_data || null,id);
+      }
       const authorFields = authorFilter.column === 'author_user_email'
         ? { author_kind:'user', author_user_email: authorFilter.value }
         : { author_kind:'fleet', author_fleet_slug: authorFilter.value };
-      const { data, error } = await admin.from('adb_annunci').insert({ id, ...item, ...image, ...authorFields }).select().single();
+      const { data, error } = await admin.from('adb_annunci').insert({ id, ...item, ...image, extra_images: extraImages, ...authorFields }).select().single();
       if (error) throw error;
       return json({ ok:true, item:data });
     }
 
     if (action === 'update') {
       const id = cleanText(body.id,60); const item = normalizeItem(body.item || {});
-      const { data: old, error: oldErr } = await admin.from('adb_annunci').select('id,image_path').eq('id',id).eq(authorFilter.column,authorFilter.value).single();
+      const { data: old, error: oldErr } = await admin.from('adb_annunci').select('id,image_url,image_path,extra_images').eq('id',id).eq(authorFilter.column,authorFilter.value).single();
       if (oldErr || !old) return json({ok:false,error:'not_found'},404);
-      let image:any = {};
-      if (body.item?.image_data) image = await uploadImage(body.item.image_data,id);
-      const { data, error } = await admin.from('adb_annunci').update({ ...item, ...image }).eq('id',id).eq(authorFilter.column,authorFilter.value).select().single();
+      let image: any = {};
+      let extraImagesUpdate: any = {};
+      if (item.type === 'marketplace' && Array.isArray(body.item?.images)) {
+        // Cerut direct: lista trimisa (body.item.images) e mereu
+        // versiunea COMPLETA, finala, in ordinea dorita de autor - poate
+        // amesteca poze noi ("data:...") cu poze vechi pastrate/mutate
+        // ("keep:<path>"). Orice poza veche care nu mai apare deloc in
+        // noua lista se sterge din depozit, nu ramane orfana.
+        const oldByPath = new Map<string, { image_url: string; image_path: string }>();
+        if (old.image_path) oldByPath.set(old.image_path, { image_url: (old as any).image_url, image_path: old.image_path });
+        (old.extra_images || []).forEach((e: any) => { if (e?.image_path) oldByPath.set(e.image_path, { image_url: e.image_url, image_path: e.image_path }); });
+        const resolved = await resolveMarketplaceImages(body.item.images, id, oldByPath);
+        const keptPaths = new Set(resolved.map(r => r.image_path));
+        const toRemove = Array.from(oldByPath.keys()).filter(p => !keptPaths.has(p));
+        if (toRemove.length) await admin.storage.from('adb-annunci').remove(toRemove);
+        image = resolved[0] ? { image_url: resolved[0].image_url, image_path: resolved[0].image_path } : { image_url: null, image_path: null };
+        extraImagesUpdate = { extra_images: resolved.slice(1) };
+      } else {
+        if (body.item?.image_data) {
+          image = await uploadImage(body.item.image_data,id);
+          // Extensia poate diferi de cea veche (rar, dar posibil) - in
+          // acel caz calea din depozit e alta, iar fisierul vechi ar
+          // ramane orfan (nefolosit, dar tot ocupat) daca nu-l stergem.
+          if (old.image_path && image.image_path && old.image_path !== image.image_path) {
+            await admin.storage.from('adb-annunci').remove([old.image_path]);
+          }
+        }
+        if (item.type !== 'marketplace' && old.extra_images && (old.extra_images as any[]).length) {
+          // Categoria s-a schimbat din marketplace in alta - pozele
+          // suplimentare nu mai au sens, le stergem din depozit si din baza.
+          const oldPaths: string[] = (old.extra_images || []).map((e: any) => e.image_path).filter(Boolean);
+          if (oldPaths.length) await admin.storage.from('adb-annunci').remove(oldPaths);
+          extraImagesUpdate = { extra_images: [] };
+        }
+      }
+      const { data, error } = await admin.from('adb_annunci').update({ ...item, ...image, ...extraImagesUpdate }).eq('id',id).eq(authorFilter.column,authorFilter.value).select().single();
       if (error) throw error;
       return json({ok:true,item:data});
     }
 
     if (action === 'delete') {
       const id = cleanText(body.id,60);
-      const { data: old } = await admin.from('adb_annunci').select('image_path').eq('id',id).eq(authorFilter.column,authorFilter.value).maybeSingle();
+      const { data: old } = await admin.from('adb_annunci').select('image_path,extra_images').eq('id',id).eq(authorFilter.column,authorFilter.value).maybeSingle();
       const { error } = await admin.from('adb_annunci').delete().eq('id',id).eq(authorFilter.column,authorFilter.value);
       if (error) throw error;
-      if (old?.image_path) await admin.storage.from('adb-annunci').remove([old.image_path]);
+      const paths: string[] = [];
+      if (old?.image_path) paths.push(old.image_path);
+      if (old?.extra_images) (old.extra_images as any[]).forEach((e: any) => { if (e?.image_path) paths.push(e.image_path); });
+      if (paths.length) await admin.storage.from('adb-annunci').remove(paths);
       return json({ok:true});
     }
 
