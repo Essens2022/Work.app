@@ -440,7 +440,19 @@ a{color:inherit;text-decoration:none}
          la categoria aleasa mai sus - compenso pentru un loc de
          munca, prezzo pentru un anunt de vanzare, ambele salvate in
          acelasi camp (price_label) pe server. -->
-    <div class="modal-field"><label id="fCategoryLabel">Tipo patente</label><input id="fCategory" placeholder="Es. Patente CE"></div>
+    <div class="modal-field" id="fCategoryFieldSingle"><label id="fCategoryLabel">Tipo patente</label><input id="fCategory" placeholder="Es. Patente CE"></div>
+    <!-- Cerut direct ("marketplace... acolo poate sa se vanda orice,
+         de la masina, piese, capanoane si multe altele... trebuie sa
+         inteleaga ce variante sunt"): la Marketplace, categoria nu
+         mai e text liber (unde fiecare scria altceva pentru acelasi
+         lucru: "furgone", "Furgone usato", "furgoncino"...) - o lista
+         fixa, gandita pentru transportatori, care acopera de la
+         vehicule intregi pana la piese mici si imbracaminte de lucru,
+         plus "Altro" ca supapa pentru orice nu se incadreaza clar. -->
+    <div class="modal-field" id="fCategoryFieldMarketplace" style="display:none;">
+      <label>Categoria</label>
+      <select id="fCategoryMarketplace"></select>
+    </div>
     <div class="modal-field"><label id="fPriceLabel">Compenso</label><input id="fPrice" placeholder="Es. 2000 € - 2400 €"></div>
     <div class="modal-field"><label id="fWorkLabel">Tipo di contratto</label><input id="fWork" placeholder="Es. Full-time"></div>
     <div class="modal-field"><label>Descrizione</label><textarea id="fDescription" rows="4" placeholder="Dettagli, requisiti…"></textarea></div>
@@ -525,7 +537,7 @@ a{color:inherit;text-decoration:none}
 // potriveste, pagina se reincarca singura. Nu reincarca niciodata cat
 // timp fereastra de Pubblica e deschisa, ca sa nu se piarda un
 // formular pe jumatate completat.
-const BACHECA_VERSION = 'bacheca-v1';
+const BACHECA_VERSION = 'bacheca-v2';
 (function(){
   try {
     var RELOAD_COOLDOWN_MS = 20000;
@@ -729,6 +741,7 @@ function openPost(){
   document.getElementById('publishSubmitBtn').textContent = 'Pubblica';
   document.getElementById('postModalTitle').textContent = 'Pubblica un annuncio';
   ['fTitle','fCompany','fLocation','fCategory','fPrice','fWork','fDescription','fContact'].forEach(id => document.getElementById(id).value = '');
+  setMarketplaceCategoryValue('');
   pendingImageData = null;
   document.getElementById('fImagePreview').style.display = 'none';
   document.getElementById('fImageStatus').textContent = '';
@@ -750,6 +763,7 @@ function openEditAd(ad){
   document.getElementById('fCompany').value = ad.company || '';
   document.getElementById('fLocation').value = ad.location || '';
   document.getElementById('fCategory').value = ad.category || '';
+  if(ad.type === 'marketplace') setMarketplaceCategoryValue(ad.category || '');
   document.getElementById('fPrice').value = ad.price_label || '';
   document.getElementById('fWork').value = ad.work_mode || '';
   document.getElementById('fDescription').value = ad.description || '';
@@ -808,15 +822,90 @@ function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; 
 // eticheta celor doua campuri libere se schimba dupa categoria
 // aleasa - un loc de munca cere "Compenso", un anunt de vanzare
 // cere "Prezzo", etc. - acelasi camp e trimis mai departe (price_label).
+//
+// Cerut direct ("in marketplace nu poate fi la titlu 'cerco autista',
+// in marketplace se vinde, se cumpara, nu incurca - fiecare categorie
+// are ale sale"): CAUZA REALA - exemplul din campul Titolo era scris
+// o singura data, direct in HTML ("Es. Cerco autista patente CE"), si
+// nu se schimba niciodata, indiferent de categoria aleasa - un anunt
+// de vanzare la Marketplace arata acelasi exemplu ca la un post de
+// sofer. Acum fiecare categorie are exemplul ei (titlePh mai jos),
+// aplicat de updateFormLabels() exact ca la Categoria/Compenso.
 const FIELD_LABELS = {
-  job: { category:'Tipo patente', categoryPh:'Es. Patente CE', price:'Compenso', work:'Tipo di contratto', workPh:'Es. Full-time' },
-  client: { category:'Tipo trasporto', categoryPh:'Es. Conto terzi', price:'Compenso offerto', work:'Frequenza', workPh:'Es. Continuativo, 2 viaggi/settimana' },
-  marketplace: { category:'Categoria', categoryPh:'Es. Furgone, pneumatico, ricambio, attrezzatura', price:'Prezzo', work:'Condizioni', workPh:'Es. Usato, buono stato / Nuovo, mai aperto' },
-  service: { category:'Tipo servizio', categoryPh:'Es. Meccanico, lavaggio', price:'Tariffa', work:'Disponibilità', workPh:'Es. 24 ore su 24' },
+  job: { titlePh:'Es. Cerco autista patente CE', category:'Tipo patente', categoryPh:'Es. Patente CE', price:'Compenso', work:'Tipo di contratto', workPh:'Es. Full-time' },
+  client: { titlePh:'Es. Trasporto merci, Padova → Vicenza', category:'Tipo trasporto', categoryPh:'Es. Conto terzi', price:'Compenso offerto', work:'Frequenza', workPh:'Es. Continuativo, 2 viaggi/settimana' },
+  marketplace: { titlePh:'Es. Furgone Iveco Daily in vendita', category:'Categoria', categoryPh:'Es. Furgone, pneumatico, ricambio, attrezzatura', price:'Prezzo', work:'Condizioni', workPh:'Es. Usato, buono stato / Nuovo, mai aperto' },
+  service: { titlePh:'Es. Meccanico specializzato mezzi pesanti', category:'Tipo servizio', categoryPh:'Es. Meccanico, lavaggio', price:'Tariffa', work:'Disponibilità', workPh:'Es. 24 ore su 24' },
 };
+// Cerut direct ("marketplace... acolo poate sa se vanda orice, de la
+// masina, piese, capanoane si multe altele... trebuie sa inteleaga ce
+// variante sunt"): lista fixa de categorii pentru Marketplace, gandita
+// pentru transportatori - de la vehicule intregi pana la piese mici
+// si imbracaminte de lucru. "Altro" ramane mereu ultima, ca supapa
+// pentru orice nu se incadreaza clar - pusa la coada, nu la inceput,
+// ca sa n-o aleaga nimeni doar din comoditate.
+const MARKETPLACE_CATEGORIES = [
+  'Veicoli',
+  'Ricambi meccanici',
+  'Carrozzeria',
+  'Accessori e comfort cabina',
+  'Elettronica e sicurezza',
+  'Attrezzature di carico',
+  'Abbigliamento e dotazioni da lavoro',
+  'Altro',
+];
+// Cerut direct ("sa aiba posibilitatea de a adauga informatii pentru
+// orice ce ar vrea sa puna in vanzare... intuitiv, sa inteleaga ce
+// variante sunt"): un singur camp liber (Descrizione) tot acopera
+// ORICE s-ar vinde - nu are rost o schema rigida, diferita pentru
+// fiecare categorie. Dar exemplul din acel camp se schimba dupa
+// categoria aleasa, ca autorul sa stie exact ce conteaza pentru
+// LUCRUL LUI anume, fara sa i se ceara ceva ce nu se aplica.
+const MARKETPLACE_DESC_HINTS = {
+  'Veicoli': 'Es. anno, chilometraggio, condizioni, motivo della vendita…',
+  'Ricambi meccanici': 'Es. compatibile con quali marche/modelli, condizioni…',
+  'Carrozzeria': 'Es. compatibile con quali marche/modelli, condizioni…',
+  'Accessori e comfort cabina': 'Es. condizioni, come si installa…',
+  'Elettronica e sicurezza': 'Es. marca, modello, condizioni…',
+  'Attrezzature di carico': 'Es. portata, condizioni…',
+  'Abbigliamento e dotazioni da lavoro': 'Es. taglia, condizioni…',
+  'Altro': 'Dettagli, condizioni…',
+};
+function resetMarketplaceCategoryOptions(){
+  document.getElementById('fCategoryMarketplace').innerHTML =
+    MARKETPLACE_CATEGORIES.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+}
+(function(){
+  resetMarketplaceCategoryOptions();
+  document.getElementById('fCategoryMarketplace').addEventListener('change', updateMarketplaceDescHint);
+})();
+function updateMarketplaceDescHint(){
+  const cat = document.getElementById('fCategoryMarketplace').value;
+  document.getElementById('fDescription').placeholder = MARKETPLACE_DESC_HINTS[cat] || MARKETPLACE_DESC_HINTS['Altro'];
+}
+// Cerut direct (implicit, la editarea unui anunt vechi): un anunt
+// Marketplace publicat INAINTE de aceasta lista fixa poate avea o
+// categorie scrisa liber, care nu se potriveste exact cu niciuna de
+// aici. In loc s-o inlocuim pe tacute cu "Altro" (i-am schimba
+// datele fara sa spuna el), o adaugam ca optiune suplimentara, exact
+// cum a scris-o, si o lasam selectata - dispare singura data viitoare
+// cand alege una din lista fixa. Optiunile se reconstruiesc mereu de
+// la zero mai intai, ca o editare anterioara sa nu lase o optiune
+// "fantoma" atarnata pentru urmatorul anunt nou, in aceeasi sesiune.
+function setMarketplaceCategoryValue(value){
+  resetMarketplaceCategoryOptions();
+  const sel = document.getElementById('fCategoryMarketplace');
+  const v = value || '';
+  if(v && !MARKETPLACE_CATEGORIES.includes(v)){
+    sel.insertAdjacentHTML('afterbegin', `<option value="${escapeHtml(v)}">${escapeHtml(v)} (esistente)</option>`);
+  }
+  sel.value = v || MARKETPLACE_CATEGORIES[0];
+  updateMarketplaceDescHint();
+}
 function updateFormLabels(){
   const t = document.getElementById('fType').value;
   const l = FIELD_LABELS[t] || FIELD_LABELS.job;
+  document.getElementById('fTitle').placeholder = l.titlePh;
   document.getElementById('fCategoryLabel').textContent = l.category;
   document.getElementById('fCategory').placeholder = l.categoryPh;
   document.getElementById('fPriceLabel').textContent = l.price;
@@ -829,6 +918,13 @@ function updateFormLabels(){
   const isMarket = t === 'marketplace';
   document.getElementById('fImageFieldSingle').style.display = isMarket ? 'none' : '';
   document.getElementById('fImageFieldMarketplace').style.display = isMarket ? '' : 'none';
+  // Cerut direct: la Marketplace, categoria vine din lista fixa de
+  // mai sus (select), nu din campul liber - care ramane pentru
+  // celelalte categorii, neschimbat.
+  document.getElementById('fCategoryFieldSingle').style.display = isMarket ? 'none' : '';
+  document.getElementById('fCategoryFieldMarketplace').style.display = isMarket ? '' : 'none';
+  if(isMarket) updateMarketplaceDescHint();
+  else document.getElementById('fDescription').placeholder = 'Dettagli, requisiti…';
 }
 document.getElementById('fType').addEventListener('change', updateFormLabels);
 
@@ -992,12 +1088,18 @@ function mpHandleFile(i, file){
 
 function submitAnnuncio(){
   if(!currentUser){ alert('Accedi prima con Google.'); return; }
+  const typeNow = document.getElementById('fType').value;
   const item = {
-    type: document.getElementById('fType').value,
+    type: typeNow,
     title: document.getElementById('fTitle').value.trim(),
     company: document.getElementById('fCompany').value.trim(),
     location: document.getElementById('fLocation').value.trim(),
-    category: document.getElementById('fCategory').value.trim(),
+    // Cerut direct ("marketplace... categoria... variante"): la
+    // Marketplace, categoria vine din lista fixa (select), nu din
+    // campul liber - folosit in continuare de celelalte categorii.
+    category: (typeNow === 'marketplace'
+      ? document.getElementById('fCategoryMarketplace').value
+      : document.getElementById('fCategory').value).trim(),
     price_label: document.getElementById('fPrice').value.trim(),
     work_mode: document.getElementById('fWork').value.trim(),
     description: document.getElementById('fDescription').value.trim(),
@@ -1054,6 +1156,7 @@ function submitAnnuncio(){
     document.getElementById('postModal').classList.remove('open');
     editingAdId = null;
     ['fTitle','fCompany','fLocation','fCategory','fPrice','fWork','fDescription','fContact'].forEach(id => document.getElementById(id).value = '');
+    setMarketplaceCategoryValue('');
     pendingImageData = null;
     document.getElementById('fImagePreview').style.display = 'none';
     document.getElementById('fImageStatus').textContent = '';
