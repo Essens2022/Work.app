@@ -367,6 +367,22 @@
   body.carico-active .topbar{display:none;}
   body.carico-active main{padding-top:0;}
   body.nav-fullbleed #screen-navigatore{padding:0;}
+  /* Ecranul Bacheca - la fel ca la Navigatore/Carico, propriul antet
+     al aplicatiei (.topbar) nu are rost aici (bacheca are deja
+     propriul antet, cu sigla si cautarea) - edge-to-edge, doar bara
+     de jos (.bottomnav) ramane vizibila, ca sofer sa aiba mereu o
+     cale vizibila de intoarcere (apasand Home). */
+  body.bacheca-active .topbar{display:none;}
+  body.bacheca-active #presence-diagnostic{display:none;}
+  body.bacheca-active main{padding:0;}
+  #screen-bacheca{padding:0;height:100%;}
+  /* Cerut direct (acelasi mecanism deja folosit de portalul de flota,
+     404.html): cat timp un modal se deschide inauntrul cadrului
+     (Pubblica/Modifica/Dettagli), cadrul se extinde peste tot ecranul
+     real (deasupra .bottomnav, z-index mai mare), ca fundalul
+     intunecat al modalului sa acopere chiar totul, nu doar spatiul
+     cadrului - anuntat de bacheca prin postMessage (vezi app.js). */
+  #driverBachecaWrap.annunci-modal-fullscreen{position:fixed;inset:0;z-index:50;}
 
   /* Delivery Planner — everything above the client list (title,
      stats, buttons) is TRULY fixed now, same technique as .topbar
@@ -1741,6 +1757,20 @@
     <section id="screen-pdf" class="screen"></section>
     <!-- NAVIGATORE -->
     <section id="screen-navigatore" class="screen"></section>
+    <!-- BACHECA - cerut direct ("sa unim la fletul la bacheca si pagina
+         de la soferi... o pagina cu trei intrari"): incarcata intr-un
+         cadru (iframe), nu printr-o navigare reala catre alta pagina -
+         pe iOS, o navigare reala (chiar acelasi domeniu) poate "scoate"
+         temporar din modul de aplicatie instalata, cu propriul spatiu
+         de stocare IZOLAT de restul aplicatiei (motivul REAL, gasit
+         dupa raportare directa, pentru care sesiunea deja logata a
+         soferului devenea invizibila acolo, cerand din nou logarea cu
+         Google, desi era deja logat in aplicatie). -->
+    <section id="screen-bacheca" class="screen">
+      <div id="driverBachecaWrap" style="width:100%;height:100%;">
+        <iframe id="driverBachecaFrame" style="width:100%;height:100%;border:0;display:block;" title="Bacheca"></iframe>
+      </div>
+    </section>
   </main>
 
   <nav class="bottomnav">
