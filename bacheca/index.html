@@ -86,27 +86,35 @@ a{color:inherit;text-decoration:none}
 .menu-btn:hover{border-color:var(--ink-soft);}
 .google-mini-btn{display:flex;align-items:center;gap:8px;background:var(--card);border:1.5px solid var(--line);border-radius:8px;padding:9px 14px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink);white-space:nowrap;}
 
-/* Cerut direct ("quella barra... si trova sotto le categorie... lo
-   lasciamo... il bottone pubblica piu quell'altro sono nella stessa
-   linea pero sotto le categorie... non cambia il suo posto... tutti
-   resta sulla stessa linea, solo che viene spostato sulla sinistra"):
-   DOUA randuri FIXE, garantate, nu doar o intamplare de wrap la
-   spatiu ingust - categoriile raman exact pe primul rand (neatinse),
-   iar sortarea (stanga) + Pubblica (dreapta) formeaza al doilea rand,
-   mereu impreuna, indiferent de latimea ecranului. flex-direction:
-   column pe filterbar face din pillgroup si noul .filterbar-row2
-   doua randuri separate, mereu in aceasta ordine. */
-.filterbar{max-width:760px;margin:0 auto;padding:12px 24px 14px;display:flex;flex-direction:column;gap:10px;}
-.fpill{display:flex;align-items:center;justify-content:center;gap:7px;border:1.5px solid var(--line);background:var(--card);color:var(--ink-soft);padding:8px 14px;border-radius:100px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:border-color .12s, color .12s;flex:1;min-width:0;white-space:nowrap;}
-.pillgroup{display:flex;gap:8px;}
+/* Cerut direct ("tutti ramane tot acolo... butonul ramane pe partea
+   dreapta... tutti il poti face mai lat, sa nu fie spatiu mult intre
+   tutti si publica... tutti nu neaparat trebuie sa aiba latimea cat
+   Servizzi"): CSS Grid - categoriile si randul de dedesubt
+   (sortare+Pubblica) impart aceleasi COLOANE din aceeasi grila, deci
+   pozitiile/latimile se potrivesc EXACT, matematic, la orice
+   dimensiune de ecran. display:contents pe cele doua invelisuri
+   (.pillgroup, .filterbar-row2) le scoate din calculul de layout,
+   lasand copiii lor sa se aseze direct in grila parintelui - 4
+   coloane pe ecrane late (o categorie = o coloana), 2 pe telefon
+   (unde categoriile oricum stau 2x2).
+   Sortarea NU mai ocupa doar prima coloana (asa ramanea gol mult in
+   mijloc, intre ea si Pubblica) - se intinde acum de la prima coloana
+   pana chiar inaintea ultimei (1 / -2), umpland tot spatiul disponibil.
+   Pubblica ramane singura in ULTIMA coloana (-2/-1 = ultima coloana,
+   indiferent daca sunt 4 sau 2 in total) - intre ele ramane doar
+   golul normal, mic, de pe rand (acelasi gap ca intre categorii),
+   nu un gol mare, gol. */
+.filterbar{max-width:760px;margin:0 auto;padding:12px 24px 14px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.pillgroup{display:contents;}
+.fpill{display:flex;align-items:center;justify-content:center;gap:7px;border:1.5px solid var(--line);background:var(--card);color:var(--ink-soft);padding:8px 14px;border-radius:100px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:border-color .12s, color .12s;min-width:0;white-space:nowrap;}
 .fpill svg{width:15px;height:15px;flex:none;}
 .fpill[aria-pressed="true"]{border-color:var(--pill-color, var(--accent));color:var(--pill-color, var(--accent));background:var(--pill-bg, var(--accent-soft));}
 .fpill .n{color:inherit;opacity:.65;font-weight:500;}
-.filterbar-row2{display:flex;align-items:center;gap:10px;}
-.sortsel{border:1.5px solid var(--line);background:var(--card);color:var(--ink-soft);padding:8px 12px;border-radius:100px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;}
-.filterbar-row2 .postbtn{margin-left:auto;}
+.filterbar-row2{display:contents;}
+.sortsel{grid-column:1 / -2;min-width:0;border:1.5px solid var(--line);background:var(--card);color:var(--ink-soft);padding:8px 12px;border-radius:100px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;}
+.filterbar .postbtn{grid-column:-2 / -1;min-width:0;justify-content:center;}
 @media (max-width:900px){ #screen-bacheca .headwrap{flex-wrap:wrap;padding-bottom:10px;} .searchbar{order:3;max-width:none;width:100%;} }
-@media (max-width:560px){ .pillgroup{flex-wrap:wrap;} .fpill{flex:1 1 calc(50% - 4px);} }
+@media (max-width:560px){ .filterbar{grid-template-columns:repeat(2,1fr);} }
 /* Cerut direct ("categoria, pretul si datele de dupa sunt toate
    intr-un rand... trebuie sa le pui frumos fiecare la locul lui"):
    aceste reguli (randul stivuit, spatiul rezervat etichetei) erau
@@ -557,7 +565,7 @@ a{color:inherit;text-decoration:none}
 // potriveste, pagina se reincarca singura. Nu reincarca niciodata cat
 // timp fereastra de Pubblica e deschisa, ca sa nu se piarda un
 // formular pe jumatate completat.
-const BACHECA_VERSION = 'bacheca-v4';
+const BACHECA_VERSION = 'bacheca-v5';
 (function(){
   try {
     var RELOAD_COOLDOWN_MS = 20000;
