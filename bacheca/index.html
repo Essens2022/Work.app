@@ -872,7 +872,15 @@ function renderMpSlots(){
     const statusText = !slot ? 'Vuoto' : (slot.kind === 'new' ? `${slot.kb} KB` : 'Foto attuale');
     return `<div class="mp-slot">
       <div class="mp-slot-num">${i+1}°</div>
-      ${previewSrc ? `<img class="mp-slot-img" src="${previewSrc}">` : `<div class="mp-slot-empty">+</div>`}
+      <!-- Cerut direct ("quando schiaccio il piu in mezzo, mi deve
+           venire fuori la possibilita di aggiungere foto, non solo
+           col bottone"): tot dreptunghiul cu poza (sau cu +) e acum
+           el insusi apasabil, exact ca butonul de dedesubt - un singur
+           loc unde utilizatorul se astepta firesc sa apese, in plus
+           fata de buton, nu in locul lui. -->
+      ${previewSrc
+        ? `<img class="mp-slot-img" src="${previewSrc}" style="cursor:pointer;" onclick="document.getElementById('mpFile${i}').click()" title="Cambia foto">`
+        : `<div class="mp-slot-empty" style="cursor:pointer;" onclick="document.getElementById('mpFile${i}').click()" title="Aggiungi foto">+</div>`}
       <input type="file" accept="image/png,image/jpeg,image/webp" id="mpFile${i}" style="display:none;">
       <div class="mp-slot-actions">
         <button type="button" onclick="document.getElementById('mpFile${i}').click()">${slot ? 'Cambia' : 'Aggiungi'}</button>
