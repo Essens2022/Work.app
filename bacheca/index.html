@@ -957,8 +957,22 @@ function submitAnnuncio(){
     item.image_data = pendingImageData;
   }
   const errEl = document.getElementById('publishError');
-  if(!item.title || !item.company || !item.location || !item.description){
-    errEl.textContent = 'Compila almeno titolo, azienda/nome, località e descrizione.';
+  // Cerut direct (indirect - "mi scrive di mettere il titolo" desi
+  // formularul parea complet): mesajul vechi era mereu acelasi text
+  // generic, cu toate cele 4 campuri listate, indiferent CARE anume
+  // lipsea de fapt - imposibil de diagnosticat din exterior daca
+  // problema reala era un singur camp uitat (usor de ratat cu ochiul,
+  // ex. "Azienda / nome" pentru cineva care vinde ca persoana fizica,
+  // nu firma) sau altceva. Acum mesajul numeste EXACT campul (sau
+  // campurile) goale, nu o lista fixa.
+  const missingFields = [
+    !item.title && 'Titolo',
+    !item.company && 'Azienda / nome',
+    !item.location && 'Località',
+    !item.description && 'Descrizione',
+  ].filter(Boolean);
+  if(missingFields.length){
+    errEl.textContent = 'Compila: ' + missingFields.join(', ') + '.';
     errEl.style.display = 'block';
     return;
   }
