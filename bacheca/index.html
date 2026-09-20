@@ -159,7 +159,15 @@ a{color:inherit;text-decoration:none}
 
 .modal-bg{position:fixed;inset:0;background:rgba(10,10,12,.5);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;}
 .modal-bg.open{display:flex;}
-.modal{background:var(--card);width:100%;max-width:520px;border-radius:16px;padding:26px;max-height:86vh;overflow-y:auto;}
+/* Cerut direct ("quando scrollo lì si scrolla anche la pagina dietro"):
+   CAUZA REALA - odata ajuns cu derularea la capatul continutului
+   din interiorul ferestrei (sus sau jos de tot), browserul, din
+   oficiu, continua sa "imprumute" restul miscarii de derulare mai
+   departe, catre pagina de dedesubt (asa-numitul scroll chaining) -
+   fereastra nu avea nimic care sa opreasca acest imprumut la capatul
+   ei. overscroll-behavior:contain spune exact asta: ce se deruleaza
+   aici, ramane aici, nu se scurge mai departe. */
+.modal{background:var(--card);width:100%;max-width:520px;border-radius:16px;padding:26px;max-height:86vh;overflow-y:auto;overscroll-behavior:contain;}
 /* Cerut direct ("fiecare anunt... pagina are marimile sale... ar fi
    bine sa aiba toate acea marime... daca e mai multa informatie, sa
    se scroleze"): fereastra de detaliu avea doar o inaltime MAXIMA,
@@ -174,7 +182,7 @@ a{color:inherit;text-decoration:none}
    .detail-scroll (titlu, poza, fisa, descriere) se scroleaza; butoanele
    (.detail-footer) raman pe loc, sub el, mereu vizibile. */
 #detailBody.modal{height:min(680px,86vh);display:flex;flex-direction:column;overflow:hidden;padding:0;position:relative;}
-.detail-scroll{overflow-y:auto;flex:1;min-height:0;padding:26px;}
+.detail-scroll{overflow-y:auto;flex:1;min-height:0;padding:26px;overscroll-behavior:contain;}
 .detail-footer{flex:none;display:flex;gap:8px;align-items:stretch;padding:16px 26px;border-top:1px solid var(--line);}
 .modal h2{font-size:20px;margin:8px 0 4px;}
 .modal .close{float:right;background:none;border:none;font-size:20px;color:var(--ink-soft);cursor:pointer;}
@@ -437,6 +445,35 @@ a{color:inherit;text-decoration:none}
 </div>
 
 <script>
+// Cerut direct ("quando scrollo lì si scrolla anche la pagina
+// dietro"): A DOUA cauza reala, mai importanta decat prima
+// (overscroll-behavior de mai sus, care opreste doar "imprumutul"
+// de la CAPETELE continutului) - pagina de dedesubt nu era blocata
+// deloc cat timp o fereastra sta deschisa. Daca mausul se afla peste
+// fundalul intunecat din jurul ferestrei (nu peste fereastra insasi),
+// acolo nu exista nimic de derulat local, deci rotita mausului
+// ajungea drept la pagina de dedesubt, oricat de departe era
+// scrollul de vreun capat.
+//
+// Reparat o singura data, aici, pentru ORICE fereastra (.modal-bg)
+// din pagina - actuala (detailModal/postModal/deleteModal) si orice
+// alta adaugata in viitor - fara sa fie nevoie sa gasim si sa
+// schimbam fiecare loc din cod care deschide sau inchide o fereastra
+// (sunt multe, imprastiate). MutationObserver vede singur cand se
+// adauga sau se scoate clasa "open" pe oricare dintre ele si tine
+// pagina de dedesubt blocata cat timp cel putin una e deschisa.
+(function(){
+  const overlays = document.querySelectorAll('.modal-bg');
+  if(!overlays.length) return;
+  function syncBodyScroll(){
+    const anyOpen = Array.prototype.some.call(overlays, el => el.classList.contains('open'));
+    document.body.style.overflow = anyOpen ? 'hidden' : '';
+  }
+  const observer = new MutationObserver(syncBodyScroll);
+  overlays.forEach(el => observer.observe(el, { attributes:true, attributeFilter:['class'] }));
+  syncBodyScroll();
+})();
+
 let SAMPLE_ADS = [];
 
 // Cerut direct ("sistemeaza hardcodarea"): anunturile vin acum din
