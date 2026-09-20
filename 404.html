@@ -173,6 +173,18 @@
        ordinea reala din fisier. */
     .main-inner.annunci-frame-wrap { padding: calc(var(--topline-h, 90px) + 12px) 0 0 0; height: 100dvh; }
   }
+  /* Cerut direct ("esiste ancora i bordi sotto e sopra... guarda che
+     bello si vede in bacheca"): pagina Annunci traieste intr-un cadru
+     (iframe) mai mic decat ecranul intreg - antetul "Annunci" (sus) si
+     bara de navigare a flotei (jos) raman AFARA din acel cadru, deci
+     raman vizibile cand un modal (ex. "Pubblica annuncio") se deschide
+     inauntrul lui, cu fundalul lui intunecat oprindu-se la marginea
+     cadrului, nu a ecranului - exact "bordurile" semnalate. Cadrul
+     insusi (anuntat de pagina dinauntru prin postMessage la deschiderea/
+     inchiderea unui modal) se extinde acum, temporar, peste tot ecranul
+     real (z-index mai mare decat antetul si bara de jos), ca fundalul
+     modalului sa acopere chiar totul, exact ca in bacheca. */
+  .annunci-frame-wrap.annunci-modal-fullscreen { position: fixed; inset: 0; z-index: 50; height: 100dvh; padding: 0; }
   .eyebrow { font-size: 13px; color: var(--ink-soft); font-weight: 600; margin-bottom: 6px; }
   .page-title { font-size: 34px; line-height: 1; }
   /* Requested directly: the descriptive line under a page title
@@ -2600,6 +2612,20 @@
       // spatiu de sus gresit (0), acoperit de antetul fix de deasupra.
       requestAnimationFrame(function () { if (typeof updateToplineHeight === 'function') updateToplineHeight(); });
     }
+    // Cerut direct ("esiste ancora i bordi sotto e sopra... guarda che
+    // bello si vede in bacheca"): pagina Annunci (alt document, in
+    // cadru) ne anunta prin postMessage cand deschide/inchide un modal
+    // - extindem cadrul peste tot ecranul cat timp e deschis (vezi
+    // .annunci-modal-fullscreen mai sus), ca fundalul intunecat al
+    // modalului sa acopere si antetul si bara de jos ale flotei, nu
+    // doar spatiul ingust al cadrului.
+    window.addEventListener('message', function (ev) {
+      if (!ev.data || ev.data.type !== 'adb-annunci-modal') return;
+      var wrap = document.querySelector('.annunci-frame-wrap');
+      if (!wrap) return;
+      wrap.classList.toggle('annunci-modal-fullscreen', !!ev.data.open);
+    });
+
     var annunciTopBtn = document.getElementById('fleetAnnunciTopBtn');
     if (annunciTopBtn) annunciTopBtn.addEventListener('click', openAnnunciPage);
     document.querySelectorAll('.rail').forEach(function (rail) {

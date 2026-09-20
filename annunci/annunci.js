@@ -607,8 +607,21 @@ E.fImage.onchange=async function(){var file=this.files&&this.files[0];if(!file){
 var openModalCount=0;
 function lockPageScroll(){var y=window.scrollY||window.pageYOffset||0;document.body.style.position='fixed';document.body.style.top=(-y)+'px';document.body.style.left='0';document.body.style.right='0';document.body.style.width='100%';document.body.dataset.lockedY=y}
 function unlockPageScroll(){var y=parseInt(document.body.dataset.lockedY||'0',10);document.body.style.position='';document.body.style.top='';document.body.style.left='';document.body.style.right='';document.body.style.width='';delete document.body.dataset.lockedY;window.scrollTo(0,y)}
-function openModal(el){if(!el)return;if(openModalCount===0)lockPageScroll();openModalCount++;el.classList.add('open')}
-function closeModal(el){if(!el)return;if(!el.classList.contains('open'))return;el.classList.remove('open');openModalCount=Math.max(0,openModalCount-1);if(openModalCount===0)unlockPageScroll()}
+// Cerut direct ("esiste ancora i bordi sotto e sopra... guarda che
+// bello si vede in bacheca"): in Fleet, aceasta pagina traieste
+// intr-un cadru (iframe) mai mic decat ecranul real - antetul
+// "Annunci" al portalului (sus) si bara lui de navigare (jos) raman
+// AFARA din cadru, deci raman vizibile, nedimate, cand un modal se
+// deschide aici inauntru (fundalul intunecat al modalului ajunge
+// doar pana la marginea cadrului, nu pana la marginea ecranului) -
+// exact "bordurile" semnalate. Cadrul-parinte (404.html) nu poate
+// sti singur cand se deschide/inchide un modal aici inauntru (alt
+// document) - anuntat acum prin postMessage, ca parintele sa poata
+// extinde temporar cadrul peste tot ecranul (acoperind antetul si
+// bara de jos) cat timp modalul e deschis, exact ca in bacheca.
+function notifyParentModalState(open){if(document.documentElement.getAttribute('data-embedded')!=='1')return;if(!window.parent||window.parent===window)return;window.parent.postMessage({type:'adb-annunci-modal',open:open},'*')}
+function openModal(el){if(!el)return;if(openModalCount===0){lockPageScroll();notifyParentModalState(true)}openModalCount++;el.classList.add('open')}
+function closeModal(el){if(!el)return;if(!el.classList.contains('open'))return;el.classList.remove('open');openModalCount=Math.max(0,openModalCount-1);if(openModalCount===0){unlockPageScroll();notifyParentModalState(false)}}
 function openPublish(){if(mode!=='fleet')return;state.editingId=null;E.publishForm.reset();state.imageData=null;mpSlots=mpEmptySlots();E.imagePreview.removeAttribute('src');E.publishModal.querySelector('.modalhead h3').textContent='Pubblica annuncio';E.publishForm.querySelector('[type=submit]').textContent='Pubblica';openModal(E.publishModal);dynamicForm()}
 E.publishBtn.style.display=mode==='fleet'?'flex':'none';E.mineBtn.style.display=mode==='fleet'?'flex':'none';E.fType.onchange=dynamicForm;E.publishBtn.onclick=openPublish;
 // Cerut direct ("am apasat pe i miei annunci si acum nu pot iesi...
