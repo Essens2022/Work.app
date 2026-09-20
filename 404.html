@@ -1955,8 +1955,13 @@
     localStorage.setItem('adb_annunci_theme', newTheme);
     var annunciFrame = document.getElementById('fleetAnnunciFrame');
     if (annunciFrame && annunciFrame.contentDocument) {
-      if (newTheme === 'light') annunciFrame.contentDocument.documentElement.setAttribute('data-theme', 'light');
-      else annunciFrame.contentDocument.documentElement.removeAttribute('data-theme');
+      // Cerut direct ("sa unim la fletul la bacheca"): bacheca/index.html
+      // foloseste polaritatea INVERSA fata de fosta pagina annunci/ -
+      // acolo implicit era intunecat (data-theme="light" pentru clar),
+      // aici implicit e clar (data-theme="dark" pentru intunecat).
+      // Aceeasi variabila newTheme, mapata acum invers.
+      if (newTheme === 'light') annunciFrame.contentDocument.documentElement.removeAttribute('data-theme');
+      else annunciFrame.contentDocument.documentElement.setAttribute('data-theme', 'dark');
     }
   });
 
@@ -2646,7 +2651,14 @@
         // propria ei valoare, posibil diferita, salvata separat.
         var fleetIsLight = document.documentElement.getAttribute('data-theme') === 'light';
         localStorage.setItem('adb_annunci_theme', fleetIsLight ? 'light' : 'dark');
-        frame.setAttribute('src', '/annunci/?mode=fleet&fleet=' + encodeURIComponent(slug) + '&embedded=1');
+        // Cerut direct ("sa unim la fletul la bacheca... o pagina cu
+        // trei intrari"): modul Fleet traieste acum direct in
+        // bacheca/index.html (vezi PR-ul care a adaugat FLEET_MODE
+        // acolo), nu mai e nevoie de copia separata annunci/ - acelasi
+        // protocol (mode/fleet/embedded in URL, cele 3 tipuri de
+        // postMessage) ramane neschimbat, doar tinta cadrului se
+        // schimba.
+        frame.setAttribute('src', '/bacheca/?mode=fleet&fleet=' + encodeURIComponent(slug) + '&embedded=1');
         // Cadrul isi porneste propriul document abia acum - ascultatorul
         // lui pentru inaltimea barei de jos (vezi updateBottomNavHeight)
         // nu exista inca in clipa in care am trimis mesajul mai devreme

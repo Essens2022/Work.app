@@ -71,7 +71,11 @@ Deno.serve(async (req) => {
   if (req.method === 'GET') {
     const url = new URL(req.url);
     const id = url.searchParams.get('id') || '';
-    const destination = `https://adbsmart.it/annunci/?ad=${encodeURIComponent(id)}`;
+    // Cerut direct ("sa unim la fletul la bacheca... o pagina cu trei
+    // intrari"): pagina Annunci separata a fost retrasa - bacheca e
+    // acum sursa unica (si stie deja sa deschida direct un anunt
+    // primit prin ?ad=, vezi openSharedAdIfPresent in bacheca/index.html).
+    const destination = `https://adbsmart.it/bacheca/?ad=${encodeURIComponent(id)}`;
     if (!id) return Response.redirect(destination, 302);
     try {
       const { data } = await admin.from('adb_annunci').select('title,company,location,description,image_url,updated_at').eq('id', id).eq('visibility','public').maybeSingle();
