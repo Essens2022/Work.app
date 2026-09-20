@@ -190,6 +190,31 @@ a{color:inherit;text-decoration:none}
 .modal-field{margin:14px 0;}
 .modal-field label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:4px;}
 .modal-field input,.modal-field textarea,.modal-field select{width:100%;border:1.5px solid var(--line);border-radius:8px;padding:9px 11px;font-size:16px;font-family:inherit;color:var(--ink);background:var(--bg);}
+/* Cele 3 sloturi de poze pentru Marketplace - numerotate, ca ordinea
+   (care e prima/a doua/a treia) sa fie mereu limpede dintr-o privire. */
+.mp-photos{display:flex;gap:8px;}
+.mp-slot{flex:1;min-width:0;border:1.5px dashed var(--line);border-radius:10px;padding:8px;text-align:center;}
+.mp-slot-num{font-size:11px;font-weight:700;color:var(--ink-soft);margin-bottom:6px;}
+.mp-slot-img{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:8px;display:block;}
+.mp-slot-empty{width:100%;aspect-ratio:1/1;border-radius:8px;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--ink-soft);}
+.mp-slot-actions{display:flex;gap:4px;justify-content:center;flex-wrap:wrap;margin-top:6px;}
+.mp-slot-actions button{border:1px solid var(--line);background:var(--card);border-radius:6px;padding:3px 7px;font-size:11px;cursor:pointer;font-family:inherit;color:var(--ink);}
+.mp-slot-status{font-size:10.5px;color:var(--ink-soft);margin-top:4px;min-height:13px;}
+/* Cerut direct ("chi vede l'annuncio possa vedere le immagini una
+   alla volta, scorrendole, se l'annuncio ha 3 immagini"): derulare
+   orizontala nativa cu "oprire" pe fiecare poza (scroll-snap) - nu
+   trebuie nicio librarie, functioneaza cu degetul pe telefon si cu
+   rotita/track-pad pe calculator. Punctele de dedesubt arata mereu
+   pe care poza esti, actualizate la derulare (vezi openDetail). Cand
+   anuntul are o singura poza (cazul obisnuit, pentru toate categoriile
+   in afara de Marketplace), acest element nici nu apare - ramane
+   exact <img> simplu de dinainte. */
+.ad-gallery{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;border-radius:10px;scrollbar-width:none;}
+.ad-gallery::-webkit-scrollbar{display:none;}
+.ad-gallery-img{scroll-snap-align:start;flex:none;width:100%;aspect-ratio:4/3;object-fit:cover;}
+.ad-gallery-dots{display:flex;justify-content:center;gap:6px;margin-top:8px;}
+.ad-gallery-dot{width:6px;height:6px;border-radius:50%;background:var(--line);flex:none;}
+.ad-gallery-dot.active{background:var(--accent);}
 .google-btn{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;background:var(--bg);border:1.5px solid var(--line);border-radius:8px;padding:12px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;color:var(--ink);}
 .submit-btn{-webkit-appearance:none;appearance:none;box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:100%;height:48px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:0 13px;font-weight:700;font-size:14.5px;cursor:pointer;font-family:inherit;}
 .divider{display:flex;align-items:center;gap:10px;margin:16px 0;color:var(--ink-soft);font-size:12px;}
@@ -421,11 +446,20 @@ a{color:inherit;text-decoration:none}
          calitate redusa treptat) pana ajunge sub 20kb, inainte sa fie
          trimisa - fara sa fie nevoie ca autorul sa stie sau sa faca
          ceva in plus, doar alege poza. -->
-    <div class="modal-field">
+    <div class="modal-field" id="fImageFieldSingle">
       <label>Foto (opzionale)</label>
       <input id="fImageFile" type="file" accept="image/png,image/jpeg,image/webp">
       <div id="fImageStatus" style="font-size:12px;color:var(--ink-soft);margin-top:6px;"></div>
       <img id="fImagePreview" style="display:none;max-width:100%;max-height:120px;border-radius:8px;margin-top:8px;">
+    </div>
+    <!-- Cerut direct ("marketplace... fino a tre foto, con possibilita
+         di eliminarle, modificarle o spostarle - quale il primo, il
+         secondo, il terzo"): 3 sloturi numerotate, doar pentru
+         Marketplace - restul categoriilor (Lavoro/Trasporti/Servizi)
+         raman cu campul de mai sus, cu o singura poza, neschimbat. -->
+    <div class="modal-field" id="fImageFieldMarketplace" style="display:none;">
+      <label>Foto (fino a 3, opzionali) — la prima è la copertina dell'annuncio</label>
+      <div class="mp-photos" id="mpPhotosWrap"></div>
     </div>
     <div id="publishError" style="display:none;color:#C0392B;font-size:13px;margin:10px 0;"></div>
     <button class="submit-btn" id="publishSubmitBtn" onclick="submitAnnuncio()" style="margin-top:6px;">Pubblica</button>
@@ -614,6 +648,8 @@ function openPost(){
   pendingImageData = null;
   document.getElementById('fImagePreview').style.display = 'none';
   document.getElementById('fImageStatus').textContent = '';
+  mpSlots = mpEmptySlots();
+  renderMpSlots();
   refreshPostModalAuth();
   updateFormLabels();
   document.getElementById('publishError').style.display = 'none';
@@ -638,6 +674,18 @@ function openEditAd(ad){
   const preview = document.getElementById('fImagePreview');
   if(ad.image_url){ preview.src = ad.image_url; preview.style.display = 'block'; } else { preview.style.display = 'none'; }
   document.getElementById('fImageStatus').textContent = ad.image_url ? 'Foto attuale — scegline una nuova solo se vuoi sostituirla.' : '';
+  // Cerut direct ("modificarle... spostarle"): pozele deja existente
+  // intra in sloturi ca "keep" (nu se reincarca degeaba din nou catre
+  // server) - autorul poate apoi sa le stearga, sa le mute sau sa le
+  // inlocuiasca cu una noua, exact ca la o poza noua.
+  mpSlots = mpEmptySlots();
+  if(ad.type === 'marketplace'){
+    if(ad.image_url && ad.image_path) mpSlots[0] = { kind:'keep', path: ad.image_path, url: ad.image_url };
+    (ad.extra_images || []).forEach((img, idx) => {
+      if(idx < mpSlots.length - 1 && img && img.image_path) mpSlots[idx+1] = { kind:'keep', path: img.image_path, url: img.image_url };
+    });
+  }
+  renderMpSlots();
   updateFormLabels();
   refreshPostModalAuth();
   document.getElementById('publishError').style.display = 'none';
@@ -690,6 +738,13 @@ function updateFormLabels(){
   document.getElementById('fPriceLabel').textContent = l.price;
   document.getElementById('fWorkLabel').textContent = l.work;
   document.getElementById('fWork').placeholder = l.workPh;
+  // Cerut direct ("marketplace... fino a tre foto"): doar Marketplace
+  // arata cele 3 sloturi - restul categoriilor raman cu o singura
+  // poza, ca inainte. Nu golim datele la comutare (daca cineva
+  // schimba din greseala categoria si revine, nu-si pierde pozele).
+  const isMarket = t === 'marketplace';
+  document.getElementById('fImageFieldSingle').style.display = isMarket ? 'none' : '';
+  document.getElementById('fImageFieldMarketplace').style.display = isMarket ? '' : 'none';
 }
 document.getElementById('fType').addEventListener('change', updateFormLabels);
 
@@ -798,6 +853,51 @@ document.getElementById('fImageFile').addEventListener('change', function(e){
   }).catch(() => { statusEl.textContent = 'Impossibile elaborare la foto.'; pendingImageData = null; });
 });
 
+// Cerut direct ("marketplace... fino a tre foto, con possibilita di
+// eliminarle, modificarle o spostarle - quale il primo, il secondo,
+// il terzo"): exact 3 pozitii (niciodata mai mult), fiecare fie
+// goala (null), fie o poza noua abia comprimata in browser ("new" -
+// se trimite ca data:image/...), fie o poza deja existenta,
+// nemodificata ("keep" - server-ul o are deja, retrimitem doar
+// calea ei, "keep:<path>", ca sa n-o incarce degeaba din nou).
+// Ordinea din acest tablou E ordinea finala - prima pozitie devine
+// coperta anuntului (image_url), la fel ca acum la toate categoriile.
+let mpSlots = [null, null, null];
+function mpEmptySlots(){ return [null, null, null]; }
+function renderMpSlots(){
+  const wrap = document.getElementById('mpPhotosWrap');
+  if(!wrap) return;
+  wrap.innerHTML = mpSlots.map((slot, i) => {
+    const previewSrc = slot ? (slot.kind === 'new' ? slot.dataUri : slot.url) : null;
+    const statusText = !slot ? 'Vuoto' : (slot.kind === 'new' ? `${slot.kb} KB` : 'Foto attuale');
+    return `<div class="mp-slot">
+      <div class="mp-slot-num">${i+1}°</div>
+      ${previewSrc ? `<img class="mp-slot-img" src="${previewSrc}">` : `<div class="mp-slot-empty">+</div>`}
+      <input type="file" accept="image/png,image/jpeg,image/webp" id="mpFile${i}" style="display:none;">
+      <div class="mp-slot-actions">
+        <button type="button" onclick="document.getElementById('mpFile${i}').click()">${slot ? 'Cambia' : 'Aggiungi'}</button>
+        ${slot ? `<button type="button" onclick="mpRemove(${i})">Rimuovi</button>` : ''}
+        ${i > 0 ? `<button type="button" onclick="mpMove(${i},${i-1})" title="Sposta prima">◀</button>` : ''}
+        ${i < mpSlots.length-1 ? `<button type="button" onclick="mpMove(${i},${i+1})" title="Sposta dopo">▶</button>` : ''}
+      </div>
+      <div class="mp-slot-status">${statusText}</div>
+    </div>`;
+  }).join('');
+  mpSlots.forEach((_, i) => {
+    document.getElementById(`mpFile${i}`).addEventListener('change', function(e){ mpHandleFile(i, e.target.files[0]); });
+  });
+}
+function mpMove(i, j){ const t = mpSlots[i]; mpSlots[i] = mpSlots[j]; mpSlots[j] = t; renderMpSlots(); }
+function mpRemove(i){ mpSlots[i] = null; renderMpSlots(); }
+function mpHandleFile(i, file){
+  if(!file) return;
+  compressImage(file).then(dataUri => {
+    const kb = Math.round(dataUri.length * 3/4 / 1024);
+    mpSlots[i] = { kind:'new', dataUri, kb };
+    renderMpSlots();
+  }).catch(() => { alert('Impossibile elaborare questa foto.'); });
+}
+
 function submitAnnuncio(){
   if(!currentUser){ alert('Accedi prima con Google.'); return; }
   const item = {
@@ -810,8 +910,18 @@ function submitAnnuncio(){
     work_mode: document.getElementById('fWork').value.trim(),
     description: document.getElementById('fDescription').value.trim(),
     contact: document.getElementById('fContact').value.trim(),
-    image_data: pendingImageData,
   };
+  // Cerut direct ("marketplace... fino a tre foto"): server-ul asteapta
+  // un tablou "images" DOAR pentru Marketplace - celelalte categorii
+  // raman pe drumul vechi, cu o singura poza (image_data). Sloturile
+  // goale se scot din mijloc (compact), pastrand ordinea ramasa - daca
+  // se sterge poza din mijloc, a treia devine automat a doua, nu ramane
+  // un gol permanent.
+  if(item.type === 'marketplace'){
+    item.images = mpSlots.filter(Boolean).map(s => s.kind === 'new' ? s.dataUri : ('keep:' + s.path));
+  } else {
+    item.image_data = pendingImageData;
+  }
   const errEl = document.getElementById('publishError');
   if(!item.title || !item.company || !item.location || !item.description){
     errEl.textContent = 'Compila almeno titolo, azienda/nome, località e descrizione.';
@@ -841,6 +951,8 @@ function submitAnnuncio(){
     pendingImageData = null;
     document.getElementById('fImagePreview').style.display = 'none';
     document.getElementById('fImageStatus').textContent = '';
+    mpSlots = mpEmptySlots();
+    renderMpSlots();
     loadMyAds();
     loadFavorites();
     loadAds();
@@ -947,6 +1059,22 @@ function detailFicheHtml(ad){
   </div>`;
 }
 
+// Cerut direct ("chi vede l'annuncio possa vedere le immagini una
+// alla volta, scorrendole, se ha 3 immagini"): cu o singura poza (sau
+// deloc), exact <img> de dinainte - niciun anunt vechi nu se schimba
+// vizual. Doar cand exista si extra_images apare galeria derulabila
+// cu puncte.
+function adGalleryHtml(ad){
+  if(!ad.image_url) return '';
+  const extra = Array.isArray(ad.extra_images) ? ad.extra_images.filter(e => e && e.image_url) : [];
+  if(!extra.length){
+    return `<img src="${ad.image_url}" alt="" style="width:100%;aspect-ratio:4/3;border-radius:10px;display:block;object-fit:cover;">`;
+  }
+  const urls = [ad.image_url].concat(extra.map(e => e.image_url));
+  return `<div class="ad-gallery" id="adGallery">${urls.map(u => `<img class="ad-gallery-img" src="${u}" alt="">`).join('')}</div>
+    <div class="ad-gallery-dots" id="adGalleryDots">${urls.map((u,i) => `<span class="ad-gallery-dot${i===0?' active':''}"></span>`).join('')}</div>`;
+}
+
 function openDetail(ad){
   document.getElementById('detailBody').innerHTML = `
     <button class="close" onclick="document.getElementById('detailModal').classList.remove('open')">×</button>
@@ -954,7 +1082,7 @@ function openDetail(ad){
       <span class="tag ${ad.type}">${TYPE_LABEL[ad.type]}</span>
       <h2>${ad.title}</h2>
       <p style="color:var(--ink-soft);margin:2px 0 14px;font-size:13.5px;">${ad.company} · ${ad.location}</p>
-      ${ad.image_url ? `<img src="${ad.image_url}" alt="" style="width:100%;aspect-ratio:4/3;border-radius:10px;display:block;object-fit:cover;">` : ''}
+      ${adGalleryHtml(ad)}
       ${detailFicheHtml(ad)}
       <p style="line-height:1.6;font-size:14px;">${ad.description ? escapeHtml(ad.description) : 'Nessuna descrizione disponibile.'}</p>
     </div>
@@ -964,6 +1092,13 @@ function openDetail(ad){
     </div>
   `;
   document.getElementById('detailModal').classList.add('open');
+  const gallery = document.getElementById('adGallery');
+  if(gallery){
+    gallery.addEventListener('scroll', function(){
+      const idx = Math.round(gallery.scrollLeft / gallery.clientWidth);
+      document.querySelectorAll('#adGalleryDots .ad-gallery-dot').forEach((d,i) => d.classList.toggle('active', i===idx));
+    });
+  }
   const favBtn = document.getElementById('favBtn');
   applyFavoriteButtonState(favBtn, favoritedIds.has(ad.id));
   favBtn.addEventListener('click', function(){ toggleFavorite(ad.id, favBtn); });
