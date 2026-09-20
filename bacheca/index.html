@@ -153,13 +153,17 @@ a{color:inherit;text-decoration:none}
    nevoie de propria sigla (portalul are deja propriul antet cu
    titlul "Annunci" deasupra cadrului) - dubla branding, redundanta.
    Bara de cautare si contul (acum "Fleet", vezi FLEET_MODE mai sus)
-   raman neschimbate. Rezervam si spatiu de jos suplimentar, cat
-   inaltimea REALA a barei de navigare a flotei (masurata de portal,
-   trimisa prin postMessage - vezi 'adb-annunci-bottomnav-h' mai jos),
-   care sta FIXA in afara acestui cadru si ar acoperi altfel ultimele
-   anunturi din lista. */
-html[data-embedded="1"] .headwrap .logo{display:none}
-html[data-embedded="1"] .wrap{padding-bottom:calc(80px + var(--fleet-bottomnav-h,70px))}
+   raman neschimbate. Specific doar Flotei (data-fleet) - aplicatia
+   soferului, incorporata la fel (embedded=1) dar fara mod=fleet, NU
+   are un antet propriu deasupra cadrului, deci sigla ramane vizibila
+   acolo, ca la orice alt ecran al ei. */
+html[data-fleet="1"] .headwrap .logo{display:none}
+/* Rezervam spatiu de jos suplimentar, cat inaltimea REALA a barei de
+   navigare FIXE din afara acestui cadru (a flotei SAU a aplicatiei
+   soferului, oricare incorporeaza pagina) - masurata si trimisa prin
+   postMessage ('adb-annunci-bottomnav-h', vezi mai jos), care altfel
+   ar acoperi ultimele anunturi din lista. */
+html[data-embedded="1"] .wrap{padding-bottom:calc(80px + var(--embed-bottomnav-h,70px))}
 .results-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;}
 .results-head h2{font-size:15px;font-weight:600;margin:0;}
 .results-head span{color:var(--ink-soft);font-size:13px;}
@@ -220,6 +224,20 @@ html[data-embedded="1"] .wrap{padding-bottom:calc(80px + var(--fleet-bottomnav-h
 
 .modal-bg{position:fixed;inset:0;background:rgba(10,10,12,.5);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;}
 .modal-bg.open{display:flex;}
+/* CAUZA REALA a unui defect gasit la testare (la deschiderea unui
+   modal in Fleet/aplicatia soferului, ramanea vizibila, nedimata, o
+   fasie din josul ecranului cu un anunt din lista de dedesubt):
+   verificat direct, pas cu pas - problema nu vine din pozitia sau
+   dimensiunea fundalului (mereu corecte), ci strict din faptul ca
+   fundalul e SEMI-TRANSPARENT (rgba) - un fundal opac, in acelasi loc,
+   randat perfect de fiecare data. Browserul nu recompune corect
+   transparenta unui element fixat pe tot ecranul cand pagina ruleaza
+   INTR-UN CADRU (iframe) - exact cazul Fleet si al soferului, care
+   incarca bacheca asa. Fix: doar in acest caz (data-embedded="1"),
+   fundalul devine opac - acelasi aspect vizual, aproape identic, dar
+   randat corect de fiecare data. */
+html[data-embedded="1"] .modal-bg{background:rgb(23,23,26);}
+html[data-embedded="1"][data-theme="dark"] .modal-bg{background:rgb(6,6,7);}
 /* Cerut direct ("quando scrollo lì si scrolla anche la pagina dietro"):
    CAUZA REALA - odata ajuns cu derularea la capatul continutului
    din interiorul ferestrei (sus sau jos de tot), browserul, din
@@ -864,15 +882,22 @@ const DRIVER_MODE = bachecaParams.get('mode') === 'driver';
 const EMBEDDED = bachecaParams.get('embedded') === '1';
 const fleetSlug = bachecaParams.get('fleet') || '';
 const fleetPassword = fleetSlug ? (sessionStorage.getItem('adb_fleet_pw_' + fleetSlug) || '') : '';
+if (FLEET_MODE) document.documentElement.setAttribute('data-fleet', '1');
 if (EMBEDDED) {
   document.documentElement.setAttribute('data-embedded', '1');
-  // Incorporata in portalul de flota (iframe), crestatura e deja
-  // compensata O SINGURA DATA de shell-ul de deasupra (.topline) -
-  // fara asta, s-ar aduna a doua oara aici, exact bug-ul deja reparat
-  // in trecut pentru alte spatii (vezi 404.html/annunci-frame-wrap).
-  document.documentElement.style.setProperty('--safe-top', '0px');
+  // Cerut direct ("bacheca in aplicatia soferului sa fie intr-un cadru,
+  // nu o navigare reala"): incorporata acum si in aplicatia soferului
+  // (acelasi motiv ca la Fleet - pe iOS, o navigare reala catre alt
+  // drum, chiar acelasi domeniu, poate "scoate" din modul de aplicatie
+  // instalata, cu propriul spatiu de stocare IZOLAT de restul aplicatiei
+  // - sesiunea Google/email a soferului devenea invizibila aici, exact
+  // motivul pentru care cerea din nou logarea). Compensarea crestaturii
+  // insa NU e la fel in cele doua contexte: portalul de flota are deasupra
+  // propriul antet (.topline) care o compenseaza deja o singura data -
+  // aplicatia soferului NU are niciun antet propriu deasupra cadrului de
+  // aici, deci crestatura tot trebuie compensata chiar aici, normal.
+  if (FLEET_MODE) document.documentElement.style.setProperty('--safe-top', '0px');
 }
-if (FLEET_MODE) document.documentElement.setAttribute('data-fleet', '1');
 // O flota nu se logheaza niciodata prin Google - identitatea ei
 // (fleet_slug + fleet_password) inlocuieste access_token-ul de sesiune
 // Supabase la fiecare cerere care are nevoie de autor (create/update/
@@ -2408,15 +2433,19 @@ function openSharedAdIfPresent(){
 }
 openSharedAdIfPresent();
 
-// Cerut direct: aceleasi 3 tipuri de mesaje folosite pana acum de
-// fostul annunci.js, intre aceasta pagina (acum sursa unica) si
-// portalul de flota (404.html) - portalul nu se schimba, doar tinta
-// cadrului lui (annunci/ -> bacheca/).
+// Aceleasi 3 tipuri de mesaje folosite pana acum de fostul annunci.js
+// cu portalul de flota (404.html) - generice, functioneaza identic cu
+// ORICE parinte care incorporeaza aceasta pagina intr-un cadru, acum
+// si aplicatia soferului (index.html/app.js), din acelasi motiv
+// (evita o navigare reala, care pe iOS ar "scoate" temporar din modul
+// de aplicatie instalata si ar izola stocarea locala - vezi FLEET_MODE
+// mai sus pentru sincronizarea crestaturii, singurul lucru diferit
+// intre cele doua contexte).
 if(EMBEDDED){
   window.addEventListener('message', function(ev){
     if(!ev.data) return;
     if(ev.data.type === 'adb-annunci-bottomnav-h'){
-      document.documentElement.style.setProperty('--fleet-bottomnav-h', ev.data.height + 'px');
+      document.documentElement.style.setProperty('--embed-bottomnav-h', ev.data.height + 'px');
     } else if(ev.data.type === 'adb-annunci-refresh'){
       if(document.getElementById('screen-account').classList.contains('active')){ loadMyAds(); loadFavorites(); }
       else { loadAds(); }

@@ -888,7 +888,8 @@
     currentScreen = name;
     document.body.classList.toggle('carico-active', name === 'carico');
     document.body.classList.toggle('consegne-oggi-active', name === 'consegne-oggi');
-    ['home', 'consegne-oggi', 'carico', 'foglio', 'archivio', 'pdf', 'navigatore'].forEach(function (n) {
+    document.body.classList.toggle('bacheca-active', name === 'bacheca');
+    ['home', 'consegne-oggi', 'carico', 'foglio', 'archivio', 'pdf', 'navigatore', 'bacheca'].forEach(function (n) {
       document.getElementById('screen-' + n).classList.toggle('active', n === name);
     });
     document.querySelectorAll('.navbtn[data-nav]').forEach(function (b) {
@@ -1155,10 +1156,7 @@
     el.innerHTML = html;
     document.getElementById('home-consegne-oggi').addEventListener('click', function () { showScreen('consegne-oggi'); });
     document.getElementById('home-percorso').addEventListener('click', function () { showScreen('navigatore'); });
-    // Cerut direct: pagina reala de oferte nu e inca construita — pana
-    // atunci, la apasare arata doar un mesaj scurt, ca soferul sa nu
-    // creada ca butonul e stricat/nu face nimic.
-    document.getElementById('home-job-offers-btn').addEventListener('click', function () { window.location.href = '/bacheca/?mode=driver'; });
+    document.getElementById('home-job-offers-btn').addEventListener('click', openBachecaScreen);
     document.getElementById('home-fuel').addEventListener('click', openFuelScreen);
     document.getElementById('home-calendar').addEventListener('click', function () { openCalendarModal(sheet.month, sheet.year); });
     var jumpBtn = document.getElementById('home-jump-latest');
@@ -12020,7 +12018,45 @@
     var bottomnav = document.querySelector('.bottomnav');
     if (topbar) document.documentElement.style.setProperty('--topbar-h', topbar.offsetHeight + 'px');
     if (bottomnav) document.documentElement.style.setProperty('--bottomnav-h', bottomnav.offsetHeight + 'px');
+    // Cerut direct (acelasi mecanism deja folosit de portalul de flota,
+    // 404.html): pagina Bacheca, incorporata intr-un cadru, rezerva jos
+    // un spatiu cat inaltimea REALA a acestei bare (invizibila din
+    // interiorul cadrului, fiind in afara lui) - masurata mereu aici,
+    // deja, pentru propriul padding al aplicatiei, trimisa acum si
+    // catre cadru, de fiecare data cand se remasoara (redimensionare,
+    // rotatie etc.), nu doar o singura data la incarcare.
+    var bachecaFrame = document.getElementById('driverBachecaFrame');
+    if (bottomnav && bachecaFrame && bachecaFrame.contentWindow) {
+      bachecaFrame.contentWindow.postMessage({ type: 'adb-annunci-bottomnav-h', height: bottomnav.offsetHeight }, '*');
+    }
   }
+
+  // Cerut direct ("sa unim la fletul la bacheca si pagina de la
+  // soferi"): butonul "Bacheca" de pe Home deschide acum un ecran nou
+  // (nu o navigare reala catre alta pagina - vezi comentariul de la
+  // #screen-bacheca in index.html pentru motivul real). Incarcata o
+  // singura data (lazy) - reintrarile ulterioare doar arata ecranul
+  // deja incarcat, fara sa reincarce cadrul de fiecare data.
+  function openBachecaScreen() {
+    var frame = document.getElementById('driverBachecaFrame');
+    if (frame && !frame.getAttribute('src')) {
+      frame.setAttribute('src', '/bacheca/index.html?mode=driver&embedded=1');
+      frame.addEventListener('load', syncBarHeights);
+    }
+    showScreen('bacheca');
+    syncBarHeights();
+  }
+
+  // Acelasi mecanism deja folosit de portalul de flota (404.html):
+  // pagina Bacheca anunta prin postMessage cand deschide/inchide un
+  // modal (Pubblica/Modifica/Dettagli) - cadrul se extinde peste tot
+  // ecranul real cat timp e deschis, ca fundalul lui intunecat sa
+  // acopere si bara de jos a aplicatiei, nu doar spatiul cadrului.
+  window.addEventListener('message', function (ev) {
+    if (!ev.data || ev.data.type !== 'adb-annunci-modal') return;
+    var wrap = document.getElementById('driverBachecaWrap');
+    if (wrap) wrap.classList.toggle('annunci-modal-fullscreen', !!ev.data.open);
+  });
 
   // REAL BUG, reported directly, on Chrome for Android specifically
   // (not Safari — ruling out an earlier vh/dvh-specific diagnosis):
@@ -13985,7 +14021,7 @@
       var dx = e.touches[0].clientX - startX, dy = e.touches[0].clientY - startY;
       if (dx < -60 && Math.abs(dx) > Math.abs(dy) * 2) {
         swiped = true;
-        window.location.href = '/bacheca/?mode=driver';
+        openBachecaScreen();
       }
     }, { passive: true });
     target.addEventListener('touchend', function () { tracking = false; }, { passive: true });
