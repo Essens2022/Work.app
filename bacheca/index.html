@@ -232,6 +232,21 @@ a{color:inherit;text-decoration:none}
 .modal-field{margin:14px 0;}
 .modal-field label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:4px;}
 .modal-field input,.modal-field textarea,.modal-field select{width:100%;border:1.5px solid var(--line);border-radius:8px;padding:9px 11px;font-size:16px;font-family:inherit;color:var(--ink);background:var(--bg);}
+/* Cerut direct ("orarul ar fi bine sa fie deja preimpostat Luni Marti
+   Miercuri... si in dreptul fiecarei zile de la si pana la, sau 24/7"):
+   widget-ul de orar pentru Servizi - zilele apar deja listate, gata de
+   completat, nu trebuie scrise de mana. */
+.schedule-widget{border:1.5px solid var(--line);border-radius:8px;padding:4px 12px;background:var(--bg);}
+.schedule-247{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--ink);padding:9px 0;cursor:pointer;}
+.schedule-247 input{width:auto;}
+.schedule-day{display:flex;align-items:center;gap:10px;padding:8px 0;flex-wrap:wrap;border-top:1px solid var(--line);}
+.schedule-day-name{width:72px;flex:none;font-size:13px;font-weight:600;color:var(--ink);}
+.schedule-day-closed{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ink-soft);flex:none;cursor:pointer;white-space:nowrap;}
+.schedule-day-closed input{width:auto;}
+.schedule-times{display:flex;align-items:center;gap:5px;flex-wrap:wrap;flex:1;min-width:0;}
+.schedule-times span{font-size:11.5px;color:var(--ink-soft);}
+.schedule-times input[type=time]{width:auto;padding:5px 6px;font-size:13px;border:1.5px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);}
+.schedule-times input[type=time]:disabled,.schedule-day-closed input:disabled{opacity:.5;}
 /* Cele 3 sloturi de poze pentru Marketplace - numerotate, ca ordinea
    (care e prima/a doua/a treia) sa fie mereu limpede dintr-o privire. */
 .mp-photos{display:flex;gap:8px;}
@@ -511,6 +526,15 @@ a{color:inherit;text-decoration:none}
       <label>Tipo trasporto</label>
       <select id="fCategoryClient"></select>
     </div>
+    <!-- Cerut direct ("adesso dobbiamo fare sistemare anche per
+         servizi... officine gommisti benzinai... tutto quello che
+         potrebbe interessare autisti, padroncini"): acelasi principiu,
+         de data asta pentru "Tipo servizio" la Servizi - lista fixa cu
+         tipurile reale de servicii utile unui sofer/padroncino. -->
+    <div class="modal-field" id="fCategoryFieldService" style="display:none;">
+      <label>Tipo servizio</label>
+      <select id="fCategoryService"></select>
+    </div>
     <div class="modal-field"><label id="fPriceLabel">Compenso</label><input id="fPrice" placeholder="Es. 2000 € - 2400 €"></div>
     <div class="modal-field" id="fWorkFieldSingle"><label id="fWorkLabel">Tipo di contratto</label><input id="fWork" placeholder="Es. Full-time"></div>
     <!-- Acelasi motiv ca mai sus: "Tipo di contratto" la Lavoro devine
@@ -524,13 +548,96 @@ a{color:inherit;text-decoration:none}
       <label>Frequenza</label>
       <select id="fWorkClient"></select>
     </div>
+    <!-- Cerut direct ("orarul ar fi bine sa fie deja preimpostat...
+         lumea doar scrie in ziua cutare ora dela pana la si dupa masa
+         dela si pana la, sau alege 24/7... orarul si zilele se vor
+         pune in automat in descriere, au mereu locul lor structurat
+         corect"): doar pentru Servizi - un orar structurat, zi cu zi
+         (dimineata/dupa-amiaza, sau "chiuso"), sau un singur switch
+         24/7. Textul generat se pune singur, mereu la fel formatat, in
+         Descrizione - autorul nu mai scrie orarul de mana, doar bifeaza
+         si alege orele. Vezi updateScheduleDescription() mai jos. -->
+    <div class="modal-field" id="fScheduleField" style="display:none;">
+      <label>Orario di apertura</label>
+      <div class="schedule-widget">
+        <label class="schedule-247"><input type="checkbox" id="fSchedule247">Aperto 24/7 (tutti i giorni)</label>
+        <div class="schedule-day" data-day="Lunedì">
+          <span class="schedule-day-name">Lunedì</span>
+          <label class="schedule-day-closed"><input type="checkbox" class="schedule-closed">Chiuso</label>
+          <div class="schedule-times">
+            <span>Mattina</span><input type="time" class="schedule-m-from"><span>–</span><input type="time" class="schedule-m-to">
+            <span>Pomeriggio</span><input type="time" class="schedule-p-from"><span>–</span><input type="time" class="schedule-p-to">
+          </div>
+        </div>
+        <div class="schedule-day" data-day="Martedì">
+          <span class="schedule-day-name">Martedì</span>
+          <label class="schedule-day-closed"><input type="checkbox" class="schedule-closed">Chiuso</label>
+          <div class="schedule-times">
+            <span>Mattina</span><input type="time" class="schedule-m-from"><span>–</span><input type="time" class="schedule-m-to">
+            <span>Pomeriggio</span><input type="time" class="schedule-p-from"><span>–</span><input type="time" class="schedule-p-to">
+          </div>
+        </div>
+        <div class="schedule-day" data-day="Mercoledì">
+          <span class="schedule-day-name">Mercoledì</span>
+          <label class="schedule-day-closed"><input type="checkbox" class="schedule-closed">Chiuso</label>
+          <div class="schedule-times">
+            <span>Mattina</span><input type="time" class="schedule-m-from"><span>–</span><input type="time" class="schedule-m-to">
+            <span>Pomeriggio</span><input type="time" class="schedule-p-from"><span>–</span><input type="time" class="schedule-p-to">
+          </div>
+        </div>
+        <div class="schedule-day" data-day="Giovedì">
+          <span class="schedule-day-name">Giovedì</span>
+          <label class="schedule-day-closed"><input type="checkbox" class="schedule-closed">Chiuso</label>
+          <div class="schedule-times">
+            <span>Mattina</span><input type="time" class="schedule-m-from"><span>–</span><input type="time" class="schedule-m-to">
+            <span>Pomeriggio</span><input type="time" class="schedule-p-from"><span>–</span><input type="time" class="schedule-p-to">
+          </div>
+        </div>
+        <div class="schedule-day" data-day="Venerdì">
+          <span class="schedule-day-name">Venerdì</span>
+          <label class="schedule-day-closed"><input type="checkbox" class="schedule-closed">Chiuso</label>
+          <div class="schedule-times">
+            <span>Mattina</span><input type="time" class="schedule-m-from"><span>–</span><input type="time" class="schedule-m-to">
+            <span>Pomeriggio</span><input type="time" class="schedule-p-from"><span>–</span><input type="time" class="schedule-p-to">
+          </div>
+        </div>
+        <div class="schedule-day" data-day="Sabato">
+          <span class="schedule-day-name">Sabato</span>
+          <label class="schedule-day-closed"><input type="checkbox" class="schedule-closed">Chiuso</label>
+          <div class="schedule-times">
+            <span>Mattina</span><input type="time" class="schedule-m-from"><span>–</span><input type="time" class="schedule-m-to">
+            <span>Pomeriggio</span><input type="time" class="schedule-p-from"><span>–</span><input type="time" class="schedule-p-to">
+          </div>
+        </div>
+        <div class="schedule-day" data-day="Domenica">
+          <span class="schedule-day-name">Domenica</span>
+          <label class="schedule-day-closed"><input type="checkbox" class="schedule-closed">Chiuso</label>
+          <div class="schedule-times">
+            <span>Mattina</span><input type="time" class="schedule-m-from"><span>–</span><input type="time" class="schedule-m-to">
+            <span>Pomeriggio</span><input type="time" class="schedule-p-from"><span>–</span><input type="time" class="schedule-p-to">
+          </div>
+        </div>
+      </div>
+    </div>
     <div class="modal-field"><label>Descrizione</label><textarea id="fDescription" rows="4" placeholder="Dettagli, requisiti…"></textarea></div>
     <!-- Cerut direct ("nr tel nu se publica, doar apasa contatta si
-         ii iese numarul"): telefonul (sau email-ul) NU apare scris in
-         anunt - se arata doar cand cineva apasa Contatta, in fereastra
-         de detaliu. Aici e doar locul unde autorul il scrie, o
-         singura data, la publicare. -->
-    <div class="modal-field"><label>Telefono o email di contatto</label><input id="fContact" placeholder="Non mostrato direttamente — solo al tocco di Contatta"></div>
+         ii iese numarul"): telefonul NU apare scris in anunt - se
+         arata doar cand cineva apasa Contatta, in fereastra de detaliu.
+         Aici e doar locul unde autorul il scrie, o singura data, la
+         publicare. -->
+    <!-- Cerut direct ("i dati di contatto devono essere il numero di
+         cellulare... un'altra riga deve essere per lo WhatsApp...
+         potrebbe mettere anche un numero di ufficio che non ha
+         WhatsApp"): CAUZA REALA pentru care butonul WhatsApp aparea pe
+         numere care nu aveau deloc WhatsApp - inainte, un singur camp
+         "telefon SAU email" era folosit si pentru butonul de sunat SI,
+         ghicit, pentru WhatsApp (presupunea ca orice numar are automat
+         WhatsApp). Acum doua campuri separate: Telefono (numarul de
+         sunat, cerut) si WhatsApp (optional - autorul il completeaza
+         DOAR daca vrea sa arate acel buton, cu un numar care poate fi
+         diferit de telefon). Email nu mai e nevoie in anunturi. -->
+    <div class="modal-field"><label>Telefono</label><input id="fContact" type="tel" placeholder="Es. 333 1234567"></div>
+    <div class="modal-field"><label>WhatsApp (opzionale)</label><input id="fWhatsapp" type="tel" placeholder="Solo se questo numero ha WhatsApp — lascia vuoto altrimenti"></div>
     <!-- Cerut direct ("sa se publice si logo poza, logo poza ramane
          sub 20kb"): comprimata automat in browser (redimensionata +
          calitate redusa treptat) pana ajunge sub 20kb, inainte sa fie
@@ -606,7 +713,7 @@ a{color:inherit;text-decoration:none}
 // potriveste, pagina se reincarca singura. Nu reincarca niciodata cat
 // timp fereastra de Pubblica e deschisa, ca sa nu se piarda un
 // formular pe jumatate completat.
-const BACHECA_VERSION = 'bacheca-v9';
+const BACHECA_VERSION = 'bacheca-v12';
 (function(){
   try {
     var RELOAD_COOLDOWN_MS = 20000;
@@ -819,12 +926,14 @@ function openPost(){
   editingAdId = null;
   document.getElementById('publishSubmitBtn').textContent = 'Pubblica';
   document.getElementById('postModalTitle').textContent = 'Pubblica un annuncio';
-  ['fTitle','fCompany','fLocation','fCategory','fPrice','fWork','fDescription','fContact'].forEach(id => document.getElementById(id).value = '');
+  ['fTitle','fCompany','fLocation','fCategory','fPrice','fWork','fDescription','fContact','fWhatsapp'].forEach(id => document.getElementById(id).value = '');
   setMarketplaceCategoryValue('');
   setJobPatenteValue('');
   setJobContrattoValue('');
   setClientCategoryValue('');
   setClientFrequenzaValue('');
+  setServiceCategoryValue('');
+  resetScheduleWidget();
   pendingImageData = null;
   document.getElementById('fImagePreview').style.display = 'none';
   document.getElementById('fImageStatus').textContent = '';
@@ -849,12 +958,18 @@ function openEditAd(ad){
   if(ad.type === 'marketplace') setMarketplaceCategoryValue(ad.category || '');
   if(ad.type === 'job') setJobPatenteValue(ad.category || '');
   if(ad.type === 'client') setClientCategoryValue(ad.category || '');
+  if(ad.type === 'service') setServiceCategoryValue(ad.category || '');
   document.getElementById('fPrice').value = ad.price_label || '';
   document.getElementById('fWork').value = ad.work_mode || '';
   if(ad.type === 'job') setJobContrattoValue(ad.work_mode || '');
   if(ad.type === 'client') setClientFrequenzaValue(ad.work_mode || '');
   document.getElementById('fDescription').value = ad.description || '';
   document.getElementById('fContact').value = ad.contact || '';
+  document.getElementById('fWhatsapp').value = ad.whatsapp || '';
+  // touchDescription=false: widget-ul se goleste vizual (pregatit
+  // pentru o completare noua), dar orarul deja scris in Descrizione
+  // (manual sau generat anterior) ramane exact cum era.
+  resetScheduleWidget(false);
   pendingImageData = null;
   const preview = document.getElementById('fImagePreview');
   if(ad.image_url){ preview.src = ad.image_url; preview.style.display = 'block'; } else { preview.style.display = 'none'; }
@@ -1091,6 +1206,134 @@ function setClientFrequenzaValue(value){
   }
   sel.value = v || TRANSPORT_FREQUENZA_OPTIONS[0];
 }
+// Cerut direct ("adesso dobbiamo fare sistemare anche per servizi...
+// officine gommisti benzinai... tutto quello che potrebbe interessare
+// autisti, padroncini"): acelasi tratament, de data asta pentru "Tipo
+// servizio" la Servizi. "Disponibilità" (orarul) ramane text liber -
+// variaza prea mult de la un service la altul ca sa incapa intr-o
+// lista fixa; fix-ul separat la Descrizione (linii pastrate corect)
+// acopera nevoia de orar zi cu zi, frumos formatat.
+const SERVICE_TYPE_OPTIONS = [
+  'Officina meccanica',
+  'Gommista',
+  'Benzinaio / distributore carburante',
+  'Autolavaggio',
+  'Elettrauto',
+  'Soccorso stradale / carroattrezzi',
+  'Revisioni e collaudi',
+  'Ricambi e accessori',
+  'Altro',
+];
+function resetServiceCategoryOptions(){
+  document.getElementById('fCategoryService').innerHTML =
+    SERVICE_TYPE_OPTIONS.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+}
+(function(){ resetServiceCategoryOptions(); })();
+function setServiceCategoryValue(value){
+  resetServiceCategoryOptions();
+  const sel = document.getElementById('fCategoryService');
+  const v = value || '';
+  if(v && !SERVICE_TYPE_OPTIONS.includes(v)){
+    sel.insertAdjacentHTML('afterbegin', `<option value="${escapeHtml(v)}">${escapeHtml(v)} (esistente)</option>`);
+  }
+  sel.value = v || SERVICE_TYPE_OPTIONS[0];
+}
+
+// Cerut direct ("orarul si zilele se vor pune in automat in descriere,
+// au mereu locul lor structurat corect"): widget-ul de orar (doar la
+// Servizi) genereaza singur textul, mereu in acelasi format, si il
+// pune la INCEPUTUL Descrizione - restul, orice a mai scris autorul
+// acolo, ramane neatins dupa el. Un marker fix (SCHEDULE_HEADER) e cum
+// recunoastem blocul generat data viitoare, ca sa-l inlocuim curat
+// (nu sa-l adaugam din nou, dedesubt) cand autorul mai schimba o ora.
+const SCHEDULE_DAYS = ['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'];
+const SCHEDULE_HEADER = 'Orario di apertura:';
+function scheduleFieldEl(){ return document.getElementById('fScheduleField'); }
+function readScheduleState(){
+  const is247 = document.getElementById('fSchedule247').checked;
+  const days = {};
+  scheduleFieldEl().querySelectorAll('.schedule-day').forEach(row => {
+    days[row.dataset.day] = {
+      closed: row.querySelector('.schedule-closed').checked,
+      mFrom: row.querySelector('.schedule-m-from').value,
+      mTo: row.querySelector('.schedule-m-to').value,
+      pFrom: row.querySelector('.schedule-p-from').value,
+      pTo: row.querySelector('.schedule-p-to').value,
+    };
+  });
+  return { is247, days };
+}
+function scheduleHasData(state){
+  if(state.is247) return true;
+  return SCHEDULE_DAYS.some(day => {
+    const d = state.days[day];
+    return d.closed || d.mFrom || d.mTo || d.pFrom || d.pTo;
+  });
+}
+function formatScheduleBlock(state){
+  if(state.is247) return SCHEDULE_HEADER + '\nAperto 24/24, tutti i giorni.';
+  const lines = SCHEDULE_DAYS.map(day => {
+    const d = state.days[day];
+    if(d.closed) return `${day}: chiuso`;
+    const ranges = [];
+    if(d.mFrom && d.mTo) ranges.push(`${d.mFrom}-${d.mTo}`);
+    if(d.pFrom && d.pTo) ranges.push(`${d.pFrom}-${d.pTo}`);
+    if(!ranges.length) return null;
+    return `${day}: ${ranges.join(', ')}`;
+  }).filter(Boolean);
+  return lines.length ? SCHEDULE_HEADER + '\n' + lines.join('\n') : '';
+}
+// Recunoaste un bloc generat anterior la inceputul textului (dupa
+// marker) si intoarce doar ce a scris autorul DUPA el - ca sa nu
+// dubleze orarul de fiecare data cand mai schimba o ora din widget.
+function stripScheduleBlock(text){
+  const lines = (text || '').split('\n');
+  if(lines[0] !== SCHEDULE_HEADER) return text || '';
+  let i = 1;
+  if(lines[1] && lines[1].startsWith('Aperto 24/24')){
+    i = 2;
+  } else {
+    while(i < lines.length && SCHEDULE_DAYS.some(d => lines[i].startsWith(d + ':'))) i++;
+  }
+  if(lines[i] === '') i++;
+  return lines.slice(i).join('\n');
+}
+function updateScheduleDescription(){
+  const state = readScheduleState();
+  const ta = document.getElementById('fDescription');
+  const rest = stripScheduleBlock(ta.value);
+  if(!scheduleHasData(state)){ ta.value = rest; return; }
+  const block = formatScheduleBlock(state);
+  ta.value = block ? (rest ? (block + '\n\n' + rest) : block) : rest;
+}
+// touchDescription=false la editarea unui anunt existent (vezi
+// openEditAd) - widget-ul se goleste vizual, dar NU trebuie sa stearga
+// din Descrizione un orar scris anterior (manual sau de acest widget,
+// intr-o sesiune trecuta) doar pentru ca acum porneste gol.
+function syncScheduleUI(touchDescription){
+  const is247 = document.getElementById('fSchedule247').checked;
+  scheduleFieldEl().querySelectorAll('.schedule-day').forEach(row => {
+    const closedBox = row.querySelector('.schedule-closed');
+    const closed = closedBox.checked;
+    row.style.opacity = is247 ? '.45' : '';
+    closedBox.disabled = is247;
+    row.querySelectorAll('input[type=time]').forEach(inp => { inp.disabled = is247 || closed; });
+  });
+  if(touchDescription !== false) updateScheduleDescription();
+}
+function resetScheduleWidget(touchDescription){
+  document.getElementById('fSchedule247').checked = false;
+  scheduleFieldEl().querySelectorAll('.schedule-day').forEach(row => {
+    row.querySelector('.schedule-closed').checked = false;
+    row.querySelectorAll('input[type=time]').forEach(inp => inp.value = '');
+  });
+  syncScheduleUI(touchDescription);
+}
+(function(){
+  const el = scheduleFieldEl();
+  el.addEventListener('input', syncScheduleUI);
+  el.addEventListener('change', syncScheduleUI);
+})();
 function updateFormLabels(){
   const t = document.getElementById('fType').value;
   const l = FIELD_LABELS[t] || FIELD_LABELS.job;
@@ -1107,18 +1350,23 @@ function updateFormLabels(){
   const isMarket = t === 'marketplace';
   const isJob = t === 'job';
   const isClient = t === 'client';
+  const isService = t === 'service';
   document.getElementById('fImageFieldSingle').style.display = isMarket ? 'none' : '';
   document.getElementById('fImageFieldMarketplace').style.display = isMarket ? '' : 'none';
-  // Cerut direct: la Marketplace, Lavoro si acum Trasportatori,
-  // categoria/tipul de contract vin din liste fixe (select), nu din
-  // campul liber - care ramane doar pentru Servizi, neschimbat.
-  document.getElementById('fCategoryFieldSingle').style.display = (isMarket || isJob || isClient) ? 'none' : '';
+  // Cerut direct: la Marketplace, Lavoro, Trasportatori si acum
+  // Servizi, categoria vine din liste fixe (select), nu din campul
+  // liber - care ramane doar ca fallback, neafisat niciodata acum.
+  document.getElementById('fCategoryFieldSingle').style.display = (isMarket || isJob || isClient || isService) ? 'none' : '';
   document.getElementById('fCategoryFieldMarketplace').style.display = isMarket ? '' : 'none';
   document.getElementById('fCategoryFieldJob').style.display = isJob ? '' : 'none';
   document.getElementById('fCategoryFieldClient').style.display = isClient ? '' : 'none';
+  document.getElementById('fCategoryFieldService').style.display = isService ? '' : 'none';
   document.getElementById('fWorkFieldSingle').style.display = (isJob || isClient) ? 'none' : '';
   document.getElementById('fWorkFieldJob').style.display = isJob ? '' : 'none';
   document.getElementById('fWorkFieldClient').style.display = isClient ? '' : 'none';
+  // Cerut direct ("orarul... au mereu locul lor structurat corect"):
+  // widget-ul de orar apare doar la Servizi.
+  document.getElementById('fScheduleField').style.display = isService ? '' : 'none';
   if(isMarket) updateMarketplaceDescHint();
   else document.getElementById('fDescription').placeholder = 'Dettagli, requisiti…';
 }
@@ -1291,16 +1539,18 @@ function submitAnnuncio(){
     company: document.getElementById('fCompany').value.trim(),
     location: document.getElementById('fLocation').value.trim(),
     // Cerut direct ("marketplace... categoria... variante", apoi
-    // "acum pentru lavoro", apoi "acum corectam si la transporti"): la
-    // Marketplace, Lavoro si Trasportatori, categoria/tipul de contract
-    // vin din liste fixe (select), nu din campul liber - folosit in
-    // continuare doar de Servizi.
+    // "acum pentru lavoro", "acum corectam si la transporti", "adesso
+    // dobbiamo fare sistemare anche per servizi"): la toate cele 4
+    // categorii, categoria vine acum din liste fixe (select), nu din
+    // campul liber (fCategory ramane doar fallback, niciodata afisat).
     category: (typeNow === 'marketplace'
       ? document.getElementById('fCategoryMarketplace').value
       : typeNow === 'job'
       ? document.getElementById('fCategoryJob').value
       : typeNow === 'client'
       ? document.getElementById('fCategoryClient').value
+      : typeNow === 'service'
+      ? document.getElementById('fCategoryService').value
       : document.getElementById('fCategory').value).trim(),
     price_label: document.getElementById('fPrice').value.trim(),
     work_mode: (typeNow === 'job'
@@ -1310,6 +1560,7 @@ function submitAnnuncio(){
       : document.getElementById('fWork').value).trim(),
     description: document.getElementById('fDescription').value.trim(),
     contact: document.getElementById('fContact').value.trim(),
+    whatsapp: document.getElementById('fWhatsapp').value.trim(),
   };
   // Cerut direct ("marketplace... fino a tre foto"): server-ul asteapta
   // un tablou "images" DOAR pentru Marketplace - celelalte categorii
@@ -1361,12 +1612,14 @@ function submitAnnuncio(){
     if(!res.ok){ errEl.textContent = (isEditing ? 'Salvataggio non riuscito: ' : 'Pubblicazione non riuscita: ') + (res.error || 'errore sconosciuto'); errEl.style.display = 'block'; return; }
     document.getElementById('postModal').classList.remove('open');
     editingAdId = null;
-    ['fTitle','fCompany','fLocation','fCategory','fPrice','fWork','fDescription','fContact'].forEach(id => document.getElementById(id).value = '');
+    ['fTitle','fCompany','fLocation','fCategory','fPrice','fWork','fDescription','fContact','fWhatsapp'].forEach(id => document.getElementById(id).value = '');
     setMarketplaceCategoryValue('');
     setJobPatenteValue('');
     setJobContrattoValue('');
     setClientCategoryValue('');
     setClientFrequenzaValue('');
+    setServiceCategoryValue('');
+    resetScheduleWidget();
     pendingImageData = null;
     document.getElementById('fImagePreview').style.display = 'none';
     document.getElementById('fImageStatus').textContent = '';
@@ -1390,13 +1643,22 @@ function submitAnnuncio(){
 // de la whatsapp"): Contatta e acum un link real (tel: sau mailto:),
 // deschide direct telefonul/mail-ul, fara niciun pas intermediar de
 // "dezvaluire" - eliminat complet mecanismul vechi (care crea
-// suprapunerea raportata intre Salva si WhatsApp). WhatsApp e propriul
-// buton, mereu vizibil alaturi, cand contactul arata a numar de telefon.
-function contactButtonsHtml(contact){
+// suprapunerea raportata intre Salva si WhatsApp).
+// Cerut direct ("i dati di contatto devono essere il numero di
+// cellulare... un'altra riga deve essere per lo WhatsApp... potrebbe
+// mettere anche un numero di ufficio che non ha WhatsApp"): CAUZA
+// REALA pentru care butonul WhatsApp aparea gresit pe numere fara
+// WhatsApp - inainte, GHICEA ca orice numar din "contact" are automat
+// WhatsApp. Acum WhatsApp vine dintr-un camp SEPARAT, propriu - apare
+// doar daca autorul chiar l-a completat, niciodata presupus din
+// telefon. Email nu mai e sustinut ca optiune (nu mai e cerut in
+// anunturi) - ramane doar tratat, pentru compatibilitate, la anunturi
+// mai vechi care il aveau scris in contact.
+function contactButtonsHtml(contact, whatsapp){
   if(!contact){
     return '<button class="submit-btn" style="flex:1;" disabled>Nessun contatto indicato</button>';
   }
-  const isEmail = contact.includes('@');
+  const isEmail = contact.includes('@'); // anunturi vechi, publicate cand campul accepta si email
   const digitsOnly = contact.replace(/[^0-9+]/g,'');
   const looksLikePhone = !isEmail && digitsOnly.replace(/\+/g,'').length >= 8;
   let html = '';
@@ -1407,8 +1669,9 @@ function contactButtonsHtml(contact){
   } else {
     html += `<div class="submit-btn" style="flex:1;text-align:center;opacity:.7;">${escapeHtml(contact)}</div>`;
   }
-  if(looksLikePhone){
-    const waNumber = digitsOnly.replace(/^0+/,'').replace('+','');
+  const waDigits = (whatsapp || '').replace(/[^0-9+]/g,'');
+  if(waDigits.replace(/\+/g,'').length >= 8){
+    const waNumber = waDigits.replace(/^0+/,'').replace('+','');
     html += `<a href="https://wa.me/${waNumber}" target="_blank" rel="noopener" title="Apri WhatsApp" style="box-sizing:border-box;flex:none;width:48px;height:48px;display:flex;align-items:center;justify-content:center;background:#25D366;color:#fff;border-radius:8px;">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.36 5.07L2 22l5.06-1.32C8.5 21.5 10.2 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm5.2 14.2c-.22.62-1.28 1.18-1.78 1.24-.46.06-1.03.08-1.66-.1-.38-.12-.87-.28-1.5-.55-2.64-1.14-4.36-3.8-4.5-3.98-.13-.18-1.08-1.44-1.08-2.75s.68-1.95.92-2.22c.24-.26.53-.33.7-.33h.5c.16 0 .38-.06.6.46.22.53.75 1.83.82 1.96.07.13.11.29.02.47-.09.18-.14.29-.27.44-.13.16-.28.35-.4.47-.13.13-.27.27-.12.53.16.26.7 1.16 1.5 1.87 1.03.92 1.9 1.2 2.16 1.34.26.13.42.11.57-.07.16-.18.66-.77.84-1.04.18-.26.35-.22.6-.13.24.09 1.55.73 1.82.87.26.13.44.2.5.31.06.13.06.71-.16 1.33z"/></svg>
     </a>`;
@@ -1503,10 +1766,18 @@ function openDetail(ad){
       <p style="color:var(--ink-soft);margin:2px 0 14px;font-size:13.5px;">${ad.company} · ${ad.location}</p>
       ${adGalleryHtml(ad)}
       ${detailFicheHtml(ad)}
-      <p style="line-height:1.6;font-size:14px;">${ad.description ? escapeHtml(ad.description) : 'Nessuna descrizione disponibile.'}</p>
+      <!-- Cerut direct ("se pune tutto in una linea, deve essere fatto
+           vedere come l'ha messo la persona, un sopra l'altro"): CAUZA
+           REALA - un <p> normal ignora liniile noi din text (le trateaza
+           ca un singur spatiu), indiferent cate a scris autorul in
+           textarea - "Lunedì: 8-18" si "Martedì: 8-18" ajungeau lipite
+           pe acelasi rand. white-space:pre-wrap pastreaza fiecare linie
+           noua exact cum a scris-o autorul, fara sa piarda wrap-ul
+           normal pe randuri lungi. -->
+      <p style="line-height:1.6;font-size:14px;white-space:pre-wrap;">${ad.description ? escapeHtml(ad.description) : 'Nessuna descrizione disponibile.'}</p>
     </div>
     <div class="detail-footer">
-      ${contactButtonsHtml(ad.contact)}
+      ${contactButtonsHtml(ad.contact, ad.whatsapp)}
       <button class="btn-ghost" style="box-sizing:border-box;flex:none;width:48px;height:48px;padding:0;display:flex;align-items:center;justify-content:center;" id="favBtn"></button>
     </div>
   `;
