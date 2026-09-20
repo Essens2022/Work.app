@@ -481,8 +481,23 @@ a{color:inherit;text-decoration:none}
       <label>Categoria</label>
       <select id="fCategoryMarketplace"></select>
     </div>
+    <!-- Cerut direct ("acum pentru lavoro"): acelasi principiu ca la
+         Marketplace - "Tipo patente" nu mai e text liber (unde fiecare
+         scria altfel acelasi lucru: "CE", "Patente C+E", "cat. E"...),
+         ci o lista fixa cu patentele/certificarile reale cerute in
+         transport. -->
+    <div class="modal-field" id="fCategoryFieldJob" style="display:none;">
+      <label>Tipo patente</label>
+      <select id="fCategoryJob"></select>
+    </div>
     <div class="modal-field"><label id="fPriceLabel">Compenso</label><input id="fPrice" placeholder="Es. 2000 € - 2400 €"></div>
-    <div class="modal-field"><label id="fWorkLabel">Tipo di contratto</label><input id="fWork" placeholder="Es. Full-time"></div>
+    <div class="modal-field" id="fWorkFieldSingle"><label id="fWorkLabel">Tipo di contratto</label><input id="fWork" placeholder="Es. Full-time"></div>
+    <!-- Acelasi motiv ca mai sus: "Tipo di contratto" la Lavoro devine
+         lista fixa in loc de text liber. -->
+    <div class="modal-field" id="fWorkFieldJob" style="display:none;">
+      <label>Tipo di contratto</label>
+      <select id="fWorkJob"></select>
+    </div>
     <div class="modal-field"><label>Descrizione</label><textarea id="fDescription" rows="4" placeholder="Dettagli, requisiti…"></textarea></div>
     <!-- Cerut direct ("nr tel nu se publica, doar apasa contatta si
          ii iese numarul"): telefonul (sau email-ul) NU apare scris in
@@ -565,7 +580,7 @@ a{color:inherit;text-decoration:none}
 // potriveste, pagina se reincarca singura. Nu reincarca niciodata cat
 // timp fereastra de Pubblica e deschisa, ca sa nu se piarda un
 // formular pe jumatate completat.
-const BACHECA_VERSION = 'bacheca-v5';
+const BACHECA_VERSION = 'bacheca-v6';
 (function(){
   try {
     var RELOAD_COOLDOWN_MS = 20000;
@@ -775,6 +790,8 @@ function openPost(){
   document.getElementById('postModalTitle').textContent = 'Pubblica un annuncio';
   ['fTitle','fCompany','fLocation','fCategory','fPrice','fWork','fDescription','fContact'].forEach(id => document.getElementById(id).value = '');
   setMarketplaceCategoryValue('');
+  setJobPatenteValue('');
+  setJobContrattoValue('');
   pendingImageData = null;
   document.getElementById('fImagePreview').style.display = 'none';
   document.getElementById('fImageStatus').textContent = '';
@@ -797,8 +814,10 @@ function openEditAd(ad){
   document.getElementById('fLocation').value = ad.location || '';
   document.getElementById('fCategory').value = ad.category || '';
   if(ad.type === 'marketplace') setMarketplaceCategoryValue(ad.category || '');
+  if(ad.type === 'job') setJobPatenteValue(ad.category || '');
   document.getElementById('fPrice').value = ad.price_label || '';
   document.getElementById('fWork').value = ad.work_mode || '';
+  if(ad.type === 'job') setJobContrattoValue(ad.work_mode || '');
   document.getElementById('fDescription').value = ad.description || '';
   document.getElementById('fContact').value = ad.contact || '';
   pendingImageData = null;
@@ -935,6 +954,59 @@ function setMarketplaceCategoryValue(value){
   sel.value = v || MARKETPLACE_CATEGORIES[0];
   updateMarketplaceDescHint();
 }
+// Cerut direct ("acum pentru lavoro"): acelasi tratament ca la
+// Marketplace, de data asta pentru cele doua campuri de la Lavoro care
+// pana acum erau text liber - "Tipo patente" si "Tipo di contratto".
+// Liste fixe, gandite pentru transport, cu "Altro" mereu la coada.
+const JOB_PATENTE_OPTIONS = [
+  'Patente B',
+  'Patente C',
+  'Patente C+E (CE)',
+  'Patente D',
+  'CQC Merci',
+  'ADR (materie pericolose)',
+  'Altro',
+];
+const JOB_CONTRATTO_OPTIONS = [
+  'Full-time',
+  'Part-time',
+  'Determinato',
+  'Indeterminato',
+  'A chiamata',
+  'Stagionale',
+  'Altro',
+];
+function resetJobPatenteOptions(){
+  document.getElementById('fCategoryJob').innerHTML =
+    JOB_PATENTE_OPTIONS.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+}
+(function(){ resetJobPatenteOptions(); })();
+// Acelasi motiv ca la setMarketplaceCategoryValue: un anunt de Lavoro
+// publicat inainte de lista fixa poate avea "Tipo patente" scris liber -
+// nu-l inlocuim pe tacute, il adaugam ca optiune suplimentara ("esistente").
+function setJobPatenteValue(value){
+  resetJobPatenteOptions();
+  const sel = document.getElementById('fCategoryJob');
+  const v = value || '';
+  if(v && !JOB_PATENTE_OPTIONS.includes(v)){
+    sel.insertAdjacentHTML('afterbegin', `<option value="${escapeHtml(v)}">${escapeHtml(v)} (esistente)</option>`);
+  }
+  sel.value = v || JOB_PATENTE_OPTIONS[0];
+}
+function resetJobContrattoOptions(){
+  document.getElementById('fWorkJob').innerHTML =
+    JOB_CONTRATTO_OPTIONS.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+}
+(function(){ resetJobContrattoOptions(); })();
+function setJobContrattoValue(value){
+  resetJobContrattoOptions();
+  const sel = document.getElementById('fWorkJob');
+  const v = value || '';
+  if(v && !JOB_CONTRATTO_OPTIONS.includes(v)){
+    sel.insertAdjacentHTML('afterbegin', `<option value="${escapeHtml(v)}">${escapeHtml(v)} (esistente)</option>`);
+  }
+  sel.value = v || JOB_CONTRATTO_OPTIONS[0];
+}
 function updateFormLabels(){
   const t = document.getElementById('fType').value;
   const l = FIELD_LABELS[t] || FIELD_LABELS.job;
@@ -949,13 +1021,17 @@ function updateFormLabels(){
   // poza, ca inainte. Nu golim datele la comutare (daca cineva
   // schimba din greseala categoria si revine, nu-si pierde pozele).
   const isMarket = t === 'marketplace';
+  const isJob = t === 'job';
   document.getElementById('fImageFieldSingle').style.display = isMarket ? 'none' : '';
   document.getElementById('fImageFieldMarketplace').style.display = isMarket ? '' : 'none';
-  // Cerut direct: la Marketplace, categoria vine din lista fixa de
-  // mai sus (select), nu din campul liber - care ramane pentru
-  // celelalte categorii, neschimbat.
-  document.getElementById('fCategoryFieldSingle').style.display = isMarket ? 'none' : '';
+  // Cerut direct: la Marketplace si acum la Lavoro, categoria/tipul de
+  // contract vin din liste fixe (select), nu din campul liber - care
+  // ramane doar pentru Trasporti si Servizi, neschimbat.
+  document.getElementById('fCategoryFieldSingle').style.display = (isMarket || isJob) ? 'none' : '';
   document.getElementById('fCategoryFieldMarketplace').style.display = isMarket ? '' : 'none';
+  document.getElementById('fCategoryFieldJob').style.display = isJob ? '' : 'none';
+  document.getElementById('fWorkFieldSingle').style.display = isJob ? 'none' : '';
+  document.getElementById('fWorkFieldJob').style.display = isJob ? '' : 'none';
   if(isMarket) updateMarketplaceDescHint();
   else document.getElementById('fDescription').placeholder = 'Dettagli, requisiti…';
 }
@@ -1127,14 +1203,19 @@ function submitAnnuncio(){
     title: document.getElementById('fTitle').value.trim(),
     company: document.getElementById('fCompany').value.trim(),
     location: document.getElementById('fLocation').value.trim(),
-    // Cerut direct ("marketplace... categoria... variante"): la
-    // Marketplace, categoria vine din lista fixa (select), nu din
-    // campul liber - folosit in continuare de celelalte categorii.
+    // Cerut direct ("marketplace... categoria... variante", apoi
+    // "acum pentru lavoro"): la Marketplace si Lavoro, categoria/tipul
+    // de contract vin din liste fixe (select), nu din campul liber -
+    // folosit in continuare de Trasporti si Servizi.
     category: (typeNow === 'marketplace'
       ? document.getElementById('fCategoryMarketplace').value
+      : typeNow === 'job'
+      ? document.getElementById('fCategoryJob').value
       : document.getElementById('fCategory').value).trim(),
     price_label: document.getElementById('fPrice').value.trim(),
-    work_mode: document.getElementById('fWork').value.trim(),
+    work_mode: (typeNow === 'job'
+      ? document.getElementById('fWorkJob').value
+      : document.getElementById('fWork').value).trim(),
     description: document.getElementById('fDescription').value.trim(),
     contact: document.getElementById('fContact').value.trim(),
   };
@@ -1190,6 +1271,8 @@ function submitAnnuncio(){
     editingAdId = null;
     ['fTitle','fCompany','fLocation','fCategory','fPrice','fWork','fDescription','fContact'].forEach(id => document.getElementById(id).value = '');
     setMarketplaceCategoryValue('');
+    setJobPatenteValue('');
+    setJobContrattoValue('');
     pendingImageData = null;
     document.getElementById('fImagePreview').style.display = 'none';
     document.getElementById('fImageStatus').textContent = '';
