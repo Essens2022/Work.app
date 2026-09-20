@@ -6,7 +6,7 @@ var API=SUPABASE_URL+'/functions/v1/annunci';
 var qs=new URLSearchParams(location.search);var mode=qs.get('mode')==='fleet'?'fleet':'driver';var fleetSlug=qs.get('fleet')||'';
 var fleetPassword=fleetSlug?sessionStorage.getItem('adb_fleet_pw_'+fleetSlug)||'':'';
 var state={tab:'job',view:'tab',items:[],mineItems:[],favItems:[],imageData:null,apiReady:true,editingId:null};
-var E={};['tabs','cards','search','zone','category','sort','sectionTitle','resultCount','publishBtn','favBtn','mineBtn','backToAllBtn','toolbarRow','publishModal','publishForm','fType','fTitle','fCompany','fLocation','fContact','fDescription','fImage','imagePreview','imageStatus','fBadge','fVisibility','fPromotion','dynamicFields','detailModal','detailBody','statusBar','contextLabel','pageTitle','pageSub','sideNav'].forEach(function(id){E[id]=document.getElementById(id)});
+var E={};['tabs','cards','search','zone','category','sort','sectionTitle','resultCount','publishBtn','favBtn','mineBtn','backToAllBtn','toolbarRow','publishModal','publishForm','fType','fTitle','fCompany','fLocation','fContact','fWhatsapp','fDescription','fImage','fImageFieldSingle','imagePreview','imageStatus','fBadge','fVisibility','fPromotion','dynamicFields','detailModal','detailBody','statusBar','contextLabel','pageTitle','pageSub','sideNav'].forEach(function(id){E[id]=document.getElementById(id)});
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 function icon(name){var p={job:'<path d="M9 6V4h6v2M4 8h16v11H4zM4 11h16"/>',client:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/>',marketplace:'<path d="M3 7h18l-2 12H5L3 7z"/><path d="M8 7a4 4 0 0 1 8 0"/>',service:'<path d="M14.7 6.3a4 4 0 0 0-5-5L7 4l3 3 2.7-2.7a4 4 0 0 0 2 2z"/><path d="M5 10 2 13l9 9 3-3M14 14l7-7"/>',pin:'<path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2"/>',heart:'<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8Z"/>',mine:'<path d="M7 3h10a1 1 0 0 1 1 1v17l-6-4-6 4V4a1 1 0 0 1 1-1Z"/>',share:'<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/>',eye:'<path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/>',click:'<path d="M9 3v2M4.2 4.2l1.4 1.4M3 10h2M15.5 15.5 19 19M9 9l10 3-4 2 3 5-3 1-3-5-3 3z"/>'};return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">'+(p[name]||p.job)+'</svg>'}
 var tabs=mode==='fleet'?[['job','Trova lavoro'],['client','Trova clienti'],['marketplace','Marketplace'],['service','Servizi']]:[['job','Lavoro'],['marketplace','Marketplace'],['service','Servizi']];
@@ -38,7 +38,21 @@ function renderTabs(){E.tabs.className='tabs'+(mode==='driver'?' driver':'');E.t
 // preferite trebuie sa arate ca esti acolo', la fel ca in restul
 // meniului flotei.
 function renderSide(){if(mode!=='fleet'){E.sideNav.parentElement.style.display='none';return}var mineActive=state.view==='mine';var favsActive=state.view==='favs';var panoramicaActive=state.view==='tab'&&state.tab===tabs[0][0];E.sideNav.innerHTML='<div class="sideitem '+(panoramicaActive?'active':'')+'" data-panoramica="1">'+icon('job')+' Panoramica annunci</div>'+tabs.map(function(t){return '<div class="sideitem '+(state.view==='tab'&&state.tab===t[0]?'active':'')+'" data-stab="'+t[0]+'">'+icon(t[0])+' '+t[1]+'</div>'}).join('')+'<div class="sidecard-divider"></div><div class="sideitem '+(mineActive?'active':'')+'" data-mine="1">'+icon('mine')+' I miei annunci</div><div class="sideitem '+(favsActive?'active':'')+'" data-favs-side="1">'+icon('heart')+' Preferiti</div>';var backToFirstTab=function(){state.view='tab';state.tab=tabs[0][0];E.tabs.style.display='';E.toolbarRow.style.display='';renderTabs();renderSide();fillCategories();load()};var panBtn=E.sideNav.querySelector('[data-panoramica]');if(panBtn)panBtn.onclick=backToFirstTab;E.sideNav.querySelectorAll('[data-stab]').forEach(function(b){b.onclick=function(){state.view='tab';state.tab=b.dataset.stab;E.tabs.style.display='';E.toolbarRow.style.display='';renderTabs();renderSide();fillCategories();load()}});var mineBtn=E.sideNav.querySelector('[data-mine]');if(mineBtn)mineBtn.onclick=openMine;var favsSideBtn=E.sideNav.querySelector('[data-favs-side]');if(favsSideBtn)favsSideBtn.onclick=openFavorites}
-var cats={job:['Furgone','Patente B','Patente C','C + CQC','CE + CQC','Linea nazionale','Consegne locali'],client:['Pallet','Merce varia','Refrigerato','Macchinari','Espresso'],marketplace:['Veicoli','Ricambi','Pneumatici','Attrezzatura','Elettronica','Altro'],service:['Assicurazioni','GPS e app','Officine','Gommisti','Consulenza','Formazione']};
+// Cerut direct ("aceste setari ale anunturilor sa le adaugam si in
+// anunturi in fleet... trebuie sa semene ca si in bacheca"): exact
+// aceleasi liste fixe ca in bacheca/index.html (JOB_PATENTE_OPTIONS,
+// TRANSPORT_TYPE_OPTIONS, MARKETPLACE_CATEGORIES, SERVICE_TYPE_OPTIONS)
+// - foloseste ACEEASI baza de date (adb_annunci), asa ca cele doua
+// formulare de publicare trebuie sa scrie valori consistente pentru
+// categorie, nu doua vocabulare diferite pentru acelasi camp.
+var cats={
+  job:['Patente B','Patente C','Patente C+E (CE)','Patente D','CQC Merci','ADR (materie pericolose)','Altro'],
+  client:['Conto terzi','Conto proprio','Trasporto merci generiche','Trasporto refrigerato/frigo','Trasporto ADR (materie pericolose)','Trasporto eccezionale','Trasloco/mobili','Altro'],
+  marketplace:['Veicoli','Ricambi meccanici','Carrozzeria','Accessori e comfort cabina','Elettronica e sicurezza','Attrezzature di carico','Abbigliamento e dotazioni da lavoro','Altro'],
+  service:['Officina meccanica','Gommista','Benzinaio / distributore carburante','Autolavaggio','Elettrauto','Soccorso stradale / carroattrezzi','Revisioni e collaudi','Ricambi e accessori','Altro']
+};
+var JOB_CONTRATTO=['Full-time','Part-time','Determinato','Indeterminato','A chiamata','Stagionale','Altro'];
+var TRASPORTO_FREQUENZA=['Occasionale','Settimanale','Mensile','Continuativo','Su chiamata','Altro'];
 function fillCategories(){var old=E.category.value;E.category.innerHTML='<option value="">Tutte le categorie</option>'+cats[state.tab].map(function(x){return '<option>'+esc(x)+'</option>'}).join('');if(cats[state.tab].indexOf(old)>=0)E.category.value=old;var titles={job:'Offerte di lavoro',client:'Opportunità di trasporto',marketplace:'Marketplace',service:'Servizi per autisti e flotte'};E.sectionTitle.textContent=titles[state.tab];
   // Cerut direct ("cand se schimba ele se schimba si sus titlul...
   // independent pe ce sectiune esti schimba si titlul principal sus
@@ -220,7 +234,11 @@ function renderMine(){
   E.cards.querySelectorAll('[data-mine-toggle]').forEach(function(b){b.onclick=function(){
     var it=state.mineItems.find(function(x){return x.id===b.dataset.mineToggle});if(!it)return;
     var newVisibility=(it.visibility==='public')?'archived':'public';
-    var payload={type:it.type,title:it.title,company:it.company,location:it.location,category:it.category,price_label:it.price_label,work_mode:it.work_mode,extra:it.extra,contact:it.contact,description:it.description,badge:it.badge,promotion:it.promotion,visibility:newVisibility};
+    // whatsapp inclus explicit: normalizeItem() pe server scrie
+    // intotdeauna acest camp din payload (null daca lipseste) - fara el
+    // aici, un simplu Pausa/Pubblica ar fi sters silentios WhatsApp-ul
+    // deja salvat al anuntului.
+    var payload={type:it.type,title:it.title,company:it.company,location:it.location,category:it.category,price_label:it.price_label,work_mode:it.work_mode,extra:it.extra,contact:it.contact,whatsapp:it.whatsapp,description:it.description,badge:it.badge,promotion:it.promotion,visibility:newVisibility};
     b.disabled=true;
     apiCall('update',{id:it.id,item:payload}).then(function(r){if(!r.ok)throw new Error(r.error||'Errore');openMine()}).catch(function(e){alert(e.message);b.disabled=false});
   }});
@@ -389,11 +407,177 @@ function openSharedAd(id){
 }
 function filtered(){var q=E.search.value.trim().toLowerCase(),z=E.zone.value,c=E.category.value;var a=state.items.filter(function(i){if(i.type!==state.tab)return false;if(q&&([i.title,i.company,i.location,i.description].join(' ').toLowerCase().indexOf(q)<0))return false;if(z&&String(i.location||'').toLowerCase().indexOf(z.toLowerCase())<0)return false;if(c&&i.category!==c)return false;return i.visibility!=='draft'});if(E.sort.value==='featured')a.sort(function(a,b){return +(b.promotion==='featured'||b.promotion==='sponsored')-+(a.promotion==='featured'||a.promotion==='sponsored')});else a.sort(function(a,b){return new Date(b.created_at)-new Date(a.created_at)});return a}
 function render(){var a=filtered();E.resultCount.textContent=a.length+' '+(a.length===1?'risultato':'risultati');var f=favs();E.cards.innerHTML=a.length?a.map(function(it){var badge=it.badge?'<span class="badge '+esc(it.badge)+'">'+(it.badge==='urgent'?'Urgente':it.badge==='new'?'Nuovo':'Sponsorizzato')+'</span>':'';return '<article class="card" data-view-id="'+esc(it.id)+'">'+badge+cardImage(it)+'<div class="cardbody"><div class="cardtop"><div style="min-width:0;flex:1"><div class="title">'+esc(it.title)+'</div><div class="company">'+esc(it.company)+'</div></div><button class="fav '+(f.indexOf(it.id)>=0?'on':'')+'" data-fav="'+esc(it.id)+'">'+icon('heart')+'</button></div><div class="meta">'+icon('pin')+' '+esc(it.location)+'</div><div class="chips">'+(it.category?'<span class="chip">'+esc(it.category)+'</span>':'')+(it.work_mode?'<span class="chip">'+esc(it.work_mode)+'</span>':'')+(it.price_label?'<span class="chip money">'+esc(it.price_label)+'</span>':'')+'</div><div class="cardactions"><span class="count">'+relativeTime(it.created_at)+'</span><div style="display:flex;gap:8px;align-items:center;"><button class="ghost sharebtn" data-share="'+esc(it.id)+'" title="Condividi">'+icon('share')+'</button><button class="details" data-detail="'+esc(it.id)+'">Dettagli →</button></div></div></div></article>'}).join(''):'<div class="empty">Nessun annuncio trovato con questi filtri.</div>';E.cards.querySelectorAll('[data-fav]').forEach(function(b){b.onclick=function(){toggleFav(b.dataset.fav)}});E.cards.querySelectorAll('[data-detail]').forEach(function(b){b.onclick=function(){openDetail(b.dataset.detail)}});E.cards.querySelectorAll('[data-share]').forEach(function(b){b.onclick=function(){shareAnnuncio(b.dataset.share)}});trackViewsOnScroll()}
-function dynamicForm(){var t=E.fType.value,html='';if(t==='job')html='<div class="grid2"><div><label>Categoria / patente</label><select class="field" id="fCategory">'+cats.job.map(o).join('')+'</select></div><div><label>Compenso *</label><input class="field" id="fPrice" required placeholder="Es. 1.800 – 2.200 €"></div><div><label>Impiego</label><input class="field" id="fWork" placeholder="Full time / Turni"></div><div><label>Veicolo</label><input class="field" id="fExtra" placeholder="Furgone / Bilico / Motrice"></div></div>';
-if(t==='client')html='<div class="grid2"><div><label>Tipo merce</label><select class="field" id="fCategory">'+cats.client.map(o).join('')+'</select></div><div><label>Budget</label><input class="field" id="fPrice" placeholder="Es. 450 €"></div><div><label>Tratta</label><input class="field" id="fWork" placeholder="Padova → Vicenza"></div><div><label>Scadenza</label><input class="field" id="fExtra" placeholder="Entro 24h"></div></div>';
-if(t==='marketplace')html='<div class="grid2"><div><label>Categoria</label><select class="field" id="fCategory">'+cats.marketplace.map(o).join('')+'</select></div><div><label>Prezzo</label><input class="field" id="fPrice" placeholder="Es. 1.200 €"></div><div><label>Condizione</label><input class="field" id="fWork" placeholder="Nuovo / Usato"></div><div><label>Marca / modello</label><input class="field" id="fExtra"></div></div>';
-if(t==='service')html='<div class="grid2"><div><label>Categoria</label><select class="field" id="fCategory">'+cats.service.map(o).join('')+'</select></div><div><label>Prezzo / formula</label><input class="field" id="fPrice" placeholder="Preventivo / Da 99 €"></div><div><label>Copertura</label><input class="field" id="fWork" placeholder="Italia / Veneto"></div><div><label>Sito / riferimento</label><input class="field" id="fExtra"></div></div>';E.dynamicFields.innerHTML=html}
+// Cerut direct ("aceste setari ale anunturilor sa le adaugam si in
+// anunturi in fleet... trebuie sa semene ca si in bacheca"): acelasi
+// set de campuri, cu aceleasi etichete, pe tip, ca in bacheca/index.html
+// (FIELD_LABELS) - "Extra" (Veicolo/Tratta/Marca/Sito), un camp care nu
+// exista deloc in bacheca, a fost scos; Marketplace primeste cele 3
+// sloturi de poze, Servizi primeste widget-ul de orar structurat.
+function dynamicForm(){
+  var t=E.fType.value,html='';
+  if(t==='job')html='<div class="grid2"><div><label>Tipo patente</label><select class="field" id="fCategory">'+cats.job.map(o).join('')+'</select></div><div><label>Compenso *</label><input class="field" id="fPrice" required placeholder="Es. 2000 € - 2400 €"></div></div><label>Tipo di contratto</label><select class="field" id="fWork">'+JOB_CONTRATTO.map(o).join('')+'</select>';
+  if(t==='client')html='<div class="grid2"><div><label>Tipo trasporto</label><select class="field" id="fCategory">'+cats.client.map(o).join('')+'</select></div><div><label>Compenso offerto</label><input class="field" id="fPrice" placeholder="Es. 450 €"></div></div><label>Frequenza</label><select class="field" id="fWork">'+TRASPORTO_FREQUENZA.map(o).join('')+'</select>';
+  if(t==='marketplace')html='<div class="grid2"><div><label>Categoria</label><select class="field" id="fCategory">'+cats.marketplace.map(o).join('')+'</select></div><div><label>Prezzo</label><input class="field" id="fPrice" placeholder="Es. 1.200 €"></div></div><label>Condizioni</label><input class="field" id="fWork" placeholder="Es. Usato, buono stato / Nuovo, mai aperto"><label>Foto (fino a 3)</label><div class="mp-photos" id="mpPhotosWrap"></div>';
+  if(t==='service')html='<div class="grid2"><div><label>Tipo servizio</label><select class="field" id="fCategory">'+cats.service.map(o).join('')+'</select></div><div><label>Tariffa</label><input class="field" id="fPrice" placeholder="Es. 2000 € - 2400 €"></div></div><label>Disponibilità</label><input class="field" id="fWork" placeholder="Es. 24 ore su 24">'+SCHEDULE_WIDGET_HTML;
+  E.dynamicFields.innerHTML=html;
+  if(E.fImageFieldSingle)E.fImageFieldSingle.style.display=(t==='marketplace')?'none':'';
+  if(t==='marketplace'){mpSlots=mpEmptySlots();renderMpSlots()}
+}
 function o(x){return '<option>'+x+'</option>'}
+
+// Cerut direct ("aceste setari ale anunturilor sa le adaugam si in
+// anunturi in fleet... trebuie sa semene ca si in bacheca"): acelasi
+// widget de orar structurat ca in bacheca/index.html - 7 zile deja
+// listate (Chiuso, sau Mattina/Pomeriggio de la-pana la), plus un
+// switch "Aperto 24/7". Genereaza singur textul, direct in Descrizione,
+// mereu la fel formatat - vezi updateScheduleDescription() mai jos.
+// Spre deosebire de bacheca (unde widget-ul e un bloc static, ascuns
+// pe rand), aici e reconstruit din nou de fiecare data cand se schimba
+// tipul (dynamicForm() rezideste tot #dynamicFields) - la fel ca toate
+// celelalte campuri specifice unui tip din aceasta pagina, deja asa.
+var SCHEDULE_DAYS=['Lunedì','Martedì','Mercoledì','Giovedì','Venerdì','Sabato','Domenica'];
+var SCHEDULE_HEADER='Orario di apertura:';
+function scheduleDayRowHtml(day){
+  return '<div class="schedule-day" data-day="'+day+'">'+
+    '<div class="schedule-day-head"><span class="schedule-day-name">'+day+'</span><label class="schedule-day-closed"><input type="checkbox" class="schedule-closed">Chiuso</label></div>'+
+    '<div class="schedule-times">'+
+      '<div class="schedule-range"><span>Mattina</span><input type="time" class="schedule-m-from"><span class="sep">–</span><input type="time" class="schedule-m-to"></div>'+
+      '<div class="schedule-range"><span>Pomeriggio</span><input type="time" class="schedule-p-from"><span class="sep">–</span><input type="time" class="schedule-p-to"></div>'+
+    '</div></div>';
+}
+var SCHEDULE_WIDGET_HTML='<div class="schedule-widget" id="fScheduleField">'+
+  '<label class="schedule-247"><input type="checkbox" id="fSchedule247">Aperto 24/7 (tutti i giorni)</label>'+
+  SCHEDULE_DAYS.map(scheduleDayRowHtml).join('')+
+  '</div>';
+function readScheduleState(){
+  var root=document.getElementById('fScheduleField');
+  var is247=document.getElementById('fSchedule247').checked;
+  var days={};
+  root.querySelectorAll('.schedule-day').forEach(function(row){
+    days[row.dataset.day]={
+      closed:row.querySelector('.schedule-closed').checked,
+      mFrom:row.querySelector('.schedule-m-from').value,
+      mTo:row.querySelector('.schedule-m-to').value,
+      pFrom:row.querySelector('.schedule-p-from').value,
+      pTo:row.querySelector('.schedule-p-to').value
+    };
+  });
+  return {is247:is247,days:days};
+}
+function scheduleHasData(state){
+  if(state.is247)return true;
+  return SCHEDULE_DAYS.some(function(day){var d=state.days[day];return d.closed||d.mFrom||d.mTo||d.pFrom||d.pTo});
+}
+function formatScheduleBlock(state){
+  if(state.is247)return SCHEDULE_HEADER+'\nAperto 24/24, tutti i giorni.';
+  var lines=SCHEDULE_DAYS.map(function(day){
+    var d=state.days[day];
+    if(d.closed)return day+': chiuso';
+    var ranges=[];
+    if(d.mFrom&&d.mTo)ranges.push(d.mFrom+'-'+d.mTo);
+    if(d.pFrom&&d.pTo)ranges.push(d.pFrom+'-'+d.pTo);
+    if(!ranges.length)return null;
+    return day+': '+ranges.join(', ');
+  }).filter(Boolean);
+  return lines.length?SCHEDULE_HEADER+'\n'+lines.join('\n'):'';
+}
+function stripScheduleBlock(text){
+  var lines=(text||'').split('\n');
+  if(lines[0]!==SCHEDULE_HEADER)return text||'';
+  var i=1;
+  if(lines[1]&&lines[1].indexOf('Aperto 24/24')===0){i=2}
+  else{while(i<lines.length&&SCHEDULE_DAYS.some(function(d){return lines[i].indexOf(d+':')===0}))i++}
+  if(lines[i]==='')i++;
+  return lines.slice(i).join('\n');
+}
+function updateScheduleDescription(){
+  if(E.fType.value!=='service')return;
+  var el=document.getElementById('fScheduleField');
+  if(!el)return;
+  var state=readScheduleState();
+  var rest=stripScheduleBlock(E.fDescription.value);
+  if(!scheduleHasData(state)){E.fDescription.value=rest;return}
+  var block=formatScheduleBlock(state);
+  E.fDescription.value=block?(rest?(block+'\n\n'+rest):block):rest;
+}
+function syncScheduleUI(){
+  var el=document.getElementById('fScheduleField');
+  if(!el)return;
+  var is247=document.getElementById('fSchedule247').checked;
+  el.querySelectorAll('.schedule-day').forEach(function(row){
+    var closedBox=row.querySelector('.schedule-closed');
+    var closed=closedBox.checked;
+    row.style.opacity=is247?'.45':'';
+    closedBox.disabled=is247;
+    row.querySelectorAll('input[type=time]').forEach(function(inp){inp.disabled=is247||closed});
+  });
+  updateScheduleDescription();
+}
+// Gasit real (confirmat pe telefon - roata se deschidea pe ora curenta,
+// nu pe presetare): pe iOS, roata de selectie a orei isi calculeaza
+// pozitia de start la evenimentul "focus" - trebuie pusa valoarea
+// implicita mai devreme, la touchstart/mousedown, altfel e prea tarziu.
+var SCHEDULE_DEFAULT_BY_CLASS={'schedule-m-from':'08:00','schedule-m-to':'12:00','schedule-p-from':'13:00','schedule-p-to':'17:00'};
+function handleScheduleTimeFocus(e){
+  var inp=e.target;
+  if(!inp.matches||!inp.matches('input[type=time]')||inp.value)return;
+  var cls=Object.keys(SCHEDULE_DEFAULT_BY_CLASS).find(function(c){return inp.classList.contains(c)});
+  if(!cls)return;
+  inp.value=SCHEDULE_DEFAULT_BY_CLASS[cls];
+  syncScheduleUI();
+}
+// Listener-e delegate pe #dynamicFields (container permanent, doar
+// continutul lui se reconstruieste la schimbarea tipului) - functioneaza
+// pentru widget-ul de orar de fiecare data cand e reconstruit, fara sa
+// mai fie nevoie sa fie re-atasate manual dupa fiecare dynamicForm().
+E.dynamicFields.addEventListener('input',function(e){if(e.target.closest('#fScheduleField'))syncScheduleUI()});
+E.dynamicFields.addEventListener('change',function(e){if(e.target.closest('#fScheduleField'))syncScheduleUI()});
+E.dynamicFields.addEventListener('touchstart',function(e){if(e.target.closest('#fScheduleField'))handleScheduleTimeFocus(e)},{passive:true});
+E.dynamicFields.addEventListener('mousedown',function(e){if(e.target.closest('#fScheduleField'))handleScheduleTimeFocus(e)});
+E.dynamicFields.addEventListener('focusin',function(e){if(e.target.closest('#fScheduleField'))handleScheduleTimeFocus(e)});
+
+// Cerut direct ("aceste setari ale anunturilor sa le adaugam si in
+// anunturi in fleet... trebuie sa semene ca si in bacheca"): aceleasi
+// 3 sloturi de poze pentru Marketplace ca in bacheca/index.html - prima
+// pozitie devine coperta anuntului (image_url), urmatoarele devin
+// extra_images. Foloseste compressSquare() de mai jos (deja existenta
+// pe aceasta pagina, cu propriile ei praguri de calitate/marime) - nu
+// compressImage() din bacheca, care are alt prag (20 KB, gandit pentru
+// alt context) - fiecare pagina isi pastreaza propria reglare, doar
+// FUNCTIONALITATEA (3 sloturi, muta, sterge) e portata identic.
+var mpSlots=[null,null,null];
+function mpEmptySlots(){return [null,null,null]}
+function renderMpSlots(){
+  var wrap=document.getElementById('mpPhotosWrap');
+  if(!wrap)return;
+  wrap.innerHTML=mpSlots.map(function(slot,i){
+    var previewSrc=slot?(slot.kind==='new'?slot.dataUri:slot.url):null;
+    var statusText=!slot?'Vuoto':(slot.kind==='new'?(slot.kb+' KB'):'Foto attuale');
+    return '<div class="mp-slot"><div class="mp-slot-num">'+(i+1)+'°</div>'+
+      (previewSrc
+        ? '<img class="mp-slot-img" src="'+esc(previewSrc)+'" style="cursor:pointer;" onclick="document.getElementById(\'mpFile'+i+'\').click()" title="Cambia foto">'
+        : '<div class="mp-slot-empty" style="cursor:pointer;" onclick="document.getElementById(\'mpFile'+i+'\').click()" title="Aggiungi foto">+</div>')+
+      '<input type="file" accept="image/png,image/jpeg,image/webp" id="mpFile'+i+'" style="display:none;">'+
+      '<div class="mp-slot-actions"><button type="button" onclick="document.getElementById(\'mpFile'+i+'\').click()">'+(slot?'Cambia':'Aggiungi')+'</button>'+
+      (slot?'<button type="button" onclick="mpRemove('+i+')">Rimuovi</button>':'')+
+      (i>0?'<button type="button" onclick="mpMove('+i+','+(i-1)+')" title="Sposta prima">◀</button>':'')+
+      (i<mpSlots.length-1?'<button type="button" onclick="mpMove('+i+','+(i+1)+')" title="Sposta dopo">▶</button>':'')+
+      '</div><div class="mp-slot-status">'+statusText+'</div></div>';
+  }).join('');
+  mpSlots.forEach(function(_,i){
+    document.getElementById('mpFile'+i).addEventListener('change',function(e){mpHandleFile(i,e.target.files[0])});
+  });
+}
+window.mpMove=function(i,j){var t=mpSlots[i];mpSlots[i]=mpSlots[j];mpSlots[j]=t;renderMpSlots()};
+window.mpRemove=function(i){mpSlots[i]=null;renderMpSlots()};
+function mpHandleFile(i,file){
+  if(!file)return;
+  compressSquare(file).then(function(r){
+    mpSlots[i]={kind:'new',dataUri:r.data,kb:Math.round(r.size/1024)};
+    renderMpSlots();
+  }).catch(function(){alert('Impossibile elaborare questa foto.')});
+}
+
 // Cerut direct ("nu imaginea in calitate rea, cum mi-ai trimis-o prima
 // oara pe WhatsApp... poate fi de marimea care este, poate nu mare,
 // insa sa se vada bine, exact ca la retelele de socializare"): limita
@@ -425,7 +609,7 @@ function lockPageScroll(){var y=window.scrollY||window.pageYOffset||0;document.b
 function unlockPageScroll(){var y=parseInt(document.body.dataset.lockedY||'0',10);document.body.style.position='';document.body.style.top='';document.body.style.left='';document.body.style.right='';document.body.style.width='';delete document.body.dataset.lockedY;window.scrollTo(0,y)}
 function openModal(el){if(!el)return;if(openModalCount===0)lockPageScroll();openModalCount++;el.classList.add('open')}
 function closeModal(el){if(!el)return;if(!el.classList.contains('open'))return;el.classList.remove('open');openModalCount=Math.max(0,openModalCount-1);if(openModalCount===0)unlockPageScroll()}
-function openPublish(){if(mode!=='fleet')return;state.editingId=null;E.publishForm.reset();state.imageData=null;E.imagePreview.removeAttribute('src');E.publishModal.querySelector('.modalhead h3').textContent='Pubblica annuncio';E.publishForm.querySelector('[type=submit]').textContent='Pubblica';openModal(E.publishModal);dynamicForm()}
+function openPublish(){if(mode!=='fleet')return;state.editingId=null;E.publishForm.reset();state.imageData=null;mpSlots=mpEmptySlots();E.imagePreview.removeAttribute('src');E.publishModal.querySelector('.modalhead h3').textContent='Pubblica annuncio';E.publishForm.querySelector('[type=submit]').textContent='Pubblica';openModal(E.publishModal);dynamicForm()}
 E.publishBtn.style.display=mode==='fleet'?'flex':'none';E.mineBtn.style.display=mode==='fleet'?'flex':'none';E.fType.onchange=dynamicForm;E.publishBtn.onclick=openPublish;
 // Cerut direct ("am apasat pe i miei annunci si acum nu pot iesi...
 // stau acolo si atat"): pe mobil, taburile normale (singura cale
@@ -437,9 +621,57 @@ E.publishBtn.style.display=mode==='fleet'?'flex':'none';E.mineBtn.style.display=
 E.favBtn.onclick=function(){if(state.view==='favs')backFromFavorites();else openFavorites()};
 E.mineBtn.onclick=function(){if(state.view==='mine')backFromMine();else openMine()};
 if(E.backToAllBtn)E.backToAllBtn.onclick=function(){if(state.view==='mine')backFromMine();else if(state.view==='favs')backFromFavorites()};
-E.publishForm.onsubmit=function(ev){ev.preventDefault();if(mode!=='fleet')return;var payload={type:E.fType.value,title:E.fTitle.value.trim(),company:E.fCompany.value.trim(),location:E.fLocation.value.trim(),contact:E.fContact.value.trim(),description:E.fDescription.value.trim(),badge:E.fBadge.value,visibility:E.fVisibility.value,promotion:E.fPromotion.value,category:(document.getElementById('fCategory')||{}).value||'',price_label:(document.getElementById('fPrice')||{}).value||'',work_mode:(document.getElementById('fWork')||{}).value||'',extra:(document.getElementById('fExtra')||{}).value||'',image_data:state.imageData};var btn=E.publishForm.querySelector('[type=submit]');btn.disabled=true;btn.textContent='Pubblicazione…';apiCall(state.editingId?'update':'create',state.editingId?{id:state.editingId,item:payload}:{item:payload}).then(function(r){if(!r.ok)throw new Error(r.error||'Errore');closeModal(E.publishModal);E.publishForm.reset();state.imageData=null;state.editingId=null;E.imagePreview.removeAttribute('src');load()}).catch(function(err){alert('Pubblicazione non riuscita: '+err.message)}).finally(function(){btn.disabled=false;btn.textContent='Pubblica'})}
-function openEdit(it){if(mode!=='fleet')return;state.editingId=it.id;state.imageData=null;closeModal(E.detailModal);openModal(E.publishModal);E.publishModal.querySelector('.modalhead h3').textContent='Modifica annuncio';E.fType.value=it.type||'job';dynamicForm();E.fTitle.value=it.title||'';E.fCompany.value=it.company||'';E.fLocation.value=it.location||'';E.fContact.value=it.contact||'';E.fDescription.value=it.description||'';E.fBadge.value=it.badge||'';E.fVisibility.value=it.visibility||'public';E.fPromotion.value=it.promotion||'standard';var fc=document.getElementById('fCategory'),fp=document.getElementById('fPrice'),fw=document.getElementById('fWork'),fx=document.getElementById('fExtra');if(fc)fc.value=it.category||fc.value;if(fp)fp.value=it.price_label||'';if(fw)fw.value=it.work_mode||'';if(fx)fx.value=it.extra||'';if(it.image_url){E.imagePreview.src=it.image_url;E.imageStatus.textContent='Immagine attuale. Caricane una nuova solo se vuoi sostituirla.'}E.publishForm.querySelector('[type=submit]').textContent='Salva modifiche'}
-function openDetail(id){var it=state.items.find(function(x){return x.id===id});if(!it)return;if(!String(it.id).startsWith('demo'))apiCall('track_click',{id:it.id}).catch(function(){});var img=it.image_url?'<img src="'+esc(it.image_url)+'" alt="">':'<div class="thumb placeholder" style="width:130px;height:130px">'+icon(it.type)+'</div>';E.detailBody.innerHTML='<div class="detailhero">'+img+'<div><div class="title" style="font-size:21px;white-space:normal">'+esc(it.title)+'</div><div class="company" style="font-size:14px">'+esc(it.company)+'</div><div class="meta">'+esc(it.location)+'</div><div class="chips">'+(it.category?'<span class="chip">'+esc(it.category)+'</span>':'')+(it.work_mode?'<span class="chip">'+esc(it.work_mode)+'</span>':'')+(it.price_label?'<span class="chip money">'+esc(it.price_label)+'</span>':'')+'</div></div></div><div class="sectionhead"><h2>Descrizione</h2></div><div class="detaildesc">'+esc(it.description||'')+'</div>'+(it.contact?'<div class="sectionhead"><h2>Contatto</h2></div><div class="detaildesc">'+esc(it.contact)+'</div>':'')+(mode==='fleet'&&it.author_fleet_slug===fleetSlug&&!String(it.id).startsWith('demo')?'<div class="owner-tools"><button class="ghost" id="editAd">Modifica</button><button class="ghost danger" id="deleteAd">Elimina annuncio</button></div>':'');openModal(E.detailModal);var edit=document.getElementById('editAd');if(edit)edit.onclick=function(){openEdit(it)};var del=document.getElementById('deleteAd');if(del)del.onclick=function(){if(!confirm('Eliminare questo annuncio?'))return;apiCall('delete',{id:it.id}).then(function(r){if(!r.ok)throw new Error(r.error||'Errore');closeModal(E.detailModal);load()}).catch(function(e){alert(e.message)})}}
+E.publishForm.onsubmit=function(ev){ev.preventDefault();if(mode!=='fleet')return;var payload={type:E.fType.value,title:E.fTitle.value.trim(),company:E.fCompany.value.trim(),location:E.fLocation.value.trim(),contact:E.fContact.value.trim(),whatsapp:E.fWhatsapp.value.trim(),description:E.fDescription.value.trim(),badge:E.fBadge.value,visibility:E.fVisibility.value,promotion:E.fPromotion.value,category:(document.getElementById('fCategory')||{}).value||'',price_label:(document.getElementById('fPrice')||{}).value||'',work_mode:(document.getElementById('fWork')||{}).value||''};
+  // Cerut direct ("trebuie sa semene ca si in bacheca"): la Marketplace,
+  // ca in bacheca, se trimite lista ordonata de sloturi (images) - nu
+  // mai exista un singur "extra" liber la niciun tip acum.
+  if(payload.type==='marketplace'){payload.images=mpSlots.filter(Boolean).map(function(s){return s.kind==='new'?s.dataUri:('keep:'+s.path)})}
+  else{payload.image_data=state.imageData}
+  var btn=E.publishForm.querySelector('[type=submit]');btn.disabled=true;btn.textContent='Pubblicazione…';apiCall(state.editingId?'update':'create',state.editingId?{id:state.editingId,item:payload}:{item:payload}).then(function(r){if(!r.ok)throw new Error(r.error||'Errore');closeModal(E.publishModal);E.publishForm.reset();state.imageData=null;mpSlots=mpEmptySlots();state.editingId=null;E.imagePreview.removeAttribute('src');load()}).catch(function(err){alert('Pubblicazione non riuscita: '+err.message)}).finally(function(){btn.disabled=false;btn.textContent='Pubblica'})}
+// Cerut direct (implicit, la editarea unui anunt vechi): un anunt
+// publicat inainte de listele fixe actuale poate avea o categorie (sau
+// un "Tipo di contratto"/"Frequenza") scrisa liber, care nu se
+// potriveste exact cu nicio optiune de acum. In loc s-o inlocuim pe
+// tacute cu prima din lista, o adaugam ca optiune suplimentara, exact
+// cum a fost scrisa, si o lasam selectata - acelasi tipar ca in bacheca.
+function setSelectValueWithFallback(sel,value){
+  if(!sel)return;
+  var v=value||'';
+  var has=Array.prototype.some.call(sel.options,function(op){return op.value===v});
+  if(v&&!has){var opt=document.createElement('option');opt.value=v;opt.textContent=v+' (esistente)';sel.insertBefore(opt,sel.firstChild)}
+  if(v)sel.value=v;
+}
+function openEdit(it){if(mode!=='fleet')return;state.editingId=it.id;state.imageData=null;closeModal(E.detailModal);openModal(E.publishModal);E.publishModal.querySelector('.modalhead h3').textContent='Modifica annuncio';E.fType.value=it.type||'job';dynamicForm();E.fTitle.value=it.title||'';E.fCompany.value=it.company||'';E.fLocation.value=it.location||'';E.fContact.value=it.contact||'';E.fWhatsapp.value=it.whatsapp||'';E.fDescription.value=it.description||'';E.fBadge.value=it.badge||'';E.fVisibility.value=it.visibility||'public';E.fPromotion.value=it.promotion||'standard';var fc=document.getElementById('fCategory'),fp=document.getElementById('fPrice'),fw=document.getElementById('fWork');setSelectValueWithFallback(fc,it.category);if(fp)fp.value=it.price_label||'';if(fw&&fw.tagName==='SELECT')setSelectValueWithFallback(fw,it.work_mode);else if(fw)fw.value=it.work_mode||'';
+  if(it.type==='marketplace'){
+    mpSlots=mpEmptySlots();
+    if(it.image_url&&it.image_path)mpSlots[0]={kind:'keep',path:it.image_path,url:it.image_url};
+    (it.extra_images||[]).forEach(function(img,idx){if(idx<mpSlots.length-1&&img&&img.image_path)mpSlots[idx+1]={kind:'keep',path:img.image_path,url:img.image_url}});
+    renderMpSlots();
+  } else if(it.image_url){E.imagePreview.src=it.image_url;E.imageStatus.textContent='Immagine attuale. Caricane una nuova solo se vuoi sostituirla.'}
+  E.publishForm.querySelector('[type=submit]').textContent='Salva modifiche'}
+// Cerut direct ("trebuie sa semene ca si in bacheca"): acelasi tipar
+// ca in bacheca/index.html - Contatta e un link real (tel: sau
+// mailto:, cel din urma doar pentru anunturi vechi, publicate cand
+// campul accepta si email), iar WhatsApp e propriul buton, separat,
+// aparand DOAR daca autorul a completat explicit acel camp (niciodata
+// ghicit din numarul de telefon).
+function contactButtonsHtml(contact,whatsapp){
+  if(!contact)return '';
+  var isEmail=contact.indexOf('@')>=0;
+  var digitsOnly=contact.replace(/[^0-9+]/g,'');
+  var looksLikePhone=!isEmail&&digitsOnly.replace(/\+/g,'').length>=8;
+  var html='';
+  if(isEmail){html='<a href="mailto:'+encodeURIComponent(contact)+'" class="primary">Contatta</a>'}
+  else if(looksLikePhone){html='<a href="tel:'+digitsOnly+'" class="primary">Contatta</a>'}
+  else{html='<div class="primary" style="opacity:.7;">'+esc(contact)+'</div>'}
+  var waDigits=(whatsapp||'').replace(/[^0-9+]/g,'');
+  if(waDigits.replace(/\+/g,'').length>=8){
+    var waNumber=waDigits.replace(/^0+/,'').replace('+','');
+    html+='<a href="https://wa.me/'+waNumber+'" target="_blank" rel="noopener" class="wa" title="Apri WhatsApp"><svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.36 5.07L2 22l5.06-1.32C8.5 21.5 10.2 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm5.2 14.2c-.22.62-1.28 1.18-1.78 1.24-.46.06-1.03.08-1.66-.1-.38-.12-.87-.28-1.5-.55-2.64-1.14-4.36-3.8-4.5-3.98-.13-.18-1.08-1.44-1.08-2.75s.68-1.95.92-2.22c.24-.26.53-.33.7-.33h.5c.16 0 .38-.06.6.46.22.53.75 1.83.82 1.96.07.13.11.29.02.47-.09.18-.14.29-.27.44-.13.16-.28.35-.4.47-.13.13-.27.27-.12.53.16.26.7 1.16 1.5 1.87 1.03.92 1.9 1.2 2.16 1.34.26.13.42.11.57-.07.16-.18.66-.77.84-1.04.18-.26.35-.22.6-.13.24.09 1.55.73 1.82.87.26.13.44.2.5.31.06.13.06.71-.16 1.33z"/></svg></a>';
+  }
+  return '<div class="contact-actions">'+html+'</div>';
+}
+function openDetail(id){var it=state.items.find(function(x){return x.id===id});if(!it)return;if(!String(it.id).startsWith('demo'))apiCall('track_click',{id:it.id}).catch(function(){});var img=it.image_url?'<img src="'+esc(it.image_url)+'" alt="">':'<div class="thumb placeholder" style="width:130px;height:130px">'+icon(it.type)+'</div>';E.detailBody.innerHTML='<div class="detailhero">'+img+'<div><div class="title" style="font-size:21px;white-space:normal">'+esc(it.title)+'</div><div class="company" style="font-size:14px">'+esc(it.company)+'</div><div class="meta">'+esc(it.location)+'</div><div class="chips">'+(it.category?'<span class="chip">'+esc(it.category)+'</span>':'')+(it.work_mode?'<span class="chip">'+esc(it.work_mode)+'</span>':'')+(it.price_label?'<span class="chip money">'+esc(it.price_label)+'</span>':'')+'</div></div></div><div class="sectionhead"><h2>Descrizione</h2></div><div class="detaildesc">'+esc(it.description||'')+'</div>'+contactButtonsHtml(it.contact,it.whatsapp)+(mode==='fleet'&&it.author_fleet_slug===fleetSlug&&!String(it.id).startsWith('demo')?'<div class="owner-tools"><button class="ghost" id="editAd">Modifica</button><button class="ghost danger" id="deleteAd">Elimina annuncio</button></div>':'');openModal(E.detailModal);var edit=document.getElementById('editAd');if(edit)edit.onclick=function(){openEdit(it)};var del=document.getElementById('deleteAd');if(del)del.onclick=function(){if(!confirm('Eliminare questo annuncio?'))return;apiCall('delete',{id:it.id}).then(function(r){if(!r.ok)throw new Error(r.error||'Errore');closeModal(E.detailModal);load()}).catch(function(e){alert(e.message)})}}
 document.querySelectorAll('[data-close]').forEach(function(b){b.onclick=function(){closeModal(document.getElementById(b.dataset.close))}});document.querySelectorAll('.modalbg').forEach(function(m){m.onclick=function(e){if(e.target===m)closeModal(m)}});
 [E.search,E.zone,E.category,E.sort].forEach(function(x){x.addEventListener(x.tagName==='INPUT'?'input':'change',render)});
 document.getElementById('backBtn').onclick=function(){if(history.length>1)history.back();else location.href=mode==='fleet'&&fleetSlug?'/'+encodeURIComponent(fleetSlug):'/'};
