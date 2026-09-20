@@ -245,9 +245,17 @@ a{color:inherit;text-decoration:none}
 .schedule-day-closed{display:flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ink-soft);cursor:pointer;white-space:nowrap;}
 .schedule-day-closed input{width:auto;}
 .schedule-times{display:flex;flex-direction:column;gap:6px;}
-.schedule-range{display:grid;grid-template-columns:66px 1fr 12px 1fr;align-items:center;gap:6px;max-width:280px;}
-.schedule-range span{font-size:11.5px;color:var(--ink-soft);}
-.schedule-range span.sep{text-align:center;}
+.schedule-range{display:grid;grid-template-columns:66px 1fr 12px 1fr;align-items:stretch;gap:6px;max-width:280px;}
+.schedule-range span{font-size:11.5px;color:var(--ink-soft);align-self:center;}
+/* Cerut direct ("linia intre ore nu este centrata bine"): CAUZA REALA -
+   pe iPhone, casuta nativa de ora e mult mai inalta decat pe desktop, iar
+   liniuta "–" (un simplu text mic) nu se intindea sa umple acel spatiu -
+   ramanea centrata doar pe propria ei inaltime mica de text, nu pe
+   inaltimea reala a randului (data de casutele mari de langa ea).
+   align-self:stretch o intinde pe toata inaltimea randului, apoi flex
+   ii centreaza continutul in interior - acum e centrata fata de casute,
+   nu fata de ea insasi. */
+.schedule-range span.sep{display:flex;align-items:center;justify-content:center;align-self:stretch;}
 .schedule-range input[type=time]{width:100%;box-sizing:border-box;padding:5px 4px;font-size:12.5px;border:1.5px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);}
 .schedule-range input[type=time]:disabled,.schedule-day-closed input:disabled{opacity:.5;}
 /* Cele 3 sloturi de poze pentru Marketplace - numerotate, ca ordinea
@@ -730,7 +738,7 @@ a{color:inherit;text-decoration:none}
 // potriveste, pagina se reincarca singura. Nu reincarca niciodata cat
 // timp fereastra de Pubblica e deschisa, ca sa nu se piarda un
 // formular pe jumatate completat.
-const BACHECA_VERSION = 'bacheca-v13';
+const BACHECA_VERSION = 'bacheca-v15';
 (function(){
   try {
     var RELOAD_COOLDOWN_MS = 20000;
@@ -943,6 +951,13 @@ function openPost(){
   editingAdId = null;
   document.getElementById('publishSubmitBtn').textContent = 'Pubblica';
   document.getElementById('postModalTitle').textContent = 'Pubblica un annuncio';
+  // Gasit real (testand orarul implicit la Servizi): fType nu era
+  // resetat aici - un anunt nou pornea cu categoria ramasa de la
+  // anuntul PRECEDENT (ex. "Servizi"), nu de la prima optiune
+  // ("Lavoro"). Inofensiv inainte, dar acum orarul implicit s-ar fi
+  // scurs in Descrizione unui anunt nou, de alt tip, inainte sa apuce
+  // cineva sa aleaga vreo categorie.
+  document.getElementById('fType').value = 'job';
   ['fTitle','fCompany','fLocation','fCategory','fPrice','fWork','fDescription','fContact','fWhatsapp'].forEach(id => document.getElementById(id).value = '');
   setMarketplaceCategoryValue('');
   setJobPatenteValue('');
@@ -950,7 +965,11 @@ function openPost(){
   setClientCategoryValue('');
   setClientFrequenzaValue('');
   setServiceCategoryValue('');
-  resetScheduleWidget();
+  // touchDescription=false: reset-ul de aici e doar intern (widget-ul
+  // primeste orarul implicit) - injectarea reala in Descrizione se
+  // decide mai jos, la updateFormLabels(), care verifica tipul CURENT
+  // (fType poate fi ramas de la anuntul anterior, nu neaparat "job").
+  resetScheduleWidget(false);
   pendingImageData = null;
   document.getElementById('fImagePreview').style.display = 'none';
   document.getElementById('fImageStatus').textContent = '';
@@ -1315,9 +1334,14 @@ function stripScheduleBlock(text){
   if(lines[i] === '') i++;
   return lines.slice(i).join('\n');
 }
+// Cerut direct: doar cand tipul afisat e Servizi conteaza orarul -
+// altfel (Lavoro/Trasportatori/Marketplace, unde widget-ul e ascuns),
+// un reset facut din obisnuinta (ex. openPost()) NU trebuie sa injecteze
+// orarul implicit in Descrizione unui anunt de alt tip.
 function updateScheduleDescription(){
-  const state = readScheduleState();
   const ta = document.getElementById('fDescription');
+  if(document.getElementById('fType').value !== 'service') return;
+  const state = readScheduleState();
   const rest = stripScheduleBlock(ta.value);
   if(!scheduleHasData(state)){ ta.value = rest; return; }
   const block = formatScheduleBlock(state);
@@ -1338,11 +1362,21 @@ function syncScheduleUI(touchDescription){
   });
   if(touchDescription !== false) updateScheduleDescription();
 }
+// Cerut direct ("fa orariile preimpostate de la 08:00-12:00 13:00-17:00...
+// cand alege ora sa porneasca de la aceste orarii deja, daca difera
+// putin fiecare le schimba"): orarul obisnuit de lucru vine deja
+// completat pentru toate cele 7 zile - autorul doar corecteaza ce
+// difera (o zi cu program mai scurt, o zi inchisa), in loc sa
+// completeze 28 de casute goale de la zero de fiecare data.
+const SCHEDULE_DEFAULT = { mFrom:'08:00', mTo:'12:00', pFrom:'13:00', pTo:'17:00' };
 function resetScheduleWidget(touchDescription){
   document.getElementById('fSchedule247').checked = false;
   scheduleFieldEl().querySelectorAll('.schedule-day').forEach(row => {
     row.querySelector('.schedule-closed').checked = false;
-    row.querySelectorAll('input[type=time]').forEach(inp => inp.value = '');
+    row.querySelector('.schedule-m-from').value = SCHEDULE_DEFAULT.mFrom;
+    row.querySelector('.schedule-m-to').value = SCHEDULE_DEFAULT.mTo;
+    row.querySelector('.schedule-p-from').value = SCHEDULE_DEFAULT.pFrom;
+    row.querySelector('.schedule-p-to').value = SCHEDULE_DEFAULT.pTo;
   });
   syncScheduleUI(touchDescription);
 }
@@ -1382,8 +1416,11 @@ function updateFormLabels(){
   document.getElementById('fWorkFieldJob').style.display = isJob ? '' : 'none';
   document.getElementById('fWorkFieldClient').style.display = isClient ? '' : 'none';
   // Cerut direct ("orarul... au mereu locul lor structurat corect"):
-  // widget-ul de orar apare doar la Servizi.
+  // widget-ul de orar apare doar la Servizi. La comutarea PE Servizi,
+  // orarul implicit (deja completat in widget) intra imediat in
+  // Descrizione - autorul vede dintr-o data cum arata, gata de corectat.
   document.getElementById('fScheduleField').style.display = isService ? '' : 'none';
+  if(isService) updateScheduleDescription();
   if(isMarket) updateMarketplaceDescHint();
   else document.getElementById('fDescription').placeholder = 'Dettagli, requisiti…';
 }
@@ -1636,7 +1673,11 @@ function submitAnnuncio(){
     setClientCategoryValue('');
     setClientFrequenzaValue('');
     setServiceCategoryValue('');
-    resetScheduleWidget();
+    // touchDescription=false: modalul se inchide aici, nu mai exista
+    // niciun updateFormLabels() dupa - fara asta, un orar implicit ar
+    // putea ramane scris intr-o Descrizione deja goala, pentru un tip
+    // ramas din anuntul tocmai publicat.
+    resetScheduleWidget(false);
     pendingImageData = null;
     document.getElementById('fImagePreview').style.display = 'none';
     document.getElementById('fImageStatus').textContent = '';
