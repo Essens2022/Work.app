@@ -147,8 +147,15 @@ Deno.serve(async (req) => {
     if (!id) return Response.redirect(destination, 302);
     try {
       const { data } = await admin.from('adb_annunci').select('title,company,location,description,image_url,share_image_url,updated_at').eq('id', id).eq('visibility','public').maybeSingle();
-      const title = data ? escapeHtml(data.title) : 'ADB Smart — Annunci';
-      const desc = data ? escapeHtml(`${data.company} · ${data.location}`) : 'Offerte di lavoro, marketplace e servizi per autisti.';
+      const title = data ? escapeHtml(data.title) : 'ADB Smart &mdash; Annunci';
+      // Gasit real, verificat direct in HTML-ul chiar trimis de server
+      // ("Compania CUCU Â· Padova" in loc de "Compania CUCU · Padova"):
+      // caracterul UTF-8 folosit direct in cod (·) ajungea stricat -
+      // "dublu codificat" - undeva in lantul de publicare a functiei.
+      // Inlocuit cu eticheta HTML echivalenta (&middot;), compusa doar
+      // din caractere ASCII simple - nu mai poate fi stricata de nicio
+      // recodificare, indiferent unde ar avea loc aceasta.
+      const desc = data ? `${escapeHtml(data.company)} &middot; ${escapeHtml(data.location)}` : 'Offerte di lavoro, marketplace e servizi per autisti.';
       // Cerut direct ("imaginea tot continua sa nu se primeasca"):
       // WhatsApp cacheaza si imaginea insasi, separat de pagina.
       // image_url are acum mereu propriul parametru de versiune bagat
@@ -171,7 +178,16 @@ Deno.serve(async (req) => {
       // ea, unele crawlere renunta complet, fara card, fara eroare
       // vizibila - exact simptomul raportat. Trebuie sa fie chiar
       // adresa cerută de crawler (aceasta pagina), nu tinta finala.
-      const shareUrl = escapeHtml(url.toString());
+      //
+      // A DOUA cauza, gasita direct in HTML-ul chiar trimis de server
+      // (verificat manual): "url.toString()" (adresa cu care Deno
+      // crede ca a fost apelat, intern) nu era deloc adresa publica
+      // reala - iesea "http://.../annunci?id=..." (fara "/functions/v1",
+      // fara "https") - o adresa care nici macar nu exista public.
+      // Construita acum manual, din acelasi SUPABASE_URL folosit deja
+      // mai sus pentru celelalte functii (FLEET_API/CHECK_EMAIL_API) -
+      // garantat adresa publica reala, nu ce crede Deno intern.
+      const shareUrl = `${SUPABASE_URL}/functions/v1/annunci?id=${encodeURIComponent(id)}`;
       const html = `<!doctype html><html><head><meta charset="utf-8">
 <meta property="og:title" content="${title}">
 <meta property="og:description" content="${desc}">
@@ -182,7 +198,7 @@ Deno.serve(async (req) => {
 <meta name="twitter:card" content="summary_large_image">
 <meta http-equiv="refresh" content="0;url=${destination}">
 <script>location.replace(${JSON.stringify(destination)});</script>
-</head><body>Apri l'annuncio…</body></html>`;
+</head><body>Apri l'annuncio&hellip;</body></html>`;
       return new Response(html, { headers: { ...cors, 'Content-Type': 'text/html; charset=utf-8' } });
     } catch {
       return Response.redirect(destination, 302);
