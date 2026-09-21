@@ -3,6 +3,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const FLEET_API = `${SUPABASE_URL}/functions/v1/fleet-data`;
+const CHECK_EMAIL_API = `${SUPABASE_URL}/functions/v1/check-email-confirmed`;
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } });
 const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type', 'Access-Control-Allow-Methods': 'POST,OPTIONS' };
 const json = (data: unknown, status=200) => new Response(JSON.stringify(data), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
@@ -14,6 +15,27 @@ async function verifyFleet(slug?: string, password?: string) {
     if (!r.ok) return false;
     const d = await r.json();
     return d && d.ok === true;
+  } catch { return false; }
+}
+
+// Gasit real ("soferul e deja logat in propria aplicatie, nu ar trebui
+// sa i se ceara Google din nou in Bacheca"): confirmarea de email a
+// soferului NU trece prin sesiunea obisnuita Supabase Auth vazuta de
+// aceasta pagina (magic link-ul se deschide adesea intr-un context de
+// navigare COMPLET SEPARAT, vezi check-email-confirmed) - clientul nu
+// poate trimite un access_token pe care nu-l are niciodata cu adevarat.
+// In schimb, trimite direct emailul lui deja confirmat - verificat AICI,
+// din nou, real, exact ca la Flota (verifyFleet), interogand aceeasi
+// functie care deja stie sigur daca acel email e cu adevarat confirmat
+// in Supabase Auth (nu doar crezut pe cuvant, ca sa nu poata cineva sa
+// publice/salveze anunturi in numele oricarui email inventat).
+async function verifyDriverEmail(email?: string) {
+  if (!email) return false;
+  try {
+    const r = await fetch(CHECK_EMAIL_API, { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ email }) });
+    if (!r.ok) return false;
+    const d = await r.json();
+    return d && d.confirmed === true;
   } catch { return false; }
 }
 
@@ -224,6 +246,14 @@ Deno.serve(async (req) => {
     if (!authorFilter) {
       const fleetOk = await verifyFleet(body.fleet_slug, body.fleet_password);
       if (fleetOk) authorFilter = { column: 'author_fleet_slug', value: body.fleet_slug };
+    }
+    // A treia cale, pentru soferul deja logat in propria aplicatie
+    // (vezi verifyDriverEmail mai sus) - acelasi author_user_email ca
+    // la un cont Google obisnuit, deci favorite/anunturi publicate asa
+    // se comporta identic cu cele publicate printr-un login Google real.
+    if (!authorFilter && body.driver_email) {
+      const driverOk = await verifyDriverEmail(body.driver_email);
+      if (driverOk) authorFilter = { column: 'author_user_email', value: String(body.driver_email).toLowerCase() };
     }
     if (!authorFilter) return json({ ok:false, error:'auth_required' },401);
 

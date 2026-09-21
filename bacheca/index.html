@@ -898,14 +898,42 @@ if (EMBEDDED) {
   // aici, deci crestatura tot trebuie compensata chiar aici, normal.
   if (FLEET_MODE) document.documentElement.style.setProperty('--safe-top', '0px');
 }
+// Cerut direct ("sofer deja logat in app... nu inca un cont Google
+// separat aici"): identitatea aplicatiei soferului NU e o sesiune
+// Supabase obisnuita (SDK-ul propriu al acestei pagini n-o vede
+// niciodata) - e propriul mecanism al aplicatiei (index.html/app.js),
+// cu emailul confirmat pastrat in ACELASI localStorage (aceeasi
+// origine, deci vizibil direct de aici, fara niciun mesaj intre cadre)
+// sub 'pt_auth_session_v1' (cand confirmarea a prins tokenul direct)
+// sau 'pt_profile_v1' (cand confirmarea a fost detectata separat, prin
+// verificare pe server - vezi emailIsSatisfied()/checkForConfirmationNow
+// in app.js pentru motivul real al acestei a doua cai).
+function driverIdentityFromLocalStorage(){
+  try {
+    var sessRaw = localStorage.getItem('pt_auth_session_v1');
+    var sess = sessRaw ? JSON.parse(sessRaw) : null;
+    var profRaw = localStorage.getItem('pt_profile_v1');
+    var prof = profRaw ? JSON.parse(profRaw) : null;
+    var email = (sess && sess.email) || ((prof && prof.emailConfirmed && prof.pendingEmail) || null);
+    if (!email) return null;
+    return { email: email, name: (prof && prof.nome) || email };
+  } catch (e) { return null; }
+}
 // O flota nu se logheaza niciodata prin Google - identitatea ei
 // (fleet_slug + fleet_password) inlocuieste access_token-ul de sesiune
 // Supabase la fiecare cerere care are nevoie de autor (create/update/
 // delete/mine/favorite) - server-ul (supabase/functions/annunci)
 // accepta deja ambele cai, folosite pana acum separat de bacheca
-// (access_token) si de annunci.js (fleet_slug/fleet_password).
+// (access_token) si de annunci.js (fleet_slug/fleet_password). Acelasi
+// mecanism, a treia cale, pentru sofer: emailul lui (vezi mai sus),
+// verificat DIN NOU pe server (nu doar crezut pe cuvant) inainte sa
+// fie permisa orice actiune.
 function getAuthFields(){
   if (FLEET_MODE) return Promise.resolve({ mode:'fleet', fleet_slug: fleetSlug, fleet_password: fleetPassword });
+  if (DRIVER_MODE) {
+    var driverIdentity = driverIdentityFromLocalStorage();
+    return Promise.resolve({ driver_email: driverIdentity ? driverIdentity.email : null });
+  }
   return supabaseClient.auth.getSession().then(function(res){
     var token = res.data && res.data.session && res.data.session.access_token;
     return { access_token: token };
@@ -1901,7 +1929,7 @@ const HEART_FILLED = '<svg width="15" height="15" viewBox="0 0 24 24" fill="curr
 // cand nu e - si comuta corect inainte-inapoi (salveaza/scoate).
 let favoritedIds = new Set();
 function toggleFavorite(id, btn){
-  if(!currentUser){ alert('Accedi con Google per salvare gli annunci.'); return; }
+  if(!currentUser){ alert(DRIVER_MODE ? 'Conferma prima la tua email nell\'app per salvare gli annunci.' : 'Accedi con Google per salvare gli annunci.'); return; }
   const wasFavorited = favoritedIds.has(id);
   const action = wasFavorited ? 'unfavorite' : 'favorite';
   if(wasFavorited){ favoritedIds.delete(id); } else { favoritedIds.add(id); }
@@ -1910,9 +1938,11 @@ function toggleFavorite(id, btn){
     // Cerut direct ("nu e posibila salvarea"): daca tocmai aici lipseste
     // tokenul de sesiune (motivul cel mai probabil al erorii semnalate),
     // spunem exact asta, in loc de un mesaj generic care nu ajuta la
-    // gasirea cauzei reale. O flota (fara token, dar cu fleet_slug) nu
-    // trebuie sa declanseze aceasta eroare.
-    if(!FLEET_MODE && !auth.access_token) throw new Error('missing_token');
+    // gasirea cauzei reale. O flota (fara token, dar cu fleet_slug) si
+    // un sofer (fara token, dar cu emailul lui deja confirmat - vezi
+    // getAuthFields mai sus) nu trebuie sa declanseze aceasta eroare.
+    if(!FLEET_MODE && !DRIVER_MODE && !auth.access_token) throw new Error('missing_token');
+    if(DRIVER_MODE && !auth.driver_email) throw new Error('missing_token');
     return fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(Object.assign({ action, annuncio_id: id }, auth)) });
   }).then(r => r.json()).then(res => {
     if(res.ok) return;
@@ -1925,7 +1955,7 @@ function toggleFavorite(id, btn){
   }).catch(e => {
     if(wasFavorited){ favoritedIds.add(id); } else { favoritedIds.delete(id); }
     applyFavoriteButtonState(btn, wasFavorited);
-    if(e && e.message === 'missing_token') alert('La sessione sembra scaduta — esci e accedi di nuovo con Google.');
+    if(e && e.message === 'missing_token') alert(DRIVER_MODE ? 'La sessione sembra scaduta — riapri la Bacheca dall\'app.' : 'La sessione sembra scaduta — esci e accedi di nuovo con Google.');
     else alert('Errore di connessione — riprova.');
   });
 }
@@ -2396,6 +2426,29 @@ if(FLEET_MODE){
   // "Fatturazione" (facturare individuala) si "Account" (date contului
   // Google, stergere cont) nu au sens pentru o flota - ramane doar
   // "I miei annunci" si "Preferiti", ambele valabile si aici.
+  document.getElementById('navFatturazione').style.display = 'none';
+  document.getElementById('navAccount').style.display = 'none';
+} else if(DRIVER_MODE){
+  // Cerut direct ("el este deja logat, deci nu trebuie sa mai ceara
+  // logare cu Google"): soferul nu se logheaza NICIODATA prin Google
+  // aici - are deja propriul email confirmat in aplicatia lui
+  // (index.html), care ruleaza la ACEEASI adresa (acelasi localStorage,
+  // niciun cadru separat de stocare - vezi driverIdentityFromLocalStorage
+  // mai sus). Contul "curent" e citit direct de acolo, la fel cum
+  // FLEET_MODE il seteaza direct din fleet_slug, fara niciun apel catre
+  // Supabase Auth aici. Email-ul e verificat DIN NOU, real, pe server
+  // (vezi getAuthFields + supabase/functions/annunci), inainte sa fie
+  // permisa orice actiune - clientul nu e crezut pe cuvant.
+  var driverIdentity = driverIdentityFromLocalStorage();
+  if(driverIdentity){
+    var driverInitials = driverIdentity.name.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase() || 'A';
+    currentUser = { name: driverIdentity.name, email: driverIdentity.email, initials: driverInitials };
+  }
+  renderAuthArea();
+  if(currentUser && document.getElementById('screen-account').classList.contains('active')) renderAccountData();
+  // Ca la Flota - "Fatturazione" si "Account" (date cont Google,
+  // stergere cont) nu au sens aici, soferul le are deja in propria
+  // aplicatie; ramane doar "I miei annunci" si "Preferiti".
   document.getElementById('navFatturazione').style.display = 'none';
   document.getElementById('navAccount').style.display = 'none';
 } else if(supabaseClient){
