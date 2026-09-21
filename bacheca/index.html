@@ -2454,10 +2454,15 @@ if(FLEET_MODE){
   }
   renderAuthArea();
   if(currentUser && document.getElementById('screen-account').classList.contains('active')) renderAccountData();
-  // Ca la Flota - "Fatturazione" si "Account" (date cont Google,
-  // stergere cont) nu au sens aici, soferul le are deja in propria
-  // aplicatie; ramane doar "I miei annunci" si "Preferiti".
-  document.getElementById('navFatturazione').style.display = 'none';
+  // Cerut direct ("adauga si la soferi... fatturazione ca in
+  // celelalte"): spre deosebire de o flota (care are propria
+  // facturare, separata, in portalul ei), soferul ramane la fel ca un
+  // vizitator logat normal cu Google - vede "Fatturazione" ca oricine
+  // altcineva (deocamdata acelasi continut generic, "Piano Gratuito" -
+  // vezi renderInvoices - pregatit pentru o eventuala facturare
+  // reala mai tarziu). Doar "Account" (date cont Google, stergere
+  // cont) ramane ascuns - soferul isi gestioneaza deja identitatea in
+  // propria aplicatie, nu printr-un cont Google separat aici.
   document.getElementById('navAccount').style.display = 'none';
 } else if(supabaseClient){
   checkSessionNow();
