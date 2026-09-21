@@ -155,11 +155,21 @@ Deno.serve(async (req) => {
       // direct la incarcare (vezi uploadImage), asa ca nu mai trebuie
       // adaugat unul aici - il folosim asa cum e, garantat proaspat.
       const image = data?.image_url ? escapeHtml(data.image_url) : 'https://adbsmart.it/icon-512.png';
+      // Gasit real ("cand trimit linkul, nu apare nimic - doar text
+      // simplu, fara card"): lipsea "og:url" - Facebook/WhatsApp cer
+      // explicit aceasta eticheta (impreuna cu og:title/og:image/
+      // og:type) ca sa accepte sa genereze o previzualizare deloc; fara
+      // ea, unele crawlere renunta complet, fara card, fara eroare
+      // vizibila - exact simptomul raportat. Trebuie sa fie chiar
+      // adresa cerută de crawler (aceasta pagina), nu tinta finala.
+      const shareUrl = escapeHtml(url.toString());
       const html = `<!doctype html><html><head><meta charset="utf-8">
 <meta property="og:title" content="${title}">
 <meta property="og:description" content="${desc}">
 <meta property="og:image" content="${image}">
+<meta property="og:url" content="${shareUrl}">
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="ADB Smart">
 <meta name="twitter:card" content="summary_large_image">
 <meta http-equiv="refresh" content="0;url=${destination}">
 <script>location.replace(${JSON.stringify(destination)});</script>
