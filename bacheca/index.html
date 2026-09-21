@@ -1139,6 +1139,7 @@ function openPost(){
   // (fType poate fi ramas de la anuntul anterior, nu neaparat "job").
   resetScheduleWidget(false);
   pendingImageData = null;
+  pendingShareImageData = null;
   document.getElementById('fImagePreview').style.display = 'none';
   document.getElementById('fImageStatus').textContent = '';
   mpSlots = mpEmptySlots();
@@ -1179,6 +1180,7 @@ function openEditAd(ad){
   // (manual sau generat anterior) ramane exact cum era.
   resetScheduleWidget(false);
   pendingImageData = null;
+  pendingShareImageData = null;
   const preview = document.getElementById('fImagePreview');
   if(ad.image_url){ preview.src = ad.image_url; preview.style.display = 'block'; } else { preview.style.display = 'none'; }
   document.getElementById('fImageStatus').textContent = ad.image_url ? 'Foto attuale — scegline una nuova solo se vuoi sostituirla.' : '';
@@ -1722,10 +1724,59 @@ function compressImage(file){
     reader.readAsDataURL(file);
   });
 }
+// Gasit real ("cand trimit linkul, nu apare nimic - doar text simplu,
+// fara card"): poza de mai sus (sub 20kb) e adesea prea mica pentru
+// pragul minim cerut de WhatsApp (~300x200px) ca sa arate o
+// previzualizare - dar 20kb ramane cerut explicit pentru cardul mic
+// din lista, care nu trebuie schimbat. Solutie: o A DOUA poza,
+// separata, generata din ACEEASI fotografie aleasa - mult mai mare
+// (macar 400px pe latura lunga, aproape intotdeauna), dar tot sub
+// limita de 200kb acceptata de server (vezi uploadImage). Trimisa
+// doar pentru poza principala (una singura, nu si extra_images de la
+// marketplace), stocata separat (share_image_url), folosita DOAR de
+// server la generarea og:image - nu inlocuieste nimic din ce se vede
+// in aplicatie.
+const MAX_SHARE_IMAGE_BYTES = 190 * 1024;
+function compressShareImage(file){
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onload = () => { img.src = reader.result; };
+    reader.onerror = reject;
+    img.onload = () => {
+      let w = img.width, h = img.height;
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      function tryAt(maxDim, quality){
+        const scale = Math.min(1, maxDim / Math.max(w, h));
+        canvas.width = Math.max(1, Math.round(w * scale));
+        canvas.height = Math.max(1, Math.round(h * scale));
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL('image/jpeg', quality);
+      }
+      const sizes = [1200, 900, 700, 500, 400];
+      const qualities = [0.82, 0.7, 0.6, 0.5, 0.4];
+      let best = null, bestBytes = Infinity;
+      for (const maxDim of sizes){
+        for (const q of qualities){
+          const dataUri = tryAt(maxDim, q);
+          const bytes = Math.ceil(dataUri.length * 3/4);
+          if (bytes <= MAX_SHARE_IMAGE_BYTES){ resolve(dataUri); return; }
+          if (bytes < bestBytes){ best = dataUri; bestBytes = bytes; }
+        }
+      }
+      resolve(best);
+    };
+    img.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+let pendingShareImageData = null;
 document.getElementById('fImageFile').addEventListener('change', function(e){
   const file = e.target.files[0];
   const statusEl = document.getElementById('fImageStatus');
-  if(!file){ pendingImageData = null; return; }
+  if(!file){ pendingImageData = null; pendingShareImageData = null; return; }
   statusEl.textContent = 'Compressione in corso…';
   compressImage(file).then(dataUri => {
     pendingImageData = dataUri;
@@ -1735,6 +1786,10 @@ document.getElementById('fImageFile').addEventListener('change', function(e){
     prev.src = dataUri;
     prev.style.display = 'block';
   }).catch(() => { statusEl.textContent = 'Impossibile elaborare la foto.'; pendingImageData = null; });
+  // Poza separata, mai mare, doar pentru previzualizarea la partajare
+  // (vezi compressShareImage mai sus) - nu afecteaza deloc statusul/
+  // previzualizarea de mai sus, generata independent, in paralel.
+  compressShareImage(file).then(dataUri => { pendingShareImageData = dataUri; }).catch(() => { pendingShareImageData = null; });
 });
 
 // Cerut direct ("marketplace... fino a tre foto, con possibilita di
@@ -1787,6 +1842,12 @@ function mpHandleFile(i, file){
     const kb = Math.round(dataUri.length * 3/4 / 1024);
     mpSlots[i] = { kind:'new', dataUri, kb };
     renderMpSlots();
+    // Poza mare pentru previzualizare (vezi compressShareImage mai
+    // sus) - doar prima pozitie devine image_url/coperta anuntului,
+    // deci doar pentru ea are sens (celelalte doua nu ajung niciodata
+    // in og:image). mpMove muta obiectul intreg al slotului, deci
+    // shareDataUri "calatoreste" automat daca autorul reordoneaza.
+    if(i === 0) compressShareImage(file).then(dataUri2 => { if(mpSlots[0] && mpSlots[0].kind === 'new') mpSlots[0].shareDataUri = dataUri2; }).catch(() => {});
   }).catch(() => { alert('Impossibile elaborare questa foto.'); });
 }
 
@@ -1840,8 +1901,13 @@ function submitAnnuncio(){
   // un gol permanent.
   if(item.type === 'marketplace'){
     item.images = mpSlots.filter(Boolean).map(s => s.kind === 'new' ? s.dataUri : ('keep:' + s.path));
+    // Doar prima pozitie devine coperta anuntului (image_url) - doar
+    // ea are un share_image_data asociat (vezi mpHandleFile mai sus).
+    const firstSlot = mpSlots[0];
+    if(firstSlot && firstSlot.kind === 'new' && firstSlot.shareDataUri) item.share_image_data = firstSlot.shareDataUri;
   } else {
     item.image_data = pendingImageData;
+    if(pendingShareImageData) item.share_image_data = pendingShareImageData;
   }
   const errEl = document.getElementById('publishError');
   // Cerut direct (indirect - "mi scrive di mettere il titolo" desi
