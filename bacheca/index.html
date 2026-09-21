@@ -14,6 +14,23 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Bacheca — ADB Smart</title>
+<!-- Cerut direct ("problema este ca se trimite intregul link
+     neprofesional... asa cum am zis"): linkul distribuit (shareAd, mai
+     jos) foloseste acum adresa scurta adbsmart.it/bacheca, nu domeniul
+     lung supabase.co - dar pagina fiind pur statica (GitHub Pages), nu
+     poate genera etichete diferite pentru fiecare anunt (asta cerea
+     domeniul lung, cu server). Aceste etichete GENERICE (acelasi
+     titlu/poza pentru orice anunt) sunt compromisul ales explicit:
+     adresa arata profesional, cu pretul unei previzualizari generale
+     ADB Smart, nu specifica fiecarui anunt. -->
+<meta property="og:title" content="Bacheca — ADB Smart">
+<meta property="og:description" content="Offerte di lavoro, marketplace e servizi per autisti.">
+<meta property="og:image" content="https://adbsmart.it/icon-512.png">
+<meta property="og:url" content="https://adbsmart.it/bacheca/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ADB Smart">
+<meta name="twitter:card" content="summary">
+<meta name="description" content="Offerte di lavoro, marketplace e servizi per autisti.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- Cerut direct ("deja folosim logarea prin google... este deajuns
@@ -971,8 +988,16 @@ function getAuthFields(){
 // ca acum e accesibil si direct din lista, fara sa deschizi anuntul
 // intai. navigator.share cand exista (telefon); altfel, copiat in
 // clipboard, cu confirmare vizuala.
+//
+// Cerut direct ("problema este ca se trimite intregul link
+// neprofesional"): linkul trimis e acum adresa scurta adbsmart.it
+// (aceeasi pagina, care oricum stie sa deschida direct anuntul primit
+// prin ?ad=, vezi openSharedAdIfPresent) - nu domeniul lung supabase.co
+// de dinainte. Compromis ales explicit: previzualizarea WhatsApp arata
+// acum generic (logo+titlu ADB Smart, vezi og:* in <head>), nu mai
+// specifica fiecarui anunt (asta cerea domeniul lung, cu server).
 function shareAd(id, title){
-  const url = ANNUNCI_API + '?id=' + encodeURIComponent(id);
+  const url = 'https://adbsmart.it/bacheca/?ad=' + encodeURIComponent(id);
   fetch(ANNUNCI_API, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ action:'track_share', id }) }).catch(()=>{});
   if(navigator.share){
     navigator.share({ title: title, url: url }).catch(()=>{});
