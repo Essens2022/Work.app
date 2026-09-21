@@ -38,6 +38,14 @@
 }
 :root[data-theme="dark"]{ --bg:#111214; --card:#1A1C20; --ink:#F2F1EF; --ink-soft:#94969C; --line:#2A2D33; --accent-soft:#3A2216; }
 *{box-sizing:border-box}
+/* Cerut direct ("cand apas tap, dublu tap, se face zoomarea... in
+   bacheca soferului nu se intampla asta, doar cu degetele daca faci
+   zoom intentionat"): dublu-tap-zoom e un gest implicit al browserului
+   pe mobil - "manipulation" il opreste explicit, dar lasa neatinse
+   scroll-ul normal SI zoom-ul cu doua degete (pinch), facut chiar
+   intentionat - exact comportamentul deja vazut la bacheca din
+   aplicatia soferului. */
+html{touch-action:manipulation;}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif;}
 a{color:inherit;text-decoration:none}
 /* Cerut direct ("nu poti sa faci separat ca ele sa se incarce greu...
