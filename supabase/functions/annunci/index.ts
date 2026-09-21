@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
     const destination = `https://adbsmart.it/bacheca/?ad=${encodeURIComponent(id)}`;
     if (!id) return Response.redirect(destination, 302);
     try {
-      const { data } = await admin.from('adb_annunci').select('title,company,location,description,image_url,updated_at').eq('id', id).eq('visibility','public').maybeSingle();
+      const { data } = await admin.from('adb_annunci').select('title,company,location,description,image_url,share_image_url,updated_at').eq('id', id).eq('visibility','public').maybeSingle();
       const title = data ? escapeHtml(data.title) : 'ADB Smart — Annunci';
       const desc = data ? escapeHtml(`${data.company} · ${data.location}`) : 'Offerte di lavoro, marketplace e servizi per autisti.';
       // Cerut direct ("imaginea tot continua sa nu se primeasca"):
@@ -154,7 +154,16 @@ Deno.serve(async (req) => {
       // image_url are acum mereu propriul parametru de versiune bagat
       // direct la incarcare (vezi uploadImage), asa ca nu mai trebuie
       // adaugat unul aici - il folosim asa cum e, garantat proaspat.
-      const image = data?.image_url ? escapeHtml(data.image_url) : 'https://adbsmart.it/icon-512.png';
+      // Gasit real, a doua cauza a aceleiasi probleme ("nu apare
+      // nimic"): image_url (poza mica, sub 20kb - vezi mai jos) e
+      // adesea prea mica pentru pragul minim cerut de WhatsApp
+      // (~300x200px), care refuza tacit sa arate un card in acel caz.
+      // share_image_url (poza mai mare, doar pentru asta) e preferata
+      // cand exista; image_url ramane doar ca rezerva, pentru anunturi
+      // vechi, dinainte de aceasta functie.
+      const image = data?.share_image_url ? escapeHtml(data.share_image_url)
+        : data?.image_url ? escapeHtml(data.image_url)
+        : 'https://adbsmart.it/icon-512.png';
       // Gasit real ("cand trimit linkul, nu apare nimic - doar text
       // simplu, fara card"): lipsea "og:url" - Facebook/WhatsApp cer
       // explicit aceasta eticheta (impreuna cu og:title/og:image/
@@ -327,20 +336,47 @@ Deno.serve(async (req) => {
       } else {
         image = await uploadImage(body.item?.image_data || null,id);
       }
+      // Gasit real ("cand trimit linkul, nu apare nimic"): poza
+      // principala (mai sus) e comprimata agresiv, sub 20kb - buna
+      // pentru cardul mic din lista, dar prea mica pentru WhatsApp
+      // (care cere macar ~300x200px si refuza tacit sub acel prag).
+      // O a doua poza, separata, trimisa doar cand exista o poza noua
+      // (share_image_data - vezi compressShareImage in bacheca/index.html),
+      // stocata separat (share_image_url/path), folosita DOAR pentru
+      // og:image (vezi raspunsul GET mai jos) - lista/cardul din
+      // aplicatie raman neschimbate, tot cu poza mica de 20kb.
+      const shareImage = body.item?.share_image_data
+        ? await uploadImage(body.item.share_image_data, id, '-share')
+        : {};
+      const shareImageFields = shareImage.image_url
+        ? { share_image_url: shareImage.image_url, share_image_path: shareImage.image_path }
+        : {};
       const authorFields = authorFilter.column === 'author_user_email'
         ? { author_kind:'user', author_user_email: authorFilter.value }
         : { author_kind:'fleet', author_fleet_slug: authorFilter.value };
-      const { data, error } = await admin.from('adb_annunci').insert({ id, ...item, ...image, extra_images: extraImages, ...authorFields }).select().single();
+      const { data, error } = await admin.from('adb_annunci').insert({ id, ...item, ...image, extra_images: extraImages, ...shareImageFields, ...authorFields }).select().single();
       if (error) throw error;
       return json({ ok:true, item:data });
     }
 
     if (action === 'update') {
       const id = cleanText(body.id,60); const item = normalizeItem(body.item || {});
-      const { data: old, error: oldErr } = await admin.from('adb_annunci').select('id,image_url,image_path,extra_images').eq('id',id).eq(authorFilter.column,authorFilter.value).single();
+      const { data: old, error: oldErr } = await admin.from('adb_annunci').select('id,image_url,image_path,extra_images,share_image_path').eq('id',id).eq(authorFilter.column,authorFilter.value).single();
       if (oldErr || !old) return json({ok:false,error:'not_found'},404);
       let image: any = {};
       let extraImagesUpdate: any = {};
+      let shareImageUpdate: any = {};
+      // Aceeasi a doua poza, doar pentru og:image (vezi 'create' mai
+      // sus) - trimisa doar cand a fost aleasa o poza noua; altfel
+      // ramane neschimbata (nu se sterge doar pentru ca restul
+      // anuntului a fost editat).
+      if (body.item?.share_image_data) {
+        const newShare = await uploadImage(body.item.share_image_data, id, '-share');
+        if (old.share_image_path && newShare.image_path && old.share_image_path !== newShare.image_path) {
+          await admin.storage.from('adb-annunci').remove([old.share_image_path]);
+        }
+        shareImageUpdate = { share_image_url: newShare.image_url, share_image_path: newShare.image_path };
+      }
       if (item.type === 'marketplace' && Array.isArray(body.item?.images)) {
         // Cerut direct: lista trimisa (body.item.images) e mereu
         // versiunea COMPLETA, finala, in ordinea dorita de autor - poate
@@ -374,19 +410,20 @@ Deno.serve(async (req) => {
           extraImagesUpdate = { extra_images: [] };
         }
       }
-      const { data, error } = await admin.from('adb_annunci').update({ ...item, ...image, ...extraImagesUpdate }).eq('id',id).eq(authorFilter.column,authorFilter.value).select().single();
+      const { data, error } = await admin.from('adb_annunci').update({ ...item, ...image, ...extraImagesUpdate, ...shareImageUpdate }).eq('id',id).eq(authorFilter.column,authorFilter.value).select().single();
       if (error) throw error;
       return json({ok:true,item:data});
     }
 
     if (action === 'delete') {
       const id = cleanText(body.id,60);
-      const { data: old } = await admin.from('adb_annunci').select('image_path,extra_images').eq('id',id).eq(authorFilter.column,authorFilter.value).maybeSingle();
+      const { data: old } = await admin.from('adb_annunci').select('image_path,extra_images,share_image_path').eq('id',id).eq(authorFilter.column,authorFilter.value).maybeSingle();
       const { error } = await admin.from('adb_annunci').delete().eq('id',id).eq(authorFilter.column,authorFilter.value);
       if (error) throw error;
       const paths: string[] = [];
       if (old?.image_path) paths.push(old.image_path);
       if (old?.extra_images) (old.extra_images as any[]).forEach((e: any) => { if (e?.image_path) paths.push(e.image_path); });
+      if (old?.share_image_path) paths.push(old.share_image_path);
       if (paths.length) await admin.storage.from('adb-annunci').remove(paths);
       return json({ok:true});
     }
