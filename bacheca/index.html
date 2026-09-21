@@ -360,6 +360,7 @@ html[data-embedded="1"][data-theme="dark"] .modal-bg{background:rgb(14,14,16);}
 .status.active{background:var(--ok-soft);color:var(--ok);}
 .status.expiring{background:var(--warn-soft);color:var(--warn);}
 .status.expired{background:var(--line);color:var(--ink-soft);}
+.status.draft{background:var(--accent-soft);color:var(--accent);}
 .iconbtn{width:34px;height:34px;border:1px solid var(--line);background:var(--card);border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--ink-soft);}
 .iconbtn:hover{border-color:var(--accent);color:var(--accent);}
 /* Cerut direct ("nu vad anuntul original... trebuie creionasul...
@@ -545,15 +546,20 @@ html[data-embedded="1"][data-theme="dark"] .modal-bg{background:rgb(14,14,16);}
       <div class="divider">poi compila i dettagli</div>
     </div>
     <div class="modal-field"><label>Categoria</label><select id="fType"><option value="job">Lavoro</option><option value="client">Trasportatori</option><option value="marketplace">Marketplace</option><option value="service">Servizi</option></select></div>
-    <!-- Cerut direct ("o pagina cu trei intrari... anche i campi
-         Stato/Pubblicazione/Promozione"): campuri de administrare,
-         disponibile doar pentru flota (server-ul le accepta deja
-         pentru orice autor, dar un sofer/vizitator obisnuit nu are
-         nevoie sa aleaga singur un badge sau o promotie platita -
-         raman ascunse pentru ei, cu valorile implicite normale). -->
-    <div id="fFleetAdminFields" style="display:none;">
-      <div class="modal-field"><label>Stato</label><select id="fBadge"><option value="">Normale</option><option value="new">Nuovo</option><option value="urgent">Urgente</option><option value="sponsored">Sponsorizzato</option></select></div>
+    <!-- Cerut direct ("adauga la toate trei... eticheta urgente...
+         public sau in bozza"): disponibile acum pentru oricine publica
+         (sofer, flota, vizitator) - nu doar pentru flota, ca inainte.
+         "Nuovo"/"Sponsorizzato" (vezi mai jos, injectate doar pentru
+         FLEET_MODE) raman insa doar ale flotei - un vizitator obisnuit
+         nu ar trebui sa se auto-eticheteze drept "Sponsorizzato" (asta
+         implica o promovare platita reala, nu o alegere libera). -->
+    <div id="fCommonAdminFields">
+      <div class="modal-field"><label>Stato</label><select id="fBadge"><option value="">Normale</option><option value="urgent">Urgente</option></select></div>
       <div class="modal-field"><label>Pubblicazione</label><select id="fVisibility"><option value="public">Pubblico</option><option value="draft">Bozza</option></select></div>
+    </div>
+    <!-- "Promozione" (evidentiere platita) ramane doar a flotei, ca
+         inainte - nu a fost ceruta pentru celelalte doua. -->
+    <div id="fFleetOnlyFields" style="display:none;">
       <div class="modal-field"><label>Promozione</label><select id="fPromotion"><option value="standard">Standard</option><option value="featured">In evidenza</option><option value="sponsored">Sponsorizzato</option></select></div>
     </div>
     <div class="modal-field"><label>Titolo</label><input id="fTitle" placeholder="Es. Cerco autista patente CE"></div>
@@ -891,6 +897,10 @@ const EMBEDDED = bachecaParams.get('embedded') === '1';
 const fleetSlug = bachecaParams.get('fleet') || '';
 const fleetPassword = fleetSlug ? (sessionStorage.getItem('adb_fleet_pw_' + fleetSlug) || '') : '';
 if (FLEET_MODE) document.documentElement.setAttribute('data-fleet', '1');
+// Flota pastreaza si cele doua etichete suplimentare, mai vechi
+// (Nuovo/Sponsorizzato) - vezi fCommonAdminFields mai sus pentru
+// motivul pentru care restul (sofer/vizitator) vad doar Normale/Urgente.
+if (FLEET_MODE) document.getElementById('fBadge').insertAdjacentHTML('beforeend', '<option value="new">Nuovo</option><option value="sponsored">Sponsorizzato</option>');
 if (EMBEDDED) {
   document.documentElement.setAttribute('data-embedded', '1');
   // Cerut direct ("bacheca in aplicatia soferului sa fie intr-un cadru,
@@ -1105,7 +1115,7 @@ function openPost(){
   // cineva sa aleaga vreo categorie.
   document.getElementById('fType').value = 'job';
   ['fTitle','fCompany','fLocation','fCategory','fPrice','fWork','fDescription','fContact','fWhatsapp'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('fFleetAdminFields').style.display = FLEET_MODE ? 'block' : 'none';
+  document.getElementById('fFleetOnlyFields').style.display = FLEET_MODE ? 'block' : 'none';
   document.getElementById('fBadge').value = '';
   document.getElementById('fVisibility').value = 'public';
   document.getElementById('fPromotion').value = 'standard';
@@ -1137,7 +1147,7 @@ function openPost(){
 function openEditAd(ad){
   editingAdId = ad.id;
   document.getElementById('fType').value = ad.type;
-  document.getElementById('fFleetAdminFields').style.display = FLEET_MODE ? 'block' : 'none';
+  document.getElementById('fFleetOnlyFields').style.display = FLEET_MODE ? 'block' : 'none';
   document.getElementById('fBadge').value = ad.badge || '';
   document.getElementById('fVisibility').value = ad.visibility || 'public';
   document.getElementById('fPromotion').value = ad.promotion || 'standard';
@@ -1804,9 +1814,14 @@ function submitAnnuncio(){
     contact: document.getElementById('fContact').value.trim(),
     whatsapp: document.getElementById('fWhatsapp').value.trim(),
   };
+  // Cerut direct ("adauga la toate trei... eticheta urgente... public
+  // sau in bozza"): Stato/Pubblicazione sunt acum ale oricui publica,
+  // nu doar ale flotei (vezi fCommonAdminFields mai sus) - Promozione
+  // (evidentiere platita) ramane doar a flotei, nesolicitata pentru
+  // celelalte doua.
+  item.badge = document.getElementById('fBadge').value;
+  item.visibility = document.getElementById('fVisibility').value;
   if(FLEET_MODE){
-    item.badge = document.getElementById('fBadge').value;
-    item.visibility = document.getElementById('fVisibility').value;
     item.promotion = document.getElementById('fPromotion').value;
   }
   // Cerut direct ("marketplace... fino a tre foto"): server-ul asteapta
@@ -2277,13 +2292,19 @@ function render(){
 let currentListItems = [];
 
 // --- Account (personale) ---
-const STATUS_LABEL = {active:'Attivo', expiring:'In scadenza', expired:'Scaduto'};
+const STATUS_LABEL = {active:'Attivo', expiring:'In scadenza', expired:'Scaduto', draft:'Bozza'};
 
 // Cerut direct ("in miei anunci apar anunturi hardcodate... nu real
 // al persoanei care le publica"): lista vine acum din actiunea reala
 // 'mine', cu tokenul contului logat - fiecare vede DOAR anunturile
 // pe care chiar el le-a publicat, niciodata date de exemplu.
-function deriveStatus(expiresAt){
+// Cerut direct ("adauga... posibilitatea de a pune anuntul sa fie
+// public sau in bozza"): o bozza nu e vizibila public deloc (vezi
+// filtrul .eq('visibility','public') din server, actiunea 'list') -
+// fara acest caz separat, "I miei annunci" ar fi aratat-o gresit ca
+// "Attivo", desi nimeni altcineva n-o poate vedea inca.
+function deriveStatus(expiresAt, visibility){
+  if(visibility === 'draft') return 'draft';
   const days = (new Date(expiresAt) - new Date()) / 86400000;
   if(days < 0) return 'expired';
   if(days < 5) return 'expiring';
@@ -2330,7 +2351,7 @@ function renderAds(items){
   if(!items.length){ el.innerHTML = '<div class="empty">Non hai ancora pubblicato annunci.</div>'; return; }
   myAdsItems = items;
   el.innerHTML = items.map((ad, i) => {
-    const status = deriveStatus(ad.expires_at);
+    const status = deriveStatus(ad.expires_at, ad.visibility);
     // Cerut direct ("aceste date parca sunt puse in afara anuntului...
     // ar fi bine sa fie puse intre linia... si intre salariu, data"):
     // status + statisticile intra acum CHIAR in caseta anuntului,
