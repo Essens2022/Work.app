@@ -235,9 +235,17 @@ html[data-embedded="1"] .wrap{padding-bottom:calc(80px + var(--embed-bottomnav-h
    INTR-UN CADRU (iframe) - exact cazul Fleet si al soferului, care
    incarca bacheca asa. Fix: doar in acest caz (data-embedded="1"),
    fundalul devine opac - acelasi aspect vizual, aproape identic, dar
-   randat corect de fiecare data. */
-html[data-embedded="1"] .modal-bg{background:rgb(23,23,26);}
-html[data-embedded="1"][data-theme="dark"] .modal-bg{background:rgb(6,6,7);}
+   randat corect de fiecare data. CORECTAT dupa raportare directa
+   ("inca sunt negre" - bordurile modalului): prima varianta alesese o
+   culoare aproape neagra oricum, gresit, fara sa tina cont ca pagina,
+   la tema deschisa, are un fundal DESCHIS (--bg:#F4F5F7) - un fundal
+   semi-transparent (10,10,12 la 50%) PESTE acel fundal deschis da un
+   GRI MEDIU, nu negru. Culorile de mai jos sunt calculate exact ca
+   media reala dintre cele doua (10,10,12 si fundalul paginii, la acel
+   procent de transparenta), separat pentru fiecare tema - nu o
+   aproximare la intamplare. */
+html[data-embedded="1"] .modal-bg{background:rgb(127,128,130);}
+html[data-embedded="1"][data-theme="dark"] .modal-bg{background:rgb(14,14,16);}
 /* Cerut direct ("quando scrollo lì si scrolla anche la pagina dietro"):
    CAUZA REALA - odata ajuns cu derularea la capatul continutului
    din interiorul ferestrei (sus sau jos de tot), browserul, din
