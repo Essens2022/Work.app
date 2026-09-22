@@ -144,7 +144,16 @@
      alaturi - dar mostenea acelasi padding generos gandit pentru
      ecrane cu mai mult continut acolo (Panoramica, Autisti etc.).
      Redus doar aici, ca sa nu atinga celelalte ecrane ale flotei. */
-  #fleet-annunci .topline { padding: 12px 40px 0; margin-bottom: 0; }
+  /* Cerut direct ("sa ramana doar pagina principala sa nu fie
+     Annunci dar sa fie exact cum este si la sofer"): propriul antet
+     al flotei pentru acest ecran (titlul "Annunci" de mai sus) era
+     dublura fata de sigla proprie a Bachecii dinauntrul cadrului
+     (ascunsa pana acum aici, special, vezi "data-fleet" din
+     bacheca/index.html) - acum INVERS: antetul flotei dispare de tot
+     (nu doar padding-ul lui redus, ca inainte), lasand sigla Bachecii
+     sa se vada, exact ca in aplicatia soferului (care nu are niciun
+     antet propriu deasupra cadrului ei). */
+  #fleet-annunci .topline { display: none; }
   /* REAL BUG, gasit vazand chiar eu pagina, comparata direct cu
      Panoramica ("acolo unde iese cu date... si uite la anunte de
      unde porneste... la fel meniul"): pe desktop, .topline e
@@ -866,14 +875,18 @@
      cadrului Annunci extins la ecran complet (.annunci-modal-
      fullscreen, z-index 50, vezi mai sus) - raman mereu deasupra,
      vizibile prin fundalul intunecat al modalului, indiferent cat de
-     mare devine acesta. Aplicatia soferului (vezi index.html,
-     "body.bacheca-active .topbar{display:none}") ascunde deja propriul
-     antet complet cat timp Bacheca e activa - acelasi tipar aici, doar
-     mai tarziu (specific modalului deschis, nu tot ecranul Annunci),
-     ca butoanele sa ramana disponibile cat timp doar rasfoiesti lista.
-     Clasa e pusa pe <body> de acelasi ascultator postMessage care
-     extinde deja cadrul (vezi mai jos, langa addEventListener). */
+     mare devine acesta. */
   body.annunci-modal-open .top-actions { display: none; }
+  /* Cerut direct ("sa ramana doar pagina principala sa nu fie
+     Annunci dar sa fie exact cum este si la sofer"): initial ascunse
+     doar cat timp un modal era deschis (mai sus) - acum, la cerere
+     explicita de paritate completa cu aplicatia soferului (care
+     ascunde COMPLET propriul antet, "body.bacheca-active
+     .topbar{display:none}", cat timp Bacheca insasi e activa, nu doar
+     cat timp un modal al ei e deschis), acelasi tipar mai larg si
+     aici - ascunse cat timp ecranul Annunci insusi e activ (vezi
+     "screen-annunci-active" mai jos, in goToScreen). */
+  body.screen-annunci-active .top-actions { display: none; }
   .top-export-btn { padding: 8px 12px; font-size: 12.5px; gap: 5px; }
   .theme-toggle {
     width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line);
@@ -2583,6 +2596,11 @@
       document.querySelectorAll('[data-goto]').forEach(function (el) {
         el.classList.toggle('on', el.dataset.goto === name);
       });
+      // Vezi comentariul de la ".top-actions" mai sus ("sa fie exact
+      // cum este si la sofer") - butoanele fixe (clopotel/Annunci/
+      // tema) trebuie ascunse cat timp acest ecran insusi e activ, nu
+      // doar cat timp un modal al lui e deschis.
+      document.body.classList.toggle('screen-annunci-active', name === 'annunci');
       // Cerut direct ("refreshul trebuie sa se comporte fluid... nu
       // trebuie sa sara"), apoi PRECIZAT ulterior ("daca inchid fleet
       // cu totul si il deschid, trebuie mereu sa deschida panoramica")
