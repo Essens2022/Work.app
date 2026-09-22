@@ -503,11 +503,12 @@ html[data-embedded="1"] #detailBody.modal{height:min(680px,calc(var(--real-vh, 1
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.6l-1-1a5.5 5.5 0 00-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 000-7.8z"/></svg>
         Preferiti
       </button>
-      <!-- Cerut direct ("o pagina cu trei intrari"): "Fatturazione" si
-           "Account" tin de contul Google (facturare individuala,
-           stergere cont Google) - nu au sens pentru o flota (fara
-           cont Google, cu propria facturare separata) - ascunse doar
-           pentru ea, cu id="fleetHideNav" (vezi FLEET_MODE mai jos). -->
+      <!-- Cerut direct, INITIAL ("o pagina cu trei intrari"):
+           "Fatturazione" si "Account" tineau de contul Google - ambele
+           ascunse pentru o flota (fara cont Google). INVERSAT ulterior
+           pentru "Fatturazione" (cerut direct: "adauga fatturazione si
+           la fleet") - doar "Account" (date cont Google, stergere
+           cont) ramane ascuns pentru flota, vezi FLEET_MODE mai jos. -->
       <button class="navitem" id="navFatturazione" onclick="showAccSection('fatturazione', this)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h4"/></svg>
         Fatturazione
@@ -2566,10 +2567,12 @@ if(FLEET_MODE){
   currentUser = { name:'Fleet', email:'', initials:'FL', isFleet:true };
   renderAuthArea();
   if(document.getElementById('screen-account').classList.contains('active')) renderAccountData();
-  // "Fatturazione" (facturare individuala) si "Account" (date contului
-  // Google, stergere cont) nu au sens pentru o flota - ramane doar
-  // "I miei annunci" si "Preferiti", ambele valabile si aici.
-  document.getElementById('navFatturazione').style.display = 'none';
+  // "Account" (date contului Google, stergere cont) nu are sens pentru
+  // o flota, fara cont Google - ramane ascuns. "Fatturazione" insa,
+  // cerut direct ("adauga fatturazione si la fleet"), e vizibila acum
+  // si aici (acelasi continut generic, "Piano Gratuito", ca la sofer/
+  // vizitator - vezi renderInvoices), la fel ca "I miei annunci" si
+  // "Preferiti", deja valabile pentru flota.
   document.getElementById('navAccount').style.display = 'none';
 } else if(DRIVER_MODE){
   // Cerut direct ("el este deja logat, deci nu trebuie sa mai ceara
