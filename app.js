@@ -10245,6 +10245,18 @@
     var monthFuel = state.fuel[monthKey] || {};
     var html = '';
     var lastReceiptDay = null;
+    // Cerut direct ("ziua actuala, mereu trebuie sa fie vizibila la
+    // mijloc... nu porneste acum cand deschid, se ascunde putin sub
+    // bara de jos"): mai jos, scroll-ul initial tintea doar ultima zi
+    // CU deja un bon atasat (lastReceiptDay) - daca nicio zi din luna
+    // nu are inca niciun bon (cazul obisnuit chiar cand tocmai vrei sa
+    // adaugi unul), nu se intampla nicio derulare, ramanand sus de tot,
+    // cu ziua de azi departe, jos, posibil taiata de bara fixa de jos.
+    // Retinuta acum si ziua de azi (cand cade in luna deschisa) separat,
+    // ca tinta preferata - la fel ca in Foglio, unde ziua vizata e
+    // aproape mereu chiar ziua curenta, pentru ca de-acolo se scrie zi
+    // de zi.
+    var todayFuelDay = null;
     for (var d = 1; d <= n; d++) {
       var receipts = monthFuel[d];
       var date = new Date(fuelActiveYear, fuelActiveMonth - 1, d);
@@ -10257,6 +10269,7 @@
       var isWeekend = date.getDay() === 0 || date.getDay() === 6;
       var todayObj = new Date();
       var isToday = d === todayObj.getDate() && fuelActiveMonth === (todayObj.getMonth() + 1) && fuelActiveYear === todayObj.getFullYear();
+      if (isToday) todayFuelDay = d;
       var count = (receipts && receipts.length) || 0;
       if (count > 0) lastReceiptDay = d;
       html += '<div class="day-row' + (count > 0 ? ' filled' : '') + (isWeekend ? ' weekend' : '') + (isToday ? ' is-today' : '') + '" data-fuel-day="' + d + '">';
@@ -10290,13 +10303,21 @@
       });
     });
 
-    // Same convenience as Foglio: land straight on the last day that
-    // already has a receipt, ready to tap the next one along — instead of
-    // always starting scrolled to the top of the whole month.
+    // Cerut direct ("ziua actuala, mereu trebuie sa fie vizibila la
+    // mijloc... mereu cand deschizi sectiunea aia ca sa scrii, sa pui
+    // bonul, mereu ziua actuala e la mijlocul ecranului"): ziua de azi
+    // (cand cade in luna deschisa aici) e acum tinta PREFERATA, inainte
+    // de lastReceiptDay - inainte, cand nicio zi din luna n-avea inca
+    // niciun bon (chiar cazul obisnuit, tocmai cand vrei sa adaugi
+    // primul), nu se intampla nicio derulare, lasand ziua de azi
+    // departe jos, taiata de bara fixa. lastReceiptDay ramane rezerva
+    // doar cand ziua de azi nu cade in luna deschisa (o luna trecuta,
+    // navigata manual).
     if (fuelScrollPending) {
       fuelScrollPending = false;
-      if (lastReceiptDay) {
-        var targetRow = document.querySelector('#fuel-list [data-fuel-day="' + lastReceiptDay + '"]');
+      var fuelTargetScrollDay = todayFuelDay || lastReceiptDay;
+      if (fuelTargetScrollDay) {
+        var targetRow = document.querySelector('#fuel-list [data-fuel-day="' + fuelTargetScrollDay + '"]');
         if (targetRow) {
           requestAnimationFrame(function () {
             targetRow.scrollIntoView({ behavior: 'auto', block: 'center' });
