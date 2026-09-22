@@ -295,6 +295,21 @@ html[data-embedded="1"][data-theme="dark"] .modal-bg{background:rgb(14,14,16);}
    (.detail-footer) raman pe loc, sub el, mereu vizibile. */
 #detailBody.modal{height:min(680px,86vh);display:flex;flex-direction:column;overflow:hidden;padding:0;position:relative;}
 .detail-scroll{overflow-y:auto;flex:1;min-height:0;padding:26px;overscroll-behavior:contain;}
+/* Cerut direct din nou, cu poze ("are partile laterale si de jos ceva
+   bare... comparat cu bacheca din sofer"): "86vh" de mai sus e mereu
+   calculat fata de inaltimea REALA a acestei pagini - cand traieste
+   intr-un cadru (iframe) care tocmai s-a extins la ecran complet (vezi
+   404.html/app.js, .annunci-modal-fullscreen), inaltimea aceea nu se
+   actualizeaza mereu instant sau la fel de sigur pe orice motor de
+   randare (deja gasit un caz similar, real, in aplicatia soferului -
+   vezi syncRealViewportHeight in app.js: "vh" e o unitate CSS, supusa
+   interpretarii fiecarui motor; window.innerHeight, masurat direct de
+   pagina PARINTE si trimis aici prin postMessage, e valoarea reala,
+   garantata. --real-vh e setat mai jos (adb-annunci-viewport-h) - cu
+   o valoare de rezerva (100vh) pentru cazul principal, ne-incorporat,
+   unde niciun parinte nu trimite asa ceva. */
+html[data-embedded="1"] .modal{max-height:calc(var(--real-vh, 100vh) * .86);}
+html[data-embedded="1"] #detailBody.modal{height:min(680px,calc(var(--real-vh, 100vh) * .86));}
 .detail-footer{flex:none;display:flex;gap:8px;align-items:stretch;padding:16px 26px;border-top:1px solid var(--line);}
 .modal h2{font-size:20px;margin:8px 0 4px;}
 .modal .close{float:right;background:none;border:none;font-size:20px;color:var(--ink-soft);cursor:pointer;}
@@ -2635,6 +2650,11 @@ if(EMBEDDED){
     } else if(ev.data.type === 'adb-annunci-refresh'){
       if(document.getElementById('screen-account').classList.contains('active')){ loadMyAds(); loadFavorites(); }
       else { loadAds(); }
+    } else if(ev.data.type === 'adb-annunci-viewport-h'){
+      // Vezi comentariul de la ".modal"/"--real-vh" mai sus - inaltimea
+      // REALA a ecranului parintelui, masurata direct de el (nu o
+      // unitate CSS "vh", supusa interpretarii motorului de randare).
+      document.documentElement.style.setProperty('--real-vh', ev.data.height + 'px');
     }
   });
   // Portalul de flota extinde cadrul peste tot ecranul cat timp un

@@ -12029,6 +12029,19 @@
     if (bottomnav && bachecaFrame && bachecaFrame.contentWindow) {
       bachecaFrame.contentWindow.postMessage({ type: 'adb-annunci-bottomnav-h', height: bottomnav.offsetHeight }, '*');
     }
+    // Raportat direct din nou, cu poze ("are partile laterale si de jos
+    // ceva bare"), comparand direct cu bacheca din portalul de flota -
+    // acelasi mecanism ("--real-vh", vezi comentariul din
+    // bacheca/index.html): "86vh", folosit acolo pentru inaltimea
+    // maxima a unui modal, e calculat fata de inaltimea cadrului
+    // insusi, nu mereu garantat la zi (pe orice motor de randare) chiar
+    // in clipa in care cadrul tocmai s-a extins la ecran complet.
+    // window.innerHeight, masurat direct AICI (pagina reala), trimis
+    // acum si el, de fiecare data cand se remasoara - aceeasi functie,
+    // aceleasi momente, ca bara de jos, mai sus.
+    if (bachecaFrame && bachecaFrame.contentWindow) {
+      bachecaFrame.contentWindow.postMessage({ type: 'adb-annunci-viewport-h', height: window.innerHeight }, '*');
+    }
   }
 
   // Cerut direct ("sa unim la fletul la bacheca si pagina de la
@@ -12056,6 +12069,15 @@
     if (!ev.data || ev.data.type !== 'adb-annunci-modal') return;
     var wrap = document.getElementById('driverBachecaWrap');
     if (wrap) wrap.classList.toggle('annunci-modal-fullscreen', !!ev.data.open);
+    // Vezi comentariul de la "--real-vh" din syncBarHeights, mai sus,
+    // si din bacheca/index.html (acelasi raport, "are partile laterale
+    // si de jos ceva bare"): fortata explicit, in pixeli, inaltimea
+    // REALA a cadrului chiar in clipa extinderii - si retrimisa
+    // inaltimea reala a ecranului, ca modalul dinauntru sa se
+    // recalculeze fata de ea, nu fata de o valoare posibil neactualizata.
+    var bachecaFrame = document.getElementById('driverBachecaFrame');
+    if (bachecaFrame) bachecaFrame.style.height = ev.data.open ? (window.innerHeight + 'px') : '100%';
+    if (typeof syncBarHeights === 'function') syncBarHeights();
   });
 
   // REAL BUG, reported directly, on Chrome for Android specifically
