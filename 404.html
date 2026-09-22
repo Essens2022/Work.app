@@ -2559,6 +2559,23 @@
     })();
     window.addEventListener('resize', updateBottomNavHeight);
 
+    // Vezi comentariul de la "--real-vh" in bacheca/index.html (acelasi
+    // raport, "are partile laterale si de jos ceva bare" - modalul
+    // paginii Annunci parea micsorat, cu fundal gol in jur): "86vh",
+    // folosit acolo pentru inaltimea maxima a modalului, e mereu
+    // calculat fata de inaltimea cadrului insusi - nu neaparat garantat
+    // sa fie mereu la zi, pe orice motor de randare, chiar in clipa in
+    // care cadrul tocmai s-a extins la ecran complet. window.innerHeight
+    // de aici (pagina PARINTE) e valoarea reala, directa, garantata -
+    // trimisa acum si ea prin postMessage, acelasi tipar deja folosit
+    // pentru bara de jos, mai sus.
+    function updateAnnunciViewportHeight() {
+      var frame = document.getElementById('fleetAnnunciFrame');
+      if (!frame || !frame.contentWindow) return;
+      frame.contentWindow.postMessage({ type: 'adb-annunci-viewport-h', height: window.innerHeight }, '*');
+    }
+    window.addEventListener('resize', updateAnnunciViewportHeight);
+
     function goToScreen(name) {
       document.querySelectorAll('.screen').forEach(function (s) { s.classList.remove('active'); });
       var target = document.getElementById(SCREEN_ID_BY_NAME[name]);
@@ -2693,6 +2710,7 @@
         // (daca l-am trimis), deci trimitem din nou aici, dupa ce chiar
         // s-a incarcat, ca mesajul sa nu se piarda.
         frame.addEventListener('load', updateBottomNavHeight);
+        frame.addEventListener('load', updateAnnunciViewportHeight);
       }
       goToScreen('annunci');
       // La fel ca la Mappa (MapLibre) mai jos: antetul acestui ecran nu
@@ -2702,6 +2720,7 @@
       // spatiu de sus gresit (0), acoperit de antetul fix de deasupra.
       requestAnimationFrame(function () { if (typeof updateToplineHeight === 'function') updateToplineHeight(); });
       updateBottomNavHeight();
+      updateAnnunciViewportHeight();
     }
     // Cerut direct ("esiste ancora i bordi sotto e sopra... guarda che
     // bello si vede in bacheca"): pagina Annunci (alt document, in
@@ -2721,6 +2740,24 @@
       // mare, pentru ca al lor (300) e oricum mai mare decat orice
       // cadru ar putea avea.
       document.body.classList.toggle('annunci-modal-open', !!ev.data.open);
+      // REAL BUG, raportat direct din nou, cu poze ("are partile
+      // laterale si de jos ceva bare"), dupa fix-ul de mai sus (care,
+      // masurat direct, chiar functiona in acest fisier): cadrul de
+      // aici (.annunci-frame-wrap) devenea corect fullscreen, dar
+      // <iframe>-ul dinauntrul lui (dimensionat doar prin CSS,
+      // width:100%/height:100%) nu se redimensiona intotdeauna la fel
+      // de sigur - pagina dinauntru (bacheca/index.html) foloseste
+      // "86vh" pentru inaltimea maxima a modalului, calculat fata de
+      // PROPRIUL ei viewport (inaltimea REALA a cadrului) - daca acel
+      // cadru ramanea, chiar si temporar, la vechea lui inaltime mai
+      // mica, modalul parea "micsorat", cu mult fundal gol in jur,
+      // exact ca in poze. Fortata acum explicit, direct in pixeli (nu
+      // doar prin procente CSS, care depind de cand anume browserul
+      // termina de recalculat marimea cadrului parinte), inaltimea
+      // REALA a cadrului - fara nicio ambiguitate posibila.
+      var annunciFrame = document.getElementById('fleetAnnunciFrame');
+      if (annunciFrame) annunciFrame.style.height = ev.data.open ? (window.innerHeight + 'px') : '100%';
+      updateAnnunciViewportHeight();
     });
 
     var annunciTopBtn = document.getElementById('fleetAnnunciTopBtn');
