@@ -173,16 +173,16 @@ a{color:inherit;text-decoration:none}
 .row-top h3{padding-right:100px;}
 
 .wrap{max-width:760px;margin:0 auto;padding:22px 24px 80px;}
-/* Cerut direct ("o pagina cu trei intrari"): incorporata intr-un
-   cadru (iframe) din portalul de flota, aceasta pagina nu mai are
-   nevoie de propria sigla (portalul are deja propriul antet cu
-   titlul "Annunci" deasupra cadrului) - dubla branding, redundanta.
-   Bara de cautare si contul (acum "Fleet", vezi FLEET_MODE mai sus)
-   raman neschimbate. Specific doar Flotei (data-fleet) - aplicatia
-   soferului, incorporata la fel (embedded=1) dar fara mod=fleet, NU
-   are un antet propriu deasupra cadrului, deci sigla ramane vizibila
-   acolo, ca la orice alt ecran al ei. */
-html[data-fleet="1"] .headwrap .logo{display:none}
+/* Cerut direct, INITIAL ("o pagina cu trei intrari"): incorporata
+   intr-un cadru (iframe) din portalul de flota, aceasta pagina nu mai
+   avea nevoie de propria sigla, cat timp portalul avea propriul antet
+   cu titlul "Annunci" deasupra cadrului - dubla branding, redundanta.
+   INVERSAT acum, cerut direct din nou ("sa ramana doar pagina
+   principala sa nu fie Annunci dar sa fie exact cum este si la
+   sofer"): antetul propriu al flotei a fost eliminat de tot (vezi
+   404.html, "#fleet-annunci .topline{display:none}") - sigla ramane
+   acum vizibila si aici, exact ca la aplicatia soferului (care nu a
+   avut niciodata un antet propriu deasupra cadrului ei). */
 /* Rezervam spatiu de jos suplimentar, cat inaltimea REALA a barei de
    navigare FIXE din afara acestui cadru (a flotei SAU a aplicatiei
    soferului, oricare incorporeaza pagina) - masurata si trimisa prin
