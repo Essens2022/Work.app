@@ -205,8 +205,22 @@
      calculat din inset e ignorat, lasand acelasi gol dedesubt. Fara
      nicio inaltime explicita aici, inset:0 singur fixeaza cadrul exact
      pe marginile reale ale ecranului, fara nicio unitate care sa poata
-     sa nu se potriveasca. */
-  .annunci-frame-wrap.annunci-modal-fullscreen { position: fixed; inset: 0; z-index: 50; padding: 0; }
+     sa nu se potriveasca.
+     REAL BUG, gasit real ("are parte de jos taiata, parte de sus
+     taiata"): intentia de mai sus nu era completa - regula de baza,
+     ".annunci-frame-wrap" (mai sus, tot pe acelasi element - clasa ei
+     ramane, doar se ADAUGA aceasta a doua clasa, nu o inlocuieste),
+     seteaza propriul "height: calc(100dvh - var(--topline-h))",
+     nesuprascris aici. Cu "top" SI "bottom" (din inset:0) SI "height"
+     toate specificate deodata pe acelasi element, CSS ignora "bottom"
+     si pastreaza "height"-ul explicit (regula standard de rezolvare a
+     supra-constrangerii) - cadrul ramanea cu aceeasi inaltime redusa
+     de dinainte, doar mutat la varf, lasand exact acel gol jos, unde
+     bara flotei tot ramanea vizibila. "height:auto" aici, cu
+     specificitate mai mare (2 clase) decat regula de baza (o clasa),
+     castiga garantat - lasa "top"+"bottom" (0 si 0) sa decida singure
+     inaltimea, exact ecranul intreg. */
+  .annunci-frame-wrap.annunci-modal-fullscreen { position: fixed; inset: 0; z-index: 50; padding: 0; height: auto; }
   .eyebrow { font-size: 13px; color: var(--ink-soft); font-weight: 600; margin-bottom: 6px; }
   .page-title { font-size: 34px; line-height: 1; }
   /* Requested directly: the descriptive line under a page title
@@ -846,6 +860,20 @@
     position: fixed; top: 16px; right: 16px; z-index: 300;
     display: flex; align-items: center; gap: 8px;
   }
+  /* REAL BUG, gasit real ("are... barei de sus taiata... suprapus"):
+     a doua cauza a aceluiasi raport - aceste butoane (clopotel/
+     Annunci/tema) au propriul z-index (300), MULT peste cel al
+     cadrului Annunci extins la ecran complet (.annunci-modal-
+     fullscreen, z-index 50, vezi mai sus) - raman mereu deasupra,
+     vizibile prin fundalul intunecat al modalului, indiferent cat de
+     mare devine acesta. Aplicatia soferului (vezi index.html,
+     "body.bacheca-active .topbar{display:none}") ascunde deja propriul
+     antet complet cat timp Bacheca e activa - acelasi tipar aici, doar
+     mai tarziu (specific modalului deschis, nu tot ecranul Annunci),
+     ca butoanele sa ramana disponibile cat timp doar rasfoiesti lista.
+     Clasa e pusa pe <body> de acelasi ascultator postMessage care
+     extinde deja cadrul (vezi mai jos, langa addEventListener). */
+  body.annunci-modal-open .top-actions { display: none; }
   .top-export-btn { padding: 8px 12px; font-size: 12.5px; gap: 5px; }
   .theme-toggle {
     width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line);
@@ -2687,6 +2715,12 @@
       var wrap = document.querySelector('.annunci-frame-wrap');
       if (!wrap) return;
       wrap.classList.toggle('annunci-modal-fullscreen', !!ev.data.open);
+      // Vezi comentariul de la ".top-actions" mai sus (a doua cauza a
+      // aceluiasi raport) - aceleasi butoane (clopotel/Annunci/tema)
+      // trebuie ascunse explicit, nu doar acoperite de un z-index mai
+      // mare, pentru ca al lor (300) e oricum mai mare decat orice
+      // cadru ar putea avea.
+      document.body.classList.toggle('annunci-modal-open', !!ev.data.open);
     });
 
     var annunciTopBtn = document.getElementById('fleetAnnunciTopBtn');
