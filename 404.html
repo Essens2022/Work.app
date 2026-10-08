@@ -4097,19 +4097,44 @@
     // provincia, telefono) - nu trebuie sa fie exact aceleasi cuvinte,
     // doar sa contina unul din termenii cunoscuti.
     var importParsedRows = [];
+    // Cerut direct ("am incercat sa incarc documentul... 0 clienti
+    // pronti... colonne non riconosciute"): testat direct cu un export
+    // real al clientului (gestionale extern, nu Excel facut de mana) -
+    // foloseste coduri scurte de camp (CDCLI, RASCL, INDCL, LOCCL,
+    // PROCL, CAPCL), nu cuvinte italiene normale ("codice", "nome"
+    // etc.) - niciunul nu era recunoscut, deci NICIUN rand nu primea
+    // "name", iar randul care cere "numele clientului obligatoriu"
+    // arunca tot fisierul. Adaugate explicit aceste coduri (acelasi
+    // export va fi probabil folosit si pe viitor, nu doar o data).
+    // LOCCL merge direct la "comune" (nu la "city") - in acest export
+    // e singurul camp de localitate disponibil, si "comune" e cel
+    // folosit efectiv de regulile de zona (fleet_zone_rules) pentru
+    // sugestia automata de sofer - "city" ar fi ramas nefolosit oricum.
     var IMPORT_FIELD_HINTS = {
-      name: ['nome', 'cliente', 'ragione sociale', 'ragione', 'denominazione'],
-      client_code: ['codice', 'cod. cliente', 'codcliente', 'cod cliente'],
-      address: ['indirizzo', 'via'],
-      comune: ['comune'],
+      name: ['nome', 'cliente', 'ragione sociale', 'ragione', 'denominazione', 'rascl'],
+      client_code: ['codice', 'cod. cliente', 'codcliente', 'cod cliente', 'cdcli'],
+      address: ['indirizzo', 'via', 'indcl'],
+      comune: ['comune', 'loccl'],
       city: ['città', 'citta', 'frazione', 'localita', 'località'],
       cap: ['cap'],
-      province: ['provincia', 'prov'],
+      province: ['provincia', 'prov', 'procl'],
       phone: ['telefono', 'tel', 'cellulare'],
     };
+    // Acelasi export (vezi IMPORT_FIELD_HINTS mai sus) are, pe langa
+    // adresa PROPRIE a clientului (INDCL/LOCCL/PROCL/CAPCL), o A DOUA
+    // adresa separata, de DESTINATIE (RA1ND/CITND/PROND/CAPND - alt
+    // loc de livrare, cand difera de sediul clientului) - nefolosita
+    // aici, cautam clientul insusi, nu o livrare anume. REAL BUG, gasit
+    // direct (simuland maparea): "cap" (fara alt reper) e substring si
+    // in "CAPCL" SI in "CAPND" - a doua coloana, procesata ultima,
+    // suprascria CAP-ul corect al clientului cu cel al destinatiei.
+    // Aceste coduri de destinatie sunt acum ignorate explicit, inainte
+    // de potrivirea obisnuita, dupa sufixul lor comun "ND".
+    var IMPORT_IGNORE_HEADERS = ['cdcls', 'ra1nd', 'citnd', 'prond', 'capnd', 'argeo01'];
     function guessFieldForHeader(header) {
       var h = (header || '').toString().trim().toLowerCase();
       if (!h) return null;
+      if (IMPORT_IGNORE_HEADERS.indexOf(h) >= 0) return null;
       var best = null;
       Object.keys(IMPORT_FIELD_HINTS).forEach(function (field) {
         IMPORT_FIELD_HINTS[field].forEach(function (hint) {
@@ -4691,9 +4716,13 @@
     });
 
     var borderoloParsedRows = [];
+    // Vezi acelasi comentariu la IMPORT_FIELD_HINTS (import clienti,
+    // mai sus) - acelasi export codat (CDCLI/RASCL) va fi probabil
+    // folosit si pentru borderolul zilnic, nu doar la importul initial
+    // de clienti.
     var BORDEROLO_FIELD_HINTS = {
-      client_name: ['nome', 'cliente', 'ragione sociale', 'ragione', 'destinatario'],
-      client_code: ['codice', 'cod. cliente', 'codcliente'],
+      client_name: ['nome', 'cliente', 'ragione sociale', 'ragione', 'destinatario', 'rascl'],
+      client_code: ['codice', 'cod. cliente', 'codcliente', 'cdcli'],
       merchandise_note: ['merce', 'colli', 'marca', 'note', 'descrizione'],
     };
     function guessBorderoloField(header) {
