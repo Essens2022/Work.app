@@ -4143,6 +4143,37 @@
       });
       return best;
     }
+    // REAL BUG, gasit direct ("de ce imi arata ca sunt peste 20k
+    // clienti?"): exportul real folosit la testare (vezi
+    // IMPORT_FIELD_HINTS mai sus) are UN RAND PER DOCUMENT/LIVRARE
+    // (TPDOC/NRDOC/DTDOC), nu un rand per client - acelasi client
+    // (CDCLI) apare din nou la fiecare livrare primita, de multe ori
+    // pe cateva luni. Fara nicio deduplicare, fiecare livrare devenea
+    // un "client" separat in preview SI la server (fleet_import_clients
+    // face un insert simplu, fara upsert) - 20713 randuri in loc de
+    // cateva sute de clienti reali. Dedupe aici, inainte de preview,
+    // dupa client_code cand exista (acelasi cod = acelasi client,
+    // indiferent de document); fara cod (export facut manual, fara
+    // coduri), dedupe dupa nume+indirizzo - cel mai complet rand
+    // gasit (campuri goale completate din randurile urmatoare cu
+    // acelasi identificator) e cel care ramane.
+    function dedupeImportedRows(rows) {
+      var order = [];
+      var byKey = {};
+      rows.forEach(function (r) {
+        var key = (r.client_code || '').trim().toLowerCase();
+        if (!key) key = 'n:' + (r.name || '').trim().toLowerCase() + '|' + (r.address || '').trim().toLowerCase();
+        if (!byKey[key]) {
+          byKey[key] = {};
+          order.push(key);
+        }
+        var merged = byKey[key];
+        Object.keys(r).forEach(function (field) {
+          if (r[field] && !merged[field]) merged[field] = r[field];
+        });
+      });
+      return order.map(function (key) { return byKey[key]; });
+    }
     document.getElementById('openImportClientsBtn').addEventListener('click', function () {
       document.getElementById('importClientsFileInput').click();
     });
@@ -4160,14 +4191,14 @@
           var headers = Object.keys(rows[0]);
           var fieldByHeader = {};
           headers.forEach(function (h) { fieldByHeader[h] = guessFieldForHeader(h); });
-          importParsedRows = rows.map(function (r) {
+          importParsedRows = dedupeImportedRows(rows.map(function (r) {
             var out = {};
             headers.forEach(function (h) {
               var field = fieldByHeader[h];
               if (field) out[field] = (r[h] || '').toString().trim();
             });
             return out;
-          }).filter(function (r) { return r.name; }); // fara nume, randul nu poate deveni un client
+          }).filter(function (r) { return r.name; })); // fara nume, randul nu poate deveni un client
           openImportPreview(rows.length, importParsedRows, headers, fieldByHeader);
         } catch (err) {
           alert('Impossibile leggere questo file. Verifica che sia un Excel, CSV o ODS valido.');
@@ -4181,7 +4212,7 @@
       var skipped = totalRows - parsedRows.length;
       document.getElementById('importClientsSummary').textContent =
         parsedRows.length + ' client' + (parsedRows.length === 1 ? 'e pronto' : 'i pronti') + ' per l\'importazione' +
-        (skipped ? ' — ' + skipped + ' riga/e saltate (nome mancante)' : '') + '.';
+        (skipped ? ' — ' + skipped + ' riga/e saltate (nome mancante o duplicato)' : '') + '.';
       var unmatched = headers.filter(function (h) { return !fieldByHeader[h]; });
       var body = document.getElementById('importClientsPreviewBody');
       var html = '';
