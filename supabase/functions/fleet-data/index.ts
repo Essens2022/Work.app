@@ -311,6 +311,43 @@ Deno.serve(async (req) => {
       return periods.some((p) => when >= p.start && when < p.end);
     }
 
+    // REAL BUG, gasit in audit ("aplicatia noastra este prea
+    // dificila... logica gresita"): rapoartele proprietarului
+    // (fleet_get_deliveries/fleet_get_report/fleet_export_backup) cititeau
+    // DOAR din driver_deliveries - populata exclusiv cand soferul
+    // "arhiveaza" cursa in stilul vechi al aplicatiei (app.js). Fluxul
+    // nou (incarcare borderou + marcare livrat/nereusit pe
+    // fleet_delivery_items, folosit de orice flota care a trecut la
+    // clienti/borderouri) nu ajungea NICIODATA in rapoarte - soferul
+    // marca "livrat", proprietarul vedea zero livrari in ziua respectiva.
+    // Functia de mai jos citeste livrarile reale din fleet_delivery_items
+    // (status='delivered') si le aduce in ACELASI FORMAT ca un rand din
+    // driver_deliveries, ca cele trei rapoarte sa poata pur si simplu
+    // combina ambele surse, fara sa schimbe nimic din ce functiona deja
+    // pentru soferii care inca arhiveaza cursa in stilul vechi.
+    async function getDeliveredItemsFromNewFlow(fleetId: string, emails: string[], nameByEmail: Record<string, string>, dateFrom?: string, dateTo?: string) {
+      if (!emails.length) return [] as any[];
+      let q = supabase.from('fleet_delivery_items')
+        .select('client_name, delivered_at, delivery_date, assigned_driver_email, fleet_clients(address, city, cap, province)')
+        .eq('fleet_id', fleetId).eq('status', 'delivered').not('delivered_at', 'is', null)
+        .in('assigned_driver_email', emails);
+      if (dateFrom) q = q.gte('delivery_date', dateFrom);
+      if (dateTo) q = q.lte('delivery_date', dateTo);
+      const { data } = await q;
+      return (data || []).map((it: any) => {
+        const client = it.fleet_clients;
+        const addressParts = client ? [client.address, client.cap, client.city, client.province].filter(Boolean) : [];
+        return {
+          client_nome: it.client_name,
+          client_indirizzo: addressParts.length ? addressParts.join(', ') : null,
+          delivery_date: it.delivery_date,
+          completed_at: it.delivered_at,
+          driver_nome: nameByEmail[it.assigned_driver_email] || it.assigned_driver_email,
+          driver_email: it.assigned_driver_email,
+        };
+      });
+    }
+
     if (action === 'fleet_get_dashboard') {
       const resolved = await requireFleet(body.slug, body.password);
       if (!resolved) return json({ ok: false, reason: 'auth' }, 401);
@@ -422,13 +459,17 @@ Deno.serve(async (req) => {
       const nameByEmail: Record<string, string> = {};
       (activity || []).forEach((a: any) => { nameByEmail[a.account_email] = a.nome; });
 
-      const result = deliveries.map((d: any) => ({
+      const legacyResult = deliveries.map((d: any) => ({
         client_nome: d.client_nome,
         client_indirizzo: d.client_indirizzo,
         completed_at: d.completed_at,
         driver_nome: nameByEmail[d.account_email] || d.account_email,
         driver_email: d.account_email,
       }));
+      const newFlowResult = await getDeliveredItemsFromNewFlow(resolved.fleet.id, targetEmails, nameByEmail, body.date_from, body.date_to);
+      const result = legacyResult.concat(newFlowResult)
+        .sort((a: any, b: any) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime())
+        .slice(0, 200);
 
       return json({ ok: true, deliveries: result });
     }
@@ -579,6 +620,12 @@ Deno.serve(async (req) => {
 
       const { data: sheets } = emails.length ? await supabase.from('driver_sheets_summary').select('*').in('account_email', emails) : { data: [] };
       const { data: deliveriesRaw } = emails.length ? await supabase.from('driver_deliveries').select('*').in('account_email', emails).order('completed_at', { ascending: false }) : { data: [] };
+      const simpleNameByEmail: Record<string, string> = {};
+      Object.keys(nameByEmail).forEach((e) => { simpleNameByEmail[e] = nameByEmail[e].nome || e; });
+      // vezi getDeliveredItemsFromNewFlow mai sus - altfel backup-ul nu
+      // contine deloc livrarile marcate prin fluxul nou (borderou +
+      // status), chiar daca sunt singurele reale pentru acea flota.
+      const newFlowDelivered = emails.length ? await getDeliveredItemsFromNewFlow(fleet.id, emails, simpleNameByEmail) : [];
 
       const drivers = emails.map((email: string) => {
         const periods = periodsByEmail[email];
@@ -604,7 +651,9 @@ Deno.serve(async (req) => {
           .map((d: any) => ({
             client_nome: d.client_nome, client_indirizzo: d.client_indirizzo, delivery_date: d.delivery_date, completed_at: d.completed_at,
             driver_nome: driverNome,
-          }));
+          }))
+          .concat(newFlowDelivered.filter((d: any) => d.driver_email === email && fallsInAnyPeriod([currentPeriod], new Date(d.completed_at))))
+          .sort((a: any, b: any) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime());
         return {
           account_email: email,
           nome: driverNome,
@@ -891,6 +940,10 @@ Deno.serve(async (req) => {
       (activity || []).forEach((a: any) => { nameByEmail[a.account_email] = a.nome; });
 
       const { data: deliveriesRaw } = await supabase.from('driver_deliveries').select('account_email, delivery_date, completed_at').in('account_email', emails).gte('delivery_date', monthStart).lt('delivery_date', monthEnd);
+      // vezi getDeliveredItemsFromNewFlow mai sus - fara asta, un sofer
+      // care lucreaza doar prin fluxul nou (borderou + status) aparea
+      // in Bilancio cu 0 zile de consegna, desi a livrat efectiv.
+      const newFlowDelivered = await getDeliveredItemsFromNewFlow(resolved.fleet.id, emails, nameByEmail, monthStart, monthEnd);
 
       const drivers = emails.map((email: string) => {
         const mySheetsRaw = (sheets || []).filter((s: any) => s.account_email === email);
@@ -904,10 +957,12 @@ Deno.serve(async (req) => {
         const totalKm = mySheets.reduce((sum: number, s: any) => sum + (Number(s.total_km) || 0), 0);
         const totalGiorni = mySheets.reduce((sum: number, s: any) => sum + (Number(s.giorni_count) || 0), 0);
         const myDeliveries = (deliveriesRaw || []).filter((d: any) => d.account_email === email && fallsInAnyPeriod(periodsByEmail[email], new Date(d.completed_at)));
+        const myNewFlowDates = newFlowDelivered.filter((d: any) => d.driver_email === email).map((d: any) => d.delivery_date);
+        const consegneDates = Array.from(new Set(myDeliveries.map((d: any) => d.delivery_date).concat(myNewFlowDates)));
         return {
           account_email: email, nome: nameByEmail[email] || email,
           total_km: totalKm, total_giorni: totalGiorni,
-          consegne_dates: myDeliveries.map((d: any) => d.delivery_date),
+          consegne_dates: consegneDates,
         };
       });
 
@@ -1203,35 +1258,81 @@ Deno.serve(async (req) => {
     // asteptat sugestia), acel sofer e folosit ca atare, cu
     // assignment_source: 'manual' - sugestia de zona nu il mai
     // suprascrie niciodata pe cel ales manual.
+    // REAL BUG, gasit direct ("de ce imi arata ca sunt peste 20k
+    // clienti?"): nici adaugarea unui singur client, nici importul in
+    // masa, nu verificau daca acel client_code exista deja in flota -
+    // un reimport al aceluiasi export (ex. luna urmatoare, cu adrese
+    // actualizate) crea clienti noi duplicati in loc sa actualizeze
+    // randul existent. Acum (vezi constrangerea unica fleet_id+
+    // client_code din baza de date) ambele cai folosesc aceeasi functie
+    // de upsert - "upsertFleetClients" mai jos - care, pentru un cod
+    // deja cunoscut, PASTREAZA neschimbat soferul deja asignat (manual
+    // sau din regula de zona) si doar actualizeaza datele informative
+    // (nume/adresa/comune/cap/provincie/telefon). Un client fara cod
+    // (introdus manual, fara export) nu se potriveste niciodata cu
+    // altul - ramane mereu un rand nou, ca inainte.
+    async function upsertFleetClients(fleetId: string, rawRows: any[], manualOverride?: { assigned_driver_email: string | null }) {
+      const rows = rawRows.filter((r: any) => (r.name || '').trim());
+      if (!rows.length) return { data: [] as any[], error: null, added: 0, updated: 0 };
+
+      const { data: rules } = await supabase.from('fleet_zone_rules').select('comune, driver_email').eq('fleet_id', fleetId);
+      const driverByComune: Record<string, string> = {};
+      (rules || []).forEach((r: any) => { driverByComune[r.comune.trim().toLowerCase()] = r.driver_email; });
+
+      const codes = rows.map((r: any) => (r.client_code || '').trim()).filter(Boolean);
+      const existingByCode: Record<string, any> = {};
+      if (codes.length) {
+        const { data: existing } = await supabase.from('fleet_clients')
+          .select('client_code, assigned_driver_email, assignment_source')
+          .eq('fleet_id', fleetId).in('client_code', codes);
+        (existing || []).forEach((c: any) => { existingByCode[c.client_code] = c; });
+      }
+
+      let added = 0, updated = 0;
+      const toUpsert = rows.map((r: any) => {
+        const comune = (r.comune || '').trim() || null;
+        const code = (r.client_code || '').trim() || null;
+        const existing = code ? existingByCode[code] : null;
+        let assignedDriverEmail: string | null;
+        let assignmentSource: string;
+        if (manualOverride && manualOverride.assigned_driver_email) {
+          assignedDriverEmail = manualOverride.assigned_driver_email;
+          assignmentSource = 'manual';
+        } else if (existing) {
+          assignedDriverEmail = existing.assigned_driver_email;
+          assignmentSource = existing.assignment_source;
+        } else {
+          const suggested = comune ? driverByComune[comune.toLowerCase()] : undefined;
+          assignedDriverEmail = suggested || null;
+          assignmentSource = 'pending';
+        }
+        if (existing) updated++; else added++;
+        return {
+          fleet_id: fleetId, name: (r.name || '').trim(),
+          client_code: code,
+          address: (r.address || '').trim() || null, city: (r.city || '').trim() || null,
+          comune, cap: (r.cap || '').trim() || null, province: (r.province || '').trim() || null,
+          phone: (r.phone || '').trim() || null,
+          note: r.note !== undefined ? ((r.note || '').toString().slice(0, 500) || null) : undefined,
+          assigned_driver_email: assignedDriverEmail,
+          assignment_source: assignmentSource,
+          updated_at: new Date().toISOString(),
+        };
+      });
+      const { data, error } = await supabase.from('fleet_clients')
+        .upsert(toUpsert, { onConflict: 'fleet_id,client_code' }).select();
+      return { data: data || [], error, added, updated };
+    }
+
     if (action === 'fleet_add_client') {
       const resolved = await requireFleet(body.slug, body.password, 'owner');
       if (!resolved) return json({ ok: false, reason: 'auth' }, 401);
       const name = (body.name || '').trim();
       if (!name) return json({ error: 'name obbligatorio' }, 400);
-      const comune = (body.comune || '').trim() || null;
       const manualDriverEmail = (body.assigned_driver_email || '').trim().toLowerCase() || null;
-
-      let assignedDriverEmail = manualDriverEmail;
-      let assignmentSource = manualDriverEmail ? 'manual' : 'pending';
-      if (!manualDriverEmail && comune) {
-        const { data: rule } = await supabase.from('fleet_zone_rules').select('driver_email').eq('fleet_id', resolved.fleet.id).ilike('comune', comune).maybeSingle();
-        if (rule) { assignedDriverEmail = rule.driver_email; assignmentSource = 'pending'; }
-      }
-
-      const { data, error } = await supabase.from('fleet_clients').insert({
-        fleet_id: resolved.fleet.id, name,
-        client_code: (body.client_code || '').trim() || null,
-        address: (body.address || '').trim() || null,
-        city: (body.city || '').trim() || null,
-        comune, cap: (body.cap || '').trim() || null,
-        province: (body.province || '').trim() || null,
-        phone: (body.phone || '').trim() || null,
-        note: (body.note || '').toString().slice(0, 500) || null,
-        assigned_driver_email: assignedDriverEmail,
-        assignment_source: assignmentSource,
-      }).select().single();
+      const { data, error } = await upsertFleetClients(resolved.fleet.id, [body], { assigned_driver_email: manualDriverEmail });
       if (error) return json({ error: error.message }, 500);
-      return json({ ok: true, client: data });
+      return json({ ok: true, client: data[0] });
     }
 
     // Cerut direct ("importa Excel"): clientul trimite deja lista
@@ -1244,29 +1345,10 @@ Deno.serve(async (req) => {
       if (!resolved) return json({ ok: false, reason: 'auth' }, 401);
       const rows = Array.isArray(body.clients) ? body.clients : [];
       if (!rows.length) return json({ error: 'nessun cliente da importare' }, 400);
-
-      const { data: rules } = await supabase.from('fleet_zone_rules').select('comune, driver_email').eq('fleet_id', resolved.fleet.id);
-      const driverByComune: Record<string, string> = {};
-      (rules || []).forEach((r: any) => { driverByComune[r.comune.trim().toLowerCase()] = r.driver_email; });
-
-      const toInsert = rows.filter((r: any) => (r.name || '').trim()).map((r: any) => {
-        const comune = (r.comune || '').trim() || null;
-        const suggested = comune ? driverByComune[comune.toLowerCase()] : undefined;
-        return {
-          fleet_id: resolved.fleet.id, name: (r.name || '').trim(),
-          client_code: (r.client_code || '').trim() || null,
-          address: (r.address || '').trim() || null, city: (r.city || '').trim() || null,
-          comune, cap: (r.cap || '').trim() || null, province: (r.province || '').trim() || null,
-          phone: (r.phone || '').trim() || null,
-          assigned_driver_email: suggested || null,
-          assignment_source: suggested ? 'pending' : 'pending',
-        };
-      });
-      if (!toInsert.length) return json({ error: 'nessuna riga valida (name obbligatorio)' }, 400);
-
-      const { data, error } = await supabase.from('fleet_clients').insert(toInsert).select();
+      const { data, error, added, updated } = await upsertFleetClients(resolved.fleet.id, rows);
+      if (!data.length && !error) return json({ error: 'nessuna riga valida (name obbligatorio)' }, 400);
       if (error) return json({ error: error.message }, 500);
-      return json({ ok: true, imported: data.length });
+      return json({ ok: true, imported: data.length, added, updated });
     }
 
     if (action === 'fleet_update_client') {
@@ -1374,10 +1456,28 @@ Deno.serve(async (req) => {
       // usor diferit intre cele doua fisiere), si doar daca nu exista
       // cod sau nu se gaseste, cade inapoi pe potrivirea dupa nume,
       // ca inainte.
-      const toInsert = rows.filter((r: any) => (r.client_name || '').trim()).map((r: any) => {
+      //
+      // REAL BUG, aceeasi clasa ca la clienti: reincarcarea aceluiasi
+      // borderou pentru aceeasi zi (fisier corectat, sau doua fisiere
+      // care se suprapun) crea randuri noi de fiecare data, in loc sa
+      // actualizeze randul existent - livrari duplicate la sofer. Acum
+      // (vezi coloana generata dedup_key + constrangerea unica din baza
+      // de date) un rand cu acelasi cod/nume, in aceeasi zi, in aceeasi
+      // flota, se identifica si se ACTUALIZEAZA doar cu datele venite
+      // din fisier (marfa, cod, potrivire client) - starea deja marcata
+      // de sofer (status, load_status si orele asociate) NU se toate
+      // suprascrie niciodata de un reimport.
+      const { data: existingItems } = await supabase.from('fleet_delivery_items')
+        .select('dedup_key, status, status_reason, delivered_at, load_status, load_skip_reason, loaded_at')
+        .eq('fleet_id', resolved.fleet.id).eq('delivery_date', deliveryDate);
+      const existingByKey: Record<string, any> = {};
+      (existingItems || []).forEach((it: any) => { existingByKey[it.dedup_key] = it; });
+
+      const toUpsert = rows.filter((r: any) => (r.client_name || '').trim()).map((r: any) => {
         const codeKey = (r.client_code || '').trim().toLowerCase();
         const nameKey = (r.client_name || '').trim().toLowerCase();
         const matched = (codeKey && clientByCode[codeKey]) || clientByName[nameKey];
+        const existing = existingByKey[codeKey || nameKey];
         return {
           fleet_id: resolved.fleet.id,
           delivery_date: deliveryDate,
@@ -1387,13 +1487,19 @@ Deno.serve(async (req) => {
           merchandise_note: (r.merchandise_note || '').trim() || null,
           bolle: Array.isArray(r.bolle) && r.bolle.length ? r.bolle : null,
           assigned_driver_email: matched ? matched.assigned_driver_email : null,
-          status: 'pending',
-          load_status: 'pending',
+          status: existing ? existing.status : 'pending',
+          status_reason: existing ? existing.status_reason : null,
+          delivered_at: existing ? existing.delivered_at : null,
+          load_status: existing ? existing.load_status : 'pending',
+          load_skip_reason: existing ? existing.load_skip_reason : null,
+          loaded_at: existing ? existing.loaded_at : null,
+          updated_at: new Date().toISOString(),
         };
       });
-      if (!toInsert.length) return json({ error: 'nessuna riga valida (nome cliente obbligatorio)' }, 400);
+      if (!toUpsert.length) return json({ error: 'nessuna riga valida (nome cliente obbligatorio)' }, 400);
 
-      const { data, error } = await supabase.from('fleet_delivery_items').insert(toInsert).select();
+      const { data, error } = await supabase.from('fleet_delivery_items')
+        .upsert(toUpsert, { onConflict: 'fleet_id,delivery_date,dedup_key' }).select();
       if (error) return json({ error: error.message }, 500);
       const unmatched = data.filter((d: any) => !d.client_id).length;
       return json({ ok: true, imported: data.length, unmatched });
