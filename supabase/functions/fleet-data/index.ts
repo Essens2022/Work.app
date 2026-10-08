@@ -7,10 +7,28 @@ import webpush from 'npm:web-push@3';
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
-const ADMIN_PASSWORD = 'Essens2022';
+// REAL BUG, semnalat direct ("nicio parola nu poate fi scrisa direct
+// in cod unde o pot vedea altii, codul este public"): parola de
+// super-admin era scrisa in clar chiar aici, pe cand admin-data (alta
+// functie, acelasi panou) o citeste deja din site_settings - singura
+// locatie reala, unde e si schimbabila din aplicatie (change_password).
+// Eliminata complet din cod; verificarePassword mai jos citeste acum
+// din aceeasi tabela, ca orice schimbare de parola facuta din panou sa
+// se aplice automat aici si la fleet_* fara nicio dubla intretinere.
+async function getAdminPassword(supabase: ReturnType<typeof createClient>): Promise<string> {
+  const { data } = await supabase.from('site_settings').select('value').eq('key', 'admin_password').maybeSingle();
+  return (data && data.value) || '';
+}
 
+// Cheia privata VAPID (semnatura notificarilor push) e un secret real
+// de infrastructura, nu o parola a utilizatorului - nu are sens in
+// site_settings (nu e ceva schimbabil din panoul de admin), dar nici
+// scrisa in cod, vizibila oricui are acces la repo. Mutata ca secret
+// de Edge Function (variabila de mediu), la fel ca SUPABASE_URL si
+// SERVICE_ROLE_KEY de mai sus. Cheia PUBLICA ramane in cod - e menita
+// sa fie publica, de altfel e deja expusa si in clientul din browser.
 const VAPID_PUBLIC = 'BE8wkq3SQmoE8L8x0pFVwYaLym1EYB14_NABB1qEiVOi0VvOpUDYAODObA5Lirh9Kfy6C97ExU5btOYLG7uHvgk';
-const VAPID_PRIVATE = 'ugwrrcpzMepG4VJPCGPXpcErCbbVTrvDI7NBgyhqCzQ';
+const VAPID_PRIVATE = Deno.env.get('VAPID_PRIVATE_KEY')!;
 webpush.setVapidDetails('mailto:info@adbsmart.it', VAPID_PUBLIC, VAPID_PRIVATE);
 
 function corsHeaders() {
@@ -131,7 +149,7 @@ Deno.serve(async (req) => {
   try {
     if (action === 'admin_create_fleet') {
       if (await isRateLimited('admin')) return json({ error: 'Troppi tentativi — riprova tra qualche minuto.' }, 429);
-      if (body.password !== ADMIN_PASSWORD) { await recordFailedAttempt('admin'); return json({ error: 'Password errata' }, 401); }
+      if (body.password !== (await getAdminPassword(supabase))) { await recordFailedAttempt('admin'); return json({ error: 'Password errata' }, 401); }
 
       const name = (body.name || '').trim();
       const ownerEmail = (body.owner_email || '').trim().toLowerCase();
@@ -164,7 +182,7 @@ Deno.serve(async (req) => {
 
     if (action === 'admin_list_fleets') {
       if (await isRateLimited('admin')) return json({ error: 'Troppi tentativi — riprova tra qualche minuto.' }, 429);
-      if (body.password !== ADMIN_PASSWORD) { await recordFailedAttempt('admin'); return json({ error: 'Password errata' }, 401); }
+      if (body.password !== (await getAdminPassword(supabase))) { await recordFailedAttempt('admin'); return json({ error: 'Password errata' }, 401); }
 
       const { data: fleets, error } = await supabase.from('fleets').select('id, name, slug, owner_email, created_at, disabled_at').order('created_at', { ascending: false });
       if (error) return json({ error: error.message }, 500);
@@ -215,7 +233,7 @@ Deno.serve(async (req) => {
 
     if (action === 'admin_toggle_fleet_disabled') {
       if (await isRateLimited('admin')) return json({ error: 'Troppi tentativi — riprova tra qualche minuto.' }, 429);
-      if (body.password !== ADMIN_PASSWORD) { await recordFailedAttempt('admin'); return json({ error: 'Password errata' }, 401); }
+      if (body.password !== (await getAdminPassword(supabase))) { await recordFailedAttempt('admin'); return json({ error: 'Password errata' }, 401); }
       const fleetId = body.fleet_id;
       if (!fleetId) return json({ error: 'fleet_id mancante' }, 400);
       const { data: fleet } = await supabase.from('fleets').select('disabled_at').eq('id', fleetId).maybeSingle();
@@ -228,7 +246,7 @@ Deno.serve(async (req) => {
 
     if (action === 'admin_delete_fleet') {
       if (await isRateLimited('admin')) return json({ error: 'Troppi tentativi — riprova tra qualche minuto.' }, 429);
-      if (body.password !== ADMIN_PASSWORD) { await recordFailedAttempt('admin'); return json({ error: 'Password errata' }, 401); }
+      if (body.password !== (await getAdminPassword(supabase))) { await recordFailedAttempt('admin'); return json({ error: 'Password errata' }, 401); }
       const fleetId = body.fleet_id;
       if (!fleetId) return json({ error: 'fleet_id mancante' }, 400);
       const { data: fleet } = await supabase.from('fleets').select('id, name').eq('id', fleetId).maybeSingle();
