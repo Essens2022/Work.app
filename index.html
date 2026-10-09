@@ -2520,7 +2520,20 @@
     <div class="grabber"></div>
     <div class="modal-title">Scontrini carburante</div>
     <div class="modal-sub" id="fuel-sub"></div>
-    <input type="file" accept="image/*" capture="environment" id="in-fuel-photo" style="display:none;">
+    <!-- REAL BUG, raportat direct ("de ce oare nu poate", poza de pe
+         Android pentru bonul de gazolio): capture="environment" forteaza
+         Android sa deschida direct camera foto in modul "capture intent",
+         nu alegatorul normal de fisiere - pe multe telefoane Android
+         (mai ales cu senzor de rezolutie mare, sau RAM putin), predarea
+         pozei inapoi catre WebView prin acest intent esueaza chiar cu
+         eroarea din screenshot ("Impossibile completare l'operazione
+         precedente. Memoria insufficiente."), inainte sa ajunga macar la
+         vreun cod din aplicatie. Eliminat capture, la fel ca restul
+         inputurilor de poze din app (ex. borderoloFileInput) - Android
+         arata alegatorul normal (Fotocamera/Galleria/File), unde
+         "Fotocamera" ramane o optiune, dar predarea pozei se face prin
+         calea obisnuita, nu prin intent-ul de capture care esueaza. -->
+    <input type="file" accept="image/*" id="in-fuel-photo" style="display:none;">
     <div class="giro-list" id="fuel-list"></div>
     <div class="modal-btnrow">
       <button class="btn btn-ghost" id="fuel-close">Chiudi</button>
