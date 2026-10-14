@@ -2597,7 +2597,15 @@
       <div id="fuel-camera-stage" style="position:relative;display:inline-block;max-width:100%;background:#000;border-radius:12px;overflow:hidden;">
         <video id="fuel-camera-video" autoplay playsinline muted style="display:block;max-width:100%;max-height:60vh;width:auto;height:auto;"></video>
         <div id="fuel-camera-guide" style="position:absolute;border:3px solid var(--accent);border-radius:10px;box-shadow:0 0 0 2000px rgba(0,0,0,.45);pointer-events:none;"></div>
-        <button type="button" id="fuel-camera-flash-btn" aria-label="Torcia" style="display:none;position:absolute;top:10px;left:10px;width:34px;height:34px;border-radius:50%;border:none;background:rgba(0,0,0,.5);color:#fff;font-size:15px;align-items:center;justify-content:center;cursor:pointer;">⚡</button>
+        <!-- Cerut direct, dupa o poza reala de pe telefon ("verifica mai
+             bine... bine pozitionat"): acest buton si X-ul din colt
+             (.modal-close-x) aratau la inaltimi vizibil diferite - X-ul
+             e pozitionat fata de .sheet-panel (top:14px), dar acest buton
+             fata de #fuel-camera-stage, care incepe cu 10px MAI JOS decat
+             panoul insusi (padding-top al .sheet-panel) - 14px - 10px =
+             4px e valoarea care ii aliniaza de fapt pe amandoi la aceeasi
+             inaltime vizuala. -->
+        <button type="button" id="fuel-camera-flash-btn" aria-label="Torcia" style="display:none;position:absolute;top:4px;left:10px;width:30px;height:30px;border-radius:50%;border:none;background:rgba(0,0,0,.5);color:#fff;font-size:14px;align-items:center;justify-content:center;cursor:pointer;">⚡</button>
         <p style="position:absolute;left:0;right:0;bottom:10px;margin:0;color:#fff;font-size:12.5px;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,.7);pointer-events:none;">Inquadra lo scontrino dentro il riquadro</p>
       </div>
     </div>
