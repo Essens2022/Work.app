@@ -10150,11 +10150,22 @@
   // crop screen below, and only THEN is it converted to a small black-
   // and-white "document scan" and stored as base64 in localStorage.
   // Works fully offline, like the rest of the app.
-  var cropRawImage = null; // the freshly-picked, not-yet-cropped photo
+  var cropRawImage = null; // the freshly-picked, not-yet-cropped photo — never itself rotated
   var cropRect = null; // current crop rectangle, in on-screen pixels: {left,top,right,bottom}
   var cropDragMode = null; // null | 'move' | 'tl' | 'tr' | 'bl' | 'br'
   var cropDragStart = null;
   var fuelTargetDay = null; // which day the photo currently being added/replaced belongs to
+  // Cerut direct ("sofer-ul face poza stramba... ii raman parti in
+  // plus la taiere, nu a inteles cum sa tina telefonul"): un dreptunghi
+  // drept nu poate incadra corect un bon fotografiat inclinat, oricat
+  // l-ai trage de colturi - singura reparare reala e sa poata indrepta
+  // poza insasi, aici. cropQuarterTurns (butonul "Ruota 90°") si
+  // cropFineDeg (glisorul "Raddrizza") se aduna la rotatia totala
+  // aplicata - vezi cropTotalDeg().
+  var cropQuarterTurns = 0;
+  var cropFineDeg = 0;
+  var cropPreviewRafPending = false;
+  function cropTotalDeg() { return cropQuarterTurns * 90 + cropFineDeg; }
 
   function loadPickedImage(file) {
     return new Promise(function (resolve, reject) {
@@ -10500,7 +10511,7 @@
     if (!file) return;
     loadPickedImage(file).then(function (img) {
       cropRawImage = img;
-      openCropScreen(img);
+      openCropScreen();
     }).catch(function () { toast('Impossibile leggere la foto'); });
   });
 
@@ -10508,41 +10519,81 @@
   /* Receipt crop screen — a simple rectangle (not free 4-corner        */
   /* perspective warp) the person drags to frame just the receipt.      */
   /* ---------------------------------------------------------------- */
-  function openCropScreen(img) {
-    var imgEl = document.getElementById('crop-img');
-    imgEl.src = img.src;
+  // cropRawImage (an already-decoded Image — loadPickedImage only ever
+  // resolves after its own 'onload') is drawn, rotated, onto the visible
+  // canvas here at a capped preview resolution, for speed while dragging
+  // the straighten slider - the full-resolution rotated version is only
+  // ever rebuilt once, at "Conferma" (see the crop-confirm handler),
+  // never while just previewing.
+  function renderCropPreview() {
+    if (!cropRawImage) return;
+    var rad = cropTotalDeg() * Math.PI / 180;
+    var iw = cropRawImage.naturalWidth, ih = cropRawImage.naturalHeight;
+    var cos = Math.abs(Math.cos(rad)), sin = Math.abs(Math.sin(rad));
+    var boundW = iw * cos + ih * sin, boundH = iw * sin + ih * cos;
+    var PREVIEW_MAX = 900; // plenty for on-screen framing — not the saved resolution
+    var scale = Math.min(1, PREVIEW_MAX / Math.max(boundW, boundH));
+    var canvas = document.getElementById('crop-img');
+    canvas.width = Math.max(1, Math.round(boundW * scale));
+    canvas.height = Math.max(1, Math.round(boundH * scale));
+    var ctx = canvas.getContext('2d');
+    ctx.save();
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(rad);
+    ctx.scale(scale, scale);
+    ctx.drawImage(cropRawImage, -iw / 2, -ih / 2, iw, ih);
+    ctx.restore();
+  }
+  // Coalesces rapid-fire slider 'input' events into one redraw per frame
+  // — dragging the slider would otherwise redraw far more often than the
+  // screen can even show, making it feel sluggish on an older phone.
+  function scheduleCropPreviewUpdate(alsoResetRect) {
+    if (cropPreviewRafPending) return;
+    cropPreviewRafPending = true;
+    requestAnimationFrame(function () {
+      cropPreviewRafPending = false;
+      renderCropPreview();
+      if (alsoResetRect) initCropRect();
+    });
+  }
+  function openCropScreen() {
+    cropQuarterTurns = 0;
+    cropFineDeg = 0;
+    document.getElementById('crop-straighten-slider').value = 0;
     document.getElementById('modal-crop').classList.add('open');
-    cropRect = null; // reset — guards a premature "Conferma" tap while the photo is still loading
-    // Waiting on 'load'/'complete' (the image genuinely finished decoding
-    // and laying out) rather than just a couple of animation frames — a
-    // real camera photo can take real time to decode, especially on an
-    // older phone, and a fixed short delay isn't reliable: tapping
-    // "Conferma" before the crop rectangle was actually positioned left
-    // it silently doing nothing.
-    function afterImageReady() {
-      requestAnimationFrame(function () {
-        requestAnimationFrame(initCropRect);
-      });
-    }
-    if (imgEl.complete && imgEl.naturalWidth > 0) {
-      afterImageReady();
-    } else {
-      imgEl.onload = afterImageReady;
-    }
+    cropRect = null; // reset — guards a premature "Conferma" tap before the stage has actually laid out
+    renderCropPreview();
+    // One frame so the canvas's new on-screen size (just set above) is
+    // actually reflected in clientWidth/clientHeight before measuring it.
+    requestAnimationFrame(initCropRect);
   }
   function initCropRect() {
     var stage = document.getElementById('crop-stage');
-    var imgEl = document.getElementById('crop-img');
-    var stageW = stage.clientWidth, stageH = imgEl.clientHeight;
-    // Defensive extra safety net: if the stage/image somehow haven't
-    // actually laid out yet (0 size), retry shortly instead of leaving
-    // cropRect degenerate — this should be rare now that openCropScreen
-    // waits for the image's own 'load' event, but costs nothing to guard.
+    var canvas = document.getElementById('crop-img');
+    var stageW = stage.clientWidth, stageH = canvas.clientHeight;
     if (stageW < 10 || stageH < 10) { setTimeout(initCropRect, 80); return; }
-    var marginX = stageW * 0.06, marginY = stageH * 0.06;
-    cropRect = { left: marginX, top: marginY, right: stageW - marginX, bottom: stageH - marginY };
+    // Cerut direct ("un patrat care ar da de inteles soferului cum sa
+    // incadreze corect bonul... deja liniile facute"): dreptunghiul
+    // implicit nu mai acopera aproape tot cadrul (vechiul 6% margine) -
+    // are acum FORMA unui bon real (ingust, inalt), centrat, ca soferul
+    // sa vada imediat, din prima, cum ar trebui sa arate incadrarea
+    // corecta, inainte sa atinga vreun colt.
+    var RECEIPT_RATIO = 0.46; // width / height
+    var maxW = stageW * 0.86, maxH = stageH * 0.86;
+    var w = maxW, h = w / RECEIPT_RATIO;
+    if (h > maxH) { h = maxH; w = h * RECEIPT_RATIO; }
+    var left = (stageW - w) / 2, top = (stageH - h) / 2;
+    cropRect = { left: left, top: top, right: left + w, bottom: top + h };
     renderCropRect();
   }
+  document.getElementById('crop-rotate90-btn').addEventListener('click', function () {
+    cropQuarterTurns = (cropQuarterTurns + 1) % 4;
+    scheduleCropPreviewUpdate(true); // the stage's own aspect ratio changes on a 90° turn — the old rect no longer makes sense, so it's re-centered fresh
+  });
+  document.getElementById('crop-straighten-slider').addEventListener('input', function (e) {
+    cropFineDeg = parseInt(e.target.value, 10) || 0;
+    scheduleCropPreviewUpdate(false); // a few degrees barely changes the stage's bounding box — keep whatever framing was already chosen
+  });
   function renderCropRect() {
     var r = document.getElementById('crop-rect');
     r.style.left = cropRect.left + 'px';
@@ -10601,6 +10652,8 @@
     document.getElementById('in-fuel-photo').value = ''; // allow picking the same file again
     cropRawImage = null;
     fuelTargetDay = null;
+    cropQuarterTurns = 0;
+    cropFineDeg = 0;
   });
   document.getElementById('crop-close-x').addEventListener('click', function () {
     document.getElementById('crop-cancel').click();
@@ -10611,15 +10664,34 @@
   document.getElementById('crop-confirm').addEventListener('click', function () {
     if (!cropRawImage || !fuelTargetDay) return;
     if (!cropRect) { toast('Un istante, la foto si sta ancora preparando…'); return; }
-    var imgEl = document.getElementById('crop-img');
-    var scaleX = cropRawImage.naturalWidth / imgEl.clientWidth;
-    var scaleY = cropRawImage.naturalHeight / imgEl.clientHeight;
+    var previewCanvas = document.getElementById('crop-img');
+
+    // Preview-ul de mai sus (renderCropPreview) e redus, doar pentru
+    // fluiditate la tragerea slider-ului - aici, o singura data, la
+    // Conferma, rotatia totala (90°-urile + ajustarea fina) se aplica
+    // din nou pe poza ORIGINALA, la rezolutie plina, inainte de taiere.
+    var rad = cropTotalDeg() * Math.PI / 180;
+    var iw = cropRawImage.naturalWidth, ih = cropRawImage.naturalHeight;
+    var cos = Math.abs(Math.cos(rad)), sin = Math.abs(Math.sin(rad));
+    var boundW = Math.max(1, Math.round(iw * cos + ih * sin));
+    var boundH = Math.max(1, Math.round(iw * sin + ih * cos));
+    var rotatedCanvas = document.createElement('canvas');
+    rotatedCanvas.width = boundW; rotatedCanvas.height = boundH;
+    var rctx = rotatedCanvas.getContext('2d');
+    rctx.save();
+    rctx.translate(boundW / 2, boundH / 2);
+    rctx.rotate(rad);
+    rctx.drawImage(cropRawImage, -iw / 2, -ih / 2, iw, ih);
+    rctx.restore();
+
+    var scaleX = rotatedCanvas.width / previewCanvas.clientWidth;
+    var scaleY = rotatedCanvas.height / previewCanvas.clientHeight;
     var sx = cropRect.left * scaleX, sy = cropRect.top * scaleY;
     var sw = (cropRect.right - cropRect.left) * scaleX, sh = (cropRect.bottom - cropRect.top) * scaleY;
 
     var srcCanvas = document.createElement('canvas');
     srcCanvas.width = Math.max(1, Math.round(sw)); srcCanvas.height = Math.max(1, Math.round(sh));
-    srcCanvas.getContext('2d').drawImage(cropRawImage, sx, sy, sw, sh, 0, 0, srcCanvas.width, srcCanvas.height);
+    srcCanvas.getContext('2d').drawImage(rotatedCanvas, sx, sy, sw, sh, 0, 0, srcCanvas.width, srcCanvas.height);
 
     var scontrino = processReceiptCanvas(srcCanvas);
     var monthKey = fuelMonthKey(fuelActiveMonth, fuelActiveYear);
@@ -10635,6 +10707,8 @@
     document.getElementById('in-fuel-photo').value = '';
     cropRawImage = null;
     fuelTargetDay = null;
+    cropQuarterTurns = 0;
+    cropFineDeg = 0;
   });
 
   function openDayEditor(sheet, day) {

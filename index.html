@@ -2599,16 +2599,32 @@
   <div class="sheet-panel" style="max-width:480px;">
     <button type="button" class="modal-close-x" id="crop-close-x" aria-label="Chiudi">×</button>
     <h3 style="margin:0 0 4px;">Inquadra lo scontrino</h3>
-    <p class="settings-driver-note" style="margin-top:0;">Trascina gli angoli per includere solo lo scontrino, escludendo il tavolo o altro intorno.</p>
+    <p class="settings-driver-note" style="margin-top:0;">Il riquadro mostra già la forma giusta per uno scontrino — trascina gli angoli se serve, oppure raddrizza la foto qui sotto se è venuta storta.</p>
     <div style="text-align:center;">
       <div id="crop-stage" style="position:relative;display:inline-block;max-width:100%;background:#000;border-radius:12px;overflow:hidden;touch-action:none;user-select:none;">
-        <img id="crop-img" src="" alt="" style="display:block;max-width:100%;max-height:52vh;width:auto;height:auto;pointer-events:none;">
+        <canvas id="crop-img" style="display:block;max-width:100%;max-height:52vh;width:auto;height:auto;pointer-events:none;"></canvas>
         <div id="crop-rect" style="position:absolute;border:2px solid var(--accent);box-shadow:0 0 0 2000px rgba(0,0,0,.5);cursor:move;">
           <div class="crop-handle" data-corner="tl" style="position:absolute;top:-14px;left:-14px;width:28px;height:28px;"></div>
           <div class="crop-handle" data-corner="tr" style="position:absolute;top:-14px;right:-14px;width:28px;height:28px;"></div>
           <div class="crop-handle" data-corner="bl" style="position:absolute;bottom:-14px;left:-14px;width:28px;height:28px;"></div>
           <div class="crop-handle" data-corner="br" style="position:absolute;bottom:-14px;right:-14px;width:28px;height:28px;"></div>
         </div>
+      </div>
+    </div>
+    <!-- Cerut direct ("deja liniile facute cand face chiar poza, ca sa
+         il adapteze corect"): camera e cea nativa a telefonului (nu
+         putem desena nimic peste ecranul ei), dar aici, chiar dupa
+         poza, soferul poate indrepta o poza stramba (motivul real
+         pentru care ii raman "parti negre" in plus la taiere - un
+         bon fotografiat usor inclinat nu poate fi incadrat corect de
+         un dreptunghi drept, oricat l-ar trage de colturi) - butonul
+         de rotire 90° pentru o poza tinuta pe lat, glisorul fin pentru
+         o inclinare mica. -->
+    <div style="display:flex;align-items:center;gap:10px;margin:12px 0 4px;">
+      <button type="button" class="btn btn-ghost" id="crop-rotate90-btn" style="flex:none;padding:8px 14px;font-size:13px;" aria-label="Ruota di 90 gradi">⟳ 90°</button>
+      <div style="flex:1;">
+        <label for="crop-straighten-slider" style="display:block;font-size:11px;color:#6B6A66;font-weight:700;text-transform:uppercase;letter-spacing:.02em;margin-bottom:2px;">Raddrizza</label>
+        <input type="range" id="crop-straighten-slider" min="-20" max="20" step="1" value="0" style="width:100%;accent-color:var(--accent);">
       </div>
     </div>
     <div class="modal-btnrow">
