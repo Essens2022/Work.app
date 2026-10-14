@@ -4143,6 +4143,37 @@
       });
       return best;
     }
+    // REAL BUG, gasit direct ("de ce imi arata ca sunt peste 20k
+    // clienti?"): exportul real folosit la testare (vezi
+    // IMPORT_FIELD_HINTS mai sus) are UN RAND PER DOCUMENT/LIVRARE
+    // (TPDOC/NRDOC/DTDOC), nu un rand per client - acelasi client
+    // (CDCLI) apare din nou la fiecare livrare primita, de multe ori
+    // pe cateva luni. Fara nicio deduplicare, fiecare livrare devenea
+    // un "client" separat in preview SI la server (fleet_import_clients
+    // face un insert simplu, fara upsert) - 20713 randuri in loc de
+    // cateva sute de clienti reali. Dedupe aici, inainte de preview,
+    // dupa client_code cand exista (acelasi cod = acelasi client,
+    // indiferent de document); fara cod (export facut manual, fara
+    // coduri), dedupe dupa nume+indirizzo - cel mai complet rand
+    // gasit (campuri goale completate din randurile urmatoare cu
+    // acelasi identificator) e cel care ramane.
+    function dedupeImportedRows(rows) {
+      var order = [];
+      var byKey = {};
+      rows.forEach(function (r) {
+        var key = (r.client_code || '').trim().toLowerCase();
+        if (!key) key = 'n:' + (r.name || '').trim().toLowerCase() + '|' + (r.address || '').trim().toLowerCase();
+        if (!byKey[key]) {
+          byKey[key] = {};
+          order.push(key);
+        }
+        var merged = byKey[key];
+        Object.keys(r).forEach(function (field) {
+          if (r[field] && !merged[field]) merged[field] = r[field];
+        });
+      });
+      return order.map(function (key) { return byKey[key]; });
+    }
     document.getElementById('openImportClientsBtn').addEventListener('click', function () {
       document.getElementById('importClientsFileInput').click();
     });
@@ -4160,14 +4191,14 @@
           var headers = Object.keys(rows[0]);
           var fieldByHeader = {};
           headers.forEach(function (h) { fieldByHeader[h] = guessFieldForHeader(h); });
-          importParsedRows = rows.map(function (r) {
+          importParsedRows = dedupeImportedRows(rows.map(function (r) {
             var out = {};
             headers.forEach(function (h) {
               var field = fieldByHeader[h];
               if (field) out[field] = (r[h] || '').toString().trim();
             });
             return out;
-          }).filter(function (r) { return r.name; }); // fara nume, randul nu poate deveni un client
+          }).filter(function (r) { return r.name; })); // fara nume, randul nu poate deveni un client
           openImportPreview(rows.length, importParsedRows, headers, fieldByHeader);
         } catch (err) {
           alert('Impossibile leggere questo file. Verifica che sia un Excel, CSV o ODS valido.');
@@ -4181,7 +4212,7 @@
       var skipped = totalRows - parsedRows.length;
       document.getElementById('importClientsSummary').textContent =
         parsedRows.length + ' client' + (parsedRows.length === 1 ? 'e pronto' : 'i pronti') + ' per l\'importazione' +
-        (skipped ? ' — ' + skipped + ' riga/e saltate (nome mancante)' : '') + '.';
+        (skipped ? ' — ' + skipped + ' riga/e saltate (nome mancante o duplicato)' : '') + '.';
       var unmatched = headers.filter(function (h) { return !fieldByHeader[h]; });
       var body = document.getElementById('importClientsPreviewBody');
       var html = '';
@@ -4790,11 +4821,30 @@
           if (it.status === 'not_delivered') return '<span class="chip" style="background:rgba(214,69,69,.15);color:#D64545;" title="' + esc(it.status_reason || '') + '">Non consegnato</span>';
           return '<span class="chip">In attesa</span>';
         };
+        // REAL BUG, gasit in audit ("aplicatia noastra este prea
+        // dificila... logica gresita"): fleet_update_delivery_item
+        // accepta deja assigned_driver_email pe server, dar niciun
+        // buton din admin nu-l chema vreodata - un rand "Da assegnare"
+        // (nume neidentificat in baza de clienti, sau client fara
+        // sofer asignat) ramanea blocat acolo pentru totdeauna, invizibil
+        // pentru orice sofer (vezi driver_list_today_deliveries, care
+        // filtreaza strict dupa assigned_driver_email). Acest select
+        // apare pe fiecare rand, nu doar la "Da assegnare" - util si
+        // cand randul s-a potrivit cu alt sofer decat cel corect.
+        var driverSelectHtml = function (it) {
+          var options = '<option value="">— da assegnare —</option>';
+          currentDrivers.forEach(function (d) {
+            var sel = d.account_email === it.assigned_driver_email ? ' selected' : '';
+            options += '<option value="' + esc(d.account_email) + '"' + sel + '>' + esc(d.nome || d.account_email) + '</option>';
+          });
+          return '<select class="borderolo-assign-select" data-id="' + esc(it.id) + '" style="font-size:12px;padding:5px 8px;border-radius:8px;border:1px solid var(--line);max-width:140px;">' + options + '</select>';
+        };
         var rowHtml = function (it) {
           return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line);">' +
             '<div style="flex:1;min-width:0;"><b>' + esc(it.client_name) + '</b>' + (it.client_code ? ' <span style="color:var(--ink-soft);font-size:12px;">(' + esc(it.client_code) + ')</span>' : '') +
             (it.merchandise_note ? '<div style="font-size:12px;color:var(--ink-soft);">' + esc(it.merchandise_note) + '</div>' : '') + '</div>' +
             statusChip(it) +
+            driverSelectHtml(it) +
             '<button class="borderolo-delete-btn" data-id="' + esc(it.id) + '" style="background:none;border:none;color:var(--ink-soft);cursor:pointer;" title="Rimuovi">✕</button>' +
           '</div>';
         };
@@ -4823,6 +4873,14 @@
             btn.addEventListener('click', function () {
               if (!confirm('Rimuovere questa riga dal borderò?')) return;
               call({ action: 'fleet_delete_delivery_item', slug: slug, password: password, item_id: btn.dataset.id }).then(function () {
+                renderBorderoloList(deliveryDate);
+              });
+            });
+          });
+          el.querySelectorAll('.borderolo-assign-select').forEach(function (sel) {
+            sel.addEventListener('change', function () {
+              call({ action: 'fleet_update_delivery_item', slug: slug, password: password, item_id: sel.dataset.id, assigned_driver_email: sel.value }).then(function (res) {
+                if (!res.ok) { alert('Impossibile assegnare l\'autista.'); return; }
                 renderBorderoloList(deliveryDate);
               });
             });
