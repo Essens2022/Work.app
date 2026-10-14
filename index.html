@@ -2573,22 +2573,32 @@
   </div>
 </div>
 
-<!-- Custom in-app camera — replaces the phone's native camera app when
-     taking a fuel receipt photo, so a level indicator (from the real tilt
-     sensor) and a framing guide can be shown live, helping the photo come
-     out straight before it even reaches the crop screen. -->
-<div class="modal-overlay" id="modal-camera">
-  <div class="camera-stage">
-    <video id="camera-video" autoplay playsinline muted></video>
-    <div class="camera-guide-frame"></div>
-    <div class="camera-level-wrap">
-      <div class="camera-level-track"><div class="camera-level-dot" id="camera-level-dot"></div></div>
-      <div class="camera-level-label" id="camera-level-label">Tieni il telefono dritto, parallelo allo scontrino</div>
+<!-- Cerut direct, de DOUA ori ("trebuie sa fie vizibil acest patrat CHIAR
+     IN TIMPUL fotografierii, nu dupa"): fotocamera proprie, in pagina,
+     folosita la poza bonului de gazolio, cu un ghid de incadrare (forma
+     unui bon) desenat peste imaginea live - acelasi reper vizual (si
+     aceeasi forma, RECEIPT_RATIO) ca pe ecranul de decupare de mai jos.
+     Daca fotocamera proprie nu e disponibila sau permisiunea e refuzata,
+     se cade direct pe alegatorul normal de fisiere (startFuelPhotoCapture,
+     in app.js) - niciodata blocat. Torta (blitz), cand telefonul o are,
+     dupa acelasi tipar deja folosit la fotocamera livrarilor
+     (dp-camera-flash-btn) - utila des, caci bonul de gazolio se
+     fotografiaza des pe intuneric, la pompa. -->
+<div class="modal-overlay center" id="modal-fuel-camera">
+  <div class="sheet-panel" style="max-width:480px;background:#111;">
+    <button type="button" class="modal-close-x" id="fuel-camera-close-x" aria-label="Chiudi" style="color:#fff;">×</button>
+    <div style="text-align:center;">
+      <div id="fuel-camera-stage" style="position:relative;display:inline-block;max-width:100%;background:#000;border-radius:12px;overflow:hidden;">
+        <video id="fuel-camera-video" autoplay playsinline muted style="display:block;max-width:100%;max-height:60vh;width:auto;height:auto;"></video>
+        <div id="fuel-camera-guide" style="position:absolute;border:3px solid var(--accent);border-radius:10px;box-shadow:0 0 0 2000px rgba(0,0,0,.45);pointer-events:none;"></div>
+        <button type="button" id="fuel-camera-flash-btn" aria-label="Torcia" style="display:none;position:absolute;top:10px;left:10px;width:34px;height:34px;border-radius:50%;border:none;background:rgba(0,0,0,.5);color:#fff;font-size:15px;align-items:center;justify-content:center;cursor:pointer;">⚡</button>
+        <p style="position:absolute;left:0;right:0;bottom:10px;margin:0;color:#fff;font-size:12.5px;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,.7);pointer-events:none;">Inquadra lo scontrino dentro il riquadro</p>
+      </div>
     </div>
-    <button type="button" class="camera-close-x" id="camera-close-x" aria-label="Chiudi">×</button>
-  </div>
-  <div class="camera-controls">
-    <button type="button" class="camera-shutter" id="camera-shutter" aria-label="Scatta foto"></button>
+    <div class="modal-btnrow" style="margin-top:14px;">
+      <button class="btn btn-ghost" id="fuel-camera-gallery-btn">Galleria</button>
+      <button class="btn btn-accent" id="fuel-camera-shoot-btn">● Scatta</button>
+    </div>
   </div>
 </div>
 

@@ -10166,6 +10166,128 @@
   var cropFineDeg = 0;
   var cropPreviewRafPending = false;
   function cropTotalDeg() { return cropQuarterTurns * 90 + cropFineDeg; }
+  // cropRawImage e fie un Image (venit din galerie/fisiere), fie un
+  // canvas (venit din fotocamera proprie, mai jos) - amandoua au
+  // drawImage, dar numai Image are naturalWidth/naturalHeight.
+  function cropSourceW(src) { return src.naturalWidth || src.width; }
+  function cropSourceH(src) { return src.naturalHeight || src.height; }
+
+  // Cerut direct, de DOUA ori ("trebuie sa fie vizibil acest patrat CHIAR
+  // IN TIMPUL fotografierii, nu dupa"): camera nativa a Android-ului nu
+  // poate fi desenata peste (vezi fix-ul anterior, capture="environment"
+  // scos tocmai pentru ca forta acel mod si cauza erori de memorie) -
+  // singura cale reala de a arata un ghid LIVE, cat timp soferul tine
+  // telefonul, e o camera proprie, in pagina (getUserMedia), cu un
+  // dreptunghi desenat peste imaginea live. Daca browserul/telefonul nu
+  // suporta asta, sau soferul refuza permisiunea de camera, se cade
+  // direct pe alegatorul normal de fisiere (acelasi flux deja reparat,
+  // care ofera si el "Fotocamera" ca optiune) - niciodata blocat complet.
+  var fuelCameraStream = null;
+  var fuelCameraTrack = null;
+  var fuelCameraFlashOn = false;
+  function layoutFuelCameraGuide() {
+    var video = document.getElementById('fuel-camera-video');
+    var guide = document.getElementById('fuel-camera-guide');
+    var w = video.clientWidth, h = video.clientHeight;
+    if (w < 10 || h < 10) { requestAnimationFrame(layoutFuelCameraGuide); return; }
+    var RECEIPT_RATIO = 0.46; // la fel ca pe ecranul de decupare — acelasi reper vizual
+    var maxW = w * 0.8, maxH = h * 0.82;
+    var gw = maxW, gh = gw / RECEIPT_RATIO;
+    if (gh > maxH) { gh = maxH; gw = gh * RECEIPT_RATIO; }
+    guide.style.left = ((w - gw) / 2) + 'px';
+    guide.style.top = ((h - gh) / 2) + 'px';
+    guide.style.width = gw + 'px';
+    guide.style.height = gh + 'px';
+  }
+  function stopFuelCameraStream() {
+    if (fuelCameraStream) {
+      fuelCameraStream.getTracks().forEach(function (t) { t.stop(); });
+      fuelCameraStream = null;
+    }
+    fuelCameraTrack = null;
+    fuelCameraFlashOn = false;
+  }
+  // Acelasi reper abandonat ca pe telefon la oprirea brusca (crash,
+  // reload neasteptat) deja folosit la camera livrarilor (dpStopCameraStream)
+  // - fara asta, camera poate ramane "ocupata" pentru OS un moment, dupa
+  // o iesire abrupta din pagina.
+  window.addEventListener('pagehide', function () { stopFuelCameraStream(); });
+  function closeFuelCamera() {
+    stopFuelCameraStream();
+    document.getElementById('fuel-camera-flash-btn').style.display = 'none';
+    document.getElementById('modal-fuel-camera').classList.remove('open');
+  }
+  // Blitz (torta), cand telefonul o are - acelasi tipar (feature-
+  // detected dupa getCapabilities(), niciodata presupus) deja folosit
+  // la camera livrarilor (dpCameraToggleFlash). Util des aici, caci
+  // bonul de gazolio se fotografiaza des pe intuneric, la pompa.
+  function setupFuelCameraFlash(stream) {
+    var track = stream.getVideoTracks()[0];
+    fuelCameraTrack = track;
+    fuelCameraFlashOn = false;
+    var btn = document.getElementById('fuel-camera-flash-btn');
+    btn.style.background = 'rgba(0,0,0,.5)'; btn.style.color = '#fff';
+    var caps = (track.getCapabilities && track.getCapabilities()) || {};
+    btn.style.display = caps.torch ? 'flex' : 'none';
+  }
+  document.getElementById('fuel-camera-flash-btn').addEventListener('click', function () {
+    if (!fuelCameraTrack) return;
+    var turnOn = !fuelCameraFlashOn;
+    fuelCameraTrack.applyConstraints({ advanced: [{ torch: turnOn }] }).then(function () {
+      fuelCameraFlashOn = turnOn;
+      var btn = document.getElementById('fuel-camera-flash-btn');
+      btn.style.background = turnOn ? '#FDE046' : 'rgba(0,0,0,.5)';
+      btn.style.color = turnOn ? '#000' : '#fff';
+    }).catch(function () { /* il dispositivo dichiarava il supporto torcia ma il comando reale e' fallito — resta semplicemente spenta */ });
+  });
+  function startFuelPhotoCapture(day) {
+    fuelTargetDay = day;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      document.getElementById('in-fuel-photo').click();
+      return;
+    }
+    var constraints = { video: { facingMode: { ideal: 'environment' }, width: { ideal: 2560 }, height: { ideal: 2560 } }, audio: false };
+    navigator.mediaDevices.getUserMedia(constraints).then(function (stream) {
+      fuelCameraStream = stream;
+      setupFuelCameraFlash(stream);
+      var video = document.getElementById('fuel-camera-video');
+      video.srcObject = stream;
+      document.getElementById('modal-fuel-camera').classList.add('open');
+      video.onloadedmetadata = function () {
+        video.play();
+        requestAnimationFrame(layoutFuelCameraGuide);
+      };
+    }).catch(function () {
+      // Permesso negato, nessuna fotocamera, HTTPS mancante, ecc. —
+      // nessun messaggio d'errore che blocchi: si passa dritto al flusso
+      // che funziona sempre.
+      document.getElementById('in-fuel-photo').click();
+    });
+  }
+  document.getElementById('fuel-camera-shoot-btn').addEventListener('click', function () {
+    var video = document.getElementById('fuel-camera-video');
+    if (!video.videoWidth) return; // scatto troppo presto, prima che il flusso sia davvero pronto
+    var canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    closeFuelCamera();
+    cropRawImage = canvas;
+    openCropScreen();
+  });
+  document.getElementById('fuel-camera-gallery-btn').addEventListener('click', function () {
+    closeFuelCamera();
+    document.getElementById('in-fuel-photo').click();
+  });
+  document.getElementById('fuel-camera-close-x').addEventListener('click', function () {
+    closeFuelCamera();
+    fuelTargetDay = null;
+  });
+  document.getElementById('modal-fuel-camera').addEventListener('click', function (e) {
+    if (e.target === document.getElementById('modal-fuel-camera')) { closeFuelCamera(); fuelTargetDay = null; }
+  });
+  window.addEventListener('resize', function () {
+    if (document.getElementById('modal-fuel-camera').classList.contains('open')) layoutFuelCameraGuide();
+  });
 
   function loadPickedImage(file) {
     return new Promise(function (resolve, reject) {
@@ -10308,8 +10430,7 @@
         } else if (dayReceipts && dayReceipts.length > 1) {
           openFuelGallery(d, dayReceipts);
         } else {
-          fuelTargetDay = d;
-          document.getElementById('in-fuel-photo').click();
+          startFuelPhotoCapture(d);
         }
       });
     });
@@ -10388,9 +10509,9 @@
     if (e.target === fuelGalleryModal) fuelGalleryModal.classList.remove('open');
   });
   document.getElementById('fuel-gallery-add').addEventListener('click', function () {
-    fuelTargetDay = fuelGalleryModal.dataset.day;
+    var d = fuelGalleryModal.dataset.day;
     fuelGalleryModal.classList.remove('open');
-    document.getElementById('in-fuel-photo').click();
+    startFuelPhotoCapture(d);
   });
 
   // Shows an already-attached receipt full-size, with its file size, so
@@ -10481,9 +10602,9 @@
   // day now able to hold several receipts, adding a new one is the far
   // more common need (e.g. the pump printed more than one, or a retry).
   document.getElementById('fuel-view-replace').addEventListener('click', function () {
-    fuelTargetDay = fuelViewModal.dataset.day;
+    var d = fuelViewModal.dataset.day;
     closeFuelViewer();
-    document.getElementById('in-fuel-photo').click();
+    startFuelPhotoCapture(d);
   });
   document.getElementById('fuel-view-remove').addEventListener('click', function () {
     var d = fuelViewModal.dataset.day;
@@ -10528,7 +10649,7 @@
   function renderCropPreview() {
     if (!cropRawImage) return;
     var rad = cropTotalDeg() * Math.PI / 180;
-    var iw = cropRawImage.naturalWidth, ih = cropRawImage.naturalHeight;
+    var iw = cropSourceW(cropRawImage), ih = cropSourceH(cropRawImage);
     var cos = Math.abs(Math.cos(rad)), sin = Math.abs(Math.sin(rad));
     var boundW = iw * cos + ih * sin, boundH = iw * sin + ih * cos;
     var PREVIEW_MAX = 900; // plenty for on-screen framing — not the saved resolution
@@ -10671,7 +10792,7 @@
     // Conferma, rotatia totala (90°-urile + ajustarea fina) se aplica
     // din nou pe poza ORIGINALA, la rezolutie plina, inainte de taiere.
     var rad = cropTotalDeg() * Math.PI / 180;
-    var iw = cropRawImage.naturalWidth, ih = cropRawImage.naturalHeight;
+    var iw = cropSourceW(cropRawImage), ih = cropSourceH(cropRawImage);
     var cos = Math.abs(Math.cos(rad)), sin = Math.abs(Math.sin(rad));
     var boundW = Math.max(1, Math.round(iw * cos + ih * sin));
     var boundH = Math.max(1, Math.round(iw * sin + ih * cos));
