@@ -10190,8 +10190,11 @@
     var guide = document.getElementById('fuel-camera-guide');
     var w = video.clientWidth, h = video.clientHeight;
     if (w < 10 || h < 10) { requestAnimationFrame(layoutFuelCameraGuide); return; }
-    var RECEIPT_RATIO = 0.46; // la fel ca pe ecranul de decupare — acelasi reper vizual
-    var maxW = w * 0.8, maxH = h * 0.82;
+    // Cerut direct ("patratul... prea micut, putin mai lat si mai
+    // maricel"): marit atat raportul (mai lat) cat si spatiul maxim
+    // folosit din cadru — la fel pe ecranul de decupare mai jos.
+    var RECEIPT_RATIO = 0.58; // width / height — mai lat decat inainte (0.46)
+    var maxW = w * 0.92, maxH = h * 0.9;
     var gw = maxW, gh = gw / RECEIPT_RATIO;
     if (gh > maxH) { gh = maxH; gw = gh * RECEIPT_RATIO; }
     guide.style.left = ((w - gw) / 2) + 'px';
@@ -10699,8 +10702,11 @@
     // are acum FORMA unui bon real (ingust, inalt), centrat, ca soferul
     // sa vada imediat, din prima, cum ar trebui sa arate incadrarea
     // corecta, inainte sa atinga vreun colt.
-    var RECEIPT_RATIO = 0.46; // width / height
-    var maxW = stageW * 0.86, maxH = stageH * 0.86;
+    // Cerut direct ("patratul... prea micut, putin mai lat si mai
+    // maricel"): marit atat raportul (mai lat) cat si spatiul maxim
+    // folosit din cadru — la fel ca la ghidul live de pe camera, mai sus.
+    var RECEIPT_RATIO = 0.58; // width / height — mai lat decat inainte (0.46)
+    var maxW = stageW * 0.92, maxH = stageH * 0.9;
     var w = maxW, h = w / RECEIPT_RATIO;
     if (h > maxH) { h = maxH; w = h * RECEIPT_RATIO; }
     var left = (stageW - w) / 2, top = (stageH - h) / 2;
