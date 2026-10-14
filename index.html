@@ -2586,7 +2586,13 @@
      fotografiaza des pe intuneric, la pompa. -->
 <div class="modal-overlay center" id="modal-fuel-camera">
   <div class="sheet-panel" style="max-width:480px;background:#111;">
-    <button type="button" class="modal-close-x" id="fuel-camera-close-x" aria-label="Chiudi" style="color:#fff;">×</button>
+    <!-- Cerut direct ("cercul alb este, dar X-ul nu se vede"): stilul
+         implicit al .modal-close-x e gandit pentru un fundal deschis la
+         culoare (cerc deschis, X inchis) - gresit aici, unde fundalul e
+         intuneric (camera live). Suprascris complet (fundal SI culoare),
+         nu doar culoarea X-ului, dupa acelasi tipar deja folosit la
+         butonul de blitz de mai jos. -->
+    <button type="button" class="modal-close-x" id="fuel-camera-close-x" aria-label="Chiudi" style="background:rgba(0,0,0,.55);color:#fff;">×</button>
     <div style="text-align:center;">
       <div id="fuel-camera-stage" style="position:relative;display:inline-block;max-width:100%;background:#000;border-radius:12px;overflow:hidden;">
         <video id="fuel-camera-video" autoplay playsinline muted style="display:block;max-width:100%;max-height:60vh;width:auto;height:auto;"></video>
