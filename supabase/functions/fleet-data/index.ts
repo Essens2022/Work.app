@@ -1331,6 +1331,7 @@ Deno.serve(async (req) => {
           address: (r.address || '').trim() || null, city: (r.city || '').trim() || null,
           comune, cap: (r.cap || '').trim() || null, province: (r.province || '').trim() || null,
           phone: (r.phone || '').trim() || null,
+          phone2: (r.phone2 || '').trim() || null,
           note: r.note !== undefined ? ((r.note || '').toString().slice(0, 500) || null) : undefined,
           assigned_driver_email: assignedDriverEmail,
           assignment_source: assignmentSource,
@@ -1375,7 +1376,7 @@ Deno.serve(async (req) => {
       const clientId = body.client_id;
       if (!clientId) return json({ error: 'client_id mancante' }, 400);
       const updates: Record<string, any> = { updated_at: new Date().toISOString() };
-      ['name', 'client_code', 'address', 'city', 'comune', 'cap', 'province', 'phone'].forEach((f) => {
+      ['name', 'client_code', 'address', 'city', 'comune', 'cap', 'province', 'phone', 'phone2'].forEach((f) => {
         if (body[f] !== undefined) updates[f] = (body[f] || '').toString().trim() || null;
       });
       if (body.note !== undefined) updates.note = (body.note || '').toString().slice(0, 500) || null;
@@ -1674,7 +1675,13 @@ Deno.serve(async (req) => {
       // din fleet_clients, nu din poza veche de pe fleet_delivery_items
       // - randurile nepotrivite (fara client_id) raman pe vechiul
       // camp, singurul disponibil pentru ele.
-      const { data, error } = await supabase.from('fleet_delivery_items').select('*, fleet_clients(address, city, cap, province, assigned_driver_email, lat, lon)')
+      // Cerut direct ("sa adaug si numerele lor de telefon... sa pot
+      // apasa pe butonul de a chema direct"): fleet_clients.phone exista
+      // deja in baza de date (completat din admin), dar nu ajungea
+      // niciodata pana la soferi - adaugat explicit aici, acelasi tipar
+      // ca lat/lon de mai jos. phone2 e al doilea numar posibil,
+      // acelasi tipar ca telefono/telefono2 din aplicatia soferului.
+      const { data, error } = await supabase.from('fleet_delivery_items').select('*, fleet_clients(address, city, cap, province, assigned_driver_email, lat, lon, phone, phone2)')
         .eq('fleet_id', link.fleet_id).eq('delivery_date', deliveryDate)
         .order('client_name');
       if (error) return json({ error: error.message }, 500);
@@ -1693,7 +1700,7 @@ Deno.serve(async (req) => {
           // reusita), le trimitem direct - aplicatia soferului le
           // foloseste pe loc, fara sa mai ceara nimic serviciului de
           // geocodare, eliminand riscul de limita depasita.
-          return { ...it, address: addressParts.length ? addressParts.join(', ') : null, client_lat: client ? client.lat : null, client_lon: client ? client.lon : null };
+          return { ...it, address: addressParts.length ? addressParts.join(', ') : null, client_lat: client ? client.lat : null, client_lon: client ? client.lon : null, client_phone: client ? client.phone : null, client_phone2: client ? client.phone2 : null };
         });
       return json({ ok: true, items: itemsOut });
     }
@@ -1713,6 +1720,30 @@ Deno.serve(async (req) => {
       const { data: link } = await supabase.from('fleet_drivers').select('fleet_id').eq('account_email', accountEmail).is('left_at', null).maybeSingle();
       if (!link) return json({ ok: false, reason: 'not_found' });
       const { error } = await supabase.from('fleet_clients').update({ lat, lon, geocoded_label: (body.label || '').toString().slice(0, 300) || null }).eq('id', clientId).eq('fleet_id', link.fleet_id);
+      if (error) return json({ error: error.message }, 500);
+      return json({ ok: true });
+    }
+
+    // Cerut direct ("soferul la fel sa poata salva numerele
+    // clientilor"): la fel ca driver_save_client_coords mai sus,
+    // soferul poate corecta/completa telefonul unui client venit din
+    // import/borderoul flotei direct din Modifica cliente, din
+    // Percorso - salvat o singura data aici, pe fisa reala a
+    // clientului (fleet_clients), ca sa ramana acolo pentru
+    // totdeauna si sa ajunga si la ceilalti soferi care livreaza la
+    // acelasi client, nu doar local, in acest telefon.
+    if (action === 'driver_save_client_phone') {
+      const accountEmail = (body.account_email || '').trim().toLowerCase();
+      const clientId = body.client_id;
+      if (!accountEmail || !clientId) return json({ ok: false });
+      const { data: link } = await supabase.from('fleet_drivers').select('fleet_id').eq('account_email', accountEmail).is('left_at', null).maybeSingle();
+      if (!link) return json({ ok: false, reason: 'not_found' });
+      const updates = {
+        phone: (body.telefono || '').toString().trim() || null,
+        phone2: (body.telefono2 || '').toString().trim() || null,
+        updated_at: new Date().toISOString(),
+      };
+      const { error } = await supabase.from('fleet_clients').update(updates).eq('id', clientId).eq('fleet_id', link.fleet_id);
       if (error) return json({ error: error.message }, 500);
       return json({ ok: true });
     }
