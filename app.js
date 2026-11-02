@@ -2451,9 +2451,9 @@
     var addedAny = false;
     alreadyKnown.forEach(function (it) {
       dpInsertNewStop({
-        id: uid(), deliveryItemId: it.id, nome: it.client_name, indirizzo: it.address,
+        id: uid(), deliveryItemId: it.id, fleetClientId: it.client_id || null, nome: it.client_name, indirizzo: it.address,
         lat: it.client_lat, lon: it.client_lon, status: 'pending', scadenza: '', nonPrimaDi: '',
-        telefono: it.client_phone || ''
+        telefono: it.client_phone || '', telefono2: it.client_phone2 || ''
       });
       addedAny = true;
     });
@@ -2468,9 +2468,9 @@
       resolved.forEach(function (r) {
         if (!r.result) return; // indirizzo non geocodificabile — saltato, non blocca gli altri
         dpInsertNewStop({
-          id: uid(), deliveryItemId: r.item.id, nome: r.item.client_name, indirizzo: r.item.address,
+          id: uid(), deliveryItemId: r.item.id, fleetClientId: r.item.client_id || null, nome: r.item.client_name, indirizzo: r.item.address,
           lat: r.result.lat, lon: r.result.lon, status: 'pending', scadenza: '', nonPrimaDi: '',
-          telefono: r.item.client_phone || ''
+          telefono: r.item.client_phone || '', telefono2: r.item.client_phone2 || ''
         });
         addedAny = true;
         // Memorat o singura data, pe fisa clientului - urmatoarele
@@ -4190,6 +4190,16 @@
         if (addressChanged) { saved.lat = null; saved.lon = null; }
         saveDeliveryClients(state.deliveryClients);
       }
+    }
+    // Cerut direct ("soferul la fel sa poata salva numerele
+    // clientilor"): un client venit din import/borderoul flotei
+    // (fleetClientId, nu e in agenda locala a soferului) are telefonul
+    // salvat deocamdata doar aici, in cursa de azi - trimis si catre
+    // fisa reala a clientului (fleet_clients), acelasi tipar fire-and-
+    // forget ca driver_save_client_coords, ca numarul sa ramana memorat
+    // pentru totdeauna si pentru ceilalti soferi, nu doar local, azi.
+    if (client.fleetClientId) {
+      fleetCall({ action: 'driver_save_client_phone', account_email: currentAccountEmail(), client_id: client.fleetClientId, telefono: client.telefono, telefono2: client.telefono2 });
     }
     saveDeliveryRun(state.deliveryRun);
     dpCloseModal('modal-dp-edit-client');
