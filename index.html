@@ -1093,6 +1093,21 @@
     width:72px;height:72px;border-radius:50%;border:4px solid #fff;background:rgba(255,255,255,.25);cursor:pointer;
   }
   #dp-camera-capture-btn:active{background:rgba(255,255,255,.5);}
+  /* Cerut direct ("butonul de la fotografiat in cerc mai jos de
+     mijloc exact ca cum se face foto la telefon"): acelasi tipar
+     vizual ca #dp-camera-capture-btn de mai sus (cerc, inel alb) -
+     dar centrat intr-un rand propriu sub stage-ul camerei, nu
+     suprapus peste live-view ca acolo, pentru ca aici fotocamera nu
+     e pe tot ecranul. Galleria ramane accesibila, dar ca actiune
+     secundara, mai mica, langa declansator - exact tiparul unei
+     camere native de telefon (galerie in stanga, declansator rotund
+     la mijloc). */
+  .fuel-camera-controls{position:relative;display:flex;align-items:center;justify-content:center;margin-top:16px;min-height:72px;}
+  .fuel-camera-shutter-btn{
+    width:72px;height:72px;border-radius:50%;border:4px solid #fff;background:rgba(255,255,255,.18);cursor:pointer;
+  }
+  .fuel-camera-shutter-btn:active{background:rgba(255,255,255,.4);}
+  .fuel-camera-gallery-link{position:absolute;left:0;font-size:13px;padding:8px 14px;}
   #dp-camera-preview-actions{
     display:none;position:absolute;bottom:calc(28px + var(--safe-bottom));left:0;right:0;z-index:2;
     padding:0 24px;gap:12px;justify-content:center;
@@ -2667,9 +2682,9 @@
         <p style="position:absolute;left:0;right:0;bottom:10px;margin:0;color:#fff;font-size:12.5px;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,.7);pointer-events:none;">Inquadra lo scontrino dentro il riquadro</p>
       </div>
     </div>
-    <div class="modal-btnrow" style="margin-top:14px;">
-      <button class="btn btn-ghost" id="fuel-camera-gallery-btn">Galleria</button>
-      <button class="btn btn-accent" id="fuel-camera-shoot-btn">● Scatta</button>
+    <div class="fuel-camera-controls">
+      <button class="btn btn-ghost fuel-camera-gallery-link" id="fuel-camera-gallery-btn">Galleria</button>
+      <button type="button" class="fuel-camera-shutter-btn" id="fuel-camera-shoot-btn" aria-label="Scatta foto"></button>
     </div>
   </div>
 </div>
