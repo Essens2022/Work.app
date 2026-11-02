@@ -1093,21 +1093,42 @@
     width:72px;height:72px;border-radius:50%;border:4px solid #fff;background:rgba(255,255,255,.25);cursor:pointer;
   }
   #dp-camera-capture-btn:active{background:rgba(255,255,255,.5);}
-  /* Cerut direct ("butonul de la fotografiat in cerc mai jos de
-     mijloc exact ca cum se face foto la telefon"): acelasi tipar
-     vizual ca #dp-camera-capture-btn de mai sus (cerc, inel alb) -
-     dar centrat intr-un rand propriu sub stage-ul camerei, nu
-     suprapus peste live-view ca acolo, pentru ca aici fotocamera nu
-     e pe tot ecranul. Galleria ramane accesibila, dar ca actiune
-     secundara, mai mica, langa declansator - exact tiparul unei
-     camere native de telefon (galerie in stanga, declansator rotund
-     la mijloc). */
-  .fuel-camera-controls{position:relative;display:flex;align-items:center;justify-content:center;margin-top:16px;min-height:72px;}
+  /* Cerut direct, a doua oara ("trebuie sa fie mai jos, exact in locul
+     in care e butonul la telefon cand faci poze, acolo unde e comod"):
+     prima incercare (buton rotund, dar intr-un rand sub o previzualizare
+     mica, intr-un card centrat) tot nu era destul de jos. Acum camera de
+     scontrini e FULL-SCREEN, acelasi tipar exact ca #dp-camera-stage de
+     mai sus - declansatorul e ancorat absolut la marginea de jos reala a
+     ecranului (bottom:28px + safe-bottom), identic cu #dp-camera-capture-btn,
+     nu doar "sub stage". Asta inseamna ca e in aceeasi pozitie, la acelasi
+     deget-reach, ca pe orice camera nativa de telefon. */
+  #modal-fuel-camera{padding:0;}
+  #fuel-camera-stage{position:relative;width:100%;height:100%;background:#000;overflow:hidden;}
+  #fuel-camera-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;}
+  #fuel-camera-guide{position:absolute;border:3px solid var(--accent);border-radius:10px;box-shadow:0 0 0 2000px rgba(0,0,0,.45);pointer-events:none;}
+  #fuel-camera-close-x{
+    position:absolute;top:calc(16px + var(--safe-top,0px));right:16px;z-index:2;
+    width:38px;height:38px;border-radius:50%;border:none;background:rgba(0,0,0,.55);color:#fff;
+    font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;
+  }
+  #fuel-camera-flash-btn{
+    position:absolute;top:calc(16px + var(--safe-top,0px));left:16px;z-index:2;
+    width:38px;height:38px;border-radius:50%;border:none;background:rgba(0,0,0,.5);color:#fff;
+    font-size:17px;display:flex;align-items:center;justify-content:center;cursor:pointer;
+  }
+  #fuel-camera-hint{
+    position:absolute;left:0;right:0;bottom:calc(118px + var(--safe-bottom));z-index:1;margin:0;
+    color:#fff;font-size:13px;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,.7);pointer-events:none;
+  }
   .fuel-camera-shutter-btn{
+    position:absolute;bottom:calc(28px + var(--safe-bottom));left:50%;transform:translateX(-50%);z-index:2;
     width:72px;height:72px;border-radius:50%;border:4px solid #fff;background:rgba(255,255,255,.18);cursor:pointer;
   }
   .fuel-camera-shutter-btn:active{background:rgba(255,255,255,.4);}
-  .fuel-camera-gallery-link{position:absolute;left:0;font-size:13px;padding:8px 14px;}
+  .fuel-camera-gallery-link{
+    position:absolute;bottom:calc(42px + var(--safe-bottom));left:20px;z-index:2;
+    font-size:13px;padding:8px 14px;background:rgba(255,255,255,.18);color:#fff;border:1px solid rgba(255,255,255,.4);
+  }
   #dp-camera-preview-actions{
     display:none;position:absolute;bottom:calc(28px + var(--safe-bottom));left:0;right:0;z-index:2;
     padding:0 24px;gap:12px;justify-content:center;
@@ -2646,46 +2667,33 @@
   </div>
 </div>
 
-<!-- Cerut direct, de DOUA ori ("trebuie sa fie vizibil acest patrat CHIAR
-     IN TIMPUL fotografierii, nu dupa"): fotocamera proprie, in pagina,
-     folosita la poza bonului de gazolio, cu un ghid de incadrare (forma
-     unui bon) desenat peste imaginea live - acelasi reper vizual (si
-     aceeasi forma, RECEIPT_RATIO) ca pe ecranul de decupare de mai jos.
-     Daca fotocamera proprie nu e disponibila sau permisiunea e refuzata,
-     se cade direct pe alegatorul normal de fisiere (startFuelPhotoCapture,
-     in app.js) - niciodata blocat. Torta (blitz), cand telefonul o are,
-     dupa acelasi tipar deja folosit la fotocamera livrarilor
-     (dp-camera-flash-btn) - utila des, caci bonul de gazolio se
-     fotografiaza des pe intuneric, la pompa. -->
-<div class="modal-overlay center" id="modal-fuel-camera">
-  <div class="sheet-panel" style="max-width:480px;background:#111;">
-    <!-- Cerut direct ("cercul alb este, dar X-ul nu se vede"): stilul
-         implicit al .modal-close-x e gandit pentru un fundal deschis la
-         culoare (cerc deschis, X inchis) - gresit aici, unde fundalul e
-         intuneric (camera live). Suprascris complet (fundal SI culoare),
-         nu doar culoarea X-ului, dupa acelasi tipar deja folosit la
-         butonul de blitz de mai jos. -->
-    <button type="button" class="modal-close-x" id="fuel-camera-close-x" aria-label="Chiudi" style="background:rgba(0,0,0,.55);color:#fff;">×</button>
-    <div style="text-align:center;">
-      <div id="fuel-camera-stage" style="position:relative;display:inline-block;max-width:100%;background:#000;border-radius:12px;overflow:hidden;">
-        <video id="fuel-camera-video" autoplay playsinline muted style="display:block;max-width:100%;max-height:60vh;width:auto;height:auto;"></video>
-        <div id="fuel-camera-guide" style="position:absolute;border:3px solid var(--accent);border-radius:10px;box-shadow:0 0 0 2000px rgba(0,0,0,.45);pointer-events:none;"></div>
-        <!-- Cerut direct, dupa o poza reala de pe telefon ("verifica mai
-             bine... bine pozitionat"): acest buton si X-ul din colt
-             (.modal-close-x) aratau la inaltimi vizibil diferite - X-ul
-             e pozitionat fata de .sheet-panel (top:14px), dar acest buton
-             fata de #fuel-camera-stage, care incepe cu 10px MAI JOS decat
-             panoul insusi (padding-top al .sheet-panel) - 14px - 10px =
-             4px e valoarea care ii aliniaza de fapt pe amandoi la aceeasi
-             inaltime vizuala. -->
-        <button type="button" id="fuel-camera-flash-btn" aria-label="Torcia" style="display:none;position:absolute;top:4px;left:10px;width:30px;height:30px;border-radius:50%;border:none;background:rgba(0,0,0,.5);color:#fff;font-size:14px;align-items:center;justify-content:center;cursor:pointer;">⚡</button>
-        <p style="position:absolute;left:0;right:0;bottom:10px;margin:0;color:#fff;font-size:12.5px;text-align:center;text-shadow:0 1px 3px rgba(0,0,0,.7);pointer-events:none;">Inquadra lo scontrino dentro il riquadro</p>
-      </div>
-    </div>
-    <div class="fuel-camera-controls">
-      <button class="btn btn-ghost fuel-camera-gallery-link" id="fuel-camera-gallery-btn">Galleria</button>
-      <button type="button" class="fuel-camera-shutter-btn" id="fuel-camera-shoot-btn" aria-label="Scatta foto"></button>
-    </div>
+<!-- Cerut direct, de TREI ori ("trebuie sa fie vizibil acest patrat CHIAR
+     IN TIMPUL fotografierii, nu dupa" / "butonul de la fotografiat in cerc
+     mai jos de mijloc exact ca cum se face foto la telefon"): fotocamera
+     proprie, in pagina, folosita la poza bonului de gazolio, cu un ghid de
+     incadrare (forma unui bon) desenat peste imaginea live - acelasi reper
+     vizual (si aceeasi forma, RECEIPT_RATIO) ca pe ecranul de decupare de
+     mai jos. Structura FULL-SCREEN, identica ca tipar cu fotocamera
+     livrarilor (#modal-dp-camera/#dp-camera-stage mai sus) - nu mai e un
+     card centrat cu video limitat la 60vh, ci camera ocupa tot ecranul,
+     ca declansatorul rotund sa ajunga exact unde e pe o camera nativa de
+     telefon: fix langa marginea de jos, in zona de thumb-reach, nu
+     "undeva sub o previzualizare mica". Daca fotocamera proprie nu e
+     disponibila sau permisiunea e refuzata, se cade direct pe
+     alegatorul normal de fisiere (startFuelPhotoCapture, in app.js) -
+     niciodata blocat. Torta (blitz), cand telefonul o are, dupa acelasi
+     tipar deja folosit la fotocamera livrarilor (dp-camera-flash-btn) -
+     utila des, caci bonul de gazolio se fotografiaza des pe intuneric,
+     la pompa. -->
+<div class="modal-overlay center" id="modal-fuel-camera" style="z-index:3000;">
+  <div id="fuel-camera-stage">
+    <video id="fuel-camera-video" autoplay playsinline muted></video>
+    <div id="fuel-camera-guide"></div>
+    <button type="button" id="fuel-camera-close-x" aria-label="Chiudi">×</button>
+    <button type="button" id="fuel-camera-flash-btn" aria-label="Torcia" style="display:none;">⚡</button>
+    <p id="fuel-camera-hint">Inquadra lo scontrino dentro il riquadro</p>
+    <button type="button" class="btn btn-ghost fuel-camera-gallery-link" id="fuel-camera-gallery-btn">Galleria</button>
+    <button type="button" class="fuel-camera-shutter-btn" id="fuel-camera-shoot-btn" aria-label="Scatta foto"></button>
   </div>
 </div>
 
