@@ -1674,7 +1674,12 @@ Deno.serve(async (req) => {
       // din fleet_clients, nu din poza veche de pe fleet_delivery_items
       // - randurile nepotrivite (fara client_id) raman pe vechiul
       // camp, singurul disponibil pentru ele.
-      const { data, error } = await supabase.from('fleet_delivery_items').select('*, fleet_clients(address, city, cap, province, assigned_driver_email, lat, lon)')
+      // Cerut direct ("sa adaug si numerele lor de telefon... sa pot
+      // apasa pe butonul de a chema direct"): fleet_clients.phone exista
+      // deja in baza de date (completat din admin), dar nu ajungea
+      // niciodata pana la soferi - adaugat explicit aici, acelasi tipar
+      // ca lat/lon de mai jos.
+      const { data, error } = await supabase.from('fleet_delivery_items').select('*, fleet_clients(address, city, cap, province, assigned_driver_email, lat, lon, phone)')
         .eq('fleet_id', link.fleet_id).eq('delivery_date', deliveryDate)
         .order('client_name');
       if (error) return json({ error: error.message }, 500);
@@ -1693,7 +1698,7 @@ Deno.serve(async (req) => {
           // reusita), le trimitem direct - aplicatia soferului le
           // foloseste pe loc, fara sa mai ceara nimic serviciului de
           // geocodare, eliminand riscul de limita depasita.
-          return { ...it, address: addressParts.length ? addressParts.join(', ') : null, client_lat: client ? client.lat : null, client_lon: client ? client.lon : null };
+          return { ...it, address: addressParts.length ? addressParts.join(', ') : null, client_lat: client ? client.lat : null, client_lon: client ? client.lon : null, client_phone: client ? client.phone : null };
         });
       return json({ ok: true, items: itemsOut });
     }

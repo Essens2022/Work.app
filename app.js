@@ -967,6 +967,10 @@
       // background, so it reads unmistakably as a pressable action.
       sort: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16"/><path d="M4 7l3-3 3 3"/><path d="M17 20V4"/><path d="M20 17l-3 3-3-3"/></svg>',
       camera: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8a2 2 0 0 1 2-2h1.5l1-1.5h7l1 1.5H18a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2Z"/><circle cx="12" cy="12.5" r="3.4"/></svg>',
+      // Cerut direct ("butonul de discutie, receptorul cum ar fi, ala
+      // verde"): receptorul clasic de telefon, acelasi tipar de stil
+      // (stroke, nu fill) ca restul iconitelor de-aici.
+      phone: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h3.5l1.5 4-2 1.3a12 12 0 0 0 5.7 5.7l1.3-2 4 1.5V18a2 2 0 0 1-2 2A15 15 0 0 1 3 5a2 2 0 0 1 2-1Z"/></svg>',
       route: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M5 8v4a4 4 0 0 0 4 4h6" stroke-dasharray="3 3"/></svg>',
       fuel: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="9" height="18" rx="1"/><rect x="6.3" y="5.5" width="4.4" height="4" rx="0.5"/><path d="M13 9h2.5l3 2.5v6.5a1.5 1.5 0 0 1-3 0v-3.5a1 1 0 0 0-1-1h-1.5"/></svg>',
       share: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg>',
@@ -2265,10 +2269,62 @@
       // photo later, tapping this reopens it for exactly this one
       // client (not the rest of the queue).
       (isDone ? '<button type="button" class="dp-camera-retake-icon-btn" data-client-id="' + c.id + '" aria-label="Fai foto">' + svgIcon('camera') + '</button>' : '') +
+      // Cerut direct ("sa pot apasa pe butonul de a chema direct
+      // acolo in lista... ala verde"): apare doar cand clientul are
+      // macar un numar salvat - vezi dpCallClient mai jos.
+      ((c.telefono || c.telefono2) ? '<button type="button" class="dp-call-icon-btn" data-client-id="' + c.id + '" aria-label="Chiama">' + svgIcon('phone') + '</button>' : '') +
       '<div class="dp-client-chevron">›</div>' +
       '</div>' +
       '</div>';
   }
+
+  // Cerut direct ("sa pot apasa pe butonul de a chema direct acolo in
+  // lista... daca sunt mai multe numere imi da posibilitatea sa aleg
+  // unul din numere. Daca este doar unul, incepe sa sune"): un singur
+  // numar salvat suna direct (tel:), fara nicio alegere intermediara;
+  // doar cand clientul are AMBELE numere se arata modal-dp-call-picker.
+  // Un <a href="tel:..."> real, nu doar window.location, ca Safari/
+  // WKWebView (iOS, folosit de PWA-uri) sa trateze sigur apelul ca
+  // intentionat de utilizator, nu ca o redirectionare de pagina.
+  function dpDialNumber(number) {
+    var a = document.createElement('a');
+    a.href = 'tel:' + number.replace(/\s+/g, '');
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+  function dpCallClient(clientId) {
+    var c = state.deliveryRun.clients.find(function (x) { return x.id === clientId; });
+    if (!c) return;
+    var n1 = (c.telefono || '').trim(), n2 = (c.telefono2 || '').trim();
+    if (n1 && n2) {
+      dpOpenCallPicker(c.nome, [n1, n2]);
+    } else if (n1 || n2) {
+      dpDialNumber(n1 || n2);
+    }
+  }
+  function dpOpenCallPicker(nome, numbers) {
+    document.getElementById('dp-call-picker-title').textContent = 'Chiama ' + nome;
+    var list = document.getElementById('dp-call-picker-list');
+    list.innerHTML = numbers.map(function (n, i) {
+      return '<div class="dp-call-picker-row" data-number="' + escapeHtml(n) + '">' +
+        '<div class="dp-call-icon-btn">' + svgIcon('phone') + '</div>' +
+        '<div><div class="dp-call-picker-number">' + escapeHtml(n) + '</div>' +
+        '<div class="dp-call-picker-label">Telefono' + (i === 0 ? '' : ' 2') + '</div></div>' +
+        '</div>';
+    }).join('');
+    list.querySelectorAll('.dp-call-picker-row').forEach(function (row) {
+      row.addEventListener('click', function () {
+        dpCloseModal('modal-dp-call-picker');
+        dpDialNumber(row.getAttribute('data-number'));
+      });
+    });
+    document.getElementById('modal-dp-call-picker').classList.add('open');
+  }
+  document.getElementById('dp-call-picker-close-x').addEventListener('click', function () {
+    dpCloseModal('modal-dp-call-picker');
+  });
 
   // RESTORED — these two declarations were accidentally deleted when
   // the Delivery Planner code was first inserted in place of the old
@@ -2396,7 +2452,8 @@
     alreadyKnown.forEach(function (it) {
       dpInsertNewStop({
         id: uid(), deliveryItemId: it.id, nome: it.client_name, indirizzo: it.address,
-        lat: it.client_lat, lon: it.client_lon, status: 'pending', scadenza: '', nonPrimaDi: ''
+        lat: it.client_lat, lon: it.client_lon, status: 'pending', scadenza: '', nonPrimaDi: '',
+        telefono: it.client_phone || ''
       });
       addedAny = true;
     });
@@ -2412,7 +2469,8 @@
         if (!r.result) return; // indirizzo non geocodificabile — saltato, non blocca gli altri
         dpInsertNewStop({
           id: uid(), deliveryItemId: r.item.id, nome: r.item.client_name, indirizzo: r.item.address,
-          lat: r.result.lat, lon: r.result.lon, status: 'pending', scadenza: '', nonPrimaDi: ''
+          lat: r.result.lat, lon: r.result.lon, status: 'pending', scadenza: '', nonPrimaDi: '',
+          telefono: r.item.client_phone || ''
         });
         addedAny = true;
         // Memorat o singura data, pe fisa clientului - urmatoarele
@@ -2776,6 +2834,12 @@
       btn.addEventListener('click', function (e) {
         e.stopPropagation(); // must never also trigger the row's own click (which opens Modifica cliente)
         dpOpenCameraForOneClient(btn.getAttribute('data-client-id'));
+      });
+    });
+    el.querySelectorAll('.dp-call-icon-btn').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation(); // must never also trigger the row's own click (which opens Modifica cliente)
+        dpCallClient(btn.getAttribute('data-client-id'));
       });
     });
 
@@ -3439,7 +3503,8 @@
     }
     dpInsertNewStop({
       id: uid(), clientId: saved.id, nome: saved.nome, indirizzo: saved.indirizzo,
-      lat: saved.lat, lon: saved.lon, status: 'pending', scadenza: saved.scadenza || '', nonPrimaDi: saved.nonPrimaDi || ''
+      lat: saved.lat, lon: saved.lon, status: 'pending', scadenza: saved.scadenza || '', nonPrimaDi: saved.nonPrimaDi || '',
+      telefono: saved.telefono || '', telefono2: saved.telefono2 || ''
     });
     saveDeliveryRun(state.deliveryRun);
     if (currentScreen === 'navigatore') renderDeliveryPlanner(); // reflects immediately underneath if that screen happens to be showing right now
@@ -3488,6 +3553,8 @@
     // needed to work around the stacking bug).
     document.getElementById('dp-new-nome').value = '';
     document.getElementById('dp-new-indirizzo').value = '';
+    document.getElementById('dp-new-telefono').value = '';
+    document.getElementById('dp-new-telefono2').value = '';
     document.getElementById('dp-new-scadenza').value = '';
     document.getElementById('dp-new-nonprima').value = '';
     document.getElementById('dp-new-save-result').innerHTML = '';
@@ -3513,7 +3580,11 @@
       resultEl.innerHTML = '<div style="color:var(--danger);font-size:13px;">Inserisci nome e indirizzo.</div>';
       return;
     }
-    var saved = { id: uid(), nome: nome, indirizzo: indirizzo, lat: null, lon: null, createdAt: Date.now(), scadenza: document.getElementById('dp-new-scadenza').value || '', nonPrimaDi: document.getElementById('dp-new-nonprima').value || '' };
+    var saved = {
+      id: uid(), nome: nome, indirizzo: indirizzo, lat: null, lon: null, createdAt: Date.now(),
+      telefono: document.getElementById('dp-new-telefono').value.trim(), telefono2: document.getElementById('dp-new-telefono2').value.trim(),
+      scadenza: document.getElementById('dp-new-scadenza').value || '', nonPrimaDi: document.getElementById('dp-new-nonprima').value || ''
+    };
     state.deliveryClients.push(saved);
     saveDeliveryClients(state.deliveryClients);
     dpCloseModal('modal-dp-new-client');
@@ -3657,6 +3728,8 @@
     if (!c) return;
     document.getElementById('dp-archive-edit-nome').value = c.nome;
     document.getElementById('dp-archive-edit-indirizzo').value = c.indirizzo || '';
+    document.getElementById('dp-archive-edit-telefono').value = c.telefono || '';
+    document.getElementById('dp-archive-edit-telefono2').value = c.telefono2 || '';
     document.getElementById('dp-archive-edit-scadenza').value = c.scadenza || '';
     document.getElementById('dp-archive-edit-nonprima').value = c.nonPrimaDi || '';
     wireNavClearButton(document.getElementById('dp-archive-edit-nome'), document.getElementById('dp-archive-edit-nome-clear'), function () {});
@@ -3693,6 +3766,8 @@
       var addressChanged = indirizzo !== c.indirizzo;
       c.nome = nome;
       c.indirizzo = indirizzo;
+      c.telefono = document.getElementById('dp-archive-edit-telefono').value.trim();
+      c.telefono2 = document.getElementById('dp-archive-edit-telefono2').value.trim();
       c.scadenza = document.getElementById('dp-archive-edit-scadenza').value || '';
       c.nonPrimaDi = document.getElementById('dp-archive-edit-nonprima').value || '';
       if (addressChanged) { c.lat = null; c.lon = null; } // stale coordinates from the OLD address would silently mislead Reordina's ordering later — cleared until re-geocoded (or set directly below, if the new text is itself coordinates)
@@ -3702,7 +3777,7 @@
       // changing it here would silently do nothing for a client
       // already added, until removed and re-added.
       state.deliveryRun.clients.forEach(function (rc) {
-        if (rc.clientId === c.id) { rc.scadenza = c.scadenza; rc.nonPrimaDi = c.nonPrimaDi; }
+        if (rc.clientId === c.id) { rc.scadenza = c.scadenza; rc.nonPrimaDi = c.nonPrimaDi; rc.telefono = c.telefono; rc.telefono2 = c.telefono2; }
       });
       saveDeliveryRun(state.deliveryRun);
       dpCloseModal('modal-dp-archive-edit');
@@ -3858,7 +3933,8 @@
     }
     dpInsertNewStop({
       id: uid(), clientId: saved.id, nome: saved.nome, indirizzo: saved.indirizzo,
-      lat: saved.lat, lon: saved.lon, status: 'pending', scadenza: saved.scadenza || '', nonPrimaDi: saved.nonPrimaDi || ''
+      lat: saved.lat, lon: saved.lon, status: 'pending', scadenza: saved.scadenza || '', nonPrimaDi: saved.nonPrimaDi || '',
+      telefono: saved.telefono || '', telefono2: saved.telefono2 || ''
     });
     saveDeliveryRun(state.deliveryRun);
     renderDeliveryPlanner();
@@ -3868,6 +3944,8 @@
     dpCloseModal('modal-dp-add-client');
     document.getElementById('dp-new-nome').value = prefillName || '';
     document.getElementById('dp-new-indirizzo').value = '';
+    document.getElementById('dp-new-telefono').value = '';
+    document.getElementById('dp-new-telefono2').value = '';
     document.getElementById('dp-new-scadenza').value = '';
     document.getElementById('dp-new-nonprima').value = '';
     document.getElementById('dp-new-scadenza-wrap').style.display = '';
@@ -3929,13 +4007,16 @@
     // rejecting it outright as the previous version of this did.
     var saved = {
       id: uid(), nome: nome, indirizzo: indirizzo, lat: null, lon: null, createdAt: Date.now(),
+      telefono: document.getElementById('dp-new-telefono').value.trim(),
+      telefono2: document.getElementById('dp-new-telefono2').value.trim(),
       scadenza: document.getElementById('dp-new-scadenza').value || '',
       nonPrimaDi: document.getElementById('dp-new-nonprima').value || ''
     };
     state.deliveryClients.push(saved);
     saveDeliveryClients(state.deliveryClients);
     dpInsertNewStop({
-      id: uid(), clientId: saved.id, nome: nome, indirizzo: indirizzo, lat: null, lon: null, status: 'pending', scadenza: saved.scadenza, nonPrimaDi: saved.nonPrimaDi
+      id: uid(), clientId: saved.id, nome: nome, indirizzo: indirizzo, lat: null, lon: null, status: 'pending', scadenza: saved.scadenza, nonPrimaDi: saved.nonPrimaDi,
+      telefono: saved.telefono, telefono2: saved.telefono2
     });
     saveDeliveryRun(state.deliveryRun);
     dpCloseModal('modal-dp-new-client');
@@ -4062,6 +4143,8 @@
     if (!client) return;
     document.getElementById('dp-edit-nome').value = client.nome;
     document.getElementById('dp-edit-indirizzo').value = client.indirizzo || '';
+    document.getElementById('dp-edit-telefono').value = client.telefono || '';
+    document.getElementById('dp-edit-telefono2').value = client.telefono2 || '';
     document.getElementById('dp-edit-scadenza').value = client.scadenza || '';
     document.getElementById('dp-edit-nonprima').value = client.nonPrimaDi || '';
     document.getElementById('dp-edit-save-result').innerHTML = '';
@@ -4094,6 +4177,8 @@
     var addressChanged = indirizzo !== client.indirizzo;
     client.nome = nome;
     client.indirizzo = indirizzo;
+    client.telefono = document.getElementById('dp-edit-telefono').value.trim();
+    client.telefono2 = document.getElementById('dp-edit-telefono2').value.trim();
     client.scadenza = document.getElementById('dp-edit-scadenza').value || '';
     client.nonPrimaDi = document.getElementById('dp-edit-nonprima').value || '';
     if (addressChanged) { client.lat = null; client.lon = null; client.orsUnreachable = false; } // stale coordinates from the OLD address would silently mislead Reordina's ordering — cleared until the new address is (silently) re-geocoded below; orsUnreachable cleared too since that verdict was about the OLD address's position, not this new one
@@ -4101,6 +4186,7 @@
       var saved = state.deliveryClients.find(function (s) { return s.id === client.clientId; });
       if (saved) {
         saved.nome = nome; saved.indirizzo = indirizzo; saved.scadenza = client.scadenza; saved.nonPrimaDi = client.nonPrimaDi;
+        saved.telefono = client.telefono; saved.telefono2 = client.telefono2;
         if (addressChanged) { saved.lat = null; saved.lon = null; }
         saveDeliveryClients(state.deliveryClients);
       }

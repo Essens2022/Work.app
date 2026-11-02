@@ -561,6 +561,21 @@
     flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:none;background:var(--accent-soft);color:var(--accent);
     display:flex;align-items:center;justify-content:center;cursor:pointer;
   }
+  /* Cerut direct ("butonul... ala verde"): acelasi tipar ca butonul de
+     camera de mai sus, doar cu paleta "teal" deja folosita in app
+     pentru stari pozitive (consegnato) - verde, nu portocaliul de
+     accent, ca sa se deosebeasca vizual clar de restul butoanelor. */
+  .dp-call-icon-btn{
+    flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:none;background:var(--teal-soft);color:var(--teal);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+  }
+  .dp-call-picker-row{
+    display:flex;align-items:center;gap:12px;padding:14px 4px;border-bottom:1px solid var(--line);cursor:pointer;
+  }
+  .dp-call-picker-row:last-child{border-bottom:none;}
+  .dp-call-picker-row .dp-call-icon-btn{pointer-events:none;}
+  .dp-call-picker-number{font-size:16px;font-weight:700;color:var(--ink);}
+  .dp-call-picker-label{font-size:12px;color:var(--ink-soft);}
   .dp-client-name{font-weight:700;font-size:15px;color:var(--ink);white-space:normal;overflow-wrap:break-word;line-height:1.3;}
   .dp-client-addr{font-size:13.5px;color:#4A4A4E;white-space:normal;overflow-wrap:break-word;margin-top:2px;line-height:1.35;}
   .dp-bottom-actions{margin-top:18px;padding-bottom:20px;}
@@ -2076,6 +2091,21 @@
       <input type="text" id="dp-new-indirizzo" placeholder="Es. Via Fratta, 16, 35010 Borgoricco PD" autocomplete="off">
       <button type="button" class="ac-clear-btn" id="dp-new-indirizzo-clear" aria-label="Cancella">✕</button>
     </div>
+    <!-- Cerut direct ("sa adaug si numerele lor de telefon... un numar
+         sau poate chiar si doua... sa pot apasa pe butonul de a chema
+         direct"): doua campuri optionale (nu unul singur), caci un
+         client poate avea atat un numar de birou cat si unul mobil -
+         butonul verde din lista (vezi dpClientRowHtml) apare doar daca
+         cel putin unul e completat, si intreaba care dintre ele cand
+         amandoua exista. -->
+    <div class="field" style="margin-top:10px;">
+      <label>Telefono (opzionale)</label>
+      <input type="tel" id="dp-new-telefono" placeholder="Es. 333 1234567" autocomplete="off">
+    </div>
+    <div class="field" style="margin-top:10px;">
+      <label>Telefono 2 (opzionale)</label>
+      <input type="tel" id="dp-new-telefono2" placeholder="Es. 041 1234567" autocomplete="off">
+    </div>
     <!-- Requested directly: some clients genuinely must be delivered
          by a specific time (e.g. 7:00 or 7:30) — optional, left empty
          for clients with no such constraint. When Reordina runs,
@@ -2194,6 +2224,14 @@
       <button type="button" class="ac-clear-btn" id="dp-edit-indirizzo-clear" aria-label="Cancella">✕</button>
     </div>
     <div class="field" style="margin-top:10px;">
+      <label>Telefono (opzionale)</label>
+      <input type="tel" id="dp-edit-telefono" placeholder="Es. 333 1234567" autocomplete="off">
+    </div>
+    <div class="field" style="margin-top:10px;">
+      <label>Telefono 2 (opzionale)</label>
+      <input type="tel" id="dp-edit-telefono2" placeholder="Es. 041 1234567" autocomplete="off">
+    </div>
+    <div class="field" style="margin-top:10px;">
       <label>Consegna entro (opzionale)</label>
       <input type="time" id="dp-edit-scadenza">
     </div>
@@ -2268,6 +2306,14 @@
       <input type="text" id="dp-archive-edit-indirizzo" autocomplete="off">
       <button type="button" class="ac-clear-btn" id="dp-archive-edit-indirizzo-clear" aria-label="Cancella">✕</button>
     </div>
+    <div class="field" style="margin-top:10px;">
+      <label>Telefono (opzionale)</label>
+      <input type="tel" id="dp-archive-edit-telefono" placeholder="Es. 333 1234567" autocomplete="off">
+    </div>
+    <div class="field" style="margin-top:10px;">
+      <label>Telefono 2 (opzionale)</label>
+      <input type="tel" id="dp-archive-edit-telefono2" placeholder="Es. 041 1234567" autocomplete="off">
+    </div>
     <!-- Requested directly: setting a client's own delivery deadline
          shouldn't require waiting until it's already added to a
          specific day's run — knowing in advance which clients always
@@ -2285,6 +2331,18 @@
     <div id="dp-archive-edit-result" style="margin-top:8px;"></div>
     <button type="button" class="btn btn-accent btn-block" id="dp-archive-edit-save-btn" style="margin-top:10px;">Salva modifiche</button>
     <button type="button" class="btn btn-danger btn-block" id="dp-archive-edit-remove-btn" style="margin-top:10px;">Elimina definitivamente</button>
+  </div>
+</div>
+
+<!-- Cerut direct ("daca sunt mai multe numere imi da posibilitatea sa
+     aleg unul din numere"): un singur numar salvat suna direct, fara
+     sa mai treaca pe-aici (vezi dpCallClient in app.js) - acest modal
+     apare doar cand clientul are AMBELE numere completate. -->
+<div class="modal-overlay center" id="modal-dp-call-picker">
+  <div class="sheet-panel" style="max-width:360px;">
+    <button type="button" class="modal-close-x" id="dp-call-picker-close-x" aria-label="Chiudi">×</button>
+    <div class="modal-title" id="dp-call-picker-title">Chiama</div>
+    <div id="dp-call-picker-list"></div>
   </div>
 </div>
 
