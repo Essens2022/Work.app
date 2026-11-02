@@ -10286,15 +10286,25 @@
     var guide = document.getElementById('fuel-camera-guide');
     var w = video.clientWidth, h = video.clientHeight;
     if (w < 10 || h < 10) { requestAnimationFrame(layoutFuelCameraGuide); return; }
-    // Cerut direct ("patratul... prea micut, putin mai lat si mai
-    // maricel"): marit atat raportul (mai lat) cat si spatiul maxim
-    // folosit din cadru — la fel pe ecranul de decupare mai jos.
-    var RECEIPT_RATIO = 0.58; // width / height — mai lat decat inainte (0.46)
-    var maxW = w * 0.92, maxH = h * 0.9;
+    // Cerut direct ("acel dreptunghi trebuie sa fie putin mai mic"): de
+    // cand camera a devenit full-screen (vezi commit-ul anterior),
+    // acest ghid — calculat atunci ca procent din TOT ecranul
+    // (0.92/0.9) — ajunsese aproape cat tot ecranul, lipit vizual de
+    // blitz/X sus si de textul de jos. Acum spatiul real ocupat de ele
+    // e scazut explicit, citit direct din pozitia lor randata pe
+    // ecran (nu un numar fix ghicit) — ramane corect indiferent de
+    // telefon/safe-area — iar ghidul foloseste doar un procent mai mic
+    // din ce ramane disponibil intre ele.
+    var videoTop = video.getBoundingClientRect().top;
+    var topLimit = document.getElementById('fuel-camera-close-x').getBoundingClientRect().bottom + 14 - videoTop;
+    var bottomLimit = document.getElementById('fuel-camera-hint').getBoundingClientRect().top - 14 - videoTop;
+    var usableH = Math.max(bottomLimit - topLimit, 100);
+    var RECEIPT_RATIO = 0.58; // width / height
+    var maxW = w * 0.8, maxH = usableH * 0.94;
     var gw = maxW, gh = gw / RECEIPT_RATIO;
     if (gh > maxH) { gh = maxH; gw = gh * RECEIPT_RATIO; }
     guide.style.left = ((w - gw) / 2) + 'px';
-    guide.style.top = ((h - gh) / 2) + 'px';
+    guide.style.top = (topLimit + (usableH - gh) / 2) + 'px';
     guide.style.width = gw + 'px';
     guide.style.height = gh + 'px';
   }
