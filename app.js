@@ -2232,9 +2232,12 @@
     // is actually marked done — a finished stop no longer needs its
     // time constraint called out.
     var timeNote = '';
+    // Cerut direct ("putin mai mascat cifrele orarului"): marit usor
+    // (14px, de la 12.5px) - orele de "entro"/"non prima delle" se
+    // citesc mai clar dintr-o privire.
     if (!isDone) {
-      if (c.scadenza) timeNote = '<div style="color:#B45309;font-weight:700;font-size:12.5px;margin-top:2px;">⏱ entro ' + escapeHtml(c.scadenza) + '</div>';
-      else if (c.nonPrimaDi) timeNote = '<div style="color:#1D4ED8;font-weight:700;font-size:12.5px;margin-top:2px;">⏱ non prima delle ' + escapeHtml(c.nonPrimaDi) + '</div>';
+      if (c.scadenza) timeNote = '<div style="color:#B45309;font-weight:700;font-size:14px;margin-top:2px;">⏱ entro ' + escapeHtml(c.scadenza) + '</div>';
+      else if (c.nonPrimaDi) timeNote = '<div style="color:#1D4ED8;font-weight:700;font-size:14px;margin-top:2px;">⏱ non prima delle ' + escapeHtml(c.nonPrimaDi) + '</div>';
     }
     // Cerut direct ("stil modern... datele sa fie puse corect... bine
     // citit"): pinul vizual inaintea adresei, acelasi tipar deja
