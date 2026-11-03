@@ -610,7 +610,12 @@
      informatiile despre client (nume/timp/adresa), cu spatiu de
      respiratie deasupra - acelasi buton (.dp-call-icon-btn etc.,
      neschimbate ca forma/culoare), doar alta pozitie in cartonas. */
-  .dp-client-actions{display:flex;align-items:center;gap:10px;margin-top:12px;}
+  /* Cerut direct ("mai comod sa le pui tot la acea inaltime insa sa
+     fie pe partea dreapta... le apropii de marginea dreapta"):
+     ramane acelasi rand propriu, sub adresa - doar aliniat acum la
+     marginea din dreapta a cartonasului (langa chevron), nu la
+     stanga, sub text. */
+  .dp-client-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:12px;}
   .dp-bottom-actions{margin-top:18px;padding-bottom:20px;}
   .dp-search-result-row{display:flex;flex-direction:column;padding:12px 14px;border-bottom:1px solid var(--line);cursor:pointer;}
   /* Requested directly: a standalone "+" button in Archivio clienti's
