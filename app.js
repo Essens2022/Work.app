@@ -2242,7 +2242,25 @@
     // separata) - doar cand exista cu adevarat un text de adresa, ca
     // sa nu apara un pin "atarnat" fara nimic langa el.
     var addrText = (c.indirizzo || '').trim();
-    var addrHtml = (addrText ? '📍 ' + escapeHtml(addrText) : '') + ((c.lat == null || c.lon == null) ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + (c.orsUnreachable ? ' <span style="color:var(--accent);">⚠ non ottimizzato</span>' : '');
+    // Cerut direct ("cortinatele nu am nevoie sa mi le arate aici...
+    // oricum nu se intelege nimic... in loc la aceste coordonate
+    // sa-mi arate numarul de telefon"): clientii fara adresa reala
+    // (venit asa din import/borderou) ajung aici cu "indirizzo" scris
+    // literal ca perechea de coordonate brute (ex. "(45.68, 12.22)") -
+    // ilizibil si inutil pentru sofer. Cand se intampla exact asta SI
+    // exista macar un numar de telefon salvat, randul de adresa arata
+    // numarul (sau ambele, daca sunt doua) in loc de coordonate - mult
+    // mai util aici. O adresa reala (text normal, nu coordonate) nu e
+    // niciodata atinsa de aceasta regula.
+    var looksLikeCoords = /^\(\s*-?\d{1,3}(\.\d+)?\s*,\s*-?\d{1,3}(\.\d+)?\s*\)$/.test(addrText);
+    var phonesForAddr = [c.telefono, c.telefono2].map(function (p) { return (p || '').trim(); }).filter(Boolean);
+    var addrLine;
+    if (looksLikeCoords && phonesForAddr.length) {
+      addrLine = '📞 ' + phonesForAddr.map(escapeHtml).join(' · ');
+    } else {
+      addrLine = addrText ? '📍 ' + escapeHtml(addrText) : '';
+    }
+    var addrHtml = addrLine + ((c.lat == null || c.lon == null) ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + (c.orsUnreachable ? ' <span style="color:var(--accent);">⚠ non ottimizzato</span>' : '');
     if (readOnly) {
       // Storico's own read-only rows — no drag, no swipe, no click.
       return '' +
