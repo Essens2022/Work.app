@@ -2298,8 +2298,14 @@
       timeNote +
       '<div class="dp-client-addr">' + addrHtml + '</div>' +
       (c.completedAt ? '<div style="color:var(--teal);font-size:13px;font-weight:700;margin-top:3px;">✓ Consegnato ~' + dpFormatTime(c.completedAt) + '</div>' : '') +
-      (actionsHtml ? '<div class="dp-client-actions">' + actionsHtml + '</div>' : '') +
       '</div>' +
+      // Cerut direct ("sa fie in drept cu scrisul ca sa nu sa se
+      // latiasca din cauza asta"): randul propriu de mai jos facea
+      // cartonasul mai inalt doar din cauza butoanelor - mutate acum
+      // AFARA din .dp-client-info, langa el (nu sub text), centrate
+      // pe verticala fata de toata inaltimea randului - nu mai
+      // adauga inaltime in plus cartonasului.
+      (actionsHtml ? '<div class="dp-client-actions">' + actionsHtml + '</div>' : '') +
       '<div class="dp-client-chevron">›</div>' +
       '</div>' +
       '</div>';

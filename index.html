@@ -601,29 +601,16 @@
   .dp-whatsapp-picker-row .dp-whatsapp-icon-btn{pointer-events:none;}
   .dp-client-name{font-weight:700;font-size:16px;color:var(--ink);white-space:normal;overflow-wrap:break-word;line-height:1.32;}
   .dp-client-addr{font-size:13.5px;color:#4A4A4E;white-space:normal;overflow-wrap:break-word;margin-top:4px;line-height:1.4;}
-  /* Cerut direct ("stil modern... fara sa se suprapuna... bine
-     citit"): butonul de telefon/WhatsApp/foto statea inainte direct
-     in randul orizontal principal al cartonasului, langa chevron -
-     cu un nume lung sau o adresa pe mai multe randuri, se simtea
-     inghesuit, "agatat" langa text in loc sa fie o actiune clar
-     separata. Mutat acum pe randul lui propriu, DUPA toate
-     informatiile despre client (nume/timp/adresa), cu spatiu de
-     respiratie deasupra - acelasi buton (.dp-call-icon-btn etc.,
-     neschimbate ca forma/culoare), doar alta pozitie in cartonas. */
-  /* Cerut direct ("mai comod sa le pui tot la acea inaltime insa sa
-     fie pe partea dreapta... le apropii de marginea dreapta"):
-     ramane acelasi rand propriu, sub adresa - doar aliniat acum la
-     marginea din dreapta a cartonasului (langa chevron), nu la
-     stanga, sub text. */
-  /* Cerut direct ("fa mai ingusta"): spatiul dintre butonul de
-     telefon si cel de WhatsApp micsorat, ca cele doua sa stea mai
-     apropiate, ca un grup compact, nu intinse. */
-  /* Cerut direct ("ambele pe partea dreapta... in vertical una peste
-     alta, sus telefon jos whatsapp"): acelasi grup, tot la dreapta -
-     doar stivuit acum pe verticala (telefon deasupra, WhatsApp
-     dedesubt), in ordinea in care apar deja in HTML, nu unul langa
-     altul pe orizontala. */
-  .dp-client-actions{display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-top:12px;}
+  /* Cerut direct, in mai multi pasi - buton propriu sub text, apoi
+     aliniat la dreapta, apoi mai ingust, apoi stivuit pe verticala
+     (telefon deasupra, WhatsApp dedesubt) - si in final ("sa fie in
+     drept cu scrisul ca sa nu sa se latiasca din cauza asta"): grupul
+     NU mai sta DEDESUBTUL textului (randul propriu adauga inaltime in
+     plus cartonasului doar din cauza lui) - e acum langa .dp-client-
+     info (sibling in randul principal, inainte de chevron), centrat
+     pe verticala fata de toata inaltimea randului - "in drept cu
+     scrisul", nu mai jos de el. */
+  .dp-client-actions{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;flex:0 0 auto;align-self:center;}
   .dp-bottom-actions{margin-top:18px;padding-bottom:20px;}
   .dp-search-result-row{display:flex;flex-direction:column;padding:12px 14px;border-bottom:1px solid var(--line);cursor:pointer;}
   /* Requested directly: a standalone "+" button in Archivio clienti's
