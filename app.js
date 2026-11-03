@@ -2314,7 +2314,15 @@
       '<div class="dp-swipe-wrap" data-client-id="' + c.id + '">' +
       '<button type="button" class="dp-swipe-delete-btn" data-client-id="' + c.id + '">Elimina</button>' +
       '<div class="card dp-client-row dp-swipe-row' + (isDone ? ' dp-client-done' : '') + '" data-client-id="' + c.id + '">' +
+      '<div class="dp-drag-col">' +
       '<div class="dp-drag-handle" data-client-id="' + c.id + '">⠿</div>' +
+      // Cerut direct ("unii sunt ca vor sunati 10 min inainte de a
+      // ajunge... acolo s-ar putea pozitiona timpul cu care sa sun
+      // inainte de a ajunge?"): mic memento, chiar sub maner (exact
+      // locul aratat) - doar cand clientul chiar are setat un timp;
+      // soferul decide singur cand suna, nicio notificare automata.
+      (c.chiamaPrimaMin != null ? '<div class="dp-call-before-badge" title="Chiamare ' + c.chiamaPrimaMin + ' minuti prima dell\'arrivo">📞' + c.chiamaPrimaMin + '\'</div>' : '') +
+      '</div>' +
       '<div class="dp-client-badge' + (isDone ? ' dp-client-badge-done' : badgeTimeClass) + '">' + badge + '</div>' +
       '<div class="dp-client-info">' +
       '<div class="dp-client-name">' + escapeHtml(c.nome) + '</div>' +
@@ -3625,7 +3633,7 @@
     dpInsertNewStop({
       id: uid(), clientId: saved.id, nome: saved.nome, indirizzo: saved.indirizzo,
       lat: saved.lat, lon: saved.lon, status: 'pending', scadenza: saved.scadenza || '', nonPrimaDi: saved.nonPrimaDi || '',
-      telefono: saved.telefono || '', telefono2: saved.telefono2 || ''
+      telefono: saved.telefono || '', telefono2: saved.telefono2 || '', chiamaPrimaMin: (saved.chiamaPrimaMin != null ? saved.chiamaPrimaMin : null)
     });
     saveDeliveryRun(state.deliveryRun);
     if (currentScreen === 'navigatore') renderDeliveryPlanner(); // reflects immediately underneath if that screen happens to be showing right now
@@ -3676,6 +3684,7 @@
     document.getElementById('dp-new-indirizzo').value = '';
     document.getElementById('dp-new-telefono').value = '';
     document.getElementById('dp-new-telefono2').value = '';
+    document.getElementById('dp-new-chiamaprima').value = '';
     document.getElementById('dp-new-scadenza').value = '';
     document.getElementById('dp-new-nonprima').value = '';
     document.getElementById('dp-new-save-result').innerHTML = '';
@@ -3704,6 +3713,7 @@
     var saved = {
       id: uid(), nome: nome, indirizzo: indirizzo, lat: null, lon: null, createdAt: Date.now(),
       telefono: document.getElementById('dp-new-telefono').value.trim(), telefono2: document.getElementById('dp-new-telefono2').value.trim(),
+      chiamaPrimaMin: dpParseMinutesInput('dp-new-chiamaprima'),
       scadenza: document.getElementById('dp-new-scadenza').value || '', nonPrimaDi: document.getElementById('dp-new-nonprima').value || ''
     };
     state.deliveryClients.push(saved);
@@ -3851,6 +3861,7 @@
     document.getElementById('dp-archive-edit-indirizzo').value = c.indirizzo || '';
     document.getElementById('dp-archive-edit-telefono').value = c.telefono || '';
     document.getElementById('dp-archive-edit-telefono2').value = c.telefono2 || '';
+    document.getElementById('dp-archive-edit-chiamaprima').value = c.chiamaPrimaMin != null ? c.chiamaPrimaMin : '';
     document.getElementById('dp-archive-edit-scadenza').value = c.scadenza || '';
     document.getElementById('dp-archive-edit-nonprima').value = c.nonPrimaDi || '';
     wireNavClearButton(document.getElementById('dp-archive-edit-nome'), document.getElementById('dp-archive-edit-nome-clear'), function () {});
@@ -3889,6 +3900,7 @@
       c.indirizzo = indirizzo;
       c.telefono = document.getElementById('dp-archive-edit-telefono').value.trim();
       c.telefono2 = document.getElementById('dp-archive-edit-telefono2').value.trim();
+      c.chiamaPrimaMin = dpParseMinutesInput('dp-archive-edit-chiamaprima');
       c.scadenza = document.getElementById('dp-archive-edit-scadenza').value || '';
       c.nonPrimaDi = document.getElementById('dp-archive-edit-nonprima').value || '';
       if (addressChanged) { c.lat = null; c.lon = null; } // stale coordinates from the OLD address would silently mislead Reordina's ordering later — cleared until re-geocoded (or set directly below, if the new text is itself coordinates)
@@ -3898,7 +3910,7 @@
       // changing it here would silently do nothing for a client
       // already added, until removed and re-added.
       state.deliveryRun.clients.forEach(function (rc) {
-        if (rc.clientId === c.id) { rc.scadenza = c.scadenza; rc.nonPrimaDi = c.nonPrimaDi; rc.telefono = c.telefono; rc.telefono2 = c.telefono2; }
+        if (rc.clientId === c.id) { rc.scadenza = c.scadenza; rc.nonPrimaDi = c.nonPrimaDi; rc.telefono = c.telefono; rc.telefono2 = c.telefono2; rc.chiamaPrimaMin = c.chiamaPrimaMin; }
       });
       saveDeliveryRun(state.deliveryRun);
       dpCloseModal('modal-dp-archive-edit');
@@ -4055,10 +4067,22 @@
     dpInsertNewStop({
       id: uid(), clientId: saved.id, nome: saved.nome, indirizzo: saved.indirizzo,
       lat: saved.lat, lon: saved.lon, status: 'pending', scadenza: saved.scadenza || '', nonPrimaDi: saved.nonPrimaDi || '',
-      telefono: saved.telefono || '', telefono2: saved.telefono2 || ''
+      telefono: saved.telefono || '', telefono2: saved.telefono2 || '', chiamaPrimaMin: (saved.chiamaPrimaMin != null ? saved.chiamaPrimaMin : null)
     });
     saveDeliveryRun(state.deliveryRun);
     renderDeliveryPlanner();
+  }
+
+  // Cerut direct ("unii sunt ca vor sunati 10 min inainte de a
+  // ajunge"): un numar de minute, nu o ora fixa - soferul il seteaza
+  // o singura data pe client (ca scadenza/nonPrimaDi), ramane memorat
+  // pentru totdeauna, arata pe cartonas ca un memento simplu. Niciun
+  // calcul live din GPS/navigatie - soferul decide singur cand suna.
+  function dpParseMinutesInput(id) {
+    var raw = (document.getElementById(id).value || '').trim();
+    if (!raw) return null;
+    var n = parseInt(raw, 10);
+    return (isFinite(n) && n >= 0) ? n : null;
   }
 
   function dpOpenNewClientModal(prefillName) {
@@ -4067,6 +4091,7 @@
     document.getElementById('dp-new-indirizzo').value = '';
     document.getElementById('dp-new-telefono').value = '';
     document.getElementById('dp-new-telefono2').value = '';
+    document.getElementById('dp-new-chiamaprima').value = '';
     document.getElementById('dp-new-scadenza').value = '';
     document.getElementById('dp-new-nonprima').value = '';
     document.getElementById('dp-new-scadenza-wrap').style.display = '';
@@ -4130,6 +4155,7 @@
       id: uid(), nome: nome, indirizzo: indirizzo, lat: null, lon: null, createdAt: Date.now(),
       telefono: document.getElementById('dp-new-telefono').value.trim(),
       telefono2: document.getElementById('dp-new-telefono2').value.trim(),
+      chiamaPrimaMin: dpParseMinutesInput('dp-new-chiamaprima'),
       scadenza: document.getElementById('dp-new-scadenza').value || '',
       nonPrimaDi: document.getElementById('dp-new-nonprima').value || ''
     };
@@ -4137,7 +4163,7 @@
     saveDeliveryClients(state.deliveryClients);
     dpInsertNewStop({
       id: uid(), clientId: saved.id, nome: nome, indirizzo: indirizzo, lat: null, lon: null, status: 'pending', scadenza: saved.scadenza, nonPrimaDi: saved.nonPrimaDi,
-      telefono: saved.telefono, telefono2: saved.telefono2
+      telefono: saved.telefono, telefono2: saved.telefono2, chiamaPrimaMin: saved.chiamaPrimaMin
     });
     saveDeliveryRun(state.deliveryRun);
     dpCloseModal('modal-dp-new-client');
@@ -4266,6 +4292,7 @@
     document.getElementById('dp-edit-indirizzo').value = client.indirizzo || '';
     document.getElementById('dp-edit-telefono').value = client.telefono || '';
     document.getElementById('dp-edit-telefono2').value = client.telefono2 || '';
+    document.getElementById('dp-edit-chiamaprima').value = client.chiamaPrimaMin != null ? client.chiamaPrimaMin : '';
     document.getElementById('dp-edit-scadenza').value = client.scadenza || '';
     document.getElementById('dp-edit-nonprima').value = client.nonPrimaDi || '';
     document.getElementById('dp-edit-save-result').innerHTML = '';
@@ -4300,6 +4327,7 @@
     client.indirizzo = indirizzo;
     client.telefono = document.getElementById('dp-edit-telefono').value.trim();
     client.telefono2 = document.getElementById('dp-edit-telefono2').value.trim();
+    client.chiamaPrimaMin = dpParseMinutesInput('dp-edit-chiamaprima');
     client.scadenza = document.getElementById('dp-edit-scadenza').value || '';
     client.nonPrimaDi = document.getElementById('dp-edit-nonprima').value || '';
     if (addressChanged) { client.lat = null; client.lon = null; client.orsUnreachable = false; } // stale coordinates from the OLD address would silently mislead Reordina's ordering — cleared until the new address is (silently) re-geocoded below; orsUnreachable cleared too since that verdict was about the OLD address's position, not this new one
@@ -4307,7 +4335,7 @@
       var saved = state.deliveryClients.find(function (s) { return s.id === client.clientId; });
       if (saved) {
         saved.nome = nome; saved.indirizzo = indirizzo; saved.scadenza = client.scadenza; saved.nonPrimaDi = client.nonPrimaDi;
-        saved.telefono = client.telefono; saved.telefono2 = client.telefono2;
+        saved.telefono = client.telefono; saved.telefono2 = client.telefono2; saved.chiamaPrimaMin = client.chiamaPrimaMin;
         if (addressChanged) { saved.lat = null; saved.lon = null; }
         saveDeliveryClients(state.deliveryClients);
       }
