@@ -2242,20 +2242,17 @@
     // separata) - doar cand exista cu adevarat un text de adresa, ca
     // sa nu apara un pin "atarnat" fara nimic langa el.
     var addrText = (c.indirizzo || '').trim();
-    // Cerut direct ("cortinatele nu am nevoie sa mi le arate aici...
-    // oricum nu se intelege nimic... in loc la aceste coordonate
-    // sa-mi arate numarul de telefon"): clientii fara adresa reala
-    // (venit asa din import/borderou) ajung aici cu "indirizzo" scris
-    // literal ca perechea de coordonate brute (ex. "(45.68, 12.22)") -
-    // ilizibil si inutil pentru sofer. Cand se intampla exact asta SI
-    // exista macar un numar de telefon salvat, randul de adresa arata
-    // numarul (sau ambele, daca sunt doua) in loc de coordonate - mult
-    // mai util aici. O adresa reala (text normal, nu coordonate) nu e
-    // niciodata atinsa de aceasta regula.
-    var looksLikeCoords = /^\(\s*-?\d{1,3}(\.\d+)?\s*,\s*-?\d{1,3}(\.\d+)?\s*\)$/.test(addrText);
+    // Cerut direct ("de adresa nu am nevoie... daca clientul are
+    // numar de telefon, atunci se arata numarul sau numerele de
+    // telefoane. Daca clientul nu are numar de telefon, atunci deja
+    // se arata adresa sau coordonatele"): nu mai conteaza daca adresa
+    // e una reala sau doar coordonate brute - regula e acum simpla,
+    // telefonul (cand exista) castiga mereu in fata adresei, pentru
+    // ca pe asta chiar il foloseste soferul. Adresa/coordonatele
+    // raman afisate doar cand clientul nu are niciun numar salvat.
     var phonesForAddr = [c.telefono, c.telefono2].map(function (p) { return (p || '').trim(); }).filter(Boolean);
     var addrLine;
-    if (looksLikeCoords && phonesForAddr.length) {
+    if (phonesForAddr.length) {
       // Cerut direct ("in caz ca sunt doua numere, sa le arate pe
       // doua randuri, unul sub altul... sa se vada destul de clar"):
       // un <div> propriu pentru fiecare numar (nu inlantuite pe-un
