@@ -618,7 +618,12 @@
   /* Cerut direct ("fa mai ingusta"): spatiul dintre butonul de
      telefon si cel de WhatsApp micsorat, ca cele doua sa stea mai
      apropiate, ca un grup compact, nu intinse. */
-  .dp-client-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:12px;}
+  /* Cerut direct ("ambele pe partea dreapta... in vertical una peste
+     alta, sus telefon jos whatsapp"): acelasi grup, tot la dreapta -
+     doar stivuit acum pe verticala (telefon deasupra, WhatsApp
+     dedesubt), in ordinea in care apar deja in HTML, nu unul langa
+     altul pe orizontala. */
+  .dp-client-actions{display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-top:12px;}
   .dp-bottom-actions{margin-top:18px;padding-bottom:20px;}
   .dp-search-result-row{display:flex;flex-direction:column;padding:12px 14px;border-bottom:1px solid var(--line);cursor:pointer;}
   /* Requested directly: a standalone "+" button in Archivio clienti's
