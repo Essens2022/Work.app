@@ -2321,7 +2321,10 @@
       // inainte de a ajunge?"): mic memento, chiar sub maner (exact
       // locul aratat) - doar cand clientul chiar are setat un timp;
       // soferul decide singur cand suna, nicio notificare automata.
-      (c.chiamaPrimaMin != null ? '<div class="dp-call-before-badge" title="Chiamare ' + c.chiamaPrimaMin + ' minuti prima dell\'arrivo">📞' + c.chiamaPrimaMin + '\'</div>' : '') +
+      // Cerut direct ("nu neaparat sa fie receptorul... poate fi doar
+      // cifrele"): fara iconita de telefon - doar numarul de minute,
+      // cu simbolul de minute (').
+      (c.chiamaPrimaMin != null ? '<div class="dp-call-before-badge" title="Chiamare ' + c.chiamaPrimaMin + ' minuti prima dell\'arrivo">' + c.chiamaPrimaMin + '\'</div>' : '') +
       '</div>' +
       '<div class="dp-client-badge' + (isDone ? ' dp-client-badge-done' : badgeTimeClass) + '">' + badge + '</div>' +
       '<div class="dp-client-info">' +
