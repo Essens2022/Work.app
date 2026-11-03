@@ -971,6 +971,12 @@
       // verde"): receptorul clasic de telefon, acelasi tipar de stil
       // (stroke, nu fill) ca restul iconitelor de-aici.
       phone: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h3.5l1.5 4-2 1.3a12 12 0 0 0 5.7 5.7l1.3-2 4 1.5V18a2 2 0 0 1-2 2A15 15 0 0 1 3 5a2 2 0 0 1 2-1Z"/></svg>',
+      // Cerut direct ("nu doar telefonul sa am dar si posibilitatea
+      // de a-i scrie pe whatsapp"): bula clasica de mesaj, acelasi
+      // tipar de stil (stroke, nu fill) ca restul iconitelor de-aici -
+      // culoarea (brand WhatsApp) e cea care o leaga vizual de
+      // WhatsApp, nu glifa insasi.
+      whatsapp: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>',
       route: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M5 8v4a4 4 0 0 0 4 4h6" stroke-dasharray="3 3"/></svg>',
       fuel: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="9" height="18" rx="1"/><rect x="6.3" y="5.5" width="4.4" height="4" rx="0.5"/><path d="M13 9h2.5l3 2.5v6.5a1.5 1.5 0 0 1-3 0v-3.5a1 1 0 0 0-1-1h-1.5"/></svg>',
       share: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg>',
@@ -2273,6 +2279,11 @@
       // acolo in lista... ala verde"): apare doar cand clientul are
       // macar un numar salvat - vezi dpCallClient mai jos.
       ((c.telefono || c.telefono2) ? '<button type="button" class="dp-call-icon-btn" data-client-id="' + c.id + '" aria-label="Chiama">' + svgIcon('phone') + '</button>' : '') +
+      // Cerut direct ("nu doar telefonul sa am dar si posibilitatea
+      // de a-i scrie pe whatsapp tot la acel numar"): acelasi tipar
+      // conditionat ca butonul de chemare de mai sus - vezi
+      // dpWhatsAppClient mai jos.
+      ((c.telefono || c.telefono2) ? '<button type="button" class="dp-whatsapp-icon-btn" data-client-id="' + c.id + '" aria-label="WhatsApp">' + svgIcon('whatsapp') + '</button>' : '') +
       '<div class="dp-client-chevron">›</div>' +
       '</div>' +
       '</div>';
@@ -2324,6 +2335,65 @@
   }
   document.getElementById('dp-call-picker-close-x').addEventListener('click', function () {
     dpCloseModal('modal-dp-call-picker');
+  });
+
+  // Cerut direct ("nu doar telefonul sa am dar si posibilitatea de a-i
+  // scrie pe whatsapp tot la acel numar daca are whatsapp
+  // bineinteles"): exact acelasi tipar ca dpCallClient/dpDialNumber de
+  // mai sus (un singur numar deschide direct, doua numere arata un
+  // picker) - doar ca destinatia e wa.me in loc de tel:. Daca numarul
+  // nu are cont WhatsApp, pagina wa.me insasi arata asta - aplicatia
+  // doar deschide linkul, nu poate verifica dinainte.
+  function dpWhatsAppDigits(number) {
+    var digits = (number || '').replace(/[^\d+]/g, '');
+    if (digits.indexOf('+') === 0) digits = digits.slice(1);
+    else if (digits.indexOf('00') === 0) digits = digits.slice(2);
+    // Numerele salvate in aplicatie sunt aproape intotdeauna scrise
+    // local (fara prefix de tara) - presupunem Italia (39), acelasi
+    // standard implicit folosit deja in restul aplicatiei.
+    if (digits.indexOf('39') !== 0) digits = '39' + digits;
+    return digits;
+  }
+  function dpOpenWhatsApp(number) {
+    var a = document.createElement('a');
+    a.href = 'https://wa.me/' + dpWhatsAppDigits(number);
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+  function dpWhatsAppClient(clientId) {
+    var c = state.deliveryRun.clients.find(function (x) { return x.id === clientId; });
+    if (!c) return;
+    var n1 = (c.telefono || '').trim(), n2 = (c.telefono2 || '').trim();
+    if (n1 && n2) {
+      dpOpenWhatsAppPicker(c.nome, [n1, n2]);
+    } else if (n1 || n2) {
+      dpOpenWhatsApp(n1 || n2);
+    }
+  }
+  function dpOpenWhatsAppPicker(nome, numbers) {
+    document.getElementById('dp-whatsapp-picker-title').textContent = 'WhatsApp ' + nome;
+    var list = document.getElementById('dp-whatsapp-picker-list');
+    list.innerHTML = numbers.map(function (n, i) {
+      return '<div class="dp-whatsapp-picker-row" data-number="' + escapeHtml(n) + '">' +
+        '<div class="dp-whatsapp-icon-btn">' + svgIcon('whatsapp') + '</div>' +
+        '<div><div class="dp-call-picker-number">' + escapeHtml(n) + '</div>' +
+        '<div class="dp-call-picker-label">Telefono' + (i === 0 ? '' : ' 2') + '</div></div>' +
+        '</div>';
+    }).join('');
+    list.querySelectorAll('.dp-whatsapp-picker-row').forEach(function (row) {
+      row.addEventListener('click', function () {
+        dpCloseModal('modal-dp-whatsapp-picker');
+        dpOpenWhatsApp(row.getAttribute('data-number'));
+      });
+    });
+    document.getElementById('modal-dp-whatsapp-picker').classList.add('open');
+  }
+  document.getElementById('dp-whatsapp-picker-close-x').addEventListener('click', function () {
+    dpCloseModal('modal-dp-whatsapp-picker');
   });
 
   // RESTORED — these two declarations were accidentally deleted when
@@ -2840,6 +2910,12 @@
       btn.addEventListener('click', function (e) {
         e.stopPropagation(); // must never also trigger the row's own click (which opens Modifica cliente)
         dpCallClient(btn.getAttribute('data-client-id'));
+      });
+    });
+    el.querySelectorAll('.dp-whatsapp-icon-btn').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation(); // must never also trigger the row's own click (which opens Modifica cliente)
+        dpWhatsAppClient(btn.getAttribute('data-client-id'));
       });
     });
 
