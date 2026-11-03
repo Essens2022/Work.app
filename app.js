@@ -2236,6 +2236,13 @@
       if (c.scadenza) timeNote = '<div style="color:#B45309;font-weight:700;font-size:12.5px;margin-top:2px;">⏱ entro ' + escapeHtml(c.scadenza) + '</div>';
       else if (c.nonPrimaDi) timeNote = '<div style="color:#1D4ED8;font-weight:700;font-size:12.5px;margin-top:2px;">⏱ non prima delle ' + escapeHtml(c.nonPrimaDi) + '</div>';
     }
+    // Cerut direct ("stil modern... datele sa fie puse corect... bine
+    // citit"): pinul vizual inaintea adresei, acelasi tipar deja
+    // folosit in acest rand pentru ⏱/✓/⚠ (unicode simplu, nu o iconita
+    // separata) - doar cand exista cu adevarat un text de adresa, ca
+    // sa nu apara un pin "atarnat" fara nimic langa el.
+    var addrText = (c.indirizzo || '').trim();
+    var addrHtml = (addrText ? '📍 ' + escapeHtml(addrText) : '') + ((c.lat == null || c.lon == null) ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + (c.orsUnreachable ? ' <span style="color:var(--accent);">⚠ non ottimizzato</span>' : '');
     if (readOnly) {
       // Storico's own read-only rows — no drag, no swipe, no click.
       return '' +
@@ -2244,11 +2251,34 @@
         '<div class="dp-client-info">' +
         '<div class="dp-client-name">' + escapeHtml(c.nome) + '</div>' +
         timeNote +
-        '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + ((c.lat == null || c.lon == null) ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + (c.orsUnreachable ? ' <span style="color:var(--accent);">⚠ non ottimizzato</span>' : '') + '</div>' +
+        '<div class="dp-client-addr">' + addrHtml + '</div>' +
         (c.completedAt ? '<div style="color:var(--teal);font-size:13px;font-weight:700;margin-top:3px;">✓ Consegnato ~' + dpFormatTime(c.completedAt) + '</div>' : '') +
         '</div>' +
         '</div>';
     }
+    // Cerut direct ("stil modern... fara sa se suprapuna... bine
+    // citit"): butoanele de foto/chemare/whatsapp nu mai stau in
+    // randul orizontal principal, langa chevron - inghesuiau vizual
+    // orice nume/adresa mai lunga, pe mai multe randuri. Mutate acum
+    // intr-un rand propriu, DUPA toate informatiile textuale despre
+    // client, in interiorul .dp-client-info - clar separate, nu mai
+    // "agatate" de text.
+    var actionsHtml = '' +
+      // Requested directly: once a client is marked consegnato, a
+      // camera icon appears on its row — in case the driver closed
+      // the auto-opened camera by mistake, or just wants another
+      // photo later, tapping this reopens it for exactly this one
+      // client (not the rest of the queue).
+      (isDone ? '<button type="button" class="dp-camera-retake-icon-btn" data-client-id="' + c.id + '" aria-label="Fai foto">' + svgIcon('camera') + '</button>' : '') +
+      // Cerut direct ("sa pot apasa pe butonul de a chema direct
+      // acolo in lista... ala verde"): apare doar cand clientul are
+      // macar un numar salvat - vezi dpCallClient mai jos.
+      ((c.telefono || c.telefono2) ? '<button type="button" class="dp-call-icon-btn" data-client-id="' + c.id + '" aria-label="Chiama">' + svgIcon('phone') + '</button>' : '') +
+      // Cerut direct ("nu doar telefonul sa am dar si posibilitatea
+      // de a-i scrie pe whatsapp tot la acel numar"): acelasi tipar
+      // conditionat ca butonul de chemare de mai sus - vezi
+      // dpWhatsAppClient mai jos.
+      ((c.telefono || c.telefono2) ? '<button type="button" class="dp-whatsapp-icon-btn" data-client-id="' + c.id + '" aria-label="WhatsApp">' + svgIcon('whatsapp') + '</button>' : '');
     // Today's own rows — wrapped for swipe-to-delete (same iOS Mail-
     // style pattern already used for saved-client suggestions: the
     // red Elimina button sits behind, revealed by dragging the row
@@ -2266,24 +2296,10 @@
       '<div class="dp-client-info">' +
       '<div class="dp-client-name">' + escapeHtml(c.nome) + '</div>' +
       timeNote +
-      '<div class="dp-client-addr">' + escapeHtml(c.indirizzo || '') + ((c.lat == null || c.lon == null) ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + (c.orsUnreachable ? ' <span style="color:var(--accent);">⚠ non ottimizzato</span>' : '') + '</div>' +
+      '<div class="dp-client-addr">' + addrHtml + '</div>' +
       (c.completedAt ? '<div style="color:var(--teal);font-size:13px;font-weight:700;margin-top:3px;">✓ Consegnato ~' + dpFormatTime(c.completedAt) + '</div>' : '') +
+      (actionsHtml ? '<div class="dp-client-actions">' + actionsHtml + '</div>' : '') +
       '</div>' +
-      // Requested directly: once a client is marked consegnato, a
-      // camera icon appears on its row — in case the driver closed
-      // the auto-opened camera by mistake, or just wants another
-      // photo later, tapping this reopens it for exactly this one
-      // client (not the rest of the queue).
-      (isDone ? '<button type="button" class="dp-camera-retake-icon-btn" data-client-id="' + c.id + '" aria-label="Fai foto">' + svgIcon('camera') + '</button>' : '') +
-      // Cerut direct ("sa pot apasa pe butonul de a chema direct
-      // acolo in lista... ala verde"): apare doar cand clientul are
-      // macar un numar salvat - vezi dpCallClient mai jos.
-      ((c.telefono || c.telefono2) ? '<button type="button" class="dp-call-icon-btn" data-client-id="' + c.id + '" aria-label="Chiama">' + svgIcon('phone') + '</button>' : '') +
-      // Cerut direct ("nu doar telefonul sa am dar si posibilitatea
-      // de a-i scrie pe whatsapp tot la acel numar"): acelasi tipar
-      // conditionat ca butonul de chemare de mai sus - vezi
-      // dpWhatsAppClient mai jos.
-      ((c.telefono || c.telefono2) ? '<button type="button" class="dp-whatsapp-icon-btn" data-client-id="' + c.id + '" aria-label="WhatsApp">' + svgIcon('whatsapp') + '</button>' : '') +
       '<div class="dp-client-chevron">›</div>' +
       '</div>' +
       '</div>';
