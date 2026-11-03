@@ -2256,7 +2256,15 @@
     var phonesForAddr = [c.telefono, c.telefono2].map(function (p) { return (p || '').trim(); }).filter(Boolean);
     var addrLine;
     if (looksLikeCoords && phonesForAddr.length) {
-      addrLine = '📞 ' + phonesForAddr.map(escapeHtml).join(' · ');
+      // Cerut direct ("in caz ca sunt doua numere, sa le arate pe
+      // doua randuri, unul sub altul... sa se vada destul de clar"):
+      // un <div> propriu pentru fiecare numar (nu inlantuite pe-un
+      // singur rand cu "·") - fiecare pe linia lui, cu putin spatiu
+      // intre ele cand sunt doua, mai mare/mai apasat decat textul
+      // obisnuit de adresa, ca sa fie usor de citit dintr-o privire.
+      addrLine = phonesForAddr.map(function (p, i) {
+        return '<div class="dp-client-phone-line"' + (i > 0 ? ' style="margin-top:3px;"' : '') + '>📞 ' + escapeHtml(p) + '</div>';
+      }).join('');
     } else {
       addrLine = addrText ? '📍 ' + escapeHtml(addrText) : '';
     }
