@@ -548,10 +548,10 @@
      memento vizual (soferul decide singur cand suna, nicio notificare
      automata) - acelasi cerc-pill ca restul badge-urilor din aplicatie. */
   .dp-drag-col{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:5px;margin-top:1px;}
-  /* Cerut direct ("sa fie mai mascat"): marit vizibil (font, padding,
-     latime minima egala cu manerul de deasupra), ca sa se vada clar
-     dintr-o privire, nu doar o eticheta mica, greu de observat. */
-  .dp-call-before-badge{font-size:13px;font-weight:800;color:var(--accent);background:var(--accent-soft);border-radius:8px;padding:5px 6px;line-height:1.2;text-align:center;white-space:nowrap;min-width:32px;}
+  /* Cerut direct ("prea marunt nu se vede bine si fundal nu-i neaparat
+     sa fie"): text simplu, fara pastila colorata - mult mai mare
+     (18px, bold), ca sa se citeasca usor dintr-o privire. */
+  .dp-call-before-badge{font-size:18px;font-weight:800;color:var(--accent);line-height:1.1;text-align:center;white-space:nowrap;min-width:32px;}
   .dp-dragging{box-shadow:var(--shadow-md);opacity:.95;}
   /* Completed clients — a fully OPAQUE, distinct background instead
      of transparency. Reported directly: opacity made the row see-
