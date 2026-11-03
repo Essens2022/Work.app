@@ -576,6 +576,20 @@
   .dp-call-picker-row .dp-call-icon-btn{pointer-events:none;}
   .dp-call-picker-number{font-size:16px;font-weight:700;color:var(--ink);}
   .dp-call-picker-label{font-size:12px;color:var(--ink-soft);}
+  /* Cerut direct ("nu doar telefonul... si posibilitatea de a-i scrie
+     pe whatsapp"): aceeasi forma ca .dp-call-icon-btn, dar cu culoarea
+     de brand WhatsApp - vizibil diferit de butonul verde-teal de
+     chemare, desi amandoua sunt "verzi", ca soferul sa nu le confunde
+     dintr-o privire rapida. */
+  .dp-whatsapp-icon-btn{
+    flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:none;background:#DCF5E1;color:#128C7E;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;
+  }
+  .dp-whatsapp-picker-row{
+    display:flex;align-items:center;gap:12px;padding:14px 4px;border-bottom:1px solid var(--line);cursor:pointer;
+  }
+  .dp-whatsapp-picker-row:last-child{border-bottom:none;}
+  .dp-whatsapp-picker-row .dp-whatsapp-icon-btn{pointer-events:none;}
   .dp-client-name{font-weight:700;font-size:15px;color:var(--ink);white-space:normal;overflow-wrap:break-word;line-height:1.3;}
   .dp-client-addr{font-size:13.5px;color:#4A4A4E;white-space:normal;overflow-wrap:break-word;margin-top:2px;line-height:1.35;}
   .dp-bottom-actions{margin-top:18px;padding-bottom:20px;}
@@ -2379,6 +2393,19 @@
     <button type="button" class="modal-close-x" id="dp-call-picker-close-x" aria-label="Chiudi">×</button>
     <div class="modal-title" id="dp-call-picker-title">Chiama</div>
     <div id="dp-call-picker-list"></div>
+  </div>
+</div>
+
+<!-- Cerut direct ("nu doar telefonul sa am dar si posibilitatea de a-i
+     scrie pe whatsapp tot la acel numar"): acelasi tipar exact ca
+     modal-dp-call-picker de mai sus, doar pentru WhatsApp (vezi
+     dpWhatsAppClient in app.js) - apare doar cand clientul are AMBELE
+     numere completate; un singur numar deschide direct wa.me. -->
+<div class="modal-overlay center" id="modal-dp-whatsapp-picker">
+  <div class="sheet-panel" style="max-width:360px;">
+    <button type="button" class="modal-close-x" id="dp-whatsapp-picker-close-x" aria-label="Chiudi">×</button>
+    <div class="modal-title" id="dp-whatsapp-picker-title">WhatsApp</div>
+    <div id="dp-whatsapp-picker-list"></div>
   </div>
 </div>
 
