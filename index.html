@@ -1360,7 +1360,14 @@
   .modal-sub{font-size:13px;color:var(--ink-soft);margin-bottom:16px;line-height:1.5;}
 
   .field{margin-bottom:14px;}
-  .field label{display:block;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;}
+  /* Cerut direct ("titlurile... nu sunt clare, vizibile, deoarece sunt
+     subtiri... nu inteleg instant pe ce sa scriu"): etichetele de
+     deasupra fiecarui camp (Telefono, Indirizzo etc.) erau prea mici
+     (11px) si prea deschise la culoare (--ink-soft, gri pal) - marite
+     (13px) si inchise la culoare (--ink, nu --ink-soft), cu mai putin
+     spatiu intre litere (mai usor de citit dintr-o privire, nu
+     "intins" artificial). */
+  .field label{display:block;font-size:13px;font-weight:800;letter-spacing:.02em;text-transform:uppercase;color:var(--ink);margin-bottom:6px;}
   .field input,.field select,.field textarea{
     width:100%;padding:13px 14px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);
     font-size:16px;font-weight:600;color:var(--ink);font-family:inherit;
