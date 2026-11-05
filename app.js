@@ -977,6 +977,10 @@
       // culoarea (brand WhatsApp) e cea care o leaga vizual de
       // WhatsApp, nu glifa insasi.
       whatsapp: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>',
+      // Cerut direct ("un buton info... un i... apasat si imi apare
+      // comentariul... unde a lasat pachetul"): cerc clasic cu "i",
+      // acelasi tipar de stil (stroke) ca restul iconitelor de-aici.
+      info: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="7.6" r="0.6" fill="currentColor" stroke="none"/></svg>',
       route: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="5" cy="6" r="2"/><circle cx="19" cy="18" r="2"/><path d="M5 8v4a4 4 0 0 0 4 4h6" stroke-dasharray="3 3"/></svg>',
       fuel: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="9" height="18" rx="1"/><rect x="6.3" y="5.5" width="4.4" height="4" rx="0.5"/><path d="M13 9h2.5l3 2.5v6.5a1.5 1.5 0 0 1-3 0v-3.5a1 1 0 0 0-1-1h-1.5"/></svg>',
       share: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg>',
@@ -2334,6 +2338,16 @@
       // cifrele"): fara iconita de telefon - doar numarul de minute,
       // cu simbolul de minute (').
       (c.chiamaPrimaMin != null ? '<div class="dp-call-before-badge" title="Chiamare ' + c.chiamaPrimaMin + ' minuti prima dell\'arrivo">' + c.chiamaPrimaMin + '\'</div>' : '') +
+      // Cerut direct ("un buton info... in coltul... in drept cu
+      // orarul care trebuie sa sun, sub el, in partea de jos in
+      // stanga, in coltul casetei"): mereu vizibil (nu doar cand
+      // exista deja o nota - soferul trebuie sa poata ADAUGA una, nu
+      // doar s-o vada), impins jos de tot in coloana din stanga
+      // (margin-top:auto pe coloana intinsa pe toata inaltimea
+      // randului) - exact coltul din stanga jos aratat. Umplut cu
+      // culoare doar cand exista deja o nota salvata, ca soferul sa
+      // stie dintr-o privire daca are ceva de citit.
+      '<button type="button" class="dp-info-btn' + ((c.nota || '').trim() ? ' dp-info-btn-filled' : '') + '" data-client-id="' + c.id + '" aria-label="Nota cliente">' + svgIcon('info') + '</button>' +
       '</div>' +
       '<div class="dp-client-badge' + (isDone ? ' dp-client-badge-done' : badgeTimeClass) + '">' + badge + '</div>' +
       '<div class="dp-client-info">' +
@@ -2461,6 +2475,30 @@
   document.getElementById('dp-whatsapp-picker-close-x').addEventListener('click', function () {
     dpCloseModal('modal-dp-whatsapp-picker');
   });
+
+  // Cerut direct ("un buton info... apasat si imi apare comentariul...
+  // unde a lasat pachetul"): nota libera, per client - sincronizata cu
+  // agenda salvata (ca scadenza/codiceCancello), ca sa ramana memorata
+  // pentru totdeauna, nu doar pentru cursa de azi. Camp pur local, nu
+  // ajunge niciodata pe server.
+  function dpOpenClientNoteModal(clientId) {
+    var client = state.deliveryRun.clients.find(function (c) { return c.id === clientId; });
+    if (!client) return;
+    document.getElementById('dp-client-note-title').textContent = 'Nota — ' + client.nome;
+    document.getElementById('dp-client-note-text').value = client.nota || '';
+    document.getElementById('dp-client-note-close-x').onclick = function () { dpCloseModal('modal-dp-client-note'); };
+    document.getElementById('dp-client-note-save-btn').onclick = function () {
+      client.nota = document.getElementById('dp-client-note-text').value.trim();
+      if (client.clientId) {
+        var saved = state.deliveryClients.find(function (s) { return s.id === client.clientId; });
+        if (saved) { saved.nota = client.nota; saveDeliveryClients(state.deliveryClients); }
+      }
+      saveDeliveryRun(state.deliveryRun);
+      dpCloseModal('modal-dp-client-note');
+      renderDeliveryPlanner();
+    };
+    document.getElementById('modal-dp-client-note').classList.add('open');
+  }
 
   // RESTORED — these two declarations were accidentally deleted when
   // the Delivery Planner code was first inserted in place of the old
@@ -2982,6 +3020,12 @@
       btn.addEventListener('click', function (e) {
         e.stopPropagation(); // must never also trigger the row's own click (which opens Modifica cliente)
         dpWhatsAppClient(btn.getAttribute('data-client-id'));
+      });
+    });
+    el.querySelectorAll('.dp-info-btn').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation(); // must never also trigger the row's own click (which opens Modifica cliente)
+        dpOpenClientNoteModal(btn.getAttribute('data-client-id'));
       });
     });
 

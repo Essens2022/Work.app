@@ -547,11 +547,22 @@
      mic indicator imediat dedesubt, exact in locul aratat. Doar un
      memento vizual (soferul decide singur cand suna, nicio notificare
      automata) - acelasi cerc-pill ca restul badge-urilor din aplicatie. */
-  .dp-drag-col{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:5px;margin-top:1px;}
+  /* Cerut direct ("un buton info... in coltul din stanga jos al
+     casetei, in drept cu orarul de sunat, sub el"): coloana intinsa
+     acum pe toata inaltimea randului (align-self:stretch, nu doar
+     cat continutul ei) - asta face loc pentru butonul "i" sa fie
+     impins chiar la marginea de jos (margin-top:auto pe el insusi),
+     indiferent cat de inalt e restul cartonasului. */
+  .dp-drag-col{flex:0 0 auto;align-self:stretch;display:flex;flex-direction:column;align-items:center;gap:5px;margin-top:1px;}
   /* Cerut direct ("prea marunt nu se vede bine si fundal nu-i neaparat
      sa fie"): text simplu, fara pastila colorata - mult mai mare
      (18px, bold), ca sa se citeasca usor dintr-o privire. */
   .dp-call-before-badge{font-size:18px;font-weight:800;color:var(--accent);line-height:1.1;text-align:center;white-space:nowrap;min-width:32px;}
+  .dp-info-btn{
+    margin-top:auto;flex:0 0 auto;width:26px;height:26px;border-radius:50%;border:none;
+    background:var(--surface-2);color:var(--ink-faint);display:flex;align-items:center;justify-content:center;cursor:pointer;
+  }
+  .dp-info-btn.dp-info-btn-filled{background:var(--accent-soft);color:var(--accent);}
   .dp-dragging{box-shadow:var(--shadow-md);opacity:.95;}
   /* Completed clients — a fully OPAQUE, distinct background instead
      of transparency. Reported directly: opacity made the row see-
@@ -1346,11 +1357,12 @@
 
   .field{margin-bottom:14px;}
   .field label{display:block;font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:6px;}
-  .field input,.field select{
+  .field input,.field select,.field textarea{
     width:100%;padding:13px 14px;border-radius:12px;border:1.5px solid var(--line);background:var(--surface);
     font-size:16px;font-weight:600;color:var(--ink);font-family:inherit;
   }
-  .field input:focus,.field select:focus{outline:none;border-color:var(--accent);}
+  .field textarea{resize:vertical;line-height:1.4;}
+  .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--accent);}
   .field-row{display:flex;gap:10px;}
   .field-row .field{flex:1;}
   .field-row .field.narrow{flex:0 0 78px;}
@@ -2478,6 +2490,23 @@
     <button type="button" class="modal-close-x" id="dp-whatsapp-picker-close-x" aria-label="Chiudi">×</button>
     <div class="modal-title" id="dp-whatsapp-picker-title">WhatsApp</div>
     <div id="dp-whatsapp-picker-list"></div>
+  </div>
+</div>
+
+<!-- Cerut direct ("un buton info... apasat si imi apare comentariul...
+     unde a lasat pachetul"): nota libera per client, editabila/vizibila
+     dintr-un mic buton "i" in coltul din stanga jos al cartonasului
+     (vezi dpOpenClientNoteModal in app.js) - camp pur local, ca
+     scadenza/codiceCancello, nu ajunge niciodata pe server. -->
+<div class="modal-overlay center" id="modal-dp-client-note">
+  <div class="sheet-panel" style="max-width:420px;">
+    <button type="button" class="modal-close-x" id="dp-client-note-close-x" aria-label="Chiudi">×</button>
+    <div class="modal-title" id="dp-client-note-title">Nota</div>
+    <div class="field" style="margin-top:14px;">
+      <label>Nota (opzionale)</label>
+      <textarea id="dp-client-note-text" rows="5" placeholder="Es. Pacco lasciato dietro il cancello"></textarea>
+    </div>
+    <button type="button" class="btn btn-accent btn-block" id="dp-client-note-save-btn">Salva</button>
   </div>
 </div>
 
