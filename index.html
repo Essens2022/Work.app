@@ -2193,6 +2193,15 @@
       <label>Telefono 2 (opzionale)</label>
       <input type="tel" id="dp-new-telefono2" placeholder="Es. 041 1234567" autocomplete="off">
     </div>
+    <!-- Cerut direct ("la multi clienti am si un cod la poarta ca sa
+         se deschida... sa pot adauga si parola... sa fie vizibil ca
+         si numarul de telefon"): optional, text liber (nu doar cifre
+         - un cod poate avea si # sau litere), afisat pe cartonas cu
+         acelasi stil mare/apasat ca numarul de telefon. -->
+    <div class="field" style="margin-top:10px;">
+      <label>Codice cancello (opzionale)</label>
+      <input type="text" id="dp-new-codicecancello" placeholder="Es. 1234#" autocomplete="off">
+    </div>
     <!-- Cerut direct ("unii sunt ca vor sunati 10 min inainte de a
          ajunge"): optional, gol daca clientul nu cere asta - un numar
          de minute, nu o ora fixa, caci depinde de momentul real al
@@ -2329,6 +2338,10 @@
       <input type="tel" id="dp-edit-telefono2" placeholder="Es. 041 1234567" autocomplete="off">
     </div>
     <div class="field" style="margin-top:10px;">
+      <label>Codice cancello (opzionale)</label>
+      <input type="text" id="dp-edit-codicecancello" placeholder="Es. 1234#" autocomplete="off">
+    </div>
+    <div class="field" style="margin-top:10px;">
       <label>Chiama quanti minuti prima dell'arrivo (opzionale)</label>
       <input type="number" inputmode="numeric" min="0" id="dp-edit-chiamaprima" placeholder="Es. 10" autocomplete="off">
     </div>
@@ -2414,6 +2427,10 @@
     <div class="field" style="margin-top:10px;">
       <label>Telefono 2 (opzionale)</label>
       <input type="tel" id="dp-archive-edit-telefono2" placeholder="Es. 041 1234567" autocomplete="off">
+    </div>
+    <div class="field" style="margin-top:10px;">
+      <label>Codice cancello (opzionale)</label>
+      <input type="text" id="dp-archive-edit-codicecancello" placeholder="Es. 1234#" autocomplete="off">
     </div>
     <div class="field" style="margin-top:10px;">
       <label>Chiama quanti minuti prima dell'arrivo (opzionale)</label>

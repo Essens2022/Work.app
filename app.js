@@ -2269,6 +2269,11 @@
       addrLine = addrText ? '📍 ' + escapeHtml(addrText) : '';
     }
     var addrHtml = addrLine + ((c.lat == null || c.lon == null) ? ' <span style="color:var(--accent);">⚠ non verificato</span>' : '') + (c.orsUnreachable ? ' <span style="color:var(--accent);">⚠ non ottimizzato</span>' : '');
+    // Cerut direct ("la multi clienti am si un cod la poarta ca sa se
+    // deschida... sa fie vizibil ca si numarul de telefon"): acelasi
+    // tipar vizual ca linia de telefon (.dp-client-phone-line) - mare,
+    // apasat, usor de citit dintr-o privire, nu doar pitic in text.
+    var codiceHtml = (c.codiceCancello || '').trim() ? '<div class="dp-client-phone-line" style="margin-top:3px;">🔑 ' + escapeHtml(c.codiceCancello.trim()) + '</div>' : '';
     if (readOnly) {
       // Storico's own read-only rows — no drag, no swipe, no click.
       return '' +
@@ -2278,6 +2283,7 @@
         '<div class="dp-client-name">' + escapeHtml(c.nome) + '</div>' +
         timeNote +
         '<div class="dp-client-addr">' + addrHtml + '</div>' +
+        codiceHtml +
         (c.completedAt ? '<div style="color:var(--teal);font-size:13px;font-weight:700;margin-top:3px;">✓ Consegnato ~' + dpFormatTime(c.completedAt) + '</div>' : '') +
         '</div>' +
         '</div>';
@@ -2334,6 +2340,7 @@
       '<div class="dp-client-name">' + escapeHtml(c.nome) + '</div>' +
       timeNote +
       '<div class="dp-client-addr">' + addrHtml + '</div>' +
+      codiceHtml +
       (c.completedAt ? '<div style="color:var(--teal);font-size:13px;font-weight:700;margin-top:3px;">✓ Consegnato ~' + dpFormatTime(c.completedAt) + '</div>' : '') +
       '</div>' +
       // Cerut direct ("sa fie in drept cu scrisul ca sa nu sa se
@@ -3639,7 +3646,7 @@
     dpInsertNewStop({
       id: uid(), clientId: saved.id, nome: saved.nome, indirizzo: saved.indirizzo,
       lat: saved.lat, lon: saved.lon, status: 'pending', scadenza: saved.scadenza || '', nonPrimaDi: saved.nonPrimaDi || '',
-      telefono: saved.telefono || '', telefono2: saved.telefono2 || '', chiamaPrimaMin: (saved.chiamaPrimaMin != null ? saved.chiamaPrimaMin : null)
+      telefono: saved.telefono || '', telefono2: saved.telefono2 || '', codiceCancello: saved.codiceCancello || '', chiamaPrimaMin: (saved.chiamaPrimaMin != null ? saved.chiamaPrimaMin : null)
     });
     saveDeliveryRun(state.deliveryRun);
     if (currentScreen === 'navigatore') renderDeliveryPlanner(); // reflects immediately underneath if that screen happens to be showing right now
@@ -3690,6 +3697,7 @@
     document.getElementById('dp-new-indirizzo').value = '';
     document.getElementById('dp-new-telefono').value = '';
     document.getElementById('dp-new-telefono2').value = '';
+    document.getElementById('dp-new-codicecancello').value = '';
     document.getElementById('dp-new-chiamaprima').value = '';
     document.getElementById('dp-new-scadenza').value = '';
     document.getElementById('dp-new-nonprima').value = '';
@@ -3719,6 +3727,7 @@
     var saved = {
       id: uid(), nome: nome, indirizzo: indirizzo, lat: null, lon: null, createdAt: Date.now(),
       telefono: document.getElementById('dp-new-telefono').value.trim(), telefono2: document.getElementById('dp-new-telefono2').value.trim(),
+      codiceCancello: document.getElementById('dp-new-codicecancello').value.trim(),
       chiamaPrimaMin: dpParseMinutesInput('dp-new-chiamaprima'),
       scadenza: document.getElementById('dp-new-scadenza').value || '', nonPrimaDi: document.getElementById('dp-new-nonprima').value || ''
     };
@@ -3867,6 +3876,7 @@
     document.getElementById('dp-archive-edit-indirizzo').value = c.indirizzo || '';
     document.getElementById('dp-archive-edit-telefono').value = c.telefono || '';
     document.getElementById('dp-archive-edit-telefono2').value = c.telefono2 || '';
+    document.getElementById('dp-archive-edit-codicecancello').value = c.codiceCancello || '';
     document.getElementById('dp-archive-edit-chiamaprima').value = c.chiamaPrimaMin != null ? c.chiamaPrimaMin : '';
     document.getElementById('dp-archive-edit-scadenza').value = c.scadenza || '';
     document.getElementById('dp-archive-edit-nonprima').value = c.nonPrimaDi || '';
@@ -3906,6 +3916,7 @@
       c.indirizzo = indirizzo;
       c.telefono = document.getElementById('dp-archive-edit-telefono').value.trim();
       c.telefono2 = document.getElementById('dp-archive-edit-telefono2').value.trim();
+      c.codiceCancello = document.getElementById('dp-archive-edit-codicecancello').value.trim();
       c.chiamaPrimaMin = dpParseMinutesInput('dp-archive-edit-chiamaprima');
       c.scadenza = document.getElementById('dp-archive-edit-scadenza').value || '';
       c.nonPrimaDi = document.getElementById('dp-archive-edit-nonprima').value || '';
@@ -3916,7 +3927,7 @@
       // changing it here would silently do nothing for a client
       // already added, until removed and re-added.
       state.deliveryRun.clients.forEach(function (rc) {
-        if (rc.clientId === c.id) { rc.scadenza = c.scadenza; rc.nonPrimaDi = c.nonPrimaDi; rc.telefono = c.telefono; rc.telefono2 = c.telefono2; rc.chiamaPrimaMin = c.chiamaPrimaMin; }
+        if (rc.clientId === c.id) { rc.scadenza = c.scadenza; rc.nonPrimaDi = c.nonPrimaDi; rc.telefono = c.telefono; rc.telefono2 = c.telefono2; rc.codiceCancello = c.codiceCancello; rc.chiamaPrimaMin = c.chiamaPrimaMin; }
       });
       saveDeliveryRun(state.deliveryRun);
       dpCloseModal('modal-dp-archive-edit');
@@ -4073,7 +4084,7 @@
     dpInsertNewStop({
       id: uid(), clientId: saved.id, nome: saved.nome, indirizzo: saved.indirizzo,
       lat: saved.lat, lon: saved.lon, status: 'pending', scadenza: saved.scadenza || '', nonPrimaDi: saved.nonPrimaDi || '',
-      telefono: saved.telefono || '', telefono2: saved.telefono2 || '', chiamaPrimaMin: (saved.chiamaPrimaMin != null ? saved.chiamaPrimaMin : null)
+      telefono: saved.telefono || '', telefono2: saved.telefono2 || '', codiceCancello: saved.codiceCancello || '', chiamaPrimaMin: (saved.chiamaPrimaMin != null ? saved.chiamaPrimaMin : null)
     });
     saveDeliveryRun(state.deliveryRun);
     renderDeliveryPlanner();
@@ -4097,6 +4108,7 @@
     document.getElementById('dp-new-indirizzo').value = '';
     document.getElementById('dp-new-telefono').value = '';
     document.getElementById('dp-new-telefono2').value = '';
+    document.getElementById('dp-new-codicecancello').value = '';
     document.getElementById('dp-new-chiamaprima').value = '';
     document.getElementById('dp-new-scadenza').value = '';
     document.getElementById('dp-new-nonprima').value = '';
@@ -4161,6 +4173,7 @@
       id: uid(), nome: nome, indirizzo: indirizzo, lat: null, lon: null, createdAt: Date.now(),
       telefono: document.getElementById('dp-new-telefono').value.trim(),
       telefono2: document.getElementById('dp-new-telefono2').value.trim(),
+      codiceCancello: document.getElementById('dp-new-codicecancello').value.trim(),
       chiamaPrimaMin: dpParseMinutesInput('dp-new-chiamaprima'),
       scadenza: document.getElementById('dp-new-scadenza').value || '',
       nonPrimaDi: document.getElementById('dp-new-nonprima').value || ''
@@ -4169,7 +4182,7 @@
     saveDeliveryClients(state.deliveryClients);
     dpInsertNewStop({
       id: uid(), clientId: saved.id, nome: nome, indirizzo: indirizzo, lat: null, lon: null, status: 'pending', scadenza: saved.scadenza, nonPrimaDi: saved.nonPrimaDi,
-      telefono: saved.telefono, telefono2: saved.telefono2, chiamaPrimaMin: saved.chiamaPrimaMin
+      telefono: saved.telefono, telefono2: saved.telefono2, codiceCancello: saved.codiceCancello, chiamaPrimaMin: saved.chiamaPrimaMin
     });
     saveDeliveryRun(state.deliveryRun);
     dpCloseModal('modal-dp-new-client');
@@ -4298,6 +4311,7 @@
     document.getElementById('dp-edit-indirizzo').value = client.indirizzo || '';
     document.getElementById('dp-edit-telefono').value = client.telefono || '';
     document.getElementById('dp-edit-telefono2').value = client.telefono2 || '';
+    document.getElementById('dp-edit-codicecancello').value = client.codiceCancello || '';
     document.getElementById('dp-edit-chiamaprima').value = client.chiamaPrimaMin != null ? client.chiamaPrimaMin : '';
     document.getElementById('dp-edit-scadenza').value = client.scadenza || '';
     document.getElementById('dp-edit-nonprima').value = client.nonPrimaDi || '';
@@ -4333,6 +4347,7 @@
     client.indirizzo = indirizzo;
     client.telefono = document.getElementById('dp-edit-telefono').value.trim();
     client.telefono2 = document.getElementById('dp-edit-telefono2').value.trim();
+    client.codiceCancello = document.getElementById('dp-edit-codicecancello').value.trim();
     client.chiamaPrimaMin = dpParseMinutesInput('dp-edit-chiamaprima');
     client.scadenza = document.getElementById('dp-edit-scadenza').value || '';
     client.nonPrimaDi = document.getElementById('dp-edit-nonprima').value || '';
@@ -4341,7 +4356,7 @@
       var saved = state.deliveryClients.find(function (s) { return s.id === client.clientId; });
       if (saved) {
         saved.nome = nome; saved.indirizzo = indirizzo; saved.scadenza = client.scadenza; saved.nonPrimaDi = client.nonPrimaDi;
-        saved.telefono = client.telefono; saved.telefono2 = client.telefono2; saved.chiamaPrimaMin = client.chiamaPrimaMin;
+        saved.telefono = client.telefono; saved.telefono2 = client.telefono2; saved.codiceCancello = client.codiceCancello; saved.chiamaPrimaMin = client.chiamaPrimaMin;
         if (addressChanged) { saved.lat = null; saved.lon = null; }
         saveDeliveryClients(state.deliveryClients);
       }
