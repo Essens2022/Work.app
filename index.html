@@ -2352,6 +2352,13 @@
       <input type="text" id="dp-edit-indirizzo" autocomplete="off">
       <button type="button" class="ac-clear-btn" id="dp-edit-indirizzo-clear" aria-label="Cancella">✕</button>
     </div>
+    <!-- Cerut direct ("cand e acolo in fata portii, in fata
+         clientului, sa apese acest buton si automat sa i se puna
+         coordonatele actuale... ca data viitoare deja sa-l aduca
+         exact aici, sa nu mai caute"): citeste GPS-ul chiar acum, de
+         pe teren - mult mai de incredere decat orice adresa scrisa de
+         mana. Vezi dpUseCurrentLocationForEditClient in app.js. -->
+    <button type="button" class="btn btn-ghost btn-block" id="dp-edit-use-location-btn" style="margin-top:8px;">📍 Usa qui la posizione attuale</button>
     <div class="field" style="margin-top:10px;">
       <label>📞 Telefono (opzionale)</label>
       <input type="tel" id="dp-edit-telefono" placeholder="Es. 333 1234567" autocomplete="off">
@@ -2443,6 +2450,7 @@
       <input type="text" id="dp-archive-edit-indirizzo" autocomplete="off">
       <button type="button" class="ac-clear-btn" id="dp-archive-edit-indirizzo-clear" aria-label="Cancella">✕</button>
     </div>
+    <button type="button" class="btn btn-ghost btn-block" id="dp-archive-edit-use-location-btn" style="margin-top:8px;">📍 Usa qui la posizione attuale</button>
     <div class="field" style="margin-top:10px;">
       <label>📞 Telefono (opzionale)</label>
       <input type="tel" id="dp-archive-edit-telefono" placeholder="Es. 333 1234567" autocomplete="off">

@@ -3964,7 +3964,7 @@
       c.chiamaPrimaMin = dpParseMinutesInput('dp-archive-edit-chiamaprima');
       c.scadenza = document.getElementById('dp-archive-edit-scadenza').value || '';
       c.nonPrimaDi = document.getElementById('dp-archive-edit-nonprima').value || '';
-      if (addressChanged) { c.lat = null; c.lon = null; } // stale coordinates from the OLD address would silently mislead Reordina's ordering later — cleared until re-geocoded (or set directly below, if the new text is itself coordinates)
+      if (addressChanged) { c.lat = null; c.lon = null; c.coordsPrecise = false; } // stale coordinates from the OLD address would silently mislead Reordina's ordering later — cleared until re-geocoded (or set directly below, if the new text is itself coordinates); coordsPrecise cleared too — retyping the address has nothing to do with a GPS fix read earlier on the ground
       saveDeliveryClients(state.deliveryClients);
       // Requested directly: a client that's ALREADY in today's run
       // gets its scadenza kept in sync with this edit too — otherwise
@@ -3978,6 +3978,34 @@
       dpRenderArchiveList(document.getElementById('dp-archive-search-input') ? document.getElementById('dp-archive-search-input').value : '');
       if (currentScreen === 'navigatore') renderDeliveryPlanner();
       if (addressChanged) dpBackgroundGeocodeForOrdering(c.id, indirizzo); // re-geocodes silently in the background — or, if the text is itself a coordinate pair, uses it directly with no network call at all; see dpParseCoordinatesFromText
+    };
+    // Cerut direct ("cand e acolo in fata portii... sa apese acest
+    // buton si automat sa i se puna coordonatele actuale"): acelasi
+    // tipar ca dpUseCurrentLocationForEditClient de mai sus, dar
+    // pornind din agenda salvata - sincronizat si catre orice copie
+    // deja prezenta in cursa de azi (la fel ca restul campurilor mai
+    // sus, in handler-ul de Salva).
+    document.getElementById('dp-archive-edit-use-location-btn').onclick = function () {
+      var btn = document.getElementById('dp-archive-edit-use-location-btn');
+      var originalLabel = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Rilevamento posizione…';
+      currentPositionSafe(16000, { enableHighAccuracy: true, maximumAge: 0 }).then(function (pos) {
+        c.lat = pos.lat; c.lon = pos.lon; c.coordsPrecise = true;
+        saveDeliveryClients(state.deliveryClients);
+        state.deliveryRun.clients.forEach(function (rc) {
+          if (rc.clientId === c.id) { rc.lat = c.lat; rc.lon = c.lon; rc.coordsPrecise = true; rc.orsUnreachable = false; }
+        });
+        saveDeliveryRun(state.deliveryRun);
+        if (currentScreen === 'navigatore') renderDeliveryPlanner();
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+        toast('Posizione attuale salvata ✓', 2200);
+      }).catch(function () {
+        btn.disabled = false;
+        btn.textContent = originalLabel;
+        toast('Impossibile rilevare la posizione — controlla il GPS e riprova.', 2800);
+      });
     };
     document.getElementById('modal-dp-archive-edit').classList.add('open');
   }
@@ -4363,6 +4391,7 @@
     document.getElementById('dp-edit-close-x').onclick = function () { dpCloseModal('modal-dp-edit-client'); };
     document.getElementById('dp-edit-remove-btn').onclick = function () { dpConfirmRemoveClient(clientId); };
     document.getElementById('dp-edit-save-btn').onclick = function () { dpSaveEditedClientTrusted(clientId); };
+    document.getElementById('dp-edit-use-location-btn').onclick = function () { dpUseCurrentLocationForEditClient(clientId); };
     wireNavClearButton(document.getElementById('dp-edit-nome'), document.getElementById('dp-edit-nome-clear'), function () {});
     wireNavClearButton(document.getElementById('dp-edit-indirizzo'), document.getElementById('dp-edit-indirizzo-clear'), function () {});
     dpWireTimeDefault(document.getElementById('dp-edit-scadenza'), '06:50');
@@ -4395,13 +4424,16 @@
     client.chiamaPrimaMin = dpParseMinutesInput('dp-edit-chiamaprima');
     client.scadenza = document.getElementById('dp-edit-scadenza').value || '';
     client.nonPrimaDi = document.getElementById('dp-edit-nonprima').value || '';
-    if (addressChanged) { client.lat = null; client.lon = null; client.orsUnreachable = false; } // stale coordinates from the OLD address would silently mislead Reordina's ordering — cleared until the new address is (silently) re-geocoded below; orsUnreachable cleared too since that verdict was about the OLD address's position, not this new one
+    // coordsPrecise cleared alongside lat/lon, stiuta ca atare, pentru
+    // ca retyping adresa nu mai are legatura cu GPS-ul citit anterior
+    // pe teren - vezi dpUseCurrentLocationForEditClient mai jos.
+    if (addressChanged) { client.lat = null; client.lon = null; client.orsUnreachable = false; client.coordsPrecise = false; } // stale coordinates from the OLD address would silently mislead Reordina's ordering — cleared until the new address is (silently) re-geocoded below; orsUnreachable cleared too since that verdict was about the OLD address's position, not this new one
     if (client.clientId) {
       var saved = state.deliveryClients.find(function (s) { return s.id === client.clientId; });
       if (saved) {
         saved.nome = nome; saved.indirizzo = indirizzo; saved.scadenza = client.scadenza; saved.nonPrimaDi = client.nonPrimaDi;
         saved.telefono = client.telefono; saved.telefono2 = client.telefono2; saved.codiceCancello = client.codiceCancello; saved.chiamaPrimaMin = client.chiamaPrimaMin;
-        if (addressChanged) { saved.lat = null; saved.lon = null; }
+        if (addressChanged) { saved.lat = null; saved.lon = null; saved.coordsPrecise = false; }
         saveDeliveryClients(state.deliveryClients);
       }
     }
@@ -4419,6 +4451,48 @@
     dpCloseModal('modal-dp-edit-client');
     renderDeliveryPlanner();
     if (addressChanged && client.clientId) dpBackgroundGeocodeForOrdering(client.clientId, indirizzo);
+  }
+
+  // Cerut direct ("deseori cand scriem adresa clientului, poate sa fie
+  // gresita... cand e acolo in fata portii, in fata clientului, sa
+  // apese acest buton si automat sa i se puna coordonatele actuale...
+  // ca data viitoare deja sa-l aduca exact aici, sa nu mai caute"): o
+  // citire GPS reala, chiar de pe teren - mult mai de incredere decat
+  // orice adresa scrisa de mana. Salvata ca "coordsPrecise" (vezi
+  // dpLocationParam mai sus) - singurul caz in care Google Maps
+  // primeste coordonate in loc de text de adresa.
+  function dpUseCurrentLocationForEditClient(clientId) {
+    var client = state.deliveryRun.clients.find(function (c) { return c.id === clientId; });
+    if (!client) return;
+    var btn = document.getElementById('dp-edit-use-location-btn');
+    var originalLabel = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Rilevamento posizione…';
+    currentPositionSafe(16000, { enableHighAccuracy: true, maximumAge: 0 }).then(function (pos) {
+      client.lat = pos.lat; client.lon = pos.lon; client.coordsPrecise = true; client.orsUnreachable = false;
+      if (client.clientId) {
+        var saved = state.deliveryClients.find(function (s) { return s.id === client.clientId; });
+        if (saved) {
+          saved.lat = client.lat; saved.lon = client.lon; saved.coordsPrecise = true;
+          saveDeliveryClients(state.deliveryClients);
+        }
+      }
+      // Acelasi tipar fire-and-forget deja folosit pentru telefon mai
+      // sus - ramane memorata pe fisa reala a clientului (fleet_clients),
+      // pentru totdeauna si pentru ceilalti soferi, nu doar local, azi.
+      if (client.fleetClientId) {
+        fleetCall({ action: 'driver_save_client_coords', account_email: currentAccountEmail(), client_id: client.fleetClientId, lat: client.lat, lon: client.lon, label: 'Posizione confermata dall\'autista' });
+      }
+      saveDeliveryRun(state.deliveryRun);
+      if (currentScreen === 'navigatore') renderDeliveryPlanner();
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+      toast('Posizione attuale salvata ✓', 2200);
+    }).catch(function () {
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+      toast('Impossibile rilevare la posizione — controlla il GPS e riprova.', 2800);
+    });
   }
 
   function dpConfirmRemoveClient(clientId) {
@@ -5791,7 +5865,17 @@
   // geocoding of this text when the link opens; ADB Smart's own
   // coordinates (when present at all) exist purely for Reordina's
   // internal ordering, never for what's actually sent to Google Maps.
+  //
+  // Cerut direct ("cand e acolo in fata portii... apasa acest buton
+  // si automat sa i se puna coordonatele actuale... ca data viitoare
+  // deja sa-l aduca exact aici"): SINGURA exceptie de la regula de mai
+  // sus - c.coordsPrecise inseamna o pozitie GPS citita chiar de pe
+  // teren de sofer (butonul "Usa posizione attuale"), nu o coordonata
+  // ghicita dintr-o geocodare automata a textului. Aceea e mai de
+  // incredere decat orice adresa scrisa de mana - de-asta, si doar
+  // atunci, trimisa catre Google Maps ca "lat,lon" in loc de text.
   function dpLocationParam(c) {
+    if (c.coordsPrecise && c.lat != null && c.lon != null) return c.lat + ',' + c.lon;
     return c.indirizzo;
   }
 
