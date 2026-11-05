@@ -558,11 +558,15 @@
      sa fie"): text simplu, fara pastila colorata - mult mai mare
      (18px, bold), ca sa se citeasca usor dintr-o privire. */
   .dp-call-before-badge{font-size:18px;font-weight:800;color:var(--accent);line-height:1.1;text-align:center;white-space:nowrap;min-width:32px;}
+  /* Cerut direct ("butonul nu iese neaparat... mai bine sa fie putin
+     mai mascat, dar fara fundal, exact cum scrie si timpul de
+     chemare"): fara cerc/fundal colorat - doar iconita, marita vizibil
+     (acelasi principiu deja aplicat la .dp-call-before-badge mai sus). */
   .dp-info-btn{
-    margin-top:auto;flex:0 0 auto;width:26px;height:26px;border-radius:50%;border:none;
-    background:var(--surface-2);color:var(--ink-faint);display:flex;align-items:center;justify-content:center;cursor:pointer;
+    margin-top:auto;flex:0 0 auto;width:28px;height:28px;border:none;background:none;padding:0;
+    color:var(--ink-faint);display:flex;align-items:center;justify-content:center;cursor:pointer;
   }
-  .dp-info-btn.dp-info-btn-filled{background:var(--accent-soft);color:var(--accent);}
+  .dp-info-btn.dp-info-btn-filled{color:var(--accent);}
   .dp-dragging{box-shadow:var(--shadow-md);opacity:.95;}
   /* Completed clients — a fully OPAQUE, distinct background instead
      of transparency. Reported directly: opacity made the row see-
