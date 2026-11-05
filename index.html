@@ -2184,7 +2184,7 @@
     <div class="grabber"></div>
     <div class="modal-title">Nuovo cliente</div>
     <div class="field autocomplete-wrap">
-      <label>Nome azienda</label>
+      <label>🏢 Nome azienda</label>
       <input type="text" id="dp-new-nome" placeholder="Es. IEIS IMPIANTI SRL" autocomplete="off">
       <button type="button" class="ac-clear-btn" id="dp-new-nome-clear" aria-label="Cancella">✕</button>
     </div>
@@ -2197,7 +2197,7 @@
          geocoding when the link actually opens, instead of us
          attempting it ahead of time with worse data. -->
     <div class="field autocomplete-wrap" style="margin-top:10px;">
-      <label>Indirizzo o link Google Maps</label>
+      <label>📍 Indirizzo o link Google Maps</label>
       <input type="text" id="dp-new-indirizzo" placeholder="Es. Via Fratta, 16, 35010 Borgoricco PD" autocomplete="off">
       <button type="button" class="ac-clear-btn" id="dp-new-indirizzo-clear" aria-label="Cancella">✕</button>
     </div>
@@ -2209,11 +2209,11 @@
          cel putin unul e completat, si intreaba care dintre ele cand
          amandoua exista. -->
     <div class="field" style="margin-top:10px;">
-      <label>Telefono (opzionale)</label>
+      <label>📞 Telefono (opzionale)</label>
       <input type="tel" id="dp-new-telefono" placeholder="Es. 333 1234567" autocomplete="off">
     </div>
     <div class="field" style="margin-top:10px;">
-      <label>Telefono 2 (opzionale)</label>
+      <label>📞 Telefono 2 (opzionale)</label>
       <input type="tel" id="dp-new-telefono2" placeholder="Es. 041 1234567" autocomplete="off">
     </div>
     <!-- Cerut direct ("la multi clienti am si un cod la poarta ca sa
@@ -2222,7 +2222,7 @@
          - un cod poate avea si # sau litere), afisat pe cartonas cu
          acelasi stil mare/apasat ca numarul de telefon. -->
     <div class="field" style="margin-top:10px;">
-      <label>Codice cancello (opzionale)</label>
+      <label>🔑 Codice cancello (opzionale)</label>
       <input type="text" id="dp-new-codicecancello" placeholder="Es. 1234#" autocomplete="off">
     </div>
     <!-- Cerut direct ("unii sunt ca vor sunati 10 min inainte de a
@@ -2232,7 +2232,7 @@
          cartonas (vezi dpClientRowHtml) - soferul decide singur cand
          suna, uitandu-se la navigatie, nicio notificare automata. -->
     <div class="field" style="margin-top:10px;">
-      <label>Chiama quanti minuti prima dell'arrivo (opzionale)</label>
+      <label>⏰ Chiama quanti minuti prima dell'arrivo (opzionale)</label>
       <input type="number" inputmode="numeric" min="0" id="dp-new-chiamaprima" placeholder="Es. 10" autocomplete="off">
     </div>
     <!-- Requested directly: some clients genuinely must be delivered
@@ -2249,7 +2249,7 @@
          just for one day's run, so it carries over automatically
          every time this same client gets added to a future route. -->
     <div class="field" id="dp-new-scadenza-wrap" style="margin-top:10px;">
-      <label>Consegna entro (opzionale)</label>
+      <label>⏱ Consegna entro (opzionale)</label>
       <input type="time" id="dp-new-scadenza">
     </div>
     <!-- Requested directly: the OPPOSITE constraint — some clients
@@ -2260,7 +2260,7 @@
          in principle have neither, either, or (less commonly) both
          set at once. -->
     <div class="field" style="margin-top:10px;">
-      <label>Non prima delle (opzionale)</label>
+      <label>⏱ Non prima delle (opzionale)</label>
       <input type="time" id="dp-new-nonprima">
     </div>
     <div id="dp-new-save-result" style="margin-top:8px;"></div>
@@ -2343,37 +2343,37 @@
     <div class="grabber"></div>
     <div class="modal-title">Modifica cliente</div>
     <div class="field autocomplete-wrap">
-      <label>Nome azienda</label>
+      <label>🏢 Nome azienda</label>
       <input type="text" id="dp-edit-nome" autocomplete="off">
       <button type="button" class="ac-clear-btn" id="dp-edit-nome-clear" aria-label="Cancella">✕</button>
     </div>
     <div class="field autocomplete-wrap" style="margin-top:10px;">
-      <label>Indirizzo o link Google Maps</label>
+      <label>📍 Indirizzo o link Google Maps</label>
       <input type="text" id="dp-edit-indirizzo" autocomplete="off">
       <button type="button" class="ac-clear-btn" id="dp-edit-indirizzo-clear" aria-label="Cancella">✕</button>
     </div>
     <div class="field" style="margin-top:10px;">
-      <label>Telefono (opzionale)</label>
+      <label>📞 Telefono (opzionale)</label>
       <input type="tel" id="dp-edit-telefono" placeholder="Es. 333 1234567" autocomplete="off">
     </div>
     <div class="field" style="margin-top:10px;">
-      <label>Telefono 2 (opzionale)</label>
+      <label>📞 Telefono 2 (opzionale)</label>
       <input type="tel" id="dp-edit-telefono2" placeholder="Es. 041 1234567" autocomplete="off">
     </div>
     <div class="field" style="margin-top:10px;">
-      <label>Codice cancello (opzionale)</label>
+      <label>🔑 Codice cancello (opzionale)</label>
       <input type="text" id="dp-edit-codicecancello" placeholder="Es. 1234#" autocomplete="off">
     </div>
     <div class="field" style="margin-top:10px;">
-      <label>Chiama quanti minuti prima dell'arrivo (opzionale)</label>
+      <label>⏰ Chiama quanti minuti prima dell'arrivo (opzionale)</label>
       <input type="number" inputmode="numeric" min="0" id="dp-edit-chiamaprima" placeholder="Es. 10" autocomplete="off">
     </div>
     <div class="field" style="margin-top:10px;">
-      <label>Consegna entro (opzionale)</label>
+      <label>⏱ Consegna entro (opzionale)</label>
       <input type="time" id="dp-edit-scadenza">
     </div>
     <div class="field" style="margin-top:10px;">
-      <label>Non prima delle (opzionale)</label>
+      <label>⏱ Non prima delle (opzionale)</label>
       <input type="time" id="dp-edit-nonprima">
     </div>
     <div id="dp-edit-save-result" style="margin-top:8px;"></div>
@@ -2434,29 +2434,29 @@
     <div class="grabber"></div>
     <div class="modal-title">Modifica cliente</div>
     <div class="field autocomplete-wrap">
-      <label>Nome azienda</label>
+      <label>🏢 Nome azienda</label>
       <input type="text" id="dp-archive-edit-nome" autocomplete="off">
       <button type="button" class="ac-clear-btn" id="dp-archive-edit-nome-clear" aria-label="Cancella">✕</button>
     </div>
     <div class="field autocomplete-wrap" style="margin-top:10px;">
-      <label>Indirizzo, coordinate o link Google Maps</label>
+      <label>📍 Indirizzo, coordinate o link Google Maps</label>
       <input type="text" id="dp-archive-edit-indirizzo" autocomplete="off">
       <button type="button" class="ac-clear-btn" id="dp-archive-edit-indirizzo-clear" aria-label="Cancella">✕</button>
     </div>
     <div class="field" style="margin-top:10px;">
-      <label>Telefono (opzionale)</label>
+      <label>📞 Telefono (opzionale)</label>
       <input type="tel" id="dp-archive-edit-telefono" placeholder="Es. 333 1234567" autocomplete="off">
     </div>
     <div class="field" style="margin-top:10px;">
-      <label>Telefono 2 (opzionale)</label>
+      <label>📞 Telefono 2 (opzionale)</label>
       <input type="tel" id="dp-archive-edit-telefono2" placeholder="Es. 041 1234567" autocomplete="off">
     </div>
     <div class="field" style="margin-top:10px;">
-      <label>Codice cancello (opzionale)</label>
+      <label>🔑 Codice cancello (opzionale)</label>
       <input type="text" id="dp-archive-edit-codicecancello" placeholder="Es. 1234#" autocomplete="off">
     </div>
     <div class="field" style="margin-top:10px;">
-      <label>Chiama quanti minuti prima dell'arrivo (opzionale)</label>
+      <label>⏰ Chiama quanti minuti prima dell'arrivo (opzionale)</label>
       <input type="number" inputmode="numeric" min="0" id="dp-archive-edit-chiamaprima" placeholder="Es. 10" autocomplete="off">
     </div>
     <!-- Requested directly: setting a client's own delivery deadline
@@ -2466,11 +2466,11 @@
          it'll automatically carry over every time this client gets
          added to any future day's route. -->
     <div class="field" style="margin-top:10px;">
-      <label>Consegna entro (opzionale)</label>
+      <label>⏱ Consegna entro (opzionale)</label>
       <input type="time" id="dp-archive-edit-scadenza">
     </div>
     <div class="field" style="margin-top:10px;">
-      <label>Non prima delle (opzionale)</label>
+      <label>⏱ Non prima delle (opzionale)</label>
       <input type="time" id="dp-archive-edit-nonprima">
     </div>
     <div id="dp-archive-edit-result" style="margin-top:8px;"></div>
