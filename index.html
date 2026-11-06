@@ -1699,6 +1699,11 @@
 
   .modal-btnrow{display:flex;gap:10px;margin-top:6px;}
   .modal-btnrow .btn{flex:1;}
+  /* Cerut direct ("o bara fixa jos... vizibila mereu"): cand randul de
+     butoane e subsolul fix al unui sticky-panel (nu se mai scroleaza
+     odata cu formularul), o linie subtire separa vizual continutul
+     care tocmai a disparut sub el de randul de butoane propriu-zis. */
+  .sticky-fixed.modal-btnrow{padding-top:12px;border-top:1px solid var(--line);}
 
   .month-stepper{display:flex;align-items:center;justify-content:space-between;background:var(--surface-2);border-radius:14px;padding:10px 8px;margin:6px 0 18px;}
   .month-stepper .mval{font-weight:800;font-size:16px;}
@@ -2657,13 +2662,23 @@
 
 <!-- Day editor modal -->
 <div class="modal-overlay" id="modal-day">
-  <div class="sheet-panel">
+  <!-- Cerut direct ("nu se scroleaza ca sa apas salva... o bara fixa
+       jos care sa nu se scroleze, vizibila mereu"): o zi cu "due giri"
+       complet deschisa (Giro 1 + Giro 2, fiecare cu Da/A/DDT/KM-uri)
+       are mai multe campuri decat incap pe un ecran de telefon - Salva
+       era ultimul element din acelasi bloc care se scroleaza impreuna
+       cu formularul, deci ajungea sub ecran. Acelasi tipar sticky-panel
+       deja folosit la Storico mai sus: campurile se scroleaza intre un
+       antet si un subsol FIXE, niciodata ele insele. -->
+  <div class="sheet-panel sticky-panel">
     <button type="button" class="modal-close-x" id="day-close-x" aria-label="Chiudi">×</button>
-    <div class="grabber"></div>
-    <div class="modal-title" id="day-title">Giorno</div>
-    <div class="modal-sub" id="day-sub"></div>
-    <div class="warn-banner" id="day-warn">⚠ KM FINE inferiore a KM INIZIO. Controlla i valori.</div>
-
+    <div class="sticky-fixed">
+      <div class="grabber"></div>
+      <div class="modal-title" id="day-title">Giorno</div>
+      <div class="modal-sub" id="day-sub"></div>
+      <div class="warn-banner" id="day-warn">⚠ KM FINE inferiore a KM INIZIO. Controlla i valori.</div>
+    </div>
+    <div class="sticky-scroll">
     <div class="field-row">
       <div class="field"><label>Da</label><input id="day-da" type="text"></div>
       <div class="field narrow"><label>Prov.</label><input id="day-provda" type="text" maxlength="2" style="text-transform:uppercase"></div>
@@ -2753,8 +2768,9 @@
       <input id="day-bonus" type="number" inputmode="decimal" placeholder="0" min="0" step="0.01">
     </div>
     <div class="settings-driver-note" id="day-bonus-note" style="margin-top:-8px;">Visibile solo a te nella pagina Home — non appare mai nel PDF.</div>
+    </div>
 
-    <div class="modal-btnrow">
+    <div class="modal-btnrow sticky-fixed">
       <button class="btn btn-danger" id="day-clear">Svuota giorno</button>
       <button class="btn btn-accent" id="day-save">Salva</button>
     </div>
@@ -2765,11 +2781,18 @@
      log fuel receipts day by day, without needing to open a full day's
      trip details first. -->
 <div class="modal-overlay" id="modal-fuel">
-  <div class="sheet-panel fuel-panel">
+  <!-- Cerut direct, acelasi tipar ca la Giorno mai sus ("fie aici fie
+       la poza pentru gazoliu... o bara fixa jos"): o luna cu multe
+       zile cu scontrino atasat are o lista lunga - "Chiudi" ramane
+       mereu vizibil jos acum, in loc sa se scroleze odata cu lista. -->
+  <div class="sheet-panel fuel-panel sticky-panel">
     <button type="button" class="fuel-close-x" id="fuel-close-x" aria-label="Chiudi">×</button>
-    <div class="grabber"></div>
-    <div class="modal-title">Scontrini carburante</div>
-    <div class="modal-sub" id="fuel-sub"></div>
+    <div class="sticky-fixed">
+      <div class="grabber"></div>
+      <div class="modal-title">Scontrini carburante</div>
+      <div class="modal-sub" id="fuel-sub"></div>
+    </div>
+    <div class="sticky-scroll">
     <!-- REAL BUG, raportat direct ("de ce oare nu poate", poza de pe
          Android pentru bonul de gazolio): capture="environment" forteaza
          Android sa deschida direct camera foto in modul "capture intent",
@@ -2785,7 +2808,8 @@
          calea obisnuita, nu prin intent-ul de capture care esueaza. -->
     <input type="file" accept="image/*" id="in-fuel-photo" style="display:none;">
     <div class="giro-list" id="fuel-list"></div>
-    <div class="modal-btnrow">
+    </div>
+    <div class="modal-btnrow sticky-fixed">
       <button class="btn btn-ghost" id="fuel-close">Chiudi</button>
     </div>
   </div>
