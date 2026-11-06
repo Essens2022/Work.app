@@ -2820,27 +2820,40 @@
 <!-- Fuel gallery — shown when a day has more than one receipt: a small
      grid of thumbnails, tap one to view it full-size and zoomed, each with
      its own remove button, plus a clear way to add yet another photo. -->
+<!-- Cerut direct ("si aici tot chiar unde este poza"): acelasi tipar
+     sticky-panel ca la Giorno/Scontrini carburante mai sus - o poza de
+     scontrino mare impingea randul de butoane (Rimuovi/Aggiungi, sau
+     grila de poze) sub ecran, cerand scroll exact ca butonul Salva de
+     mai devreme. -->
 <div class="modal-overlay center" id="modal-fuel-gallery">
-  <div class="sheet-panel" style="max-width:520px;">
+  <div class="sheet-panel sticky-panel" style="max-width:520px;">
     <button type="button" class="fuel-close-x" id="fuel-gallery-close-x" aria-label="Chiudi">×</button>
-    <div class="modal-title" id="fuel-gallery-title">Scontrini</div>
+    <div class="sticky-fixed">
+      <div class="modal-title" id="fuel-gallery-title">Scontrini</div>
+    </div>
+    <div class="sticky-scroll">
     <div class="fuel-gallery-grid" id="fuel-gallery-grid"></div>
-    <div class="modal-btnrow">
+    </div>
+    <div class="modal-btnrow sticky-fixed">
       <button class="btn btn-accent btn-block" id="fuel-gallery-add">+ Aggiungi un'altra foto</button>
     </div>
   </div>
 </div>
 
 <div class="modal-overlay center" id="modal-fuel-view">
-  <div class="sheet-panel" style="max-width:520px;text-align:center;">
+  <div class="sheet-panel sticky-panel" style="max-width:520px;text-align:center;">
     <button type="button" class="fuel-close-x" id="fuel-view-close-x" aria-label="Chiudi">×</button>
-    <div class="modal-title" id="fuel-view-title">Scontrino</div>
-    <div class="modal-sub" id="fuel-view-size"></div>
+    <div class="sticky-fixed">
+      <div class="modal-title" id="fuel-view-title">Scontrino</div>
+      <div class="modal-sub" id="fuel-view-size"></div>
+      <div class="settings-driver-note" style="margin-top:8px;">Pizzica per ingrandire, trascina per spostarti, doppio tocco per zoom rapido.</div>
+    </div>
+    <div class="sticky-scroll">
     <div id="fuel-view-stage">
       <img id="fuel-view-img" src="" alt="">
     </div>
-    <div class="settings-driver-note" style="margin-top:8px;">Pizzica per ingrandire, trascina per spostarti, doppio tocco per zoom rapido.</div>
-    <div class="modal-btnrow">
+    </div>
+    <div class="modal-btnrow sticky-fixed">
       <button class="btn btn-ghost" id="fuel-view-replace">+ Aggiungi un'altra foto</button>
       <button class="btn btn-danger" id="fuel-view-remove">Rimuovi</button>
     </div>
