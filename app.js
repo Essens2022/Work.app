@@ -10457,87 +10457,189 @@
     return doc;
   }
 
-  // Cerut direct ("fiecare zi sa aiba si butonul de a descarca fisierul
-  // cu toate livrarile din ziua respectiva... in format PDF, ca... sa
-  // mentina vizualul fiecarei zile cu informatia... si sa fie usor de
-  // stampat"): un PDF separat, portret, o pagina (sau mai multe daca
-  // lista nu incape), cu lista de clienti a unei zile din Storico —
-  // exact aceleasi date pe care "Storico consegne" le arata deja pe
-  // ecran (nume, telefon/adresa, cod poarta, nota, consegnato sau nu),
-  // doar asezate intr-un tabel simplu, tiparibil, nu editabil.
+  // Mici iconite desenate vectorial (cercuri/triunghiuri jsPDF), nu
+  // simboluri unicode — fontul Roboto inclus in PDF e subsetat la Latin
+  // de baza (vezi createPdfDoc) si nu are glife pentru ✓/📍/📞, exact
+  // bug-ul prins mai jos la prima versiune a acestui PDF.
+  function pdfIconDot(doc, cx, cy, color) {
+    doc.setFillColor(color[0], color[1], color[2]);
+    doc.circle(cx, cy, 1.1, 'F');
+  }
+  function pdfIconPin(doc, cx, cy, color) {
+    var r = 1.5;
+    doc.setFillColor(color[0], color[1], color[2]);
+    doc.circle(cx, cy - r * 0.3, r, 'F');
+    doc.triangle(cx - r * 0.75, cy, cx + r * 0.75, cy, cx, cy + r * 1.3, 'F');
+    doc.setFillColor(255, 255, 255);
+    doc.circle(cx, cy - r * 0.3, r * 0.38, 'F');
+  }
+  function pdfDrawBadge(doc, cx, cy, r, isDone, num) {
+    if (isDone) {
+      doc.setFillColor(15, 157, 140);
+      doc.circle(cx, cy, r, 'F');
+      doc.setDrawColor(255, 255, 255);
+      doc.setLineWidth(0.7);
+      doc.line(cx - r * 0.45, cy, cx - r * 0.05, cy + r * 0.45);
+      doc.line(cx - r * 0.05, cy + r * 0.45, cx + r * 0.5, cy - r * 0.4);
+    } else {
+      doc.setFillColor(28, 27, 31);
+      doc.circle(cx, cy, r, 'F');
+      doc.setFont('Roboto', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(255, 255, 255);
+      doc.text(String(num), cx, cy + 1.2, { align: 'center' });
+    }
+  }
+
+  // Cerut direct ("nu se transmite toata informatia, de exemplu lipseste
+  // ora, si stilul documentului ar trebui sa fie mai viu, mai modern, cu
+  // icons, cu informatia... stilul aplicatiei"): inlocuit tabelul simplu
+  // de mai sus cu cartonase, exact ca randurile din Storico de pe ecran
+  // (fundal verde-pal pentru cele consegnate, acelasi bej pentru restul,
+  // acelasi rosu/accent pentru pin, acelasi teal pentru telefon/bifa) —
+  // inclusiv ora reala de livrare ("Consegnato ~HH:MM"), lipsa pana acum.
   function buildPdfForHistoryDay(day) {
     var doc = createPdfDoc('portrait');
-    var pageW = 210, margin = 14, contentW = pageW - margin * 2;
+    var pageW = 210, pageH = 297, margin = 12, contentW = pageW - margin * 2;
     var profile = loadProfile();
-    var completed = day.clients.filter(function (c) { return c.status === 'completed'; }).length;
+    var completedCount = day.clients.filter(function (c) { return c.status === 'completed'; }).length;
 
-    doc.setFont('Roboto', 'bold');
-    doc.setFontSize(16);
-    doc.setTextColor(20, 20, 20);
-    doc.text('ADB Smart', margin, margin + 6);
-    doc.setFont('Roboto', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(90, 90, 90);
-    doc.text('Storico consegne', margin, margin + 11.5);
+    var INK = [28, 27, 31], INK_SOFT = [107, 107, 112], ACCENT = [232, 84, 43],
+      TEAL = [15, 157, 140], TEAL_SOFT = [223, 243, 240], SURFACE2 = [243, 241, 236],
+      LINE = [231, 229, 224], AMBER = [180, 83, 9];
 
-    doc.setFont('Roboto', 'bold');
-    doc.setFontSize(12);
-    doc.setTextColor(20, 20, 20);
-    doc.text(dpFormatDateIt(day.date) + ' ' + day.date.split('-')[0], pageW - margin, margin + 6, { align: 'right' });
-    doc.setFont('Roboto', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(90, 90, 90);
-    doc.text(day.clients.length + ' clienti · ' + completed + ' completati', pageW - margin, margin + 11.5, { align: 'right' });
+    function drawHeader(firstPage) {
+      doc.setFont('Roboto', 'bold');
+      doc.setFontSize(16);
+      doc.setTextColor(INK[0], INK[1], INK[2]);
+      doc.text('ADB Smart', margin, margin + 6);
+      doc.setFont('Roboto', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(INK_SOFT[0], INK_SOFT[1], INK_SOFT[2]);
+      doc.text('Storico consegne', margin, margin + 11.5);
 
-    var subY = margin + 18;
-    var subParts = [];
-    if (profile && profile.nome) subParts.push('Autista: ' + profile.nome);
-    if (profile && profile.targa) subParts.push('Targa: ' + profile.targa);
-    if (profile && profile.perContoDi) subParts.push('Per conto di: ' + profile.perContoDi);
-    if (subParts.length) {
-      doc.setFontSize(8);
-      doc.setTextColor(90, 90, 90);
-      doc.text(subParts.join('   ·   '), margin, subY);
-    } else {
-      subY = margin + 13;
+      doc.setFont('Roboto', 'bold');
+      doc.setFontSize(12);
+      doc.setTextColor(INK[0], INK[1], INK[2]);
+      doc.text(dpFormatDateIt(day.date) + ' ' + day.date.split('-')[0], pageW - margin, margin + 6, { align: 'right' });
+      doc.setFont('Roboto', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(INK_SOFT[0], INK_SOFT[1], INK_SOFT[2]);
+      doc.text(day.clients.length + ' clienti · ' + completedCount + ' completati', pageW - margin, margin + 11.5, { align: 'right' });
+
+      var yy = margin + 16;
+      if (firstPage) {
+        var subParts = [];
+        if (profile && profile.nome) subParts.push('Autista: ' + profile.nome);
+        if (profile && profile.targa) subParts.push('Targa: ' + profile.targa);
+        if (profile && profile.perContoDi) subParts.push('Per conto di: ' + profile.perContoDi);
+        if (subParts.length) {
+          doc.setFontSize(8);
+          doc.setTextColor(INK_SOFT[0], INK_SOFT[1], INK_SOFT[2]);
+          doc.text(subParts.join('   ·   '), margin, yy);
+          yy += 4;
+        }
+      }
+      doc.setDrawColor(LINE[0], LINE[1], LINE[2]);
+      doc.setLineWidth(0.3);
+      doc.line(margin, yy, pageW - margin, yy);
+      return yy + 6;
     }
 
-    // REAL BUG, found before shipping: the Roboto font embedded in the
-    // PDF is subsetted to plain Western European Latin (see createPdfDoc
-    // above) — it has no glyph for "✓", so that symbol silently printed
-    // as a blank cell. Using the plain word "Consegnato"/"Mancato"
-    // instead — always renders, and reads more clearly on paper anyway.
-    var body = day.clients.map(function (c, i) {
-      var phones = [c.telefono, c.telefono2].map(function (p) { return (p || '').trim(); }).filter(Boolean).join('\n');
-      var addrOrPhone = phones || (c.indirizzo || '').trim() || '—';
-      return [
-        String(i + 1),
-        c.nome || '',
-        addrOrPhone,
-        (c.codiceCancello || '').trim(),
-        (c.nota || '').trim(),
-        c.status === 'completed' ? 'Consegnato' : 'Mancato'
-      ];
+    var y = drawHeader(true);
+    var badgeR = 4;
+    var badgeCx = margin + 6 + badgeR;
+    var tx = margin + 6 + badgeR * 2 + 5;
+    var textW = contentW - (tx - margin) - 6;
+    var padTop = 5, padBottom = 5, lineH = 4.6, nameLineH = 5.4, notaLineH = 4;
+
+    day.clients.forEach(function (c, i) {
+      var isDone = c.status === 'completed';
+      var phones = [c.telefono, c.telefono2].map(function (p) { return (p || '').trim(); }).filter(Boolean);
+      var addrText = (c.indirizzo || '').trim();
+      var codice = (c.codiceCancello || '').trim();
+      var nota = (c.nota || '').trim();
+      var hasLocationLine = phones.length > 0 || !!addrText;
+
+      doc.setFont('Roboto', 'bold');
+      doc.setFontSize(11.5);
+      var nameLines = doc.splitTextToSize(c.nome || '', textW);
+      var locationLineCount = phones.length > 0 ? phones.length : (hasLocationLine ? 1 : 1); // '—' fallback still takes one line
+      doc.setFont('Roboto', 'normal');
+      doc.setFontSize(8.5);
+      var notaLines = nota ? doc.splitTextToSize('Nota: ' + nota, textW) : [];
+
+      var contentH = nameLines.length * nameLineH
+        + locationLineCount * lineH
+        + (codice ? lineH : 0)
+        + notaLines.length * notaLineH
+        + lineH; // status/time line, always present (consegnato or non completato)
+      var cardH = Math.max(padTop + contentH + padBottom, badgeR * 2 + padTop + padBottom - 2);
+
+      if (y + cardH > pageH - margin) {
+        doc.addPage();
+        y = drawHeader(false);
+      }
+
+      doc.setFillColor((isDone ? TEAL_SOFT : SURFACE2)[0], (isDone ? TEAL_SOFT : SURFACE2)[1], (isDone ? TEAL_SOFT : SURFACE2)[2]);
+      doc.setDrawColor(LINE[0], LINE[1], LINE[2]);
+      doc.setLineWidth(0.25);
+      doc.roundedRect(margin, y, contentW, cardH, 2.5, 2.5, 'FD');
+
+      pdfDrawBadge(doc, badgeCx, y + cardH / 2, badgeR, isDone, i + 1);
+
+      var ty = y + padTop + nameLineH - 1.5;
+      doc.setFont('Roboto', 'bold');
+      doc.setFontSize(11.5);
+      doc.setTextColor(INK[0], INK[1], INK[2]);
+      nameLines.forEach(function (ln) { doc.text(ln, tx, ty); ty += nameLineH; });
+
+      doc.setFont('Roboto', 'normal');
+      doc.setFontSize(9.5);
+      if (phones.length) {
+        phones.forEach(function (p) {
+          pdfIconDot(doc, tx + 1.3, ty - 1.3, TEAL);
+          doc.setTextColor(INK[0], INK[1], INK[2]);
+          doc.text(p, tx + 4.5, ty);
+          ty += lineH;
+        });
+      } else {
+        pdfIconPin(doc, tx + 1.3, ty - 1.3, ACCENT);
+        doc.setTextColor(addrText ? INK[0] : INK_SOFT[0], addrText ? INK[1] : INK_SOFT[1], addrText ? INK[2] : INK_SOFT[2]);
+        doc.text(addrText || '—', tx + 4.5, ty);
+        ty += lineH;
+      }
+
+      if (codice) {
+        pdfIconDot(doc, tx + 1.3, ty - 1.3, AMBER);
+        doc.setTextColor(INK[0], INK[1], INK[2]);
+        doc.text('Codice: ' + codice, tx + 4.5, ty);
+        ty += lineH;
+      }
+
+      if (notaLines.length) {
+        doc.setFont('Roboto', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(INK_SOFT[0], INK_SOFT[1], INK_SOFT[2]);
+        notaLines.forEach(function (ln) { doc.text(ln, tx, ty); ty += notaLineH; });
+      }
+
+      doc.setFont('Roboto', 'bold');
+      doc.setFontSize(9);
+      if (isDone) {
+        pdfIconDot(doc, tx + 1.3, ty - 1.3, TEAL);
+        doc.setTextColor(TEAL[0], TEAL[1], TEAL[2]);
+        var timeStr = c.completedAt ? (' ~' + dpFormatTime(c.completedAt)) : '';
+        doc.text('Consegnato' + timeStr, tx + 4.5, ty);
+      } else {
+        pdfIconDot(doc, tx + 1.3, ty - 1.3, ACCENT);
+        doc.setTextColor(ACCENT[0], ACCENT[1], ACCENT[2]);
+        doc.text('Non completato', tx + 4.5, ty);
+      }
+
+      y += cardH + 4;
     });
 
-    doc.autoTable({
-      startY: subY + 4,
-      margin: { left: margin, right: margin },
-      tableWidth: contentW,
-      theme: 'grid',
-      head: [['#', 'Cliente', 'Indirizzo / Telefono', 'Codice', 'Nota', 'Stato']],
-      body: body,
-      styles: { font: 'Roboto', fontSize: 9, cellPadding: 2.2, lineColor: [20, 20, 20], lineWidth: 0.25, textColor: [20, 20, 20], valign: 'top' },
-      headStyles: { fillColor: [20, 20, 20], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
-      columnStyles: {
-        0: { cellWidth: 8, halign: 'center', fontStyle: 'bold' },
-        1: { cellWidth: contentW * 0.22 },
-        2: { cellWidth: contentW * 0.27 },
-        3: { cellWidth: contentW * 0.12, halign: 'center' },
-        4: { cellWidth: contentW * 0.19 },
-        5: { cellWidth: 'auto', halign: 'center' }
-      }
-    });
     return doc;
   }
 
