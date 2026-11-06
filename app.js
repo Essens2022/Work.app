@@ -10553,24 +10553,40 @@
     var textW = contentW - (tx - margin) - 6;
     var padTop = 5, padBottom = 5, lineH = 4.6, nameLineH = 5.4, notaLineH = 4;
 
-    day.clients.forEach(function (c, i) {
+    // Cerut direct ("punele in ordine cum au fost livrate, prima de
+    // dimineata prima de sus"): randul salvat in day.clients e cel mai
+    // recent completat PRIMUL (asa arata si Storico pe ecran) - pentru
+    // un document tiparit, ordinea fireasca e invers: prima livrare a
+    // zilei sus, ultima jos. Stabil - clientii neconsegnati (fara ora)
+    // raman la final, in ordinea lor originala.
+    var orderedClients = day.clients.slice().sort(function (a, b) {
+      var aDone = a.status === 'completed' && a.completedAt;
+      var bDone = b.status === 'completed' && b.completedAt;
+      if (aDone && bDone) return a.completedAt - b.completedAt;
+      if (aDone && !bDone) return -1;
+      if (!aDone && bDone) return 1;
+      return 0;
+    });
+
+    orderedClients.forEach(function (c, i) {
       var isDone = c.status === 'completed';
-      var phones = [c.telefono, c.telefono2].map(function (p) { return (p || '').trim(); }).filter(Boolean);
+      // Cerut direct ("pune adresele nu nr tel"): un document tiparit e
+      // mai util cu adresa reala (unde sa mearga data viitoare) decat
+      // cu numarul de telefon - inversat fata de randul de pe ecran
+      // (care prefera telefonul, pentru ca soferul suna direct de-acolo).
       var addrText = (c.indirizzo || '').trim();
       var codice = (c.codiceCancello || '').trim();
       var nota = (c.nota || '').trim();
-      var hasLocationLine = phones.length > 0 || !!addrText;
 
       doc.setFont('Roboto', 'bold');
       doc.setFontSize(11.5);
       var nameLines = doc.splitTextToSize(c.nome || '', textW);
-      var locationLineCount = phones.length > 0 ? phones.length : (hasLocationLine ? 1 : 1); // '—' fallback still takes one line
       doc.setFont('Roboto', 'normal');
       doc.setFontSize(8.5);
       var notaLines = nota ? doc.splitTextToSize('Nota: ' + nota, textW) : [];
 
       var contentH = nameLines.length * nameLineH
-        + locationLineCount * lineH
+        + lineH // address line (always exactly one line now)
         + (codice ? lineH : 0)
         + notaLines.length * notaLineH
         + lineH; // status/time line, always present (consegnato or non completato)
@@ -10596,19 +10612,10 @@
 
       doc.setFont('Roboto', 'normal');
       doc.setFontSize(9.5);
-      if (phones.length) {
-        phones.forEach(function (p) {
-          pdfIconDot(doc, tx + 1.3, ty - 1.3, TEAL);
-          doc.setTextColor(INK[0], INK[1], INK[2]);
-          doc.text(p, tx + 4.5, ty);
-          ty += lineH;
-        });
-      } else {
-        pdfIconPin(doc, tx + 1.3, ty - 1.3, ACCENT);
-        doc.setTextColor(addrText ? INK[0] : INK_SOFT[0], addrText ? INK[1] : INK_SOFT[1], addrText ? INK[2] : INK_SOFT[2]);
-        doc.text(addrText || '—', tx + 4.5, ty);
-        ty += lineH;
-      }
+      pdfIconPin(doc, tx + 1.3, ty - 1.3, ACCENT);
+      doc.setTextColor(addrText ? INK[0] : INK_SOFT[0], addrText ? INK[1] : INK_SOFT[1], addrText ? INK[2] : INK_SOFT[2]);
+      doc.text(addrText || '—', tx + 4.5, ty);
+      ty += lineH;
 
       if (codice) {
         pdfIconDot(doc, tx + 1.3, ty - 1.3, AMBER);
