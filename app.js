@@ -2767,13 +2767,28 @@
       history.forEach(function (day, idx) {
         var completed = day.clients.filter(function (c) { return c.status === 'completed'; }).length;
         html += '<div class="card dp-history-row" data-history-idx="' + idx + '" style="margin-bottom:10px;">' +
+          '<div class="dp-history-row-inner">' +
+          '<div>' +
           '<div style="font-weight:700;">' + dpFormatDateIt(day.date) + '</div>' +
           '<div style="color:var(--ink-soft);font-size:13px;margin-top:2px;">' + day.clients.length + ' clienti · ' + completed + ' completati</div>' +
+          '</div>' +
+          // Cerut direct ("fiecare zi sa aiba si butonul de a descarca
+          // fisierul cu toate livrarile din ziua respectiva, in PDF"):
+          // buton propriu, nu atinge click-ul randului intreg (care
+          // deschide detaliul zilei) - vezi stopPropagation mai jos.
+          '<button type="button" class="dp-history-download-btn" data-history-download-idx="' + idx + '" aria-label="Scarica PDF">' + svgIcon('share') + '</button>' +
+          '</div>' +
           '</div>';
       });
       listEl.innerHTML = html;
       listEl.querySelectorAll('.dp-history-row').forEach(function (row) {
         row.addEventListener('click', function () { dpOpenHistoryDayDetail(Number(row.getAttribute('data-history-idx'))); });
+      });
+      listEl.querySelectorAll('.dp-history-download-btn').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          dpDownloadHistoryDayPdf(Number(btn.getAttribute('data-history-download-idx')));
+        });
       });
     }
     document.getElementById('dp-history-close-x').onclick = function () { dpCloseModal('modal-dp-history'); };
@@ -10407,9 +10422,9 @@
   // (here: Roboto, subsetted to Western European Latin, kept loaded
   // alongside jsPDF itself — see ensurePdfLibsLoaded above) and using
   // it in place of 'helvetica' everywhere a PDF gets built.
-  function createPdfDoc() {
+  function createPdfDoc(orientation) {
     var jsPDFCtor = window.jspdf.jsPDF;
-    var doc = new jsPDFCtor({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    var doc = new jsPDFCtor({ orientation: orientation || 'landscape', unit: 'mm', format: 'a4' });
     doc.addFileToVFS('Roboto-Regular.ttf', PDF_FONT_ROBOTO_REGULAR_B64);
     doc.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
     doc.addFileToVFS('Roboto-Bold.ttf', PDF_FONT_ROBOTO_BOLD_B64);
@@ -10440,6 +10455,114 @@
     });
     addReceiptPages(doc, month, year);
     return doc;
+  }
+
+  // Cerut direct ("fiecare zi sa aiba si butonul de a descarca fisierul
+  // cu toate livrarile din ziua respectiva... in format PDF, ca... sa
+  // mentina vizualul fiecarei zile cu informatia... si sa fie usor de
+  // stampat"): un PDF separat, portret, o pagina (sau mai multe daca
+  // lista nu incape), cu lista de clienti a unei zile din Storico —
+  // exact aceleasi date pe care "Storico consegne" le arata deja pe
+  // ecran (nume, telefon/adresa, cod poarta, nota, consegnato sau nu),
+  // doar asezate intr-un tabel simplu, tiparibil, nu editabil.
+  function buildPdfForHistoryDay(day) {
+    var doc = createPdfDoc('portrait');
+    var pageW = 210, margin = 14, contentW = pageW - margin * 2;
+    var profile = loadProfile();
+    var completed = day.clients.filter(function (c) { return c.status === 'completed'; }).length;
+
+    doc.setFont('Roboto', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(20, 20, 20);
+    doc.text('ADB Smart', margin, margin + 6);
+    doc.setFont('Roboto', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(90, 90, 90);
+    doc.text('Storico consegne', margin, margin + 11.5);
+
+    doc.setFont('Roboto', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(20, 20, 20);
+    doc.text(dpFormatDateIt(day.date) + ' ' + day.date.split('-')[0], pageW - margin, margin + 6, { align: 'right' });
+    doc.setFont('Roboto', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(90, 90, 90);
+    doc.text(day.clients.length + ' clienti · ' + completed + ' completati', pageW - margin, margin + 11.5, { align: 'right' });
+
+    var subY = margin + 18;
+    var subParts = [];
+    if (profile && profile.nome) subParts.push('Autista: ' + profile.nome);
+    if (profile && profile.targa) subParts.push('Targa: ' + profile.targa);
+    if (profile && profile.perContoDi) subParts.push('Per conto di: ' + profile.perContoDi);
+    if (subParts.length) {
+      doc.setFontSize(8);
+      doc.setTextColor(90, 90, 90);
+      doc.text(subParts.join('   ·   '), margin, subY);
+    } else {
+      subY = margin + 13;
+    }
+
+    // REAL BUG, found before shipping: the Roboto font embedded in the
+    // PDF is subsetted to plain Western European Latin (see createPdfDoc
+    // above) — it has no glyph for "✓", so that symbol silently printed
+    // as a blank cell. Using the plain word "Consegnato"/"Mancato"
+    // instead — always renders, and reads more clearly on paper anyway.
+    var body = day.clients.map(function (c, i) {
+      var phones = [c.telefono, c.telefono2].map(function (p) { return (p || '').trim(); }).filter(Boolean).join('\n');
+      var addrOrPhone = phones || (c.indirizzo || '').trim() || '—';
+      return [
+        String(i + 1),
+        c.nome || '',
+        addrOrPhone,
+        (c.codiceCancello || '').trim(),
+        (c.nota || '').trim(),
+        c.status === 'completed' ? 'Consegnato' : 'Mancato'
+      ];
+    });
+
+    doc.autoTable({
+      startY: subY + 4,
+      margin: { left: margin, right: margin },
+      tableWidth: contentW,
+      theme: 'grid',
+      head: [['#', 'Cliente', 'Indirizzo / Telefono', 'Codice', 'Nota', 'Stato']],
+      body: body,
+      styles: { font: 'Roboto', fontSize: 9, cellPadding: 2.2, lineColor: [20, 20, 20], lineWidth: 0.25, textColor: [20, 20, 20], valign: 'top' },
+      headStyles: { fillColor: [20, 20, 20], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+      columnStyles: {
+        0: { cellWidth: 8, halign: 'center', fontStyle: 'bold' },
+        1: { cellWidth: contentW * 0.22 },
+        2: { cellWidth: contentW * 0.27 },
+        3: { cellWidth: contentW * 0.12, halign: 'center' },
+        4: { cellWidth: contentW * 0.19 },
+        5: { cellWidth: 'auto', halign: 'center' }
+      }
+    });
+    return doc;
+  }
+
+  // Acelasi tipar deja folosit pentru "Condividi PDF" (foglio mensile):
+  // share sheet nativ cand e disponibil (Android/iOS - permite si
+  // "Stampa" direct din acel meniu, exact ce s-a cerut), altfel
+  // descarcare directa a fisierului.
+  function dpDownloadHistoryDayPdf(idx) {
+    var history = loadDeliveryHistory();
+    var day = history[idx];
+    if (!day) return;
+    toast('Preparazione PDF…');
+    loadPdfLibs().then(function () {
+      var doc = buildPdfForHistoryDay(day);
+      var filename = 'Consegne_' + day.date + '.pdf';
+      var blob = doc.output('blob');
+      if (navigator.canShare && navigator.canShare({ files: [new File([blob], filename, { type: 'application/pdf' })] })) {
+        navigator.share({ files: [new File([blob], filename, { type: 'application/pdf' })], title: filename }).catch(function () { doc.save(filename); });
+      } else {
+        doc.save(filename);
+      }
+    }).catch(function (err) {
+      console.error(err);
+      toast('Impossibile generare il PDF — verifica la connessione');
+    });
   }
 
   // Packs every fuel receipt into a compact grid, after the GIRO table

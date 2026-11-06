@@ -567,6 +567,15 @@
     color:var(--ink-faint);display:flex;align-items:center;justify-content:center;cursor:pointer;
   }
   .dp-info-btn.dp-info-btn-filled{color:var(--accent);}
+  /* Cerut direct ("fiecare zi sa aiba si butonul de a descarca fisierul
+     cu toate livrarile din ziua respectiva, in PDF"): butonul sta pe
+     dreapta randului de zi din Storico consegne, separat de textul cu
+     data/numarul de clienti (stanga), centrat pe verticala fata de el. */
+  .dp-history-row-inner{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+  .dp-history-download-btn{
+    flex:0 0 auto;width:38px;height:38px;border-radius:12px;border:none;
+    background:var(--surface-2);color:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer;
+  }
   .dp-dragging{box-shadow:var(--shadow-md);opacity:.95;}
   /* Completed clients — a fully OPAQUE, distinct background instead
      of transparency. Reported directly: opacity made the row see-
