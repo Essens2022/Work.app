@@ -2373,6 +2373,14 @@
          pe teren - mult mai de incredere decat orice adresa scrisa de
          mana. Vezi dpUseCurrentLocationForEditClient in app.js. -->
     <button type="button" class="btn btn-ghost btn-block" id="dp-edit-use-location-btn" style="margin-top:8px;">📍 Usa qui la posizione attuale</button>
+    <!-- Cerut direct ("trebuie sa fie o bara unde se vede chiar
+         pozitia... din ce este ea creata"): numerele reale salvate
+         (lat,lon), vizibile de indata ce exista o pozitie precisa -
+         umplute la deschiderea modalului daca exista deja, si
+         actualizate live dupa fiecare apasare reusita a butonului de
+         mai sus. Ascunsa complet cand nu exista inca nicio pozitie
+         precisa salvata. -->
+    <div class="settings-driver-note" id="dp-edit-location-precise-bar" style="margin-top:6px;display:none;"></div>
     <div class="field" style="margin-top:10px;">
       <label>📞 Telefono (opzionale)</label>
       <input type="tel" id="dp-edit-telefono" placeholder="Es. 333 1234567" autocomplete="off">
@@ -2465,6 +2473,7 @@
       <button type="button" class="ac-clear-btn" id="dp-archive-edit-indirizzo-clear" aria-label="Cancella">✕</button>
     </div>
     <button type="button" class="btn btn-ghost btn-block" id="dp-archive-edit-use-location-btn" style="margin-top:8px;">📍 Usa qui la posizione attuale</button>
+    <div class="settings-driver-note" id="dp-archive-edit-location-precise-bar" style="margin-top:6px;display:none;"></div>
     <div class="field" style="margin-top:10px;">
       <label>📞 Telefono (opzionale)</label>
       <input type="tel" id="dp-archive-edit-telefono" placeholder="Es. 333 1234567" autocomplete="off">
