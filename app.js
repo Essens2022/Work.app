@@ -5403,13 +5403,20 @@
   // Acelasi tipar de compresie "incape intr-un buget" deja folosit la
   // scontrini (processReceiptCanvas) - fara saltul de luminozitate de
   // acolo (gandit special pentru bonuri termice decolorate, nu pentru
-  // o poza normala) si cu un buget ceva mai generos (asta e pastrata
-  // ca dovada reala - trebuie sa se vada clar unde/cum a fost lasat
-  // pachetul, nu doar un text).
+  // o poza normala).
+  //
+  // REAL BUG, raportat direct ("cand trimiti documentul poza se vede
+  // foarte rau"): bugetul initial (110KB, 1280px) era gandit doar
+  // pentru o miniatura mica in Storico - odata ce poza a ajuns sa fie
+  // afisata MARE (card intreg in PDF, ecran intreg in vizualizator),
+  // acelasi fisier arata vizibil neclar/cu artefacte la marire. Marit
+  // substantial - tot "stocat doar local" (IndexedDB, nu localStorage,
+  // nu are sens sa economisim agresiv aici), la un nivel care ramane
+  // clar chiar afisat/tiparit mare.
   function dpCompressPhotoForStorage(sourceCanvas) {
-    var budgetBytes = 110 * 1024;
-    var dimSteps = [1280, 1100, 950, 800, 650, 500];
-    var qualitySteps = [0.82, 0.74, 0.66, 0.58, 0.5, 0.4, 0.3, 0.2];
+    var budgetBytes = 400 * 1024;
+    var dimSteps = [2000, 1700, 1400, 1200, 1000, 800];
+    var qualitySteps = [0.88, 0.8, 0.72, 0.64, 0.56, 0.46, 0.36, 0.25];
     var best = null;
     for (var dIdx = 0; dIdx < dimSteps.length; dIdx++) {
       var maxDim = dimSteps[dIdx];
