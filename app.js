@@ -10775,7 +10775,6 @@
 
   function buildPdfForHistoryDay(day, photosByClientId) {
     photosByClientId = photosByClientId || {};
-    var PHOTO_SIZE = 24;
     var doc = createPdfDoc('portrait');
     var pageW = 210, pageH = 297, margin = 12, contentW = pageW - margin * 2;
     var profile = loadProfile();
@@ -10854,23 +10853,39 @@
       var addrText = (c.indirizzo || '').trim();
       var codice = (c.codiceCancello || '').trim();
       var nota = (c.nota || '').trim();
+      // Cerut direct ("sa fie bine vizibile... poza la fiecare livrare
+      // care o are"): o miniatura mica, intr-un colt, nu era "bine
+      // vizibila" - poza e acum asezata SUB tot textul, pe toata
+      // latimea coloanei de text (nu doar un patrat mic in colt), la
+      // dimensiunea reala a ei (proportia pastrata exact, via
+      // getImageProperties), plafonata doar ca sa nu umfle cartonasul
+      // unei poze facute pe inaltime pana la o pagina intreaga.
       var photoData = photosByClientId[c.id];
-      var cardTextW = textW - (photoData ? (PHOTO_SIZE + 4) : 0);
+      var photoW = 0, photoH = 0;
+      if (photoData) {
+        try {
+          var photoProps = doc.getImageProperties(photoData);
+          photoW = textW;
+          photoH = photoW * (photoProps.height / photoProps.width);
+          var maxPhotoH = 70;
+          if (photoH > maxPhotoH) { photoH = maxPhotoH; photoW = photoH * (photoProps.width / photoProps.height); }
+        } catch (e) { photoData = null; }
+      }
 
       doc.setFont('Roboto', 'bold');
       doc.setFontSize(11.5);
-      var nameLines = doc.splitTextToSize(c.nome || '', cardTextW);
+      var nameLines = doc.splitTextToSize(c.nome || '', textW);
       doc.setFont('Roboto', 'normal');
       doc.setFontSize(8.5);
-      var notaLines = nota ? doc.splitTextToSize('Nota: ' + nota, cardTextW) : [];
+      var notaLines = nota ? doc.splitTextToSize('Nota: ' + nota, textW) : [];
 
       var contentH = nameLines.length * nameLineH
         + lineH // address line (always exactly one line now)
         + (codice ? lineH : 0)
         + notaLines.length * notaLineH
-        + lineH; // status/time line, always present (consegnato or non completato)
+        + lineH // status/time line, always present (consegnato or non completato)
+        + (photoData ? (photoH + 3) : 0);
       var cardH = Math.max(padTop + contentH + padBottom, badgeR * 2 + padTop + padBottom - 2);
-      if (photoData) cardH = Math.max(cardH, padTop + PHOTO_SIZE + padBottom);
 
       if (y + cardH > pageH - margin) {
         doc.addPage();
@@ -10881,12 +10896,6 @@
       doc.setDrawColor(LINE[0], LINE[1], LINE[2]);
       doc.setLineWidth(0.25);
       doc.roundedRect(margin, y, contentW, cardH, 2.5, 2.5, 'FD');
-
-      if (photoData) {
-        var photoX = margin + contentW - PHOTO_SIZE - 6;
-        var photoY = y + (cardH - PHOTO_SIZE) / 2;
-        try { doc.addImage(photoData, 'JPEG', photoX, photoY, PHOTO_SIZE, PHOTO_SIZE, undefined, 'FAST'); } catch (e) { /* o poza corupta/necitibila nu trebuie sa opreasca restul PDF-ului */ }
-      }
 
       pdfDrawBadge(doc, badgeCx, y + cardH / 2, badgeR, isDone, i + 1);
 
@@ -10928,6 +10937,11 @@
         pdfIconDot(doc, tx + 1.3, ty - 1.3, ACCENT);
         doc.setTextColor(ACCENT[0], ACCENT[1], ACCENT[2]);
         doc.text('Non completato', tx + 4.5, ty);
+      }
+      ty += lineH;
+
+      if (photoData) {
+        try { doc.addImage(photoData, 'JPEG', tx, ty - 2.5, photoW, photoH, undefined, 'FAST'); } catch (e) { /* o poza corupta/necitibila nu trebuie sa opreasca restul PDF-ului */ }
       }
 
       y += cardH + 4;
