@@ -3946,7 +3946,7 @@
     document.getElementById('dp-archive-edit-chiamaprima').value = c.chiamaPrimaMin != null ? c.chiamaPrimaMin : '';
     document.getElementById('dp-archive-edit-scadenza').value = c.scadenza || '';
     document.getElementById('dp-archive-edit-nonprima').value = c.nonPrimaDi || '';
-    dpRenderPreciseLocationBar('dp-archive-edit-location-precise-bar', c);
+    dpRenderLocationButton('dp-archive-edit-use-location-btn', c);
     wireNavClearButton(document.getElementById('dp-archive-edit-nome'), document.getElementById('dp-archive-edit-nome-clear'), function () {});
     wireNavClearButton(document.getElementById('dp-archive-edit-indirizzo'), document.getElementById('dp-archive-edit-indirizzo-clear'), function () {});
     dpWireTimeDefault(document.getElementById('dp-archive-edit-scadenza'), '06:50');
@@ -4010,7 +4010,6 @@
     // sus, in handler-ul de Salva).
     document.getElementById('dp-archive-edit-use-location-btn').onclick = function () {
       var btn = document.getElementById('dp-archive-edit-use-location-btn');
-      var originalLabel = btn.textContent;
       btn.disabled = true;
       btn.textContent = 'Rilevamento posizione…';
       currentPositionSafe(16000, { enableHighAccuracy: true, maximumAge: 0 }).then(function (pos) {
@@ -4020,14 +4019,13 @@
           if (rc.clientId === c.id) { rc.lat = c.lat; rc.lon = c.lon; rc.coordsPrecise = true; rc.orsUnreachable = false; }
         });
         saveDeliveryRun(state.deliveryRun);
-        dpRenderPreciseLocationBar('dp-archive-edit-location-precise-bar', c);
         if (currentScreen === 'navigatore') renderDeliveryPlanner();
         btn.disabled = false;
-        btn.textContent = originalLabel;
+        dpRenderLocationButton('dp-archive-edit-use-location-btn', c);
         toast('Posizione attuale salvata ✓', 2200);
       }).catch(function () {
         btn.disabled = false;
-        btn.textContent = originalLabel;
+        dpRenderLocationButton('dp-archive-edit-use-location-btn', c);
         toast('Impossibile rilevare la posizione — controlla il GPS e riprova.', 2800);
       });
     };
@@ -4400,20 +4398,26 @@
     }).catch(function () { /* silent, best-effort only — Reordina simply treats this one as non-geolocatable if it fails, see dpConfirmReordina */ });
   }
 
-  // Cerut direct ("trebuie sa fie o bara unde se vede chiar pozitia ca
-  // a aparut din numere din ce este ea creata"): un rand de text simplu
-  // cu numerele reale (lat,lon) salvate ca pozitie exacta - confirmare
-  // vizibila a ce s-a salvat efectiv, nu doar un toast trecator.
-  // Ascunsa complet cand clientul n-are (inca) nicio pozitie exacta.
-  function dpRenderPreciseLocationBar(barId, c) {
-    var el = document.getElementById(barId);
-    if (!el) return;
+  // Cerut direct ("un buton era si tu ai creat un alt buton... nu am
+  // nevoie sa am 20 de butoane. Unul, dar sa functioneze bine...  imi
+  // trebuie sa inteleg vizual ca s-a pus pozitia corecta"): UN SINGUR
+  // buton, nu un buton plus o bara separata sub el (asa cum era) -
+  // cand exista deja o pozitie exacta salvata, acelasi buton isi
+  // schimba singur textul (arata numerele reale, lat/lon) si culoarea
+  // (teal, ca "consegnato"), ramanand tot el apasabil mai departe, ca
+  // sa poata fi actualizat oricand. Fara nicio pozitie exacta inca,
+  // revine la textul/culoarea lui obisnuita.
+  function dpRenderLocationButton(btnId, c) {
+    var btn = document.getElementById(btnId);
+    if (!btn) return;
     if (c && c.coordsPrecise && c.lat != null && c.lon != null) {
-      el.textContent = '📍 Posizione esatta salvata: ' + c.lat.toFixed(6) + ', ' + c.lon.toFixed(6);
-      el.style.display = '';
+      btn.textContent = '✓ ' + c.lat.toFixed(6) + ', ' + c.lon.toFixed(6) + ' — tocca per aggiornare';
+      btn.classList.remove('btn-ghost');
+      btn.classList.add('btn-location-set');
     } else {
-      el.textContent = '';
-      el.style.display = 'none';
+      btn.textContent = '📍 Usa qui la posizione attuale';
+      btn.classList.remove('btn-location-set');
+      btn.classList.add('btn-ghost');
     }
   }
 
@@ -4428,7 +4432,7 @@
     document.getElementById('dp-edit-chiamaprima').value = client.chiamaPrimaMin != null ? client.chiamaPrimaMin : '';
     document.getElementById('dp-edit-scadenza').value = client.scadenza || '';
     document.getElementById('dp-edit-nonprima').value = client.nonPrimaDi || '';
-    dpRenderPreciseLocationBar('dp-edit-location-precise-bar', client);
+    dpRenderLocationButton('dp-edit-use-location-btn', client);
     document.getElementById('dp-edit-save-result').innerHTML = '';
     document.getElementById('dp-edit-close-x').onclick = function () { dpCloseModal('modal-dp-edit-client'); };
     document.getElementById('dp-edit-remove-btn').onclick = function () { dpConfirmRemoveClient(clientId); };
@@ -4507,7 +4511,6 @@
     var client = state.deliveryRun.clients.find(function (c) { return c.id === clientId; });
     if (!client) return;
     var btn = document.getElementById('dp-edit-use-location-btn');
-    var originalLabel = btn.textContent;
     btn.disabled = true;
     btn.textContent = 'Rilevamento posizione…';
     currentPositionSafe(16000, { enableHighAccuracy: true, maximumAge: 0 }).then(function (pos) {
@@ -4549,14 +4552,13 @@
         fleetCall({ action: 'driver_save_client_coords', account_email: currentAccountEmail(), client_id: client.fleetClientId, lat: client.lat, lon: client.lon, precise: true, label: 'Posizione confermata dall\'autista' });
       }
       saveDeliveryRun(state.deliveryRun);
-      dpRenderPreciseLocationBar('dp-edit-location-precise-bar', client);
       if (currentScreen === 'navigatore') renderDeliveryPlanner();
       btn.disabled = false;
-      btn.textContent = originalLabel;
+      dpRenderLocationButton('dp-edit-use-location-btn', client);
       toast('Posizione attuale salvata ✓', 2200);
     }).catch(function () {
       btn.disabled = false;
-      btn.textContent = originalLabel;
+      dpRenderLocationButton('dp-edit-use-location-btn', client);
       toast('Impossibile rilevare la posizione — controlla il GPS e riprova.', 2800);
     });
   }
