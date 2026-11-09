@@ -1367,6 +1367,24 @@
     background:var(--surface-2);color:var(--ink-soft);border:none;font-size:18px;line-height:1;
     display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2;
   }
+  #delivery-photo-view-stage{
+    position:relative;overflow:hidden;border-radius:12px;border:1px solid var(--line);
+    background:#000;height:58vh;display:flex;align-items:center;justify-content:center;margin-top:16px;
+  }
+  #delivery-photo-view-img{max-width:100%;max-height:100%;}
+  /* Cerut direct ("apasand pe ea sa se deschida"): o miniatura mica, pe
+     dreapta randului din Storico, doar cand exista o poza salvata -
+     acelasi colt unde stau si butoanele de telefon/whatsapp pe randurile
+     obisnuite (nu readOnly), ca sa ramana un loc familiar pentru orice
+     actiune secundara a unui rand de client. */
+  .dp-client-photo-thumb{
+    flex:0 0 auto;align-self:center;width:52px;height:52px;border-radius:10px;border:none;
+    background:var(--surface-2);overflow:hidden;display:flex;align-items:center;justify-content:center;
+    padding:0;cursor:pointer;color:var(--ink-faint);
+  }
+  .dp-client-photo-thumb img{width:100%;height:100%;object-fit:cover;}
+  .dp-client-photo-thumb-icon{font-size:20px;}
+  .dp-client-photo-thumb.dp-client-photo-thumb-expired{color:var(--ink-faint);opacity:.5;cursor:default;}
   .modal-close-x{
     position:absolute;top:14px;right:16px;width:30px;height:30px;border-radius:50%;
     background:var(--surface-2);color:var(--ink-soft);border:none;font-size:18px;line-height:1;
@@ -2864,6 +2882,21 @@
     <div class="modal-btnrow sticky-fixed">
       <button class="btn btn-ghost" id="fuel-view-replace">+ Aggiungi un'altra foto</button>
       <button class="btn btn-danger" id="fuel-view-remove">Rimuovi</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cerut direct ("astazi nu am putut demonstra prin poze... apasand pe
+     ea sa se deschida"): vizualizare simpla, doar citire, a unei poze de
+     livrare salvate in Storico (vezi dpSaveDeliveryPhoto in app.js) -
+     fara "Rimuovi"/"Sostituisci" ca la scontrini, o poza de livrare nu
+     e ceva ce soferul editeaza manual, se sterge singura dupa 2 luni. -->
+<div class="modal-overlay center" id="modal-delivery-photo-view">
+  <div class="sheet-panel" style="max-width:520px;text-align:center;">
+    <button type="button" class="fuel-close-x" id="delivery-photo-view-close-x" aria-label="Chiudi">×</button>
+    <div class="modal-title" id="delivery-photo-view-title">Foto consegna</div>
+    <div id="delivery-photo-view-stage">
+      <img id="delivery-photo-view-img" src="" alt="">
     </div>
   </div>
 </div>

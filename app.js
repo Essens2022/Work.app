@@ -2170,6 +2170,16 @@
     return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
   }
 
+  // Cerut direct ("am vazut ca arata doar ora cand a fost livrat, dar
+  // ar fi bine sa arate si ziua, luna"): format compact, o singura
+  // linie - 9 nov 2026 - folosit pe poza de livrare, unde fiecare
+  // caracter in plus conteaza (text pe o fotografie, nu intr-un tabel).
+  function dpFormatDateShort(ts) {
+    var d = new Date(ts);
+    var mesi = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+    return d.getDate() + ' ' + mesi[d.getMonth()] + ' ' + d.getFullYear();
+  }
+
   // Reads the REAL rate-limit headers ORS returns on every response
   // (x-ratelimit-remaining, x-ratelimit-limit) and stores the latest
   // reading — called right after every actual fetch to ORS, success
@@ -2280,6 +2290,14 @@
     var codiceHtml = (c.codiceCancello || '').trim() ? '<div class="dp-client-phone-line" style="margin-top:3px;">🔑 ' + escapeHtml(c.codiceCancello.trim()) + '</div>' : '';
     if (readOnly) {
       // Storico's own read-only rows — no drag, no swipe, no click.
+      // Cerut direct ("astazi nu am putut demonstra prin poze...
+      // apasand pe ea sa se deschida"): o miniatura pe dreapta, doar
+      // cand exista o poza salvata pentru acest client (c.hasFoto) -
+      // umpluta asincron dupa randare (vezi dpOpenHistoryDayDetail),
+      // pentru ca poza insasi vine din IndexedDB, nu din acest HTML.
+      var photoThumbHtml = c.hasFoto
+        ? '<button type="button" class="dp-client-photo-thumb" data-photo-key="' + c.id + '" aria-label="Foto consegna"><span class="dp-client-photo-thumb-icon">📷</span></button>'
+        : '';
       return '' +
         '<div class="card dp-client-row' + (isDone ? ' dp-client-done' : '') + '">' +
         '<div class="dp-client-badge' + (isDone ? ' dp-client-badge-done' : badgeTimeClass) + '">' + badge + '</div>' +
@@ -2290,6 +2308,7 @@
         codiceHtml +
         (c.completedAt ? '<div style="color:var(--teal);font-size:13px;font-weight:700;margin-top:3px;">✓ Consegnato ~' + dpFormatTime(c.completedAt) + '</div>' : '') +
         '</div>' +
+        photoThumbHtml +
         '</div>';
     }
     // Cerut direct ("stil modern... fara sa se suprapuna... bine
@@ -2827,7 +2846,42 @@
     if (hasPrev) document.getElementById('dp-history-prev-day').addEventListener('click', function () { dpOpenHistoryDayDetail(idx + 1); });
     if (hasNext) document.getElementById('dp-history-next-day').addEventListener('click', function () { dpOpenHistoryDayDetail(idx - 1); });
     detailEl.scrollTop = 0; // jumping to a different day should always start at the top, not wherever the previous day happened to be scrolled to
+    dpLoadHistoryPhotoThumbs(detailEl, day);
   }
+
+  // Umple miniaturile de poza ale zilei abia dupa ce randul exista deja
+  // pe ecran - poza propriu-zisa vine din IndexedDB (async), separat de
+  // HTML-ul sincron de mai sus. O poza expirata (vezi dpCleanupOldDeliveryPhotos
+  // - trec 2 luni) nu mai e gasita: miniatura arata un mesaj clar in
+  // loc de o poza ruptǎ sau de a disparea fara nicio explicatie.
+  function dpLoadHistoryPhotoThumbs(containerEl, day) {
+    var thumbs = containerEl.querySelectorAll('.dp-client-photo-thumb');
+    thumbs.forEach(function (thumb) {
+      var key = thumb.getAttribute('data-photo-key');
+      dpPhotoDbGet(key).then(function (record) {
+        if (record && record.data) {
+          thumb.innerHTML = '<img src="' + record.data + '" alt="">';
+          thumb.addEventListener('click', function () {
+            var client = day.clients.find(function (c) { return c.id === key; });
+            dpOpenDeliveryPhotoViewModal(record.data, client ? client.nome : '');
+          });
+        } else {
+          thumb.classList.add('dp-client-photo-thumb-expired');
+          thumb.innerHTML = '<span class="dp-client-photo-thumb-icon">📷</span>';
+          thumb.title = 'Foto non più disponibile (scaduta dopo ' + DP_PHOTO_RETENTION_DAYS + ' giorni)';
+        }
+      }).catch(function () {});
+    });
+  }
+
+  function dpOpenDeliveryPhotoViewModal(dataUrl, title) {
+    document.getElementById('delivery-photo-view-title').textContent = title ? ('Foto — ' + title) : 'Foto consegna';
+    document.getElementById('delivery-photo-view-img').src = dataUrl;
+    document.getElementById('modal-delivery-photo-view').classList.add('open');
+  }
+  document.getElementById('delivery-photo-view-close-x').addEventListener('click', function () {
+    dpCloseModal('modal-delivery-photo-view');
+  });
 
   function renderDeliveryPlanner() {
     dpArchiveIfNewDay();
@@ -4976,7 +5030,7 @@
     // whatever the previous photo's preview was left at.
     dpPreviewZoomLevel = 1;
     document.getElementById('dp-camera-preview-img').style.transform = 'scale(1)';
-    document.getElementById('dp-camera-info-time').textContent = client.completedAt ? dpFormatTime(client.completedAt) : '';
+    document.getElementById('dp-camera-info-time').textContent = client.completedAt ? (dpFormatDateShort(client.completedAt) + ' · ' + dpFormatTime(client.completedAt)) : '';
     document.getElementById('dp-camera-info-name').textContent = client.nome || '';
     document.getElementById('dp-camera-info-addr').textContent = client.indirizzo || '';
 
@@ -5183,7 +5237,11 @@
     ctx.font = '700 ' + Math.round(w * 0.045) + 'px sans-serif';
     ctx.fillText('✓ Consegnato', centerX, badgeY);
 
-    var timeText = client.completedAt ? dpFormatTime(client.completedAt) : '';
+    // Cerut direct ("am vazut ca arata doar ora cand a fost livrat,
+    // dar ar fi bine sa arate si ziua, luna"): data+ora impreuna, nu
+    // doar ora - o poza pastrata ca dovada, eventual luni mai tarziu,
+    // nu spune nimic fara si ziua exacta in care a fost facuta.
+    var timeText = client.completedAt ? (dpFormatDateShort(client.completedAt) + ' · ' + dpFormatTime(client.completedAt)) : '';
     if (timeText) {
       ctx.font = '600 ' + Math.round(w * 0.038) + 'px sans-serif';
       ctx.fillText(timeText, centerX, timeY);
@@ -5258,10 +5316,155 @@
     document.getElementById('dp-camera-info-overlay').style.display = 'none'; // already baked into the image now — the separate CSS overlay would just double it up
     document.getElementById('dp-camera-capture-btn').style.display = 'none';
     document.getElementById('dp-camera-preview-actions').style.display = 'flex';
+
+    // Cerut direct ("astazi nu am putut demonstra prin poze pentru ca
+    // nu am avut-o salvata... sa se salveze in automat deja pozele...
+    // poza o va avea acea livrare la care s-a facut"): pana acum poza
+    // exista NUMAI cat timp ramane deschis acest ecran - nu ajungea
+    // niciodata in Storico, oricat de departe mergeai inapoi in timp.
+    // Salvata aici, chiar la momentul capturarii (nu doar daca apasa
+    // mai apoi "Invia" - cele doua sunt scopuri diferite: a trimite
+    // clientului vs. a pastra pentru sine, ca dovada), independent de
+    // orice decizie ulterioara de partajare. O versiune comprimata,
+    // separata de cea originala (care ramane neschimbata pentru
+    // "Invia", la calitate maxima) - vezi dpSaveDeliveryPhoto mai jos.
+    if (dpCameraCurrentClient) {
+      dpSaveDeliveryPhoto(dpCameraCurrentClient, canvas);
+    }
   }
 
   function dpRetakeCameraPhoto() {
     if (dpCameraCurrentClient) dpOpenCameraForClient(dpCameraCurrentClient);
+  }
+
+  /* ---------------------------------------------------------------- */
+  /* Delivery photo storage (IndexedDB) — una din fiecare consegna,    */
+  /* pastrata ca dovada in Storico, nu doar afisata o clipa pe ecran.  */
+  /* ---------------------------------------------------------------- */
+  // Cerut direct, calcul facut dinainte: la ritmul lui ION (11-17
+  // clienti/zi), o poza pe zi per client, pastrata 2 luni, inseamna
+  // cateva sute de poze - mult prea mult pentru localStorage (limitat
+  // la cativa MB in total, pentru TOATE datele aplicatiei, nu doar
+  // poze). IndexedDB are o limita reala mult mai mare (sute de MB,
+  // de obicei legata de spatiul liber de pe telefon), exact facuta
+  // pentru genul asta de date - separata complet de localStorage, deci
+  // nu intra deloc in concurenta cu restul (profil, foi, clienti).
+  var DP_PHOTO_DB_NAME = 'adb_delivery_photos_v1';
+  var DP_PHOTO_STORE = 'photos';
+  var dpPhotoDbPromise = null;
+  function dpOpenPhotoDb() {
+    if (dpPhotoDbPromise) return dpPhotoDbPromise;
+    dpPhotoDbPromise = new Promise(function (resolve, reject) {
+      if (!window.indexedDB) { reject(new Error('indexedDB non disponibile')); return; }
+      var req = indexedDB.open(DP_PHOTO_DB_NAME, 1);
+      req.onupgradeneeded = function () {
+        var db = req.result;
+        if (!db.objectStoreNames.contains(DP_PHOTO_STORE)) {
+          var store = db.createObjectStore(DP_PHOTO_STORE, { keyPath: 'key' });
+          store.createIndex('savedAt', 'savedAt', { unique: false }); // folosit de curatarea automata, mai jos
+        }
+      };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = function () { reject(req.error); };
+    });
+    return dpPhotoDbPromise;
+  }
+  function dpPhotoDbPut(record) {
+    return dpOpenPhotoDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(DP_PHOTO_STORE, 'readwrite');
+        tx.objectStore(DP_PHOTO_STORE).put(record);
+        tx.oncomplete = function () { resolve(); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    });
+  }
+  function dpPhotoDbGet(key) {
+    return dpOpenPhotoDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(DP_PHOTO_STORE, 'readonly');
+        var req = tx.objectStore(DP_PHOTO_STORE).get(key);
+        req.onsuccess = function () { resolve(req.result || null); };
+        req.onerror = function () { reject(req.error); };
+      });
+    });
+  }
+  function dpPhotoDbDelete(key) {
+    return dpOpenPhotoDb().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(DP_PHOTO_STORE, 'readwrite');
+        tx.objectStore(DP_PHOTO_STORE).delete(key);
+        tx.oncomplete = function () { resolve(); };
+        tx.onerror = function () { reject(tx.error); };
+      });
+    });
+  }
+
+  // Acelasi tipar de compresie "incape intr-un buget" deja folosit la
+  // scontrini (processReceiptCanvas) - fara saltul de luminozitate de
+  // acolo (gandit special pentru bonuri termice decolorate, nu pentru
+  // o poza normala) si cu un buget ceva mai generos (asta e pastrata
+  // ca dovada reala - trebuie sa se vada clar unde/cum a fost lasat
+  // pachetul, nu doar un text).
+  function dpCompressPhotoForStorage(sourceCanvas) {
+    var budgetBytes = 110 * 1024;
+    var dimSteps = [1280, 1100, 950, 800, 650, 500];
+    var qualitySteps = [0.82, 0.74, 0.66, 0.58, 0.5, 0.4, 0.3, 0.2];
+    var best = null;
+    for (var dIdx = 0; dIdx < dimSteps.length; dIdx++) {
+      var maxDim = dimSteps[dIdx];
+      var scale = Math.min(1, maxDim / Math.max(sourceCanvas.width, sourceCanvas.height));
+      var w = Math.max(1, Math.round(sourceCanvas.width * scale));
+      var h = Math.max(1, Math.round(sourceCanvas.height * scale));
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(sourceCanvas, 0, 0, w, h);
+      for (var q = 0; q < qualitySteps.length; q++) {
+        var data = canvas.toDataURL('image/jpeg', qualitySteps[q]);
+        if (!best || data.length < best.length) best = data;
+        if (data.length * 0.75 <= budgetBytes) return data;
+      }
+    }
+    return best; // nici cea mai mica/slaba varianta n-a incaput — folosita oricum, mai bine decat nimic
+  }
+
+  // Cheia e id-ul randului din cursa de azi (client.id) - acelasi id
+  // ramane neschimbat si cand ziua se arhiveaza in Storico
+  // (dpArchiveRunToHistory copiaza run.clients exact asa cum sunt),
+  // deci aceeasi cheie gaseste poza mai tarziu, oricat de departe in
+  // Storico. client.hasFoto e singurul semn, pe randul clientului
+  // insusi, ca exista o poza salvata pentru el - citit de Storico mai
+  // jos ca sa stie cand sa arate o miniatura.
+  function dpSaveDeliveryPhoto(client, sourceCanvas) {
+    var dataUrl = dpCompressPhotoForStorage(sourceCanvas);
+    dpPhotoDbPut({ key: client.id, data: dataUrl, savedAt: Date.now() }).then(function () {
+      client.hasFoto = true;
+      saveDeliveryRun(state.deliveryRun);
+      if (currentScreen === 'navigatore') renderDeliveryPlanner();
+    }).catch(function () { /* silent — pastrarea pozei e un bonus, nu trebuie sa blocheze fluxul de livrare daca telefonul refuza IndexedDB */ });
+  }
+
+  // Cerut direct ("ar trebui sa se auto elimine dupa o data la doua
+  // luni"): sters doar din IndexedDB (poza in sine) - client.hasFoto
+  // ramane neschimbat in istoric (ramane adevarat ca "a existat o
+  // poza"), Storico arata un mesaj "poza expirata" in loc de miniatura
+  // cand nu o mai gaseste, vezi dpOpenHistoryDayDetail. Fara sa
+  // rescrie tot istoricul JSON doar ca sa stearga un steag.
+  var DP_PHOTO_RETENTION_DAYS = 60;
+  function dpCleanupOldDeliveryPhotos() {
+    var cutoff = Date.now() - DP_PHOTO_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    dpOpenPhotoDb().then(function (db) {
+      var tx = db.transaction(DP_PHOTO_STORE, 'readwrite');
+      var idx = tx.objectStore(DP_PHOTO_STORE).index('savedAt');
+      var range = IDBKeyRange.upperBound(cutoff);
+      var req = idx.openCursor(range);
+      req.onsuccess = function (e) {
+        var cursor = e.target.result;
+        if (!cursor) return;
+        cursor.delete();
+        cursor.continue();
+      };
+    }).catch(function () { /* silent — se reincearca urmatoarea data cand aplicatia porneste */ });
   }
 
   // Deliberately never touches the phone's own photo library — the
@@ -10551,7 +10754,28 @@
   // (fundal verde-pal pentru cele consegnate, acelasi bej pentru restul,
   // acelasi rosu/accent pentru pin, acelasi teal pentru telefon/bifa) —
   // inclusiv ora reala de livrare ("Consegnato ~HH:MM"), lipsa pana acum.
-  function buildPdfForHistoryDay(day) {
+  // Cerut direct ("sa se trimita impreuna cu pozele... sa poti apasa
+  // pe el si sa se deschida poza"): cea mai simpla cale sigura, care
+  // merge in orice vizualizator de PDF, e sa punem poza DIRECT in
+  // pagina, nu un link catre ea (un link catre un data: URI e
+  // nesigur, suportat inconsistent) - asa, "a apasa pe ea" devine pur
+  // si simplu a te uita la ea/a face zoom cu gesturile deja existente
+  // in vizualizatorul de PDF al aplicatiei (sau al telefonului).
+  function dpFetchPhotosForDay(day) {
+    var withPhoto = day.clients.filter(function (c) { return c.hasFoto; });
+    if (!withPhoto.length) return Promise.resolve({});
+    return Promise.all(withPhoto.map(function (c) {
+      return dpPhotoDbGet(c.id).catch(function () { return null; });
+    })).then(function (records) {
+      var map = {};
+      withPhoto.forEach(function (c, i) { if (records[i]) map[c.id] = records[i].data; });
+      return map;
+    });
+  }
+
+  function buildPdfForHistoryDay(day, photosByClientId) {
+    photosByClientId = photosByClientId || {};
+    var PHOTO_SIZE = 24;
     var doc = createPdfDoc('portrait');
     var pageW = 210, pageH = 297, margin = 12, contentW = pageW - margin * 2;
     var profile = loadProfile();
@@ -10630,13 +10854,15 @@
       var addrText = (c.indirizzo || '').trim();
       var codice = (c.codiceCancello || '').trim();
       var nota = (c.nota || '').trim();
+      var photoData = photosByClientId[c.id];
+      var cardTextW = textW - (photoData ? (PHOTO_SIZE + 4) : 0);
 
       doc.setFont('Roboto', 'bold');
       doc.setFontSize(11.5);
-      var nameLines = doc.splitTextToSize(c.nome || '', textW);
+      var nameLines = doc.splitTextToSize(c.nome || '', cardTextW);
       doc.setFont('Roboto', 'normal');
       doc.setFontSize(8.5);
-      var notaLines = nota ? doc.splitTextToSize('Nota: ' + nota, textW) : [];
+      var notaLines = nota ? doc.splitTextToSize('Nota: ' + nota, cardTextW) : [];
 
       var contentH = nameLines.length * nameLineH
         + lineH // address line (always exactly one line now)
@@ -10644,6 +10870,7 @@
         + notaLines.length * notaLineH
         + lineH; // status/time line, always present (consegnato or non completato)
       var cardH = Math.max(padTop + contentH + padBottom, badgeR * 2 + padTop + padBottom - 2);
+      if (photoData) cardH = Math.max(cardH, padTop + PHOTO_SIZE + padBottom);
 
       if (y + cardH > pageH - margin) {
         doc.addPage();
@@ -10654,6 +10881,12 @@
       doc.setDrawColor(LINE[0], LINE[1], LINE[2]);
       doc.setLineWidth(0.25);
       doc.roundedRect(margin, y, contentW, cardH, 2.5, 2.5, 'FD');
+
+      if (photoData) {
+        var photoX = margin + contentW - PHOTO_SIZE - 6;
+        var photoY = y + (cardH - PHOTO_SIZE) / 2;
+        try { doc.addImage(photoData, 'JPEG', photoX, photoY, PHOTO_SIZE, PHOTO_SIZE, undefined, 'FAST'); } catch (e) { /* o poza corupta/necitibila nu trebuie sa opreasca restul PDF-ului */ }
+      }
 
       pdfDrawBadge(doc, badgeCx, y + cardH / 2, badgeR, isDone, i + 1);
 
@@ -10712,8 +10945,9 @@
     var day = history[idx];
     if (!day) return;
     toast('Preparazione PDF…');
-    loadPdfLibs().then(function () {
-      var doc = buildPdfForHistoryDay(day);
+    Promise.all([loadPdfLibs(), dpFetchPhotosForDay(day)]).then(function (results) {
+      var photosByClientId = results[1];
+      var doc = buildPdfForHistoryDay(day, photosByClientId);
       var filename = 'Consegne_' + day.date + '.pdf';
       var blob = doc.output('blob');
       if (navigator.canShare && navigator.canShare({ files: [new File([blob], filename, { type: 'application/pdf' })] })) {
@@ -14766,6 +15000,11 @@
       var latest = latestSheet();
       if (latest) { state.currentSheetId = latest.id; setCurrentSheetId(latest.id); }
     }
+    // Cerut direct ("ar trebui sa se auto elimine dupa o data la doua
+    // luni"): o singura trecere, la fiecare pornire a aplicatiei -
+    // destul de rar incat sa nu conteze, destul de des incat pozele
+    // vechi sa nu se adune la nesfarsit.
+    dpCleanupOldDeliveryPhotos();
     showScreen('home');
 
     // Installed home-screen apps sometimes resume from a suspended state
