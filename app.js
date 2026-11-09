@@ -2874,13 +2874,35 @@
     });
   }
 
+  var dpCurrentViewedPhoto = null; // {dataUrl, nome} — citit de butonul Scarica/Condividi de mai jos
   function dpOpenDeliveryPhotoViewModal(dataUrl, title) {
     document.getElementById('delivery-photo-view-title').textContent = title ? ('Foto — ' + title) : 'Foto consegna';
     document.getElementById('delivery-photo-view-img').src = dataUrl;
+    dpCurrentViewedPhoto = { dataUrl: dataUrl, nome: title || 'cliente' };
     document.getElementById('modal-delivery-photo-view').classList.add('open');
   }
   document.getElementById('delivery-photo-view-close-x').addEventListener('click', function () {
     dpCloseModal('modal-delivery-photo-view');
+  });
+  // Cerut direct ("orice poza daca mi-ar trebui sa o arat ar trebui sa
+  // o pot si descarca sa o arat"): acelasi mecanism exact ca
+  // dpSendCameraPhoto (share sheet nativ cu fisier atasat, cand e
+  // disponibil - permite salvare in Poze, trimitere pe WhatsApp etc. -
+  // altfel deschidere intr-un tab nou, de unde tot se poate salva/trimite
+  // manual), doar pornind de la poza deja salvata (data URI), nu de la
+  // un canvas live.
+  document.getElementById('delivery-photo-view-download-btn').addEventListener('click', function () {
+    if (!dpCurrentViewedPhoto) return;
+    fetch(dpCurrentViewedPhoto.dataUrl).then(function (r) { return r.blob(); }).then(function (blob) {
+      var fileName = 'consegna-' + dpCurrentViewedPhoto.nome.replace(/[^a-z0-9]+/gi, '-') + '.jpg';
+      var file = new File([blob], fileName, { type: 'image/jpeg' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file], title: fileName }).catch(function () { /* share cancelled by the driver */ });
+      } else {
+        var url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+      }
+    });
   });
 
   function renderDeliveryPlanner() {
@@ -10867,6 +10889,16 @@
       // dimensiunea reala a ei (proportia pastrata exact, via
       // getImageProperties), plafonata doar ca sa nu umfle cartonasul
       // unei poze facute pe inaltime pana la o pagina intreaga.
+      // REAL BUG, raportat direct ("toate pozele se fac verticale"):
+      // plafonul de inaltime (70mm) a fost gandit cu o poza orizontala
+      // in minte - pentru o poza VERTICALA (telefon tinut normal, cazul
+      // real, intotdeauna), acelasi plafon forteaza latimea sa se
+      // ingusteze drastic (o poza 9:16 ajungea la doar ~39mm latime
+      // dintr-o coloana de ~150mm) - exact "mica, intr-un colt" pe care
+      // tocmai incercasem s-o eliminam. Plafon mult mai generos acum -
+      // cartonasul unei livrari cu poza poate ocupa aproape o pagina
+      // intreaga, ceea ce chiar e rezonabil pentru o poza pastrata ca
+      // dovada.
       var photoData = photosByClientId[c.id];
       var photoW = 0, photoH = 0;
       if (photoData) {
@@ -10874,7 +10906,7 @@
           var photoProps = doc.getImageProperties(photoData);
           photoW = textW;
           photoH = photoW * (photoProps.height / photoProps.width);
-          var maxPhotoH = 70;
+          var maxPhotoH = 150;
           if (photoH > maxPhotoH) { photoH = maxPhotoH; photoW = photoH * (photoProps.width / photoProps.height); }
         } catch (e) { photoData = null; }
       }

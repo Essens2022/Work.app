@@ -2890,7 +2890,11 @@
      ea sa se deschida"): vizualizare simpla, doar citire, a unei poze de
      livrare salvate in Storico (vezi dpSaveDeliveryPhoto in app.js) -
      fara "Rimuovi"/"Sostituisci" ca la scontrini, o poza de livrare nu
-     e ceva ce soferul editeaza manual, se sterge singura dupa 2 luni. -->
+     e ceva ce soferul editeaza manual, se sterge singura dupa 2 luni.
+     Cerut direct ("orice poza daca mi-ar trebui sa o arat ar trebui sa
+     o pot si descarca"): un singur buton, "Scarica/Condividi" - acelasi
+     tipar (share sheet nativ, cu fallback de deschidere intr-un tab
+     nou) deja folosit la trimiterea pozei direct din aparatul foto. -->
 <div class="modal-overlay center" id="modal-delivery-photo-view">
   <div class="sheet-panel" style="max-width:520px;text-align:center;">
     <button type="button" class="fuel-close-x" id="delivery-photo-view-close-x" aria-label="Chiudi">×</button>
@@ -2898,6 +2902,7 @@
     <div id="delivery-photo-view-stage">
       <img id="delivery-photo-view-img" src="" alt="">
     </div>
+    <button type="button" class="btn btn-accent btn-block" id="delivery-photo-view-download-btn" style="margin-top:14px;">⬇ Scarica / Condividi</button>
   </div>
 </div>
 
