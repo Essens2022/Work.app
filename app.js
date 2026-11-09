@@ -2627,6 +2627,13 @@
       dpInsertNewStop({
         id: uid(), deliveryItemId: it.id, fleetClientId: it.client_id || null, nome: it.client_name, indirizzo: it.address,
         lat: it.client_lat, lon: it.client_lon, status: 'pending', scadenza: '', nonPrimaDi: '',
+        // Cerut direct ("cand apas butonul, pozitia nu s-a salvat
+        // pentru totdeauna, doar pe acea zi"): coords_precise vine
+        // acum de pe server (vezi fleet-data/driver_list_today_
+        // deliveries) - fara el, un client reincarcat dupa ce soferul
+        // a folosit deja "Usa posizione attuale" pierdea exact acel
+        // steag a doua zi, desi lat/lon chiar ramasesera memorate.
+        coordsPrecise: !!it.client_coords_precise,
         telefono: it.client_phone || '', telefono2: it.client_phone2 || ''
       });
       addedAny = true;
@@ -3939,6 +3946,7 @@
     document.getElementById('dp-archive-edit-chiamaprima').value = c.chiamaPrimaMin != null ? c.chiamaPrimaMin : '';
     document.getElementById('dp-archive-edit-scadenza').value = c.scadenza || '';
     document.getElementById('dp-archive-edit-nonprima').value = c.nonPrimaDi || '';
+    dpRenderPreciseLocationBar('dp-archive-edit-location-precise-bar', c);
     wireNavClearButton(document.getElementById('dp-archive-edit-nome'), document.getElementById('dp-archive-edit-nome-clear'), function () {});
     wireNavClearButton(document.getElementById('dp-archive-edit-indirizzo'), document.getElementById('dp-archive-edit-indirizzo-clear'), function () {});
     dpWireTimeDefault(document.getElementById('dp-archive-edit-scadenza'), '06:50');
@@ -4012,6 +4020,7 @@
           if (rc.clientId === c.id) { rc.lat = c.lat; rc.lon = c.lon; rc.coordsPrecise = true; rc.orsUnreachable = false; }
         });
         saveDeliveryRun(state.deliveryRun);
+        dpRenderPreciseLocationBar('dp-archive-edit-location-precise-bar', c);
         if (currentScreen === 'navigatore') renderDeliveryPlanner();
         btn.disabled = false;
         btn.textContent = originalLabel;
@@ -4391,6 +4400,23 @@
     }).catch(function () { /* silent, best-effort only — Reordina simply treats this one as non-geolocatable if it fails, see dpConfirmReordina */ });
   }
 
+  // Cerut direct ("trebuie sa fie o bara unde se vede chiar pozitia ca
+  // a aparut din numere din ce este ea creata"): un rand de text simplu
+  // cu numerele reale (lat,lon) salvate ca pozitie exacta - confirmare
+  // vizibila a ce s-a salvat efectiv, nu doar un toast trecator.
+  // Ascunsa complet cand clientul n-are (inca) nicio pozitie exacta.
+  function dpRenderPreciseLocationBar(barId, c) {
+    var el = document.getElementById(barId);
+    if (!el) return;
+    if (c && c.coordsPrecise && c.lat != null && c.lon != null) {
+      el.textContent = '📍 Posizione esatta salvata: ' + c.lat.toFixed(6) + ', ' + c.lon.toFixed(6);
+      el.style.display = '';
+    } else {
+      el.textContent = '';
+      el.style.display = 'none';
+    }
+  }
+
   function dpOpenEditClientModal(clientId) {
     var client = state.deliveryRun.clients.find(function (c) { return c.id === clientId; });
     if (!client) return;
@@ -4402,6 +4428,7 @@
     document.getElementById('dp-edit-chiamaprima').value = client.chiamaPrimaMin != null ? client.chiamaPrimaMin : '';
     document.getElementById('dp-edit-scadenza').value = client.scadenza || '';
     document.getElementById('dp-edit-nonprima').value = client.nonPrimaDi || '';
+    dpRenderPreciseLocationBar('dp-edit-location-precise-bar', client);
     document.getElementById('dp-edit-save-result').innerHTML = '';
     document.getElementById('dp-edit-close-x').onclick = function () { dpCloseModal('modal-dp-edit-client'); };
     document.getElementById('dp-edit-remove-btn').onclick = function () { dpConfirmRemoveClient(clientId); };
@@ -4491,14 +4518,38 @@
           saved.lat = client.lat; saved.lon = client.lon; saved.coordsPrecise = true;
           saveDeliveryClients(state.deliveryClients);
         }
+      } else if (!client.fleetClientId) {
+        // Cerut direct ("pozitia nu s-a salvat pentru totdeauna, doar
+        // pe acea zi"): un client ajuns in cursa de azi fara nicio
+        // legatura (nici agenda locala, nici flota) n-avea NICIUN loc
+        // unde aceasta pozitie sa poata supravietui dupa azi - nici
+        // local, nici pe server. Creeaza acum, pe loc, o fisa
+        // permanenta in agenda locala (exact ca "Nuovo cliente"),
+        // legata de-acum inainte prin clientId - data viitoare cand
+        // acest client e redeschis, pozitia e deja acolo.
+        var newSaved = {
+          id: uid(), nome: client.nome, indirizzo: client.indirizzo || '', lat: client.lat, lon: client.lon,
+          coordsPrecise: true, createdAt: Date.now(),
+          telefono: client.telefono || '', telefono2: client.telefono2 || '',
+          codiceCancello: client.codiceCancello || '', chiamaPrimaMin: client.chiamaPrimaMin != null ? client.chiamaPrimaMin : null,
+          scadenza: client.scadenza || '', nonPrimaDi: client.nonPrimaDi || ''
+        };
+        state.deliveryClients.push(newSaved);
+        saveDeliveryClients(state.deliveryClients);
+        client.clientId = newSaved.id;
       }
       // Acelasi tipar fire-and-forget deja folosit pentru telefon mai
       // sus - ramane memorata pe fisa reala a clientului (fleet_clients),
       // pentru totdeauna si pentru ceilalti soferi, nu doar local, azi.
+      // `precise: true` - vezi driver_save_client_coords pe server -
+      // fara el, lat/lon ar ajunge salvate, dar steagul care spune
+      // aplicatiei sa le trimita exact asa catre Google Maps (in loc
+      // de adresa text) se pierdea a doua zi, desi numerele ramaneau.
       if (client.fleetClientId) {
-        fleetCall({ action: 'driver_save_client_coords', account_email: currentAccountEmail(), client_id: client.fleetClientId, lat: client.lat, lon: client.lon, label: 'Posizione confermata dall\'autista' });
+        fleetCall({ action: 'driver_save_client_coords', account_email: currentAccountEmail(), client_id: client.fleetClientId, lat: client.lat, lon: client.lon, precise: true, label: 'Posizione confermata dall\'autista' });
       }
       saveDeliveryRun(state.deliveryRun);
+      dpRenderPreciseLocationBar('dp-edit-location-precise-bar', client);
       if (currentScreen === 'navigatore') renderDeliveryPlanner();
       btn.disabled = false;
       btn.textContent = originalLabel;
