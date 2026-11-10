@@ -1123,7 +1123,7 @@
   #dp-camera-video,#dp-camera-preview-img{
     position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;
   }
-  #dp-camera-video{transform-origin:center;transition:transform .15s ease;}
+  #dp-camera-video{transform-origin:center;transition:transform .15s ease,opacity .12s ease;}
   /* REAL BUG, reported directly and confirmed: native browser pinch-
      zoom on this 4K preview photo (uncapped, whatever scale the OS
      lets the user reach) could exhaust memory on weaker phones and
@@ -1193,7 +1193,7 @@
      deget-reach, ca pe orice camera nativa de telefon. */
   #modal-fuel-camera{padding:0;}
   #fuel-camera-stage{position:relative;width:100%;height:100%;background:#000;overflow:hidden;}
-  #fuel-camera-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;}
+  #fuel-camera-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;transition:opacity .12s ease;}
   #fuel-camera-guide{position:absolute;border:3px solid var(--accent);border-radius:10px;box-shadow:0 0 0 2000px rgba(0,0,0,.45);pointer-events:none;}
   #fuel-camera-close-x{
     position:absolute;top:calc(16px + var(--safe-top,0px));right:16px;z-index:2;

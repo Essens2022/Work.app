@@ -5073,6 +5073,20 @@
     var errEl = document.getElementById('dp-camera-error');
     errEl.style.display = 'none';
     video.style.display = '';
+    // REAL BUG, gasit si confirmat cu o inregistrare video reala de pe
+    // telefon ("camera... este mica si mai apoi se mareste"): primele
+    // cateva cadre dupa ce srcObject e asignat, inainte ca <video> sa
+    // isi stabileasca dimensiunile reale (loadedmetadata), browser-ul
+    // deseneaza fluxul ca un dreptunghi mic, centrat, cu negru in jur —
+    // apoi sare vizibil la ecran complet odata ce dimensiunile sunt
+    // cunoscute. Solutia: video-ul ramane invizibil (opacity:0) pana
+    // quando fluxul chiar e gata de afisat (evenimentul loadedmetadata),
+    // deci utilizatorul nu mai apuca sa vada deloc starea intermediara
+    // — trece direct de la "negru" la "camera corecta, ecran complet".
+    video.style.opacity = '0';
+    video.addEventListener('loadedmetadata', function () {
+      video.style.opacity = '1';
+    }, { once: true });
     document.getElementById('dp-camera-preview-img').style.display = 'none';
     document.getElementById('dp-camera-capture-btn').style.display = '';
     document.getElementById('dp-camera-preview-actions').style.display = 'none';
@@ -11331,9 +11345,15 @@
       setupFuelCameraFlash(stream);
       var video = document.getElementById('fuel-camera-video');
       video.srcObject = stream;
+      // Acelasi bug/fix ca la camera de livrare (dpOpenCameraForClient):
+      // primele cadre dupa srcObject, inainte de loadedmetadata, se pot
+      // desena ca un dreptunghi mic cu negru in jur, care apoi sare la
+      // ecran complet — video-ul ramane ascuns pana e chiar gata.
+      video.style.opacity = '0';
       document.getElementById('modal-fuel-camera').classList.add('open');
       video.onloadedmetadata = function () {
         video.play();
+        video.style.opacity = '1';
         requestAnimationFrame(layoutFuelCameraGuide);
       };
     }).catch(function () {
