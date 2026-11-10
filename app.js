@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v663"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v664"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -5047,7 +5047,13 @@
   var dpSwipeStartY = null;
   var dpSwipeCurrentDY = 0;
   var dpSwipeRafPending = false;
-  var DP_SWIPE_CONFIRM_THRESHOLD = 90;
+  // Cerut direct ("sa fie necesara o miscare mica ca sa plece in sus,
+  // dar corecta, sa nu fie conceputa gresit"): pragul de 90px cerea o
+  // tragere destul de lunga — micsorat la 45px, suficient de mic cat
+  // gestul sa se simta rapid, dar tot suficient de mare cat sa nu se
+  // declanseze dintr-o miscare accidentala, mica, a degetului (ex. o
+  // apasare usor tremurata), care ramane sub acest prag.
+  var DP_SWIPE_CONFIRM_THRESHOLD = 45;
   function dpIsPreviewActionsVisible() {
     var el = document.getElementById('dp-camera-preview-actions');
     return el && el.style.display !== 'none' && el.style.display !== '';
