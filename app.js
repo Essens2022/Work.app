@@ -5276,6 +5276,17 @@
     // e lung"): masuram latimea reala a numelui si, daca nu incape,
     // il micsoram pana la 2 randuri — niciodata nu mai iese lateral
     // din imagine, indiferent cat de lung e numele clientului.
+    //
+    // REAL BUG, gasit in timpul testarii cu un nume extrem de lung
+    // ("SOCIETA COOPERATIVA AGRICOLA ZOOTECNICA DEL NORDEST A
+    // RESPONSABILITA LIMITATA"): dupa ce micsora fontul pana la limita
+    // minima, daca tot nu incapea pe 2 randuri, codul vechi TAIA pur si
+    // simplu restul numelui (nameLines.slice(0,2)) — bucati din numele
+    // clientului disparea de pe poza, complet invizibile. Acum, daca nu
+    // incape nici la fontul minim pe 2 randuri, se accepta un al
+    // treilea rand (zona verde se mareste automat cat sa incapa, vezi
+    // cardTop mai jos) — numele intreg ramane intotdeauna vizibil,
+    // niciodata trunchiat.
     var maxTextWidth = w * 0.86;
     var nameFontSize = Math.round(vScale * 0.072);
     var nameMinFontSize = Math.round(vScale * 0.044);
@@ -5286,7 +5297,6 @@
       ctx.font = '800 ' + nameFontSize + 'px sans-serif';
       nameLines = dpWrapCanvasText(ctx, client.nome || '', maxTextWidth);
     }
-    if (nameLines.length > 2) nameLines = nameLines.slice(0, 2);
     var nameLineHeight = Math.round(nameFontSize * 1.3);
 
     var addrFontSize = Math.round(vScale * 0.05);
@@ -5332,7 +5342,18 @@
     // nu mai fata de cardTop — de cand cardTop s-a micsorat odata cu
     // textul (vezi mai jos), vechea formula (cardTop + offset fix) ar
     // fi putut impinge watermark-ul sa se suprapuna cu textul.
-    var wmGapAboveText = vScale * 0.022;
+    //
+    // REAL BUG, raportat direct si confirmat cu o poza reala de pe
+    // telefon ("logoul adb smart este suprapus"): gap-ul era masurat
+    // de la topRowY (BASELINE-ul textului), nu de la varful real al
+    // literelor — ascendentele unui font de ~topFontSize px urca
+    // aproximativ 0.75-0.8 din marimea fontului DEASUPRA baseline-ului,
+    // deci un gap mai mic decat atat lasa watermark-ul sa se suprapuna
+    // peste partea de sus a textului ("05:40" acoperit de logo). Acum
+    // gap-ul e calculat direct din topFontSize (inaltimea reala a
+    // textului), nu mai dintr-un procent fix independent de marimea
+    // fontului — se adapteaza corect la orice rezolutie/aspect ratio.
+    var wmGapAboveText = topFontSize * 1.2;
     var groupTop = topRowY - wmGapAboveText - wmLogoHeight;
     var bgPad = wmLogoHeight * 0.1875;
 
