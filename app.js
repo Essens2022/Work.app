@@ -133,7 +133,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v671"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v672"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -15634,7 +15634,23 @@
     // destul de rar incat sa nu conteze, destul de des incat pozele
     // vechi sa nu se adune la nesfarsit.
     dpCleanupOldDeliveryPhotos();
-    showScreen('home');
+    // Cerut direct ("cand fac livrari, fiecare secunda e importanta, nu
+    // pot astepta un restart"): o parte reala a acelui restart (chiar si
+    // dupa ce reload-ul automat propriu e amanat — vezi
+    // dpHasActiveUnfinishedRoute mai sus) e in afara controlului acestui
+    // cod — iOS poate oricand elibera din memorie o aplicatie instalata
+    // ("Add to Home Screen"), tinuta doar in fundal, ca sa faca loc altor
+    // aplicatii; la revenire, pagina porneste complet de la zero, ca la o
+    // prima deschidere, si NICIUN cod JS nu poate preveni asta (pagina
+    // chiar e distrusa, nu doar "pusa pe pauza"). Ce RAMANE in controlul
+    // nostru e unde ii pica soferul dupa acel restart inevitabil — pana
+    // acum mereu pe Home, obligandu-l sa mai apese o data pe "Consegne di
+    // oggi" ca sa ajunga inapoi la lista unde era. Daca exista deja un
+    // traseu de livrare de azi neterminat, se sare direct la el, exact
+    // ecranul de unde a plecat — un restart inevitabil devine doar o
+    // reincarcare scurta, nu si o reintoarcere la Home plus un tap in
+    // plus, chiar in mijlocul livrarilor.
+    showScreen(dpHasActiveUnfinishedRoute() ? 'consegne-oggi' : 'home');
 
     // Installed home-screen apps sometimes resume from a suspended state
     // instead of doing a real page load — meaning the browser never even
