@@ -133,7 +133,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v674"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v675"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -4985,6 +4985,17 @@
     document.getElementById('dp-reordina-confirm-btn').disabled = false;
     document.getElementById('dp-reordina-confirm-btn').textContent = 'Ricalcola percorso';
     document.getElementById('modal-dp-reordina').classList.add('open');
+    // Cerut direct ("camera continua sa se deschida greu prima data dupa
+    // un timp de inactivitate, trebuie sa fie instanta"): confirmat cu o
+    // inregistrare video reala ca ramasese doar intarzierea reala de
+    // hardware (~1-1.5s la prima folosire dupa o lansare rece a
+    // aplicatiei, cand totul porneste deodata) — fara niciun bug de
+    // randare (imaginea apare direct corecta, fara sa mai "creasca").
+    // Singurul mod real de a scurta ACEASTA pauza e sa ceara camera mai
+    // devreme decat momentul in care apasa efectiv sa faca poza — chiar
+    // aici, cand deschide ecranul de bifat clientii livrati, cu cateva
+    // secunde inainte. Vezi dpPrewarmCameraStream mai jos.
+    dpPrewarmCameraStream();
   }
 
   // ---- Delivery photo camera ----
@@ -5017,6 +5028,44 @@
   // mai jos) sau dupa DP_CAMERA_IDLE_RELEASE_MS de nefolosire efectiva.
   var dpCameraIdleReleaseTimer = null;
   var DP_CAMERA_IDLE_RELEASE_MS = 3 * 60 * 1000;
+  var dpCameraPrewarmInFlight = false;
+  // Cerut direct ("camera continua sa se deschida greu prima data dupa
+  // un timp de inactivitate, trebuie sa fie instanta"): dovedit cu o
+  // inregistrare video reala ca a ramas doar intarzierea reala,
+  // inevitabila, de pornire a hardware-ului camerei (nu un bug de
+  // randare) — mai lunga exact la PRIMA folosire a camerei dupa o
+  // lansare rece a aplicatiei, cand porneste totul deodata. Cerut
+  // camera sa fie "ceruta" cu cateva secunde mai devreme decat momentul
+  // in care chiar apasa sa faca poza — de indata ce deschide ecranul de
+  // bifat clientii livrati (dpOpenReordinaModal), nu abia cand se
+  // deschide efectiv camera. Acelasi stream "cald" (dpCameraStream) e
+  // apoi reutilizat direct de dpOpenCameraForClient — fara niciun nou
+  // getUserMedia la momentul respectiv.
+  function dpPrewarmCameraStream() {
+    if (dpCameraStream || dpCameraPrewarmInFlight) return; // deja cald, sau deja in curs de pornire
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+    if (dpCameraIdleReleaseTimer) { clearTimeout(dpCameraIdleReleaseTimer); dpCameraIdleReleaseTimer = null; }
+    dpCameraPrewarmInFlight = true;
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 3840 }, height: { ideal: 2160 } }, audio: false })
+      .then(function (stream) {
+        dpCameraPrewarmInFlight = false;
+        // Intre timp camera a ajuns sa fie deja deschisa pe alta cale
+        // (ex. a apasat direct pe iconita de camera de pe un client deja
+        // consemnat, inainte sa apuce acest stream sa ajunga) — nu
+        // suprascriem un stream deja activ, oprim pe acesta, in plus.
+        if (dpCameraStream) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
+        dpCameraStream = stream;
+        dpCameraTrack = stream.getVideoTracks()[0];
+      })
+      .catch(function () {
+        dpCameraPrewarmInFlight = false;
+        // Esec silentios — asta nu e o cerere explicita a soferului
+        // (doar a deschis ecranul de reordinare), deci nicio eroare
+        // vizibila aici; daca ajunge sa apese chiar sa faca o poza,
+        // dpOpenCameraForClient cere din nou, normal, cu mesajul de
+        // eroare obisnuit daca tot nu merge.
+      });
+  }
   var dpCameraZoomLevel = 1;
   var dpCameraZoomCaps = null; // {min,max,step} if the device's own hardware zoom is controllable; null falls back to a CSS-based digital zoom that works on any device
   var dpCameraFlashOn = false;
@@ -15644,13 +15693,23 @@
     // prima deschidere, si NICIUN cod JS nu poate preveni asta (pagina
     // chiar e distrusa, nu doar "pusa pe pauza"). Ce RAMANE in controlul
     // nostru e unde ii pica soferul dupa acel restart inevitabil — pana
-    // acum mereu pe Home, obligandu-l sa mai apese o data pe "Consegne di
-    // oggi" ca sa ajunga inapoi la lista unde era. Daca exista deja un
+    // acum mereu pe Home, obligandu-l sa mai apese o data pe "Percorso"
+    // ca sa ajunga inapoi la lista unde era. Daca exista deja un
     // traseu de livrare de azi neterminat, se sare direct la el, exact
     // ecranul de unde a plecat — un restart inevitabil devine doar o
     // reincarcare scurta, nu si o reintoarcere la Home plus un tap in
     // plus, chiar in mijlocul livrarilor.
-    showScreen(dpHasActiveUnfinishedRoute() ? 'consegne-oggi' : 'home');
+    //
+    // REAL BUG, gasit testand chiar pornirea din timp a camerei (vezi
+    // dpPrewarmCameraStream): ecranul real cu lista de clienti/Reordina
+    // ("Percorso di oggi") se randeaza pe ecranul numit 'navigatore'
+    // (renderDeliveryPlanner, declansat de currentScreen==='navigatore')
+    // — NU pe ecranul numit 'consegne-oggi', care e o pagina separata,
+    // mai simpla, ce incarca un rezumat de pe server (arata "Impossibile
+    // caricare le consegne" fara retea). Prima versiune a acestui fix
+    // sarea gresit pe 'consegne-oggi' — parea sa functioneze (ecranul
+    // chiar se schimba), dar soferul tot nu ajungea la lista lui reala.
+    showScreen(dpHasActiveUnfinishedRoute() ? 'navigatore' : 'home');
 
     // Installed home-screen apps sometimes resume from a suspended state
     // instead of doing a real page load — meaning the browser never even
