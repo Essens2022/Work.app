@@ -5046,21 +5046,27 @@
   // data — folosit la ambele camere proprii din aplicatie (livrare si
   // bon de combustibil), ca niciuna sa nu mai arate tranzitia
   // "dreptunghi mic -> ecran complet" descrisa direct de ION.
-  // loadedmetadata garanteaza doar ca dimensiunile sunt cunoscute, nu
-  // ca straturile de compozitare ale browser-ului au terminat sa
-  // redimensioneze efectiv imaginea la marimea CSS (100%) — pe un
-  // telefon real asta poate sa dureze inca un pic. 'playing' (cadre
-  // chiar redate) plus doua tururi de requestAnimationFrame (ca sa
-  // prindem cel putin doua compuneri efective dupa acel moment) sunt
-  // mult mai aproape de "chiar gata vizual" decat loadedmetadata
-  // singur. setTimeout e doar o plasa de siguranta, pentru cazul rar
-  // in care 'playing' nu se declanseaza deloc (nu ramane blocat negru
-  // pentru totdeauna).
+  //
+  // REAL BUG, raportat A TREIA OARA, de fiecare data cu inregistrare
+  // video reala de pe telefon, confirmand ca problema persista exact
+  // la fel: nici loadedmetadata, nici 'playing' + 2 cadre de animatie
+  // (incercarile anterioare) nu au fost suficiente — pe telefonul lui
+  // ION, întârzierea pana straturile de compozitare ale browser-ului
+  // redau efectiv fluxul la marimea CSS corecta (100%) tine mai mult
+  // decat atat. In loc sa mai ghicesc un prag exact (fragil, diferit
+  // de la telefon la telefon), acum se asteapta un minim FIX de 400ms
+  // DE LA INCEPUT (nu doar dupa 'playing') — suficient de generos cat
+  // sa acopere orice intarziere reala, indiferent de cauza exacta —
+  // SI evenimentul 'playing', oricare dureaza mai mult. Un plus de
+  // 1200ms e plasa de siguranta absoluta (nu ramane blocat negru
+  // pentru totdeauna daca 'playing' nu se declanseaza deloc).
   function dpRevealCameraVideoWhenStable(video) {
     video.style.opacity = '0';
     var revealed = false;
-    function reveal() {
-      if (revealed) return;
+    var playingFired = false;
+    var minDelayPassed = false;
+    function tryReveal() {
+      if (revealed || !playingFired || !minDelayPassed) return;
       revealed = true;
       requestAnimationFrame(function () {
         requestAnimationFrame(function () {
@@ -5068,8 +5074,9 @@
         });
       });
     }
-    video.addEventListener('playing', reveal, { once: true });
-    setTimeout(reveal, 600);
+    video.addEventListener('playing', function () { playingFired = true; tryReveal(); }, { once: true });
+    setTimeout(function () { minDelayPassed = true; tryReveal(); }, 400);
+    setTimeout(function () { playingFired = true; minDelayPassed = true; tryReveal(); }, 1200);
   }
 
   function dpOpenCameraForClient(client) {
