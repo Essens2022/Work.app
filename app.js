@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v659"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v660"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -11804,6 +11804,22 @@
   fuelViewStage.addEventListener('pointerup', endFuelZoomPointer);
   fuelViewStage.addEventListener('pointercancel', endFuelZoomPointer);
 
+  // REAL BUG, raportat direct ("poza deja facuta trebuie sa o vad
+  // intreaga nu taiata") si confirmat: max-height:100% pe imagine NU se
+  // rezolva corect prin acest lant de containere flex (.sticky-scroll ->
+  // #fuel-view-stage -> imagine) — verificat direct, inaltimea randata a
+  // imaginii ramanea legata de marimea ei naturala, nu de spatiul real
+  // disponibil, taind partea de jos a scontrino-ului. In loc sa mai
+  // depind de un lant de procente CSS care s-a dovedit nesigur aici,
+  // inaltimea maxima a imaginii e calculata direct, in pixeli reali,
+  // din spatiul chiar masurat al cutiei — garantat corect, indiferent
+  // de cate randuri de butoane sunt dedesubt sau cat de inalt e bonul.
+  function fitFuelViewImage() {
+    var stage = document.getElementById('fuel-view-stage');
+    var img = document.getElementById('fuel-view-img');
+    img.style.maxHeight = stage.clientHeight + 'px';
+    img.style.maxWidth = stage.clientWidth + 'px';
+  }
   function openFuelViewer(day, index, receipt) {
     document.getElementById('fuel-view-title').textContent = 'Scontrino — Giorno ' + day;
     document.getElementById('fuel-view-img').src = receipt.data;
@@ -11813,7 +11829,16 @@
     fuelViewModal.dataset.day = day;
     fuelViewModal.dataset.index = index;
     fuelViewModal.classList.add('open');
+    // Un cadru, ca layout-ul (modalul abia deschis) sa se fi asezat
+    // deja inainte sa masuram cutia — altfel am citi marimea veche,
+    // de dinainte sa devina vizibil.
+    requestAnimationFrame(fitFuelViewImage);
   }
+  // Un singur listener, inregistrat o data — reasaza imaginea doar cat
+  // timp vizualizatorul e chiar deschis (ex. rotirea telefonului).
+  window.addEventListener('resize', function () {
+    if (fuelViewModal.classList.contains('open')) fitFuelViewImage();
+  });
   function closeFuelViewer() { fuelViewModal.classList.remove('open'); }
   document.getElementById('fuel-view-close-x').addEventListener('click', closeFuelViewer);
   fuelViewModal.addEventListener('click', function (e) {
