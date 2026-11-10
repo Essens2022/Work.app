@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v661"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v662"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -5031,6 +5031,70 @@
     }, { passive: true });
   }
 
+  // Cerut direct ("dupa ce s-a facut poza, unicul mod de a merge mai
+  // departe e sau trimit poza, sau apas x... nu e mereu comod — as vrea
+  // sa pot sa dau cu degetul in sus, ca atunci cand inchid o
+  // notificare, si sa se confirme cu o bifa"): un gest nou, DOAR pe
+  // ecranul de previzualizare (dupa poza, inainte sa apese Invia/Rifai)
+  // — scoros rapid in sus trece mai departe la urmatorul client, fara
+  // sa oblige nici la trimitere (Invia), nici la abandonarea intregii
+  // secvente (ce ar face X). Poza ramane oricum deja salvata in Storico
+  // din momentul capturarii (dpSaveDeliveryPhoto) — gestul asta doar
+  // confirma "gata cu acesta" si avanseaza coada, exact ce ar face
+  // Invia dupa un trimis cu succes, fara pasul de trimitere in sine.
+  // Un singur deget — pinch-ul (mai sus) foloseste deja 2 degete, deci
+  // nu se suprapun niciodata.
+  var dpSwipeStartY = null;
+  var dpSwipeCurrentDY = 0;
+  var DP_SWIPE_CONFIRM_THRESHOLD = 90;
+  function dpIsPreviewActionsVisible() {
+    var el = document.getElementById('dp-camera-preview-actions');
+    return el && el.style.display !== 'none' && el.style.display !== '';
+  }
+  function dpSetupSwipeToConfirm() {
+    var img = document.getElementById('dp-camera-preview-img');
+    var stage = document.getElementById('dp-camera-stage');
+    img.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1 || !dpIsPreviewActionsVisible()) { dpSwipeStartY = null; return; }
+      dpSwipeStartY = e.touches[0].clientY;
+      stage.style.transition = 'none';
+    }, { passive: true });
+    img.addEventListener('touchmove', function (e) {
+      if (dpSwipeStartY == null || e.touches.length !== 1) return;
+      var dy = e.touches[0].clientY - dpSwipeStartY;
+      if (dy > 0) dy = 0; // doar in sus — niciodata tras in jos
+      dpSwipeCurrentDY = dy;
+      stage.style.transform = 'translateY(' + dy + 'px)';
+      stage.style.opacity = String(Math.max(0, 1 - Math.abs(dy) / 260));
+    }, { passive: true });
+    img.addEventListener('touchend', function () {
+      if (dpSwipeStartY == null) return;
+      dpSwipeStartY = null;
+      stage.style.transition = 'transform .22s ease, opacity .22s ease';
+      if (Math.abs(dpSwipeCurrentDY) > DP_SWIPE_CONFIRM_THRESHOLD) {
+        dpConfirmSwipeUp();
+      } else {
+        stage.style.transform = 'translateY(0)';
+        stage.style.opacity = '1';
+      }
+      dpSwipeCurrentDY = 0;
+    }, { passive: true });
+  }
+  function dpConfirmSwipeUp() {
+    var stage = document.getElementById('dp-camera-stage');
+    var check = document.getElementById('dp-camera-confirm-check');
+    stage.style.transform = 'translateY(-60px)';
+    stage.style.opacity = '0';
+    check.classList.add('show');
+    setTimeout(function () {
+      check.classList.remove('show');
+      stage.style.transition = 'none';
+      stage.style.transform = '';
+      stage.style.opacity = '';
+      dpCameraAdvanceQueue();
+    }, 550);
+  }
+
   function dpStartCameraSequence(clients) {
     dpCameraQueue = clients.slice();
     dpCameraAdvanceQueue();
@@ -5111,7 +5175,7 @@
       logoImg.onload = function () { dpWatermarkLogoImg = logoImg; };
       logoImg.src = 'assets/adb-smart/png/horizontal-inverse-1920.png';
     }
-    if (!dpPreviewZoomSetupDone) { dpSetupPreviewZoom(); dpPreviewZoomSetupDone = true; }
+    if (!dpPreviewZoomSetupDone) { dpSetupPreviewZoom(); dpSetupSwipeToConfirm(); dpPreviewZoomSetupDone = true; }
     // Fresh photo, fresh zoom — never starts already magnified from
     // whatever the previous photo's preview was left at.
     dpPreviewZoomLevel = 1;
@@ -5149,6 +5213,7 @@
     document.getElementById('dp-camera-preview-img').style.display = 'none';
     document.getElementById('dp-camera-capture-btn').style.display = '';
     document.getElementById('dp-camera-preview-actions').style.display = 'none';
+    document.getElementById('dp-camera-swipe-hint').classList.remove('show');
     document.getElementById('dp-camera-info-overlay').style.display = '';
 
     document.getElementById('modal-dp-camera').classList.add('open');
@@ -5514,6 +5579,11 @@
     document.getElementById('dp-camera-info-overlay').style.display = 'none'; // already baked into the image now — the separate CSS overlay would just double it up
     document.getElementById('dp-camera-capture-btn').style.display = 'none';
     document.getElementById('dp-camera-preview-actions').style.display = 'flex';
+    // Cerut direct ("as vrea sa fie posibil... scorland in sus... sa se
+    // concluda, ca x-ul doar ca mai ergonomic"): indiciul vizual pentru
+    // noul gest de "scorro su pentru a continua" (vezi dpSetupSwipeToConfirm)
+    // apare doar cat timp poza e in previzualizare — nu are sens inainte.
+    document.getElementById('dp-camera-swipe-hint').classList.add('show');
 
     // Cerut direct ("astazi nu am putut demonstra prin poze pentru ca
     // nu am avut-o salvata... sa se salveze in automat deja pozele...
