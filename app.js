@@ -5040,6 +5040,38 @@
   // mare, la fel ca motivul din spatele lui icon-512.png inainte.
   var dpWatermarkLogoImg = null;
   var dpPreviewZoomSetupDone = false;
+
+  // Ascunde un <video> de camera (opacity:0) pana cand fluxul chiar
+  // reda cadre stabile la marimea lui finala, apoi il arata dintr-o
+  // data — folosit la ambele camere proprii din aplicatie (livrare si
+  // bon de combustibil), ca niciuna sa nu mai arate tranzitia
+  // "dreptunghi mic -> ecran complet" descrisa direct de ION.
+  // loadedmetadata garanteaza doar ca dimensiunile sunt cunoscute, nu
+  // ca straturile de compozitare ale browser-ului au terminat sa
+  // redimensioneze efectiv imaginea la marimea CSS (100%) — pe un
+  // telefon real asta poate sa dureze inca un pic. 'playing' (cadre
+  // chiar redate) plus doua tururi de requestAnimationFrame (ca sa
+  // prindem cel putin doua compuneri efective dupa acel moment) sunt
+  // mult mai aproape de "chiar gata vizual" decat loadedmetadata
+  // singur. setTimeout e doar o plasa de siguranta, pentru cazul rar
+  // in care 'playing' nu se declanseaza deloc (nu ramane blocat negru
+  // pentru totdeauna).
+  function dpRevealCameraVideoWhenStable(video) {
+    video.style.opacity = '0';
+    var revealed = false;
+    function reveal() {
+      if (revealed) return;
+      revealed = true;
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          video.style.opacity = '1';
+        });
+      });
+    }
+    video.addEventListener('playing', reveal, { once: true });
+    setTimeout(reveal, 600);
+  }
+
   function dpOpenCameraForClient(client) {
     dpCameraCurrentClient = client;
     if (!dpWatermarkLogoImg) {
@@ -5073,20 +5105,15 @@
     var errEl = document.getElementById('dp-camera-error');
     errEl.style.display = 'none';
     video.style.display = '';
-    // REAL BUG, gasit si confirmat cu o inregistrare video reala de pe
-    // telefon ("camera... este mica si mai apoi se mareste"): primele
-    // cateva cadre dupa ce srcObject e asignat, inainte ca <video> sa
-    // isi stabileasca dimensiunile reale (loadedmetadata), browser-ul
-    // deseneaza fluxul ca un dreptunghi mic, centrat, cu negru in jur —
-    // apoi sare vizibil la ecran complet odata ce dimensiunile sunt
-    // cunoscute. Solutia: video-ul ramane invizibil (opacity:0) pana
-    // quando fluxul chiar e gata de afisat (evenimentul loadedmetadata),
-    // deci utilizatorul nu mai apuca sa vada deloc starea intermediara
-    // — trece direct de la "negru" la "camera corecta, ecran complet".
-    video.style.opacity = '0';
-    video.addEventListener('loadedmetadata', function () {
-      video.style.opacity = '1';
-    }, { once: true });
+    // REAL BUG, raportat de doua ori, cu inregistrari video reale de pe
+    // telefon ("camera... este mica si mai apoi se mareste"): asteptarea
+    // doar dupa loadedmetadata (prima incercare) nu a fost suficienta —
+    // pe un telefon real, loadedmetadata poate sa se declanseze inainte
+    // ca straturile de compozitare ale browser-ului sa termine sa
+    // redimensioneze efectiv imaginea la marimea CSS finala (100% din
+    // ecran), asa ca se vedea tot un cadru mic, cu negru in jur, inainte
+    // sa sara la marimea corecta. Vezi dpRevealCameraVideoWhenStable.
+    dpRevealCameraVideoWhenStable(video);
     document.getElementById('dp-camera-preview-img').style.display = 'none';
     document.getElementById('dp-camera-capture-btn').style.display = '';
     document.getElementById('dp-camera-preview-actions').style.display = 'none';
@@ -11348,15 +11375,13 @@
       setupFuelCameraFlash(stream);
       var video = document.getElementById('fuel-camera-video');
       video.srcObject = stream;
-      // Acelasi bug/fix ca la camera de livrare (dpOpenCameraForClient):
-      // primele cadre dupa srcObject, inainte de loadedmetadata, se pot
-      // desena ca un dreptunghi mic cu negru in jur, care apoi sare la
-      // ecran complet — video-ul ramane ascuns pana e chiar gata.
-      video.style.opacity = '0';
+      // Acelasi bug/fix ca la camera de livrare (dpRevealCameraVideoWhenStable):
+      // doar loadedmetadata nu era suficient — video-ul ramane ascuns
+      // pana reda efectiv cadre stabile la marimea finala.
+      dpRevealCameraVideoWhenStable(video);
       document.getElementById('modal-fuel-camera').classList.add('open');
       video.onloadedmetadata = function () {
         video.play();
-        video.style.opacity = '1';
         requestAnimationFrame(layoutFuelCameraGuide);
       };
     }).catch(function () {
