@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v664"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v665"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -5092,20 +5092,29 @@
     img.addEventListener('touchend', function () {
       if (dpSwipeStartY == null) return;
       dpSwipeStartY = null;
-      stage.style.transition = 'transform .22s ease, opacity .22s ease';
-      if (Math.abs(dpSwipeCurrentDY) > DP_SWIPE_CONFIRM_THRESHOLD) {
-        dpConfirmSwipeUp();
+      var dyAtRelease = dpSwipeCurrentDY;
+      dpSwipeCurrentDY = 0;
+      if (Math.abs(dyAtRelease) > DP_SWIPE_CONFIRM_THRESHOLD) {
+        dpConfirmSwipeUp(dyAtRelease);
       } else {
+        stage.style.transition = 'transform .18s ease, opacity .18s ease';
         stage.style.transform = 'translateY(0)';
         stage.style.opacity = '1';
       }
-      dpSwipeCurrentDY = 0;
     }, { passive: true });
   }
-  function dpConfirmSwipeUp() {
+  function dpConfirmSwipeUp(dyAtRelease) {
     var stage = document.getElementById('dp-camera-stage');
     var check = document.getElementById('dp-camera-confirm-check');
-    stage.style.transform = 'translateY(-60px)';
+    // Cerut direct ("am tras, hop, s-a dus — nu sa se intoarca putin
+    // inapoi si apoi sa dispara"): inainte sarea la o pozitie FIXA
+    // (-60px), care, daca degetul trasese deja mai departe de atat,
+    // arata ca o mica revenire inapoi inainte sa dispara. Acum continua
+    // in ACEEASI directie, de la pozitia EXACTA unde a ramas tragerea
+    // (dyAtRelease), plus o tranzitie scurta si rapida — senzatia e
+    // instantanee, nicio corectare vizibila.
+    stage.style.transition = 'transform .15s ease-out, opacity .15s ease-out';
+    stage.style.transform = 'translateY(' + (dyAtRelease - 140) + 'px)';
     stage.style.opacity = '0';
     check.classList.add('show');
     setTimeout(function () {
@@ -5114,7 +5123,7 @@
       stage.style.transform = '';
       stage.style.opacity = '';
       dpCameraAdvanceQueue();
-    }, 550);
+    }, 480);
   }
 
   function dpStartCameraSequence(clients) {
