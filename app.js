@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v658"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v659"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -11272,6 +11272,38 @@
   var cropDragMode = null; // null | 'move' | 'tl' | 'tr' | 'bl' | 'br'
   var cropDragStart = null;
   var fuelTargetDay = null; // which day the photo currently being added/replaced belongs to
+  // Setat doar cand ecranul de decupare e deschis din "Modifica" (pe un
+  // scontrino deja salvat) — la Conferma, inlocuieste scontrino-ul de
+  // la acest index in loc sa adauge unul nou. null in orice alt caz
+  // (poza noua, din camera sau din galerie).
+  var cropEditingIndex = null;
+
+  // Finalizeaza si salveaza un scontrino (comprimare + lift de
+  // luminozitate, vezi processReceiptCanvas) — folosit atat de
+  // capturarea directa din camera (fara ecran de decupare, cand
+  // ghidul live e deja folosit ca decupaj), cat si de ecranul de
+  // decupare manual (poza din galerie, sau "Modifica" pe un scontrino
+  // existent — editIndex setat, inlocuieste in loc sa adauge).
+  function saveFuelReceiptCanvas(sourceCanvas, day, editIndex) {
+    var scontrino = processReceiptCanvas(sourceCanvas);
+    var monthKey = fuelMonthKey(fuelActiveMonth, fuelActiveYear);
+    if (!state.fuel[monthKey]) state.fuel[monthKey] = {};
+    if (!state.fuel[monthKey][day]) state.fuel[monthKey][day] = [];
+    var list = state.fuel[monthKey][day];
+    if (editIndex != null && list[editIndex]) {
+      list[editIndex] = scontrino;
+      saveFuel(state.fuel);
+      renderFuelList();
+      toast('Scontrino aggiornato — Giorno ' + day);
+    } else {
+      list.push(scontrino);
+      var savedCount = list.length;
+      saveFuel(state.fuel);
+      renderFuelList();
+      toast(savedCount > 1 ? 'Scontrino ' + savedCount + ' salvato — Giorno ' + day : 'Scontrino salvato — Giorno ' + day);
+    }
+    reportActivity();
+  }
   // Cerut direct ("sofer-ul face poza stramba... ii raman parti in
   // plus la taiere, nu a inteles cum sa tina telefonul"): un dreptunghi
   // drept nu poate incadra corect un bon fotografiat inclinat, oricat
@@ -11401,6 +11433,15 @@
   document.getElementById('fuel-camera-shoot-btn').addEventListener('click', function () {
     var video = document.getElementById('fuel-camera-video');
     if (!video.videoWidth) return; // scatto troppo presto, prima che il flusso sia davvero pronto
+    // Cerut direct ("mai profesionala, mai moderna, vizual si
+    // tehnologic"): un mic blitz alb la declansare — ca pe o camera
+    // nativa — da senzatia ca poza chiar s-a facut, inainte ca ecranul
+    // sa se inchida (salvarea in sine ramane instantanee, doar inchiderea
+    // e intarziata putin, cat sa apuce sa se vada blitz-ul).
+    var flashEl = document.getElementById('fuel-camera-flash');
+    flashEl.classList.remove('flash');
+    void flashEl.offsetWidth; // forteaza reflow, ca urmatorul add sa re-porneasca animatia
+    flashEl.classList.add('flash');
     // REAL BUG, raportat direct ("dupa ce fac poza nu apare bine cum am
     // pozitionat"): fluxul camerei e cerut patrat (2560x2560), dar
     // afisat live pe un ecran de telefon ingust/inalt — object-fit:cover
@@ -11427,9 +11468,32 @@
     var canvas = document.createElement('canvas');
     canvas.width = cropW; canvas.height = cropH;
     canvas.getContext('2d').drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-    closeFuelCamera();
-    cropRawImage = canvas;
-    openCropScreen();
+
+    // Cerut direct ("cum am pus asa trebuie sa ramana, doar daca vreau
+    // modific"): nu mai trece obligatoriu prin ecranul de decupare —
+    // odata ce poza de mai sus deja corespunde exact cu ce s-a vazut pe
+    // ecran, ghidul rosu (deja aliniat de sofer, live, peste bon) poate
+    // fi folosit direct ca decupaj final. Acelasi calcul de scalare ca
+    // la fasia de mai sus — pozitia ghidului e citita in pixeli CSS
+    // (relativ la cutia video afisata), convertita in pixelii reali ai
+    // canvas-ului tocmai decupat.
+    var guide = document.getElementById('fuel-camera-guide');
+    var scaleX = cropW / boxW, scaleY = cropH / boxH;
+    var gx = (parseFloat(guide.style.left) || 0) * scaleX;
+    var gy = (parseFloat(guide.style.top) || 0) * scaleY;
+    var gw = (parseFloat(guide.style.width) || boxW) * scaleX;
+    var gh = (parseFloat(guide.style.height) || boxH) * scaleY;
+    var receiptCanvas = document.createElement('canvas');
+    receiptCanvas.width = Math.max(1, Math.round(gw));
+    receiptCanvas.height = Math.max(1, Math.round(gh));
+    receiptCanvas.getContext('2d').drawImage(canvas, gx, gy, gw, gh, 0, 0, receiptCanvas.width, receiptCanvas.height);
+
+    var dayJustShot = fuelTargetDay;
+    setTimeout(function () {
+      closeFuelCamera();
+      saveFuelReceiptCanvas(receiptCanvas, dayJustShot);
+      fuelTargetDay = null;
+    }, 140);
   });
   document.getElementById('fuel-camera-gallery-btn').addEventListener('click', function () {
     closeFuelCamera();
@@ -11755,6 +11819,28 @@
   fuelViewModal.addEventListener('click', function (e) {
     if (e.target === fuelViewModal) closeFuelViewer();
   });
+  // Cerut direct ("cum am pus asa trebuie sa ramana, doar daca vreau
+  // modific"): de cand poza se salveaza direct, fara ecranul de
+  // decupare obligatoriu, acest buton e singura cale sa ajustezi
+  // incadrarea unui scontrino deja salvat — deschide acelasi ecran de
+  // decupare, pornind de la poza deja salvata, si la Conferma
+  // INLOCUIESTE scontrino-ul (cropEditingIndex), nu adauga unul nou.
+  document.getElementById('fuel-view-edit').addEventListener('click', function () {
+    var d = fuelViewModal.dataset.day;
+    var idx = parseInt(fuelViewModal.dataset.index, 10);
+    var monthKey2 = fuelMonthKey(fuelActiveMonth, fuelActiveYear);
+    var receipt = state.fuel[monthKey2] && state.fuel[monthKey2][d] && state.fuel[monthKey2][d][idx];
+    if (!receipt) return;
+    var img = new Image();
+    img.onload = function () {
+      cropRawImage = img;
+      fuelTargetDay = d;
+      cropEditingIndex = idx;
+      closeFuelViewer();
+      openCropScreen();
+    };
+    img.src = receipt.data;
+  });
   // Repurposed as "add another" rather than "replace this one" — with a
   // day now able to hold several receipts, adding a new one is the far
   // more common need (e.g. the pump printed more than one, or a retry).
@@ -11933,6 +12019,7 @@
     document.getElementById('in-fuel-photo').value = ''; // allow picking the same file again
     cropRawImage = null;
     fuelTargetDay = null;
+    cropEditingIndex = null;
     cropQuarterTurns = 0;
     cropFineDeg = 0;
   });
@@ -11974,20 +12061,12 @@
     srcCanvas.width = Math.max(1, Math.round(sw)); srcCanvas.height = Math.max(1, Math.round(sh));
     srcCanvas.getContext('2d').drawImage(rotatedCanvas, sx, sy, sw, sh, 0, 0, srcCanvas.width, srcCanvas.height);
 
-    var scontrino = processReceiptCanvas(srcCanvas);
-    var monthKey = fuelMonthKey(fuelActiveMonth, fuelActiveYear);
-    if (!state.fuel[monthKey]) state.fuel[monthKey] = {};
-    if (!state.fuel[monthKey][fuelTargetDay]) state.fuel[monthKey][fuelTargetDay] = [];
-    state.fuel[monthKey][fuelTargetDay].push(scontrino);
-    var savedCount = state.fuel[monthKey][fuelTargetDay].length;
-    saveFuel(state.fuel);
-    renderFuelList();
-    toast(savedCount > 1 ? 'Scontrino ' + savedCount + ' salvato — Giorno ' + fuelTargetDay : 'Scontrino salvato — Giorno ' + fuelTargetDay);
-    reportActivity();
+    saveFuelReceiptCanvas(srcCanvas, fuelTargetDay, cropEditingIndex);
     document.getElementById('modal-crop').classList.remove('open');
     document.getElementById('in-fuel-photo').value = '';
     cropRawImage = null;
     fuelTargetDay = null;
+    cropEditingIndex = null;
     cropQuarterTurns = 0;
     cropFineDeg = 0;
   });
