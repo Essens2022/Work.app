@@ -1366,10 +1366,26 @@
   .dp-alphabet-index span.dp-letter-current{font-size:14px;font-weight:800;color:var(--accent);}
   .dp-archive-list-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;position:relative;}
   .fuel-panel{max-height:74vh;position:relative;}
+  /* REAL BUG, raportat direct ("poza deja facuta trebuie sa o vad
+     intreaga nu taiata"): inaltimea fixa (58vh) nu tinea cont de cat
+     spatiu real mai ramanea dupa titlu/instructiuni si butoane — de
+     cand a aparut al treilea buton ("Modifica inquadratura"), randul
+     de jos a devenit mai inalt, iar zona pozei (tot la 58vh, neschimbata)
+     nu mai incapea intreaga pe ecran — se taia jos, trebuind scroll ca
+     sa vezi restul.
+     Prima incercare (height:100%) nu a functionat — verificat direct,
+     procentul nu se rezolva prin .sticky-scroll (block, nu flex), desi
+     INAINTEA acestei schimbari .sticky-scroll insusi calculase deja
+     corect spatiul ramas (flex:1 1 auto, fata de parintele lui). Acum
+     #fuel-view-stage foloseste acelasi tipar flex direct, scopat doar
+     la acest ecran (#modal-fuel-view .sticky-scroll devine flex-column,
+     mai jos) — poza intreaga incape mereu, fara scroll, indiferent de
+     cate butoane sunt dedesubt. */
   #fuel-view-stage{
     position:relative;overflow:hidden;border-radius:12px;border:1px solid var(--line);
-    background:#000;touch-action:none;height:58vh;display:flex;align-items:center;justify-content:center;
+    background:#000;touch-action:none;flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;
   }
+  #modal-fuel-view .sticky-scroll{display:flex;flex-direction:column;}
   #fuel-view-img{
     max-width:100%;max-height:100%;position:relative;transform-origin:center center;
     will-change:transform;user-select:none;-webkit-user-drag:none;
