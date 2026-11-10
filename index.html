@@ -2410,10 +2410,20 @@
       <span class="dp-camera-swipe-chevron">︿</span>
       <span id="dp-camera-swipe-label">Scorri su per continuare</span>
     </div>
-    <div id="dp-camera-confirm-check">✓</div>
 
     <div id="dp-camera-error" class="dp-camera-error"></div>
   </div>
+  <!-- REAL BUG, gasit direct dintr-o inregistrare video reala
+       ("vizual, ticuri"): bifa de confirmare era COPIL al
+       #dp-camera-stage, care isi scade singur opacity-ul la 0 cand
+       dispare dupa gestul de "scorri su" — bifa, desi avea propriul ei
+       opacity:1, se stingea VIZUAL odata cu parintele (opacitatile unui
+       parinte si ale unui copil se inmultesc la randare), aratand ca o
+       pâlpâire confuza in loc de o confirmare clara. Mutata aici, in
+       afara cutiei camerei (frate, nu copil) — ramane complet opaca,
+       stabila, independenta de disparitia camerei de dedesubt.
+  -->
+  <div id="dp-camera-confirm-check">✓</div>
 </div>
 
 <div class="modal-overlay" id="modal-dp-reordina">

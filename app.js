@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v666"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v667"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -5074,6 +5074,18 @@
   // real al ecranului, nu cu rata (neregulata) a evenimentelor tactile.
   function dpApplySwipeTransform() {
     dpSwipeRafPending = false;
+    // REAL BUG, gasit direct dintr-o inregistrare video reala
+    // ("ticuri vizuale... am tras, hop, s-a dus — nu sa revina"):
+    // conditie de cursa reala — un touchmove programeaza acest cadru
+    // prin requestAnimationFrame, dar daca degetul se ridica (touchend)
+    // INAINTE ca acel cadru sa apuce sa ruleze, acest callback tot
+    // ajunge sa se execute DUPA ce touchend a pornit deja animatia de
+    // confirmare (sau a revenit la loc) — si suprascrie opacity/transform
+    // inapoi, folosind dpSwipeCurrentDY deja resetat la 0 de touchend,
+    // ceea ce aducea camera brusc, vizibil, inapoi la loc chiar in
+    // mijlocul disparitiei. dpSwipeStartY e null incepand cu touchend —
+    // verificat aici ca sa opreasca exact acest cadru "ratacit".
+    if (dpSwipeStartY == null) return;
     var stage = document.getElementById('dp-camera-stage');
     stage.style.transform = 'translateY(' + dpSwipeCurrentDY + 'px)';
     stage.style.opacity = String(Math.max(0, 1 - Math.abs(dpSwipeCurrentDY) / 260));
@@ -5122,17 +5134,19 @@
     check.classList.add('show');
     setTimeout(function () {
       check.classList.remove('show');
-      stage.style.transition = 'none';
-      stage.style.transform = '';
-      stage.style.opacity = '';
-      // REAL BUG, gasit chiar aici — de cand gestul functioneaza si in
-      // LIVE (inainte de poza, nu doar la previzualizare), avansarea
-      // directa catre urmatorul client putea lasa fluxul camerei
-      // VECHI inca deschis (dpCaptureCameraPhoto il oprea doar cand
-      // chiar se facea o poza): un al doilea getUserMedia ar fi pornit
-      // peste primul, nicodata oprit, tinand camera ocupata degeaba.
-      // Oprit explicit aici, de fiecare data — fara efect daca fusese
-      // deja oprit (la o poza reala), deci sigur in ambele cazuri.
+      // REAL BUG, gasit direct dintr-o inregistrare video reala
+      // ("ticuri vizuale"): aici se reseta stage.style.opacity/transform
+      // INAINTE sa avanseze/inchida — daca era ultimul client (coada
+      // goala), dpCameraAdvanceQueue doar inchide modalul, a carui
+      // PROPRIE tranzitie de opacity (.18s) porneste abia dupa acest
+      // reset. Intre cele doua, camera (poza/video-ul deja disparut)
+      // revenea brusc la opacity:1, complet vizibila, chiar inainte sa
+      // se stinga din nou odata cu modalul — exact senzatia de "apare
+      // din nou, apoi dispare" reclamata. Nu se mai reseteaza aici deloc
+      // — ramane invizibila pana la inchidere. Daca in schimb urmeaza
+      // un alt client (coada nu era goala), dpOpenCameraForClient
+      // reseteaza oricum transform/opacity chiar la inceput, pentru
+      // noul client — niciodata nu ramane "agatat" estompat.
       dpStopCameraStream();
       dpCameraAdvanceQueue();
     }, 480);
@@ -5219,6 +5233,15 @@
       logoImg.src = 'assets/adb-smart/png/horizontal-inverse-1920.png';
     }
     if (!dpPreviewZoomSetupDone) { dpSetupPreviewZoom(); dpSetupSwipeToConfirm(); dpPreviewZoomSetupDone = true; }
+    // Stage-ul poate sa fi ramas estompat/tras in sus de la gestul de
+    // "scorri su" folosit ca sa se treaca la ACEST client (vezi
+    // dpConfirmSwipeUp, care nu-l mai reseteaza singur) — resetat aici,
+    // sincron, chiar la deschidere, ca noul client sa porneasca mereu
+    // cu camera complet vizibila, la locul ei.
+    var stageEl = document.getElementById('dp-camera-stage');
+    stageEl.style.transition = 'none';
+    stageEl.style.transform = '';
+    stageEl.style.opacity = '';
     // Fresh photo, fresh zoom — never starts already magnified from
     // whatever the previous photo's preview was left at.
     dpPreviewZoomLevel = 1;
