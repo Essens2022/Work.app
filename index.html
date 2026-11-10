@@ -288,27 +288,39 @@
      with any safe-area inset, with zero guesswork. */
   #app{max-width:560px;margin:0 auto;height:100%;position:relative;}
   .topbar{
-    position:fixed;top:0;left:50%;transform:translateX(-50%);width:100%;max-width:560px;
+    position:fixed;top:0;left:0;right:0;width:100%;max-width:560px;margin:0 auto;
     z-index:20;
     padding:calc(14px + var(--safe-top)) 20px 12px;display:flex;align-items:center;justify-content:space-between;
     border-bottom:1px solid var(--line);
   }
-  /* REAL BUG, raportat direct cu un screenshot real: logo-ul + textul
-     "ADB Smart" apareau vizibil neclare/incetosate, desi butoanele de
-     langa (aceeasi bara, acelasi rand) ramaneau perfect clare — fondul
-     translucid+blur de mai sus statea direct pe aceasta cutie
-     (.topbar), impreuna cu un transform (translateX, pentru centrare).
-     Aceasta combinatie exacta — backdrop-filter SI transform pe acelasi
-     element — e un bug documentat WebKit/Safari: filtrul poate ajunge
-     sa "sangereze" peste CONTINUTUL propriu al cutiei (textul/imaginea
-     din interior), nu doar peste ce e in spate, cum ar trebui. Butoanele
-     (.icon-btn) raman clare pentru ca au propriul fundal opac, complet
-     separat, care acopera orice artefact; .brand (logo+text) nu avea
-     niciun fundal propriu, asa ca bug-ul se vedea direct pe el. Fixat
-     mutand backdrop-filter pe un ::before separat, gol, FARA niciun
-     continut propriu — efectul vizual (sticla mata) ramane identic,
-     dar filtrul nu mai are niciodata text/imagini direct in aceeasi
-     cutie cu el, deci nu mai are ce sa "sangereze" peste ele. */
+  /* REAL BUG, raportat direct DE DOUA ORI, cu cate un screenshot real
+     de fiecare data: logo-ul + textul "ADB Smart" apareau vizibil
+     neclare/incetosate, desi butoanele de langa (aceeasi bara) ramaneau
+     perfect clare.
+     Prima incercare (insuficienta, confirmata tot cu un screenshot nou,
+     facut pe versiunea cu acel fix deja activ): a mutat backdrop-filter
+     pe un ::before separat, gol, crezand ca problema e c filtrul statea
+     pe ACELASI element ca si continutul. Nu a fost de-ajuns — ::before
+     ramane in continuare COPILUL lui .topbar, deci tot in ACEEASI
+     cutie/strat de compozitie creat de transform-ul lui .topbar (vezi
+     mai jos), oricat de "gol" ar fi el insusi.
+     Cauza reala: .topbar foloseste transform:translateX(-50%) ca sa se
+     centreze (tipar foarte comun) — iar transform PE UN ELEMENT care
+     contine (direct sau prin orice copil, inclusiv un ::before) un
+     backdrop-filter forteaza intregul subarbore intr-un singur strat
+     GPU comun pe acest WebKit/Safari — iar in acel strat comun,
+     filtrul "sangereaza" peste continutul real (text/imagini), nu doar
+     peste ce e cu adevarat in spate. Butoanele (.icon-btn) raman clare
+     doar pentru ca propriul lor fundal opac acopera artefactul, nu
+     pentru ca ar sta intr-un strat diferit.
+     Fix real: eliminat complet transform-ul de pe .topbar, inlocuit cu
+     o centrare echivalenta fara transform (left:0;right:0;margin:0
+     auto — "auto margins", tipar standard pentru centrarea unui
+     element fixed/absolute de latime limitata). Fara niciun transform
+     in acelasi subarbore cu backdrop-filter, WebKit nu mai are motiv
+     sa combine totul intr-un singur strat — ::before-ul de mai jos
+     ramane oricum, ca sa tina filtrul separat de continut si din
+     celelalte directii posibile. */
   .topbar::before{
     content:'';position:absolute;inset:0;z-index:-1;
     background:rgba(250,250,248,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
