@@ -46,7 +46,21 @@
 <meta name="theme-color" content="#1C1B1F">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- Cerut direct, confirmat cu o captura reala de pe splash SI de pe
+     camera de livrare (fundal negru la amandoua): un gradient gri
+     vizibil in spatele orei/semnalului, exact pe inaltimea barei de
+     status. Cercetat si confirmat printr-un raport oficial WebKit: e
+     un bug real, de regresie, introdus de iOS 26.1 pentru aplicatiile
+     instalate ("Add to Home Screen") in modul fullscreen — bara de
+     status, care inainte (iOS 26.0) era complet transparenta, acum nu
+     se mai randeaza corect. "black-translucent" (valoarea veche,
+     oficial depreciata de Apple) e inlocuita aici cu "light-content"
+     — valoarea noua, oficial suportata, cu acelasi comportament de
+     fond (continutul se intinde oricum sub bara de status, transparent,
+     iconite deschise la culoare) dar prin API-ul actual, nu cel vechi
+     — in speranta ca evita exact acest bug de randare introdus de iOS
+     26.1 pentru calea veche. Netestat inca pe un telefon real. -->
+<meta name="apple-mobile-web-app-status-bar-style" content="light-content">
 <meta name="apple-mobile-web-app-title" content="ADB Smart">
 <link rel="manifest" href="/manifest.json">
 <!-- Requested directly: the logo wasn't showing up next to the site
