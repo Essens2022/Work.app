@@ -1155,22 +1155,28 @@
   }
   #dp-camera-zoom-label{color:#fff;font-size:11px;font-weight:700;}
   .dp-camera-info-card{
-    position:absolute;left:0;right:0;bottom:0;height:42%;z-index:1;
-    background:linear-gradient(180deg,rgba(20,180,120,0) 0%,rgba(20,150,100,.96) 15%,rgba(15,120,80,.99) 55%);
-    display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;
-    color:#fff;text-align:center;padding:20px;box-sizing:border-box;
-    /* Only affects the LIVE preview overlay (this class is never used
-       for the actual burned-in canvas text — that's separate JS code,
-       untouched) — extra room at the bottom so the address line ends
-       above the capture button below it, instead of sitting behind
-       it. The captured photo itself keeps its own layout exactly as
-       before, address anchored right at the true bottom edge. */
+    position:absolute;left:0;right:0;bottom:0;z-index:1;
+    background:linear-gradient(180deg,rgba(20,180,120,0) 0%,rgba(20,150,100,.96) 30%,rgba(15,120,80,.99) 72%);
+    display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:4px;
+    color:#fff;text-align:center;padding:14px 20px;box-sizing:border-box;
+    /* Cerut direct ("aveam prea putina camera ca sa incadrez obiectul"):
+       inainte avea height:42% fix, acoperind cu verde aproape jumatate
+       din ecran indiferent de continut. Fara height fix (auto), cutia
+       se dimensioneaza doar cat are nevoie continutul + padding-ul de
+       mai jos (pentru butonul de poza) — restul ecranului de sus ramane
+       camera curata, fara nicio tenta verde, exact ca o camera nativa.
+       Afecteaza doar preview-ul live (CSS) — poza efectiv capturata
+       foloseste cod JS separat pe canvas, nemodificat in structura. */
     padding-bottom:max(112px,calc(112px + var(--safe-bottom)));
   }
-  .dp-camera-info-badge{font-size:15px;font-weight:800;background:rgba(255,255,255,.22);padding:6px 16px;border-radius:100px;margin-bottom:4px;}
-  #dp-camera-info-time{font-size:14px;font-weight:600;opacity:1;}
-  #dp-camera-info-name{font-size:22px;font-weight:800;}
-  #dp-camera-info-addr{font-size:15px;font-weight:600;opacity:1;max-width:90%;}
+  .dp-camera-info-toprow{display:flex;align-items:center;gap:8px;}
+  .dp-camera-info-badge{font-size:12px;font-weight:800;background:rgba(255,255,255,.22);padding:5px 12px;border-radius:100px;white-space:nowrap;}
+  #dp-camera-info-time{font-size:12px;font-weight:600;opacity:1;white-space:nowrap;}
+  /* Cerut direct ("numele companiei iese in afara display-ului cand e
+     lung"): max-width + overflow-wrap garanteaza ca un nume lung trece
+     pe a doua linie (centrat), nu mai iese niciodata lateral din ecran. */
+  #dp-camera-info-name{font-size:18px;font-weight:800;max-width:92%;overflow-wrap:anywhere;line-height:1.22;}
+  #dp-camera-info-addr{font-size:13px;font-weight:600;opacity:1;max-width:90%;}
   #dp-camera-capture-btn{
     position:absolute;bottom:calc(28px + var(--safe-bottom));left:50%;transform:translateX(-50%);z-index:2;
     width:72px;height:72px;border-radius:50%;border:4px solid #fff;background:rgba(255,255,255,.25);cursor:pointer;
@@ -2339,8 +2345,10 @@
     </div>
 
     <div id="dp-camera-info-overlay" class="dp-camera-info-card">
-      <div class="dp-camera-info-badge">✓ Consegnato</div>
-      <div id="dp-camera-info-time"></div>
+      <div class="dp-camera-info-toprow">
+        <div class="dp-camera-info-badge">✓ Consegnato</div>
+        <div id="dp-camera-info-time"></div>
+      </div>
       <div id="dp-camera-info-name"></div>
       <div id="dp-camera-info-addr"></div>
     </div>

@@ -5176,6 +5176,27 @@
     dpCloseModal('modal-dp-camera');
   }
 
+  // Greedy word-wrap for canvas text — ctx has no native wrapping, so
+  // this builds lines that each fit within maxWidth using the font
+  // already set on ctx at call time.
+  function dpWrapCanvasText(ctx, text, maxWidth) {
+    var words = (text || '').split(/\s+/).filter(Boolean);
+    if (!words.length) return [''];
+    var lines = [];
+    var current = words[0];
+    for (var i = 1; i < words.length; i++) {
+      var test = current + ' ' + words[i];
+      if (ctx.measureText(test).width <= maxWidth) {
+        current = test;
+      } else {
+        lines.push(current);
+        current = words[i];
+      }
+    }
+    lines.push(current);
+    return lines;
+  }
+
   // Captures the CURRENT video frame at its real, native resolution
   // (not the on-screen display size, which can differ) and draws the
   // same info card straight onto that same canvas, proportioned to
@@ -5204,19 +5225,6 @@
     } else {
       ctx.drawImage(video, 0, 0, w, h);
     }
-
-    // Matches .dp-camera-info-card's own CSS exactly (height:42%,
-    // gradient stops at 15%/55%) — requested directly: less of the
-    // frame taken up by green, and the color itself less transparent,
-    // clearer near the top edge close to "Consegnato" rather than a
-    // slow fade starting right from the card's own top edge.
-    var cardTop = h * 0.58;
-    var grad = ctx.createLinearGradient(0, cardTop, 0, h);
-    grad.addColorStop(0, 'rgba(20,180,120,0)');
-    grad.addColorStop(0.15, 'rgba(20,150,100,.96)');
-    grad.addColorStop(0.55, 'rgba(15,120,80,.99)');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, cardTop, w, h - cardTop);
 
     // Content anchored toward the BOTTOM of the frame (matches
     // justify-content:flex-end in the live CSS preview), not centered
@@ -5251,29 +5259,55 @@
     ctx.textAlign = 'center';
     ctx.fillStyle = '#fff';
 
+    // REAL BUG, gasit si confirmat chiar in acest test (camera falsa de
+    // test a dat un cadru LANDSCAPE 3840x2160, latime mai mare decat
+    // inaltimea): toate dimensiunile de font foloseau "w" (latimea) iar
+    // spatiile dintre randuri foloseau "h" (inaltimea) — pe un cadru cu
+    // alt raport decat cel portret asteptat, fonturile ajungeau mult mai
+    // mari decat spatiul rezervat intre randuri, facand textul sa se
+    // suprapuna, ilizibil. vScale (cea mai mica dintre cele doua
+    // dimensiuni) e folosit acum consecvent pentru TOT ce tine de
+    // marimea textului si spatiere, ca sa ramana corect indiferent de
+    // orientarea reala a camerei telefonului.
+    var vScale = Math.min(w, h);
     var addrY = h - bottomPad;
-    var nameY = addrY - h * 0.042;
-    var timeY = nameY - h * 0.042;
-    var badgeY = timeY - h * 0.042;
 
-    ctx.font = '700 ' + Math.round(w * 0.045) + 'px sans-serif';
-    ctx.fillText('✓ Consegnato', centerX, badgeY);
+    // Cerut direct ("numele companiei iese in afara display-ului cand
+    // e lung"): masuram latimea reala a numelui si, daca nu incape,
+    // il micsoram pana la 2 randuri — niciodata nu mai iese lateral
+    // din imagine, indiferent cat de lung e numele clientului.
+    var maxTextWidth = w * 0.86;
+    var nameFontSize = Math.round(vScale * 0.072);
+    var nameMinFontSize = Math.round(vScale * 0.044);
+    ctx.font = '800 ' + nameFontSize + 'px sans-serif';
+    var nameLines = dpWrapCanvasText(ctx, client.nome || '', maxTextWidth);
+    while (nameLines.length > 2 && nameFontSize > nameMinFontSize) {
+      nameFontSize -= Math.max(1, Math.round(nameFontSize * 0.08));
+      ctx.font = '800 ' + nameFontSize + 'px sans-serif';
+      nameLines = dpWrapCanvasText(ctx, client.nome || '', maxTextWidth);
+    }
+    if (nameLines.length > 2) nameLines = nameLines.slice(0, 2);
+    var nameLineHeight = Math.round(nameFontSize * 1.3);
+
+    var addrFontSize = Math.round(vScale * 0.05);
+    var topFontSize = Math.round(vScale * 0.044);
+
+    // Spatiul intre fiecare pereche de randuri e calculat din marimea
+    // reala a fontului implicat (nu un procent fix independent de
+    // font) — garanteaza ca randurile nu se mai pot suprapune, oricare
+    // ar fi combinatia de marimi.
+    var nameBottomY = addrY - Math.max(nameFontSize, addrFontSize) * 1.05;
+    var nameTopY = nameBottomY - (nameLines.length - 1) * nameLineHeight;
 
     // Cerut direct ("am vazut ca arata doar ora cand a fost livrat,
     // dar ar fi bine sa arate si ziua, luna"): data+ora impreuna, nu
     // doar ora - o poza pastrata ca dovada, eventual luni mai tarziu,
-    // nu spune nimic fara si ziua exacta in care a fost facuta.
+    // nu spune nimic fara si ziua exacta in care a fost facuta. Pusa
+    // pe acelasi rand cu badge-ul "Consegnato", ca sa ocupe un singur
+    // rand (mai putin spatiu vertical peste poza), la fel ca in
+    // preview-ul live.
     var timeText = client.completedAt ? (dpFormatDateShort(client.completedAt) + ' · ' + dpFormatTime(client.completedAt)) : '';
-    if (timeText) {
-      ctx.font = '600 ' + Math.round(w * 0.038) + 'px sans-serif';
-      ctx.fillText(timeText, centerX, timeY);
-    }
-
-    ctx.font = '800 ' + Math.round(w * 0.062) + 'px sans-serif';
-    ctx.fillText(client.nome || '', centerX, nameY);
-
-    ctx.font = '600 ' + Math.round(w * 0.042) + 'px sans-serif';
-    ctx.fillText(client.indirizzo || '', centerX, addrY);
+    var topRowY = nameTopY - Math.max(topFontSize, nameFontSize) * 1.05;
 
     // Requested directly, ION's own marketing idea: a small, tasteful
     // watermark on every delivery photo — since these get shared
@@ -5292,9 +5326,42 @@
     // si text, indiferent de font-ul disponibil pe telefonul cu care
     // se face poza.
     var wmPad = w * 0.035;
-    var wmLogoHeight = Math.round(w * 0.023) * 1.6;
+    var wmLogoHeight = Math.round(vScale * 0.03) * 1.6;
     var groupRight = w - wmPad;
-    var groupTop = cardTop + wmPad + h * 0.063;
+    // Pozitionat direct fata de topRowY (randul de sus al textului),
+    // nu mai fata de cardTop — de cand cardTop s-a micsorat odata cu
+    // textul (vezi mai jos), vechea formula (cardTop + offset fix) ar
+    // fi putut impinge watermark-ul sa se suprapuna cu textul.
+    var wmGapAboveText = vScale * 0.022;
+    var groupTop = topRowY - wmGapAboveText - wmLogoHeight;
+    var bgPad = wmLogoHeight * 0.1875;
+
+    // Zona verde dimensionata doar cat are nevoie continutul (text +
+    // watermark, plus o mica rezerva deasupra fiecaruia) — cerut direct
+    // ("aveam prea putina camera ca sa incadrez obiectul"): inainte
+    // acoperea un procent fix (42%) din poza, indiferent de continut.
+    // Acum restul pozei, deasupra continutului, ramane complet curat,
+    // fara nicio tenta verde. Math.min cu ambele candidate (text si
+    // watermark) ca verdele sa acopere intotdeauna pe amandoua, oricare
+    // ar fi mai sus.
+    var cardTop = Math.min(topRowY - vScale * 0.06, groupTop - bgPad - vScale * 0.018);
+    var grad = ctx.createLinearGradient(0, cardTop, 0, h);
+    grad.addColorStop(0, 'rgba(20,180,120,0)');
+    grad.addColorStop(0.3, 'rgba(20,150,100,.96)');
+    grad.addColorStop(0.72, 'rgba(15,120,80,.99)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, cardTop, w, h - cardTop);
+    ctx.fillStyle = '#fff';
+
+    ctx.font = '800 ' + nameFontSize + 'px sans-serif';
+    for (var nLi = 0; nLi < nameLines.length; nLi++) {
+      var nLineY = nameBottomY - (nameLines.length - 1 - nLi) * nameLineHeight;
+      ctx.fillText(nameLines[nLi], centerX, nLineY);
+    }
+    ctx.font = '700 ' + topFontSize + 'px sans-serif';
+    ctx.fillText('✓ Consegnato' + (timeText ? ('   ·   ' + timeText) : ''), centerX, topRowY);
+    ctx.font = '600 ' + addrFontSize + 'px sans-serif';
+    ctx.fillText(client.indirizzo || '', centerX, addrY);
 
     if (dpWatermarkLogoImg) {
       var logoRatio = dpWatermarkLogoImg.naturalWidth / dpWatermarkLogoImg.naturalHeight;
@@ -5302,7 +5369,6 @@
       var logoX = groupRight - logoW;
 
       // Backing plate, rounded corners, behind the logo.
-      var bgPad = wmLogoHeight * 0.1875;
       ctx.globalAlpha = 0.4;
       ctx.fillStyle = '#000';
       var bx = logoX - bgPad, by = groupTop - bgPad, bw = logoW + bgPad * 2, bh = wmLogoHeight + bgPad * 2, br = bh * 0.25;
