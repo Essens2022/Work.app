@@ -1123,7 +1123,20 @@
   #dp-camera-video,#dp-camera-preview-img{
     position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;
   }
-  #dp-camera-video{transform-origin:center;transition:transform .15s ease,opacity .12s ease;}
+  /* REAL BUG, raportat a treia oara, cu inregistrare video reala: nicio
+     temporizare (loadedmetadata, 'playing', delay minim fix) n-a reusit
+     sa evite complet un cadru mic/cu negru in jur, inainte ca <video> sa
+     fie randat efectiv la marimea CSS finala pe acest telefon — e o
+     chestiune de compozitare a browser-ului, nu "cat timp astept".
+     <video> ramane permanent invizibil; #dp-camera-live-canvas de mai
+     jos ii deseneaza cadrele, la o marime complet controlata de noi,
+     cadru cu cadru (vezi dpStartLiveMirror in app.js) — imun prin
+     constructie la acel bug, fara nicio temporizare artificiala. */
+  #dp-camera-video{opacity:0;pointer-events:none;}
+  #dp-camera-live-canvas{
+    position:absolute;inset:0;width:100%;height:100%;background:#000;
+    transform-origin:center;transition:transform .15s ease;
+  }
   /* REAL BUG, reported directly and confirmed: native browser pinch-
      zoom on this 4K preview photo (uncapped, whatever scale the OS
      lets the user reach) could exhaust memory on weaker phones and
@@ -2369,6 +2382,7 @@
 <div class="modal-overlay center" id="modal-dp-camera" style="z-index:3000;">
   <div id="dp-camera-stage">
     <video id="dp-camera-video" autoplay playsinline muted></video>
+    <canvas id="dp-camera-live-canvas"></canvas>
     <canvas id="dp-camera-canvas" style="display:none;"></canvas>
     <img id="dp-camera-preview-img" alt="">
 
