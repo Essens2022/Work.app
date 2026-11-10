@@ -5380,7 +5380,10 @@
     // gap-ul e calculat direct din topFontSize (inaltimea reala a
     // textului), nu mai dintr-un procent fix independent de marimea
     // fontului — se adapteaza corect la orice rezolutie/aspect ratio.
-    var wmGapAboveText = topFontSize * 1.2;
+    //
+    // Cerut direct ("logo putin mai sus"): gap marit, logo-ul sta acum
+    // mai departe de text, mai sus in zona neagra/verde.
+    var wmGapAboveText = topFontSize * 2;
     var groupTop = topRowY - wmGapAboveText - wmLogoHeight;
     var bgPad = wmLogoHeight * 0.1875;
 
