@@ -269,19 +269,6 @@
   }
   #app-splash-bg{width:100%;height:100%;object-fit:cover;display:block;}
   #app-splash.hide{opacity:0;pointer-events:none;}
-  /* Cerut direct ("banda aia alba de sus trebuie sa fie negru"): zona
-     de sub bara de status (unde se vede ora/semnal) iesea mai deschisa
-     decat restul fundalului negru al splash-ului — fie din partea de
-     sus a pozei splash-hero.jpg (mai deschisa acolo), fie din propriul
-     tratament al iOS pentru lizibilitatea barei de status. Un gradient
-     negru solid suprapus doar in partea de sus garanteaza ca acea zona
-     ramane mereu negru, indiferent de continutul pozei de dedesubt. */
-  #app-splash::before{
-    content:'';position:absolute;top:0;left:0;right:0;z-index:1;
-    height:calc(130px + var(--safe-top,0px));
-    background:linear-gradient(180deg,#0A0A0B 0%,#0A0A0B 45%,rgba(10,10,11,0) 100%);
-    pointer-events:none;
-  }
   #splash-wheel{
     position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
     width:80px;height:auto;
