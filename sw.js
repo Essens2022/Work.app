@@ -1,15 +1,32 @@
 // Power Trasporti - Foglio Viaggi - Service Worker
 //
 // Strategy:
-//  - Core app files (index.html, app.js, manifest.json) use NETWORK-FIRST:
-//    when the phone has internet, it always fetches the latest version from
-//    GitHub Pages and updates the cache, so future updates show up right
-//    away. If there's no internet, it falls back to the last cached copy,
-//    so the app keeps working fully offline.
+//  - Core app files (index.html, app.js, manifest.json) use STALE-WHILE-
+//    REVALIDATE: the cached copy answers IMMEDIATELY (no network wait at
+//    all on the critical path), while a fresh copy is fetched in the
+//    background to update the cache for the NEXT load. Freshness is still
+//    guaranteed — app.js's own separate, direct version.json checks (and
+//    the service worker's own update/controllerchange cycle) already
+//    handle noticing a new version and reloading at a safe moment; this
+//    only changes how fast THIS load's first paint happens.
+//    REAL BUG, reported directly ("cand revin din fundal in timpul
+//    livrarilor, nu trebuie sa astepte un restart"): iOS can and does
+//    kill an installed app's page entirely while it's only in the
+//    background (not closed) to free memory — no code here can prevent
+//    that restart itself, a real platform limitation, not a bug in this
+//    app. But the OLD network-first strategy made every single one of
+//    those unavoidable restarts ALSO wait on a real network round-trip
+//    before showing anything at all — a real, measurable extra delay on
+//    a driver's phone, worse on weak signal while actually driving,
+//    exactly when this restart is most likely to happen. Serving the
+//    cached copy first removes that network wait from the critical path
+//    entirely — the unavoidable restart becomes as fast as this device
+//    can physically parse/run the cached files, not bottlenecked by
+//    whatever mobile signal happens to be available at that moment.
 //  - Large, rarely-changing files (jsPDF, the comuni database, icons, logo)
 //    stay CACHE-FIRST, so they don't get re-downloaded on every load.
 
-const CACHE_VERSION = 'pt-foglio-v672';
+const CACHE_VERSION = 'pt-foglio-v673';
 // Cerut direct ("sa unim la fletul la bacheca... o pagina cu trei
 // intrari"): pagina Annunci separata (./annunci/) a fost retrasa -
 // bacheca/index.html e acum sursa unica, folosita si de aplicatia
@@ -93,24 +110,38 @@ self.addEventListener('fetch', (event) => {
   const isNavigation = event.request.mode === 'navigate';
 
   if (isNavigation || isCoreAsset(url) || isMarketingPage(url)) {
-    // Network-first: always try to get the latest app code when online.
-    // { cache: 'no-store' } here is deliberate and important — without
-    // it, this fetch() can still be satisfied by the BROWSER's own HTTP
-    // cache (a layer completely separate from this service worker's own
-    // Cache API storage), depending on cache-control headers from the
-    // server. That could quietly serve a stale copy of app.js even
-    // though this code "looks" network-first — no-store forces a truly
-    // fresh network round-trip every time, when online.
+    // Stale-while-revalidate — see the strategy note at the top of this
+    // file. { cache: 'no-store' } on the background fetch is still
+    // deliberate and important — without it, this fetch() can still be
+    // satisfied by the BROWSER's own HTTP cache (a layer completely
+    // separate from this service worker's own Cache API storage),
+    // depending on cache-control headers from the server. That could
+    // quietly update OUR cache with an already-stale copy of app.js
+    // even though this code "looks" like it's fetching fresh — no-store
+    // forces a truly fresh network round-trip for that background update.
     event.respondWith(
-      fetch(event.request, { cache: 'no-store' })
-        .then((response) => {
-          if (response && response.status === 200) {
-            const copy = response.clone();
-            caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, copy));
-          }
-          return response;
-        })
-        .catch(() => caches.match(event.request))
+      caches.match(event.request).then((cached) => {
+        const networkFetch = fetch(event.request, { cache: 'no-store' })
+          .then((response) => {
+            if (response && response.status === 200) {
+              const copy = response.clone();
+              caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, copy));
+            }
+            return response;
+          })
+          .catch(() => null);
+        if (cached) {
+          // Answer instantly from cache; still let the network fetch
+          // finish in the background (event.waitUntil keeps the worker
+          // alive long enough for that), updating the cache for the
+          // NEXT load, without making THIS one wait on it.
+          event.waitUntil(networkFetch);
+          return cached;
+        }
+        // Nothing cached yet (a genuinely first-ever visit) — the
+        // network is the only option.
+        return networkFetch.then((response) => response || caches.match(event.request));
+      })
     );
     return;
   }
