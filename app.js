@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v657"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v658"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -11401,9 +11401,32 @@
   document.getElementById('fuel-camera-shoot-btn').addEventListener('click', function () {
     var video = document.getElementById('fuel-camera-video');
     if (!video.videoWidth) return; // scatto troppo presto, prima che il flusso sia davvero pronto
+    // REAL BUG, raportat direct ("dupa ce fac poza nu apare bine cum am
+    // pozitionat"): fluxul camerei e cerut patrat (2560x2560), dar
+    // afisat live pe un ecran de telefon ingust/inalt — object-fit:cover
+    // arata deci doar o FASIE verticala, centrata, din cadrul patrat
+    // real (restul, stanga/dreapta, nu se vede niciodata pe ecran, desi
+    // exista in flux). Codul vechi captura intregul cadru patrat brut,
+    // nu doar fasia vizibila — poza salvata avea mult mai mult continut
+    // (stanga/dreapta) decat vazuse soferul la incadrare, iar ecranul de
+    // decupare care urma pornea recentrat pe tot patratul, nelegat de
+    // ce aliniase el in ghidul live. Acum se captureaza EXACT regiunea
+    // afisata pe ecran (acelasi calcul ca object-fit:cover), ca poza sa
+    // corespunda mereu cu ce a vazut si incadrat soferul.
+    var vw = video.videoWidth, vh = video.videoHeight;
+    var boxW = video.clientWidth, boxH = video.clientHeight;
+    var srcRatio = vw / vh, boxRatio = boxW / boxH;
+    var cropW = vw, cropH = vh, cropX = 0, cropY = 0;
+    if (srcRatio > boxRatio) {
+      cropW = vh * boxRatio;
+      cropX = (vw - cropW) / 2;
+    } else if (srcRatio < boxRatio) {
+      cropH = vw / boxRatio;
+      cropY = (vh - cropH) / 2;
+    }
     var canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    canvas.width = cropW; canvas.height = cropH;
+    canvas.getContext('2d').drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
     closeFuelCamera();
     cropRawImage = canvas;
     openCropScreen();
