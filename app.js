@@ -3,6 +3,22 @@
 (function () {
   "use strict";
 
+  // Cerut direct ("cand fac livrari, fiecare secunda e importanta, nu
+  // pot astepta un restart"): folosita mai jos, in AMBELE mecanisme care
+  // pot declansa un reload automat la o versiune noua, ca sa amane acel
+  // reload cat timp soferul chiar are un traseu de livrare de AZI
+  // neterminat (macar un client neconsemnat inca) — un restart complet
+  // chiar in mijlocul livrarilor ar insemna o asteptare reala, exact
+  // cand conteaza cel mai mult. `state` inca nu exista la PRIMUL apel
+  // posibil (chiar la incarcarea paginii, inainte sa fie initializat
+  // mai jos) — typeof-ul de aici il trateaza corect ca "niciun traseu
+  // activ" in acel moment, fara sa arunce o eroare.
+  function dpHasActiveUnfinishedRoute() {
+    return !!(typeof state !== 'undefined' && state && state.deliveryRun &&
+      state.deliveryRun.date === todayDateStr() && state.deliveryRun.clients &&
+      state.deliveryRun.clients.some(function (c) { return c.status !== 'completed'; }));
+  }
+
   // EARLY, SELF-CONTAINED VERSION CHECK — runs before absolutely anything
   // else in this file. If this phone is ever stuck running a stale copy
   // of this exact script (for example, one that still refers to an
@@ -43,11 +59,24 @@
       // next visibilitychange check (once navigation ends and the
       // driver eventually backgrounds/returns to the tab) catches it.
       if (window.__navActiveNavigationRunning) return;
+      // Acelasi motiv ca mai sus pentru navigarea activa — vezi
+      // dpHasActiveUnfinishedRoute.
+      if (dpHasActiveUnfinishedRoute()) return;
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
           if (data && data.v && data.v !== APP_VERSION) {
             var doReload = function () {
+              // REAL BUG, gasit testand chiar acest fix: reverificat aici,
+              // nu doar la inceputul lui checkVersionAndReload — intre
+              // timp (in special cat asteapta splash-ul, la prima
+              // deschidere) sesiunea poate ajunge sa aiba, between timp,
+              // un traseu de livrare activ; fara aceasta a doua
+              // verificare, un reload programat INAINTE ca traseul sa
+              // inceapa tot ar fi avut loc nestingherit DUPA ce traseul a
+              // inceput deja — exact cazul pe care dpHasActiveUnfinishedRoute
+              // trebuia sa-l previna.
+              if (dpHasActiveUnfinishedRoute()) return;
               try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
               // Requested directly ("acea notificare... ca la
               // WhatsApp... aplicatia sa faca acel restart in automat,
@@ -104,7 +133,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v669"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v670"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -15647,13 +15676,30 @@
       // land in the middle of an active trip and silently discard it.
       var navOverlay = document.getElementById('nav-active-overlay');
       var navigatingActively = navOverlay && navOverlay.style.display !== 'none';
-      if (modalOpen || navigatingActively) {
+      // Cerut direct ("cand fac livrari, fiecare secunda e importanta,
+      // nu pot astepta un restart"): la fel ca mai sus pentru modal/
+      // navigare, un traseu de livrare de azi inca neterminat amana si
+      // el reload-ul automat — vezi dpHasActiveUnfinishedRoute. Se
+      // aplica oricum, fara nicio asteptare suplimentara, de indata ce
+      // traseul se termina (urmatoarea verificare periodica/ la
+      // revenirea din fundal il prinde).
+      var deliveringActively = dpHasActiveUnfinishedRoute();
+      if (modalOpen || navigatingActively || deliveringActively) {
         pendingReloadAfterModalClose = true;
-        if (!navigatingActively) toast('Nuova versione pronta — verrà applicata alla chiusura di questa finestra');
+        if (!navigatingActively && !deliveringActively) toast('Nuova versione pronta — verrà applicata alla chiusura di questa finestra');
         return;
       }
       reloadTriggeredThisLoad = true;
       var doReload = function () {
+        // Acelasi motiv ca la verificarea early de la inceputul
+        // fisierului: reverificat aici, chiar inainte de reload-ul
+        // efectiv (nu doar mai sus) — intre timp (cat asteapta splash-ul)
+        // sesiunea poate ajunge sa aiba un traseu de livrare activ.
+        if (dpHasActiveUnfinishedRoute()) {
+          reloadTriggeredThisLoad = false;
+          pendingReloadAfterModalClose = true;
+          return;
+        }
         try { sessionStorage.setItem('pt_last_auto_reload', String(Date.now())); } catch (e) { /* ignore */ }
         // Requested directly ("ca la WhatsApp... automat, dar sa
         // anunte, nu sa reincarce mut"): acelasi banner vizual, o
