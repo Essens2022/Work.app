@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v667"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v668"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -5147,6 +5147,7 @@
       // un alt client (coada nu era goala), dpOpenCameraForClient
       // reseteaza oricum transform/opacity chiar la inceput, pentru
       // noul client — niciodata nu ramane "agatat" estompat.
+      dpStopLiveMirror();
       dpStopCameraStream();
       dpCameraAdvanceQueue();
     }, 480);
@@ -5189,23 +5190,22 @@
 
   // Ascunde un <video> de camera (opacity:0) pana cand fluxul chiar
   // reda cadre stabile la marimea lui finala, apoi il arata dintr-o
-  // data — folosit la ambele camere proprii din aplicatie (livrare si
-  // bon de combustibil), ca niciuna sa nu mai arate tranzitia
-  // "dreptunghi mic -> ecran complet" descrisa direct de ION.
+  // data — folosit la camera de bon de combustibil (vezi mai jos),
+  // ca sa nu mai arate tranzitia "dreptunghi mic -> ecran complet"
+  // descrisa direct de ION.
   //
-  // REAL BUG, raportat A TREIA OARA, de fiecare data cu inregistrare
-  // video reala de pe telefon, confirmand ca problema persista exact
-  // la fel: nici loadedmetadata, nici 'playing' + 2 cadre de animatie
-  // (incercarile anterioare) nu au fost suficiente — pe telefonul lui
+  // REAL BUG, raportat A TREIA OARA pentru camera livrarilor, de
+  // fiecare data cu inregistrare video reala de pe telefon, confirmand
+  // ca problema persista exact la fel: nici loadedmetadata, nici
+  // 'playing' + 2 cadre de animatie, nici un delay minim fix (toate
+  // incercarile anterioare) nu au fost suficiente — pe telefonul lui
   // ION, întârzierea pana straturile de compozitare ale browser-ului
-  // redau efectiv fluxul la marimea CSS corecta (100%) tine mai mult
-  // decat atat. In loc sa mai ghicesc un prag exact (fragil, diferit
-  // de la telefon la telefon), acum se asteapta un minim FIX de 400ms
-  // DE LA INCEPUT (nu doar dupa 'playing') — suficient de generos cat
-  // sa acopere orice intarziere reala, indiferent de cauza exacta —
-  // SI evenimentul 'playing', oricare dureaza mai mult. Un plus de
-  // 1200ms e plasa de siguranta absoluta (nu ramane blocat negru
-  // pentru totdeauna daca 'playing' nu se declanseaza deloc).
+  // redau efectiv fluxul la marimea CSS corecta tine mai mult decat
+  // orice prag rezonabil de asteptat. Pentru camera livrarilor, nu mai
+  // se incearca sa se "ghiceasca" momentul potrivit — vezi
+  // dpStartLiveMirror mai jos, care rezolva altfel, arhitectural.
+  // Camera de combustibil ramane pe aceasta varianta (nu a fost
+  // raportata aceeasi problema acolo).
   function dpRevealCameraVideoWhenStable(video) {
     video.style.opacity = '0';
     var revealed = false;
@@ -5223,6 +5223,54 @@
     video.addEventListener('playing', function () { playingFired = true; tryReveal(); }, { once: true });
     setTimeout(function () { minDelayPassed = true; tryReveal(); }, 400);
     setTimeout(function () { playingFired = true; minDelayPassed = true; tryReveal(); }, 1200);
+  }
+
+  // Rezolvare arhitecturala pentru camera livrarilor ("se deschide in
+  // doi pasi, mai intai mica cu negru prin parti, dupa se mareste"):
+  // in loc sa mai incerc sa "prind momentul potrivit" ca sa arat
+  // <video> (al treilea fix bazat pe temporizare a fost confirmat tot
+  // insuficient, cu dovada cadru-cu-cadru dintr-o inregistrare reala —
+  // bug-ul e in felul in care acest telefon compune efectiv <video> pe
+  // ecran, nu in "cat timp astept"), <video> ramane acum permanent
+  // invizibil (vezi CSS: opacity:0 fix) si NU mai e randat direct —
+  // in schimb, cadrele lui sunt desenate continuu, manual, pe
+  // #dp-camera-live-canvas de deasupra, la dimensiunea exacta a cutiei
+  // (acelasi calcul de "object-fit:cover" ca la poza finala), prin
+  // requestAnimationFrame. Un <canvas> desenat explicit de noi nu are
+  // niciodata acest bug, pentru ca dimensiunea la care apare pe ecran e
+  // intotdeauna cea pe care o cerem noi, cadru cu cadru — imun prin
+  // constructie, nu prin temporizare.
+  var dpLiveMirrorRAF = null;
+  function dpStopLiveMirror() {
+    if (dpLiveMirrorRAF) { cancelAnimationFrame(dpLiveMirrorRAF); dpLiveMirrorRAF = null; }
+  }
+  function dpStartLiveMirror(video) {
+    dpStopLiveMirror();
+    var canvas = document.getElementById('dp-camera-live-canvas');
+    var ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    function draw() {
+      dpLiveMirrorRAF = requestAnimationFrame(draw);
+      var vw = video.videoWidth, vh = video.videoHeight;
+      if (!vw || !vh) return; // inca niciun cadru decodat — ramane negru (corect), nu un cadru vechi
+      var boxW = canvas.clientWidth, boxH = canvas.clientHeight;
+      if (!boxW || !boxH) return;
+      var dpr = window.devicePixelRatio || 1;
+      var pxW = Math.round(boxW * dpr), pxH = Math.round(boxH * dpr);
+      if (canvas.width !== pxW || canvas.height !== pxH) { canvas.width = pxW; canvas.height = pxH; }
+      // Acelasi calcul de object-fit:cover folosit si la poza finala
+      // (dpCaptureCameraPhoto) — cropeaza cadrul video ca sa umple
+      // exact cutia, fara sa-l deformeze.
+      var srcRatio = vw / vh, boxRatio = boxW / boxH;
+      var cropX, cropY, cropW, cropH;
+      if (srcRatio > boxRatio) {
+        cropH = vh; cropW = vh * boxRatio; cropX = (vw - cropW) / 2; cropY = 0;
+      } else {
+        cropW = vw; cropH = vw / boxRatio; cropX = 0; cropY = (vh - cropH) / 2;
+      }
+      ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height);
+    }
+    draw();
   }
 
   function dpOpenCameraForClient(client) {
@@ -5258,24 +5306,20 @@
     // inapoi la normal quando dpSetupCameraControls rula. Resetat aici,
     // sincron, chiar la deschidere, inainte sa apuce sa se vada ceva.
     dpCameraZoomLevel = 1;
-    document.getElementById('dp-camera-video').style.transform = 'scale(1)';
+    document.getElementById('dp-camera-live-canvas').style.transform = 'scale(1)';
     document.getElementById('dp-camera-info-time').textContent = client.completedAt ? (dpFormatDateShort(client.completedAt) + ' · ' + dpFormatTime(client.completedAt)) : '';
     document.getElementById('dp-camera-info-name').textContent = client.nome || '';
     document.getElementById('dp-camera-info-addr').textContent = client.indirizzo || '';
 
     var video = document.getElementById('dp-camera-video');
+    var liveCanvas = document.getElementById('dp-camera-live-canvas');
     var errEl = document.getElementById('dp-camera-error');
     errEl.style.display = 'none';
     video.style.display = '';
-    // REAL BUG, raportat de doua ori, cu inregistrari video reale de pe
-    // telefon ("camera... este mica si mai apoi se mareste"): asteptarea
-    // doar dupa loadedmetadata (prima incercare) nu a fost suficienta —
-    // pe un telefon real, loadedmetadata poate sa se declanseze inainte
-    // ca straturile de compozitare ale browser-ului sa termine sa
-    // redimensioneze efectiv imaginea la marimea CSS finala (100% din
-    // ecran), asa ca se vedea tot un cadru mic, cu negru in jur, inainte
-    // sa sara la marimea corecta. Vezi dpRevealCameraVideoWhenStable.
-    dpRevealCameraVideoWhenStable(video);
+    liveCanvas.style.display = '';
+    // Vezi dpStartLiveMirror — <video> ramane invizibil (opacity:0 fix,
+    // in CSS); mirror-ul porneste abia dupa ce stream-ul real e gata,
+    // mai jos, chiar inainte sa ajunga pe ecran vreun cadru.
     document.getElementById('dp-camera-preview-img').style.display = 'none';
     document.getElementById('dp-camera-capture-btn').style.display = '';
     document.getElementById('dp-camera-preview-actions').style.display = 'none';
@@ -5313,6 +5357,7 @@
         dpCameraStream = stream;
         video.srcObject = stream;
         dpSetupCameraControls(stream);
+        dpStartLiveMirror(video);
       })
       .catch(function () {
         errEl.textContent = 'Impossibile accedere alla fotocamera — controlla i permessi.';
@@ -5335,7 +5380,7 @@
     dpCameraTrack = track;
     dpCameraZoomLevel = 1;
     dpCameraFlashOn = false;
-    document.getElementById('dp-camera-video').style.transform = 'scale(1)';
+    document.getElementById('dp-camera-live-canvas').style.transform = 'scale(1)';
     document.getElementById('dp-camera-zoom-label').textContent = '1×';
     document.getElementById('dp-camera-flash-btn').classList.remove('dp-flash-on');
 
@@ -5355,7 +5400,7 @@
     if (dpCameraZoomCaps) {
       dpCameraTrack.applyConstraints({ advanced: [{ zoom: dpCameraZoomLevel }] }).catch(function () {});
     } else {
-      document.getElementById('dp-camera-video').style.transform = 'scale(' + dpCameraZoomLevel + ')';
+      document.getElementById('dp-camera-live-canvas').style.transform = 'scale(' + dpCameraZoomLevel + ')';
     }
   }
 
@@ -5391,6 +5436,7 @@
   window.addEventListener('pagehide', function () { dpStopCameraStream(); });
 
   function dpCloseCameraModal() {
+    dpStopLiveMirror();
     dpStopCameraStream();
     dpCameraQueue = [];
     dpCameraCurrentClient = null;
@@ -5646,6 +5692,8 @@
     // display value that actually overrides the hidden default.
     img.style.display = 'block';
     video.style.display = 'none';
+    dpStopLiveMirror();
+    document.getElementById('dp-camera-live-canvas').style.display = 'none';
     document.getElementById('dp-camera-info-overlay').style.display = 'none'; // already baked into the image now — the separate CSS overlay would just double it up
     document.getElementById('dp-camera-capture-btn').style.display = 'none';
     document.getElementById('dp-camera-preview-actions').style.display = 'flex';

@@ -9,7 +9,7 @@
 //  - Large, rarely-changing files (jsPDF, the comuni database, icons, logo)
 //    stay CACHE-FIRST, so they don't get re-downloaded on every load.
 
-const CACHE_VERSION = 'pt-foglio-v667';
+const CACHE_VERSION = 'pt-foglio-v668';
 // Cerut direct ("sa unim la fletul la bacheca... o pagina cu trei
 // intrari"): pagina Annunci separata (./annunci/) a fost retrasa -
 // bacheca/index.html e acum sursa unica, folosita si de aplicatia
