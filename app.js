@@ -5052,6 +5052,19 @@
     // whatever the previous photo's preview was left at.
     dpPreviewZoomLevel = 1;
     document.getElementById('dp-camera-preview-img').style.transform = 'scale(1)';
+    // REAL BUG, raportat direct ("camera cand o pornesc... este mica
+    // si mai apoi se mareste"): acelasi bug ca mai sus, dar la zoom-ul
+    // camerei LIVE, nu la preview — dpCameraZoomLevel si transform-ul
+    // video-ului se resetau doar in dpSetupCameraControls, care ruleaza
+    // abia DUPA ce stream-ul camerei (async) se deschide. Daca ultima
+    // poza fusese facuta cu zoom digital activ, video-ul ramanea cu
+    // style.transform vechi (zoom marit) chiar si dupa inchiderea
+    // camerei — la urmatoarea deschidere, cadrul pornea vizibil "mic"
+    // (decupat, zoom vechi), apoi sarea (animat, din CSS transition)
+    // inapoi la normal quando dpSetupCameraControls rula. Resetat aici,
+    // sincron, chiar la deschidere, inainte sa apuce sa se vada ceva.
+    dpCameraZoomLevel = 1;
+    document.getElementById('dp-camera-video').style.transform = 'scale(1)';
     document.getElementById('dp-camera-info-time').textContent = client.completedAt ? (dpFormatDateShort(client.completedAt) + ' · ' + dpFormatTime(client.completedAt)) : '';
     document.getElementById('dp-camera-info-name').textContent = client.nome || '';
     document.getElementById('dp-camera-info-addr').textContent = client.indirizzo || '';
