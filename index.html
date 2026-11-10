@@ -289,9 +289,29 @@
   #app{max-width:560px;margin:0 auto;height:100%;position:relative;}
   .topbar{
     position:fixed;top:0;left:50%;transform:translateX(-50%);width:100%;max-width:560px;
-    z-index:20;background:rgba(250,250,248,.92);backdrop-filter:blur(10px);
+    z-index:20;
     padding:calc(14px + var(--safe-top)) 20px 12px;display:flex;align-items:center;justify-content:space-between;
     border-bottom:1px solid var(--line);
+  }
+  /* REAL BUG, raportat direct cu un screenshot real: logo-ul + textul
+     "ADB Smart" apareau vizibil neclare/incetosate, desi butoanele de
+     langa (aceeasi bara, acelasi rand) ramaneau perfect clare — fondul
+     translucid+blur de mai sus statea direct pe aceasta cutie
+     (.topbar), impreuna cu un transform (translateX, pentru centrare).
+     Aceasta combinatie exacta — backdrop-filter SI transform pe acelasi
+     element — e un bug documentat WebKit/Safari: filtrul poate ajunge
+     sa "sangereze" peste CONTINUTUL propriu al cutiei (textul/imaginea
+     din interior), nu doar peste ce e in spate, cum ar trebui. Butoanele
+     (.icon-btn) raman clare pentru ca au propriul fundal opac, complet
+     separat, care acopera orice artefact; .brand (logo+text) nu avea
+     niciun fundal propriu, asa ca bug-ul se vedea direct pe el. Fixat
+     mutand backdrop-filter pe un ::before separat, gol, FARA niciun
+     continut propriu — efectul vizual (sticla mata) ramane identic,
+     dar filtrul nu mai are niciodata text/imagini direct in aceeasi
+     cutie cu el, deci nu mai are ce sa "sangereze" peste ele. */
+  .topbar::before{
+    content:'';position:absolute;inset:0;z-index:-1;
+    background:rgba(250,250,248,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
   }
   .brand{display:flex;align-items:center;gap:10px;}
   .brand-mark{width:30px;height:30px;border-radius:9px;background:var(--ink);display:flex;align-items:center;justify-content:center;flex:none;overflow:hidden;}
