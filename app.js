@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v660"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v661"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -173,7 +173,7 @@
     // actually types their own.
     return loadJSON(LS_PROFILE, {
       nome: "", targa: "", perContoDi: "",
-      da: "", provDa: "", frequent: {},
+      da: "", provDa: "", frequent: {}, destHistory: [],
       dailyRate: ""
     });
   }
@@ -667,29 +667,54 @@
     }
     return "";
   }
+  // REAL BUG, raportat direct ("aici trebuie sa fie ca o istorie...
+  // ultimele care le-am adaugat, nu preimpostate"): lista goala (inainte
+  // sa tastezi ceva) arata orase sortate dupa cat de des au fost
+  // folosite (frecventa totala) — un oras folosit o singura data, dar
+  // ADAUGAT CHIAR ACUM, ramanea ingropat sub altele folosite de multe
+  // ori demult, in loc sa apara primul, cum ar insemna o istorie reala
+  // ("adaug unul, hop, acolo primul"). Acum lista goala arata EXACT
+  // istoricul propriu al soferului, in ordinea in care a adaugat orasele
+  // — ultimul adaugat, primul afisat — niciodata cel mai "popular".
   function searchComuni(query, limit) {
     limit = limit || 8;
     var q = normalize(query);
-    var freq = state.profile.frequent || {};
+    var history = state.profile.destHistory || [];
     if (!q) {
-      var favs = Object.keys(freq).sort(function (a, b) { return freq[b] - freq[a]; }).slice(0, limit);
-      return favs.map(function (name) {
-        var prov = lookupProvincia(name);
-        return { name: name, sigla: prov };
+      return history.slice(0, limit).map(function (name) {
+        return { name: name, sigla: lookupProvincia(name) };
       });
     }
+    // Cand chiar tasteaza ceva, tot comun-ul Italiei ramane cautabil (nu
+    // doar istoricul) — util ca sa gaseasca orice oras nou, cu provincia
+    // completata automat — dar printre rezultatele care se potrivesc,
+    // cele mai recent folosite de sofer urca primele.
+    var historyRank = {};
+    history.forEach(function (name, i) { historyRank[normalize(name)] = history.length - i; });
     var starts = [];
     var contains = [];
     for (var i = 0; i < COMUNI.length; i++) {
       var name = COMUNI[i][0], sigla = COMUNI[i][1];
       var nn = normalize(name);
-      if (nn.indexOf(q) === 0) starts.push({ name: name, sigla: sigla, freq: freq[name] || 0 });
-      else if (contains.length < 30 && nn.indexOf(q) > 0) contains.push({ name: name, sigla: sigla, freq: freq[name] || 0 });
+      var rank = historyRank[nn] || 0;
+      if (nn.indexOf(q) === 0) starts.push({ name: name, sigla: sigla, rank: rank });
+      else if (contains.length < 30 && nn.indexOf(q) > 0) contains.push({ name: name, sigla: sigla, rank: rank });
       if (starts.length > 60) break;
     }
-    starts.sort(function (a, b) { return (b.freq - a.freq) || a.name.localeCompare(b.name); });
-    contains.sort(function (a, b) { return (b.freq - a.freq) || a.name.localeCompare(b.name); });
+    starts.sort(function (a, b) { return (b.rank - a.rank) || a.name.localeCompare(b.name); });
+    contains.sort(function (a, b) { return (b.rank - a.rank) || a.name.localeCompare(b.name); });
     return starts.concat(contains).slice(0, limit);
+  }
+  // Pune un oras in fruntea istoricului propriu al soferului — daca
+  // era deja acolo, dintr-o zi anterioara, e MUTAT in fata (nu dublat),
+  // ca oricare oras folosit din nou sa redevina cel mai recent.
+  function pushDestHistory(name) {
+    if (!name) return;
+    state.profile.destHistory = state.profile.destHistory || [];
+    var idx = state.profile.destHistory.indexOf(name);
+    if (idx !== -1) state.profile.destHistory.splice(idx, 1);
+    state.profile.destHistory.unshift(name);
+    if (state.profile.destHistory.length > 20) state.profile.destHistory.length = 20;
   }
 
   /* ---------------------------------------------------------------- */
@@ -12270,16 +12295,9 @@
     };
     sheet.giorni[day] = g;
 
-    if (aVal) {
-      state.profile.frequent = state.profile.frequent || {};
-      state.profile.frequent[aVal] = (state.profile.frequent[aVal] || 0) + 1;
-      saveProfile(state.profile);
-    }
-    if (a2Val) {
-      state.profile.frequent = state.profile.frequent || {};
-      state.profile.frequent[a2Val] = (state.profile.frequent[a2Val] || 0) + 1;
-      saveProfile(state.profile);
-    }
+    if (aVal) pushDestHistory(aVal);
+    if (a2Val) pushDestHistory(a2Val);
+    if (aVal || a2Val) saveProfile(state.profile);
     saveSheets(state.sheets);
     closeDayEditor();
     toast('Giorno ' + day + ' salvato');
