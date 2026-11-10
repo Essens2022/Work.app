@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v668"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v669"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -4974,6 +4974,20 @@
   var dpCameraStream = null;
   var dpCameraCurrentClient = null;
   var dpCameraTrack = null;
+  // Cerut direct ("camera sa se deschida mai instant, fara pauza, intre
+  // deschideri consecutive"): confirmat cu dovada cadru-cu-cadru ca pauza
+  // ramasa (~0.3-0.5s, complet neagra) e timpul real in care telefonul
+  // porneste hardware-ul camerei (getUserMedia) — nu mai e un bug de
+  // randare. Pana acum, stream-ul se oprea complet dupa fiecare poza si
+  // la fiecare inchidere a modalului, deci fiecare deschidere urmatoare
+  // repornea acelasi hardware de la zero. Acum stream-ul ramane "cald"
+  // (pornit) intre deschideri consecutive — vezi dpOpenCameraForClient,
+  // care il reutilizeaza direct daca e inca activ, fara sa mai ceara un
+  // nou getUserMedia. Oprit totusi, pentru baterie/confidentialitate,
+  // daca aplicatia chiar e minimizata/parasita (vezi visibilitychange
+  // mai jos) sau dupa DP_CAMERA_IDLE_RELEASE_MS de nefolosire efectiva.
+  var dpCameraIdleReleaseTimer = null;
+  var DP_CAMERA_IDLE_RELEASE_MS = 3 * 60 * 1000;
   var dpCameraZoomLevel = 1;
   var dpCameraZoomCaps = null; // {min,max,step} if the device's own hardware zoom is controllable; null falls back to a CSS-based digital zoom that works on any device
   var dpCameraFlashOn = false;
@@ -5147,8 +5161,12 @@
       // un alt client (coada nu era goala), dpOpenCameraForClient
       // reseteaza oricum transform/opacity chiar la inceput, pentru
       // noul client — niciodata nu ramane "agatat" estompat.
+      // Cerut direct ("sa se deschida instant intre deschideri
+      // consecutive"): camera NU se mai opreste aici — ramane calda
+      // pentru urmatorul client din coada (dpOpenCameraForClient o
+      // reutilizeaza direct, fara pauza). Mirror-ul se opreste doar
+      // vizual, cat timp nu e niciun ecran de camera pe afisaj.
       dpStopLiveMirror();
-      dpStopCameraStream();
       dpCameraAdvanceQueue();
     }, 480);
   }
@@ -5275,6 +5293,9 @@
 
   function dpOpenCameraForClient(client) {
     dpCameraCurrentClient = client;
+    // Se redeschide camera — nu mai e nevoie sa o opreasca singura
+    // dupa DP_CAMERA_IDLE_RELEASE_MS (vezi dpCloseCameraModal).
+    if (dpCameraIdleReleaseTimer) { clearTimeout(dpCameraIdleReleaseTimer); dpCameraIdleReleaseTimer = null; }
     if (!dpWatermarkLogoImg) {
       var logoImg = new Image();
       logoImg.onload = function () { dpWatermarkLogoImg = logoImg; };
@@ -5341,6 +5362,21 @@
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       errEl.textContent = 'Fotocamera non disponibile su questo browser.';
       errEl.style.display = 'block';
+      return;
+    }
+    // Cerut direct ("sa se deschida instant, fara pauza, intre
+    // deschideri consecutive"): daca mai exista deja un stream activ,
+    // de la clientul anterior (vezi dpCameraIdleReleaseTimer mai sus —
+    // stream-ul nu se mai opreste la fiecare poza/inchidere), il
+    // reutilizam direct — fara niciun nou getUserMedia, deci fara nicio
+    // pauza. Doar cand chiar nu exista unul activ (prima deschidere a
+    // sesiunii, sau dupa ce a fost eliberat real — vezi mai jos) se
+    // cere din nou hardware-ul camerei, cu intarzierea reala, inevitabila,
+    // a acelui proces.
+    if (dpCameraStream && dpCameraTrack && dpCameraTrack.readyState === 'live') {
+      video.srcObject = dpCameraStream;
+      dpSetupCameraControls(dpCameraStream);
+      dpStartLiveMirror(video);
       return;
     }
     // REAL BUG, reported directly and confirmed: the delivery photo
@@ -5416,6 +5452,7 @@
   }
 
   function dpStopCameraStream() {
+    if (dpCameraIdleReleaseTimer) { clearTimeout(dpCameraIdleReleaseTimer); dpCameraIdleReleaseTimer = null; }
     if (dpCameraStream) {
       dpCameraStream.getTracks().forEach(function (t) { t.stop(); });
       dpCameraStream = null;
@@ -5434,10 +5471,28 @@
   // on an abrupt close, unlike beforeunload, which mobile browsers
   // don't reliably guarantee.
   window.addEventListener('pagehide', function () { dpStopCameraStream(); });
+  // Cerut direct ("camera sa se deschida instant"): camera ramane
+  // calda (pornita) dupa ce modalul se inchide, ca o revenire rapida
+  // (alt client, sau acelasi reluat) sa fie instanta — dar daca
+  // aplicatia chiar e minimizata/parasita (telefonul pus in buzunar,
+  // alt tab/aplicatie), nu are rost sa ramana camera pornita degeaba —
+  // se opreste imediat, din respect pentru baterie si confidentialitate
+  // (indicatorul camerei nu ramane aprins fara motiv).
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) dpStopCameraStream();
+  });
 
   function dpCloseCameraModal() {
     dpStopLiveMirror();
-    dpStopCameraStream();
+    // Cerut direct ("camera sa se deschida instant intre deschideri
+    // consecutive"): nu se mai opreste camera chiar aici, la inchiderea
+    // modalului — ramane calda cateva minute (vezi DP_CAMERA_IDLE_RELEASE_MS),
+    // ca o redeschidere curand dupa (alt client marcat livrat, sau
+    // revizitarea aceluiasi) sa fie instanta. Se opreste totusi singura
+    // daca ramane neatinsa atat de mult, ca sa nu ramana camera pornita
+    // la nesfarsit daca soferul uita de ea.
+    if (dpCameraIdleReleaseTimer) clearTimeout(dpCameraIdleReleaseTimer);
+    dpCameraIdleReleaseTimer = setTimeout(dpStopCameraStream, DP_CAMERA_IDLE_RELEASE_MS);
     dpCameraQueue = [];
     dpCameraCurrentClient = null;
     dpCloseModal('modal-dp-camera');
@@ -5676,7 +5731,13 @@
       ctx.drawImage(dpWatermarkLogoImg, logoX, groupTop, logoW, wmLogoHeight);
     }
 
-    dpStopCameraStream(); // frame is captured — no need to keep the live feed running while previewing
+    // Cerut direct ("sa se deschida instant intre deschideri consecutive"):
+    // inainte se oprea aici streamul fizic al camerei imediat dupa poza
+    // (motivat de baterie/confidentialitate in timpul previzualizarii) —
+    // acum ramane "cald" (vezi dpCameraIdleReleaseTimer), ca urmatorul
+    // client (dupa swipe) sa primeasca aceeasi camera deja pornita, fara
+    // nicio pauza noua de hardware. Tot ramane oprit, la fel ca inainte,
+    // daca aplicatia e minimizata sau dupa un timp real de nefolosire.
     // Requested directly: quality raised for a sharper final photo,
     // matching the higher camera resolution now requested above.
     var dataUrl = canvas.toDataURL('image/jpeg', 0.97);
