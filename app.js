@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v665"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v666"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -5054,10 +5054,14 @@
   // declanseze dintr-o miscare accidentala, mica, a degetului (ex. o
   // apasare usor tremurata), care ramane sub acest prag.
   var DP_SWIPE_CONFIRM_THRESHOLD = 45;
-  function dpIsPreviewActionsVisible() {
-    var el = document.getElementById('dp-camera-preview-actions');
-    return el && el.style.display !== 'none' && el.style.display !== '';
-  }
+  // Cerut direct ("sa-l am chiar cand se deschide camera, nefacand
+  // poza... nu toti clientii au nevoie sa fac poza"): gestul nu mai e
+  // legat doar de ecranul de previzualizare (dupa poza) — functioneaza
+  // identic pe LIVE (inainte de poza, pentru clientii la care nu e
+  // nevoie de poza) si pe previzualizare (dupa poza, ca sa confirmi).
+  // Actiunea e oricum aceeasi in ambele cazuri — avanseaza coada — asa
+  // ca legat direct de #dp-camera-stage (parintele comun al video-ului
+  // live si al imaginii de previzualizare), nu de unul sau altul.
   // Cerut direct ("sa fie lina scrolarea, profesionala, fara ticuri"):
   // prima varianta aplica direct style.transform/opacity in handler-ul
   // touchmove — pe telefon, acel eveniment se poate declansa de mai
@@ -5075,21 +5079,20 @@
     stage.style.opacity = String(Math.max(0, 1 - Math.abs(dpSwipeCurrentDY) / 260));
   }
   function dpSetupSwipeToConfirm() {
-    var img = document.getElementById('dp-camera-preview-img');
     var stage = document.getElementById('dp-camera-stage');
-    img.addEventListener('touchstart', function (e) {
-      if (e.touches.length !== 1 || !dpIsPreviewActionsVisible()) { dpSwipeStartY = null; return; }
+    stage.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) { dpSwipeStartY = null; return; }
       dpSwipeStartY = e.touches[0].clientY;
       stage.style.transition = 'none';
     }, { passive: true });
-    img.addEventListener('touchmove', function (e) {
+    stage.addEventListener('touchmove', function (e) {
       if (dpSwipeStartY == null || e.touches.length !== 1) return;
       var dy = e.touches[0].clientY - dpSwipeStartY;
       if (dy > 0) dy = 0; // doar in sus — niciodata tras in jos
       dpSwipeCurrentDY = dy;
       if (!dpSwipeRafPending) { dpSwipeRafPending = true; requestAnimationFrame(dpApplySwipeTransform); }
     }, { passive: true });
-    img.addEventListener('touchend', function () {
+    stage.addEventListener('touchend', function () {
       if (dpSwipeStartY == null) return;
       dpSwipeStartY = null;
       var dyAtRelease = dpSwipeCurrentDY;
@@ -5122,6 +5125,15 @@
       stage.style.transition = 'none';
       stage.style.transform = '';
       stage.style.opacity = '';
+      // REAL BUG, gasit chiar aici — de cand gestul functioneaza si in
+      // LIVE (inainte de poza, nu doar la previzualizare), avansarea
+      // directa catre urmatorul client putea lasa fluxul camerei
+      // VECHI inca deschis (dpCaptureCameraPhoto il oprea doar cand
+      // chiar se facea o poza): un al doilea getUserMedia ar fi pornit
+      // peste primul, nicodata oprit, tinand camera ocupata degeaba.
+      // Oprit explicit aici, de fiecare data — fara efect daca fusese
+      // deja oprit (la o poza reala), deci sigur in ambele cazuri.
+      dpStopCameraStream();
       dpCameraAdvanceQueue();
     }, 480);
   }
@@ -5244,7 +5256,11 @@
     document.getElementById('dp-camera-preview-img').style.display = 'none';
     document.getElementById('dp-camera-capture-btn').style.display = '';
     document.getElementById('dp-camera-preview-actions').style.display = 'none';
-    document.getElementById('dp-camera-swipe-hint').classList.remove('show');
+    // Cerut direct ("sa-l am chiar cand se deschide camera, nefacand
+    // poza"): indiciul ramane vizibil si pe LIVE acum, nu doar la
+    // previzualizare — gestul functioneaza identic in ambele, ca sa
+    // sara peste clientii la care nu e nevoie de poza.
+    document.getElementById('dp-camera-swipe-hint').classList.add('show');
     document.getElementById('dp-camera-info-overlay').style.display = '';
 
     document.getElementById('modal-dp-camera').classList.add('open');
@@ -5610,10 +5626,8 @@
     document.getElementById('dp-camera-info-overlay').style.display = 'none'; // already baked into the image now — the separate CSS overlay would just double it up
     document.getElementById('dp-camera-capture-btn').style.display = 'none';
     document.getElementById('dp-camera-preview-actions').style.display = 'flex';
-    // Cerut direct ("as vrea sa fie posibil... scorland in sus... sa se
-    // concluda, ca x-ul doar ca mai ergonomic"): indiciul vizual pentru
-    // noul gest de "scorro su pentru a continua" (vezi dpSetupSwipeToConfirm)
-    // apare doar cat timp poza e in previzualizare — nu are sens inainte.
+    // Deja vizibil de la deschiderea camerei (vezi dpOpenCameraForClient)
+    // — ramane adaugat si aici doar ca sa nu depinda de ordinea apelurilor.
     document.getElementById('dp-camera-swipe-hint').classList.add('show');
 
     // Cerut direct ("astazi nu am putut demonstra prin poze pentru ca
