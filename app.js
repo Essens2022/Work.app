@@ -104,7 +104,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v662"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v663"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -5046,10 +5046,27 @@
   // nu se suprapun niciodata.
   var dpSwipeStartY = null;
   var dpSwipeCurrentDY = 0;
+  var dpSwipeRafPending = false;
   var DP_SWIPE_CONFIRM_THRESHOLD = 90;
   function dpIsPreviewActionsVisible() {
     var el = document.getElementById('dp-camera-preview-actions');
     return el && el.style.display !== 'none' && el.style.display !== '';
+  }
+  // Cerut direct ("sa fie lina scrolarea, profesionala, fara ticuri"):
+  // prima varianta aplica direct style.transform/opacity in handler-ul
+  // touchmove — pe telefon, acel eveniment se poate declansa de mai
+  // multe ori intre doua cadre reale de ecran, deci fiecare schimbare
+  // de stil separata risca sa cada "intre" cadre, simtita ca sacadare.
+  // Acum fiecare touchmove doar RETINE ultima pozitie (ieftin), iar un
+  // singur requestAnimationFrame pe cadru (dpSwipeRafPending il
+  // garanteaza) e cel care chiar scrie stilul — exact tiparul standard
+  // pentru o tragere cu degetul urmarita fluid, sincronizata cu desenul
+  // real al ecranului, nu cu rata (neregulata) a evenimentelor tactile.
+  function dpApplySwipeTransform() {
+    dpSwipeRafPending = false;
+    var stage = document.getElementById('dp-camera-stage');
+    stage.style.transform = 'translateY(' + dpSwipeCurrentDY + 'px)';
+    stage.style.opacity = String(Math.max(0, 1 - Math.abs(dpSwipeCurrentDY) / 260));
   }
   function dpSetupSwipeToConfirm() {
     var img = document.getElementById('dp-camera-preview-img');
@@ -5064,8 +5081,7 @@
       var dy = e.touches[0].clientY - dpSwipeStartY;
       if (dy > 0) dy = 0; // doar in sus — niciodata tras in jos
       dpSwipeCurrentDY = dy;
-      stage.style.transform = 'translateY(' + dy + 'px)';
-      stage.style.opacity = String(Math.max(0, 1 - Math.abs(dy) / 260));
+      if (!dpSwipeRafPending) { dpSwipeRafPending = true; requestAnimationFrame(dpApplySwipeTransform); }
     }, { passive: true });
     img.addEventListener('touchend', function () {
       if (dpSwipeStartY == null) return;
