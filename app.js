@@ -55,11 +55,16 @@
   // this triggers was interrupting the splash screen mid-animation almost
   // every time — small icon, reload, splash restarts, again. The reload
   // itself is delayed (not the check) until just past the splash's own
-  // 3.4s, so the splash always plays start to finish uninterrupted, and
-  // an update (if one was found) applies right after, quietly, instead of
-  // visibly restarting the splash sequence.
+  // duration, so the splash always plays start to finish uninterrupted,
+  // and an update (if one was found) applies right after, quietly,
+  // instead of visibly restarting the splash sequence.
   try {
-    var SPLASH_DURATION_MS = 2400;
+    // Cerut direct ("porneste instant, doar o secunda sa se invarta roata
+    // si sa porneasca, sau chiar sub o secunda"): redus de la 2400ms —
+    // vezi valoarea-sora (acelasi 900) din index.html, care chiar
+    // declanseaza ascunderea splash-ului; asta de aici doar coordoneaza
+    // reload-ul automat sa nu-l intrerupa la mijloc.
+    var SPLASH_DURATION_MS = 900;
     var pageLoadStart = Date.now();
     var EARLY_RELOAD_COOLDOWN_MS = 20000;
     function checkVersionAndReload(waitForSplash) {
@@ -155,7 +160,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v678"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v679"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -15792,7 +15797,7 @@
       // if one is still playing (only relevant for the first few seconds
       // right after opening the app).
       var elapsedSincePageLoad = (typeof pageLoadStart !== 'undefined') ? (Date.now() - pageLoadStart) : Infinity;
-      var splashRemaining = (typeof SPLASH_DURATION_MS !== 'undefined' ? SPLASH_DURATION_MS : 2400) + 200 - elapsedSincePageLoad;
+      var splashRemaining = (typeof SPLASH_DURATION_MS !== 'undefined' ? SPLASH_DURATION_MS : 900) + 200 - elapsedSincePageLoad;
       if (splashRemaining > 0) { setTimeout(doReload, splashRemaining); } else { doReload(); }
     }
 
