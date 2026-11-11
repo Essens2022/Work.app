@@ -1946,10 +1946,12 @@
   // Runs immediately, independent of app.js (which loads later, at the
   // end of body) — the timer needs to start the moment the page opens,
   // not whenever the rest of the app happens to finish loading.
+  // Cerut direct ("porneste instant, doar o secunda sa se invarta roata
+  // si sa porneasca, sau chiar sub o secunda"): redus de la 2400ms.
   setTimeout(function () {
     var splash = document.getElementById('app-splash');
     if (splash) splash.classList.add('hide');
-  }, 2400);
+  }, 900);
 </script>
 <div id="app">
   <div class="app-toast-notification" id="appBanner">
