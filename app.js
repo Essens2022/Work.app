@@ -19,6 +19,22 @@
       state.deliveryRun.clients.some(function (c) { return c.status !== 'completed'; }));
   }
 
+  // Cerut direct ("aggiornarile se verifica doar prin butonul din
+  // impostazioni si la pornire prima data... cat are macar un client in
+  // percorso di oggi nu se mai cauta"): mai stricta decat
+  // dpHasActiveUnfinishedRoute de mai sus (acolo conta doar un client
+  // INCA neconsemnat) — aici conteaza orice client din traseul de AZI,
+  // indiferent daca e deja consemnat sau nu. Folosita mai jos ca sa
+  // opreasca COMPLET verificarile automate repetate (nu doar reload-ul
+  // deja gasit, ci cautarea insasi) cat timp exista macar un client azi
+  // — raman active doar verificarea initiala, de la pornirea aplicatiei,
+  // si butonul manual din Impostazioni.
+  function dpHasAnyClientToday() {
+    return !!(typeof state !== 'undefined' && state && state.deliveryRun &&
+      state.deliveryRun.date === todayDateStr() && state.deliveryRun.clients &&
+      state.deliveryRun.clients.length > 0);
+  }
+
   // EARLY, SELF-CONTAINED VERSION CHECK — runs before absolutely anything
   // else in this file. If this phone is ever stuck running a stale copy
   // of this exact script (for example, one that still refers to an
@@ -59,9 +75,6 @@
       // next visibilitychange check (once navigation ends and the
       // driver eventually backgrounds/returns to the tab) catches it.
       if (window.__navActiveNavigationRunning) return;
-      // Acelasi motiv ca mai sus pentru navigarea activa — vezi
-      // dpHasActiveUnfinishedRoute.
-      if (dpHasActiveUnfinishedRoute()) return;
       fetch('version.json', { cache: 'no-store' })
         .then(function (res) { return res.json(); })
         .then(function (data) {
@@ -112,8 +125,17 @@
     // indefinitely with no way to notice a newer version exists. This
     // re-checks every time the page becomes visible again, catching
     // exactly that case.
+    //
+    // Cerut direct ("aggiornarile se verifica doar prin butonul din
+    // impostazioni si la pornire prima data... cat are macar un client
+    // in percorso di oggi nu se mai cauta"): verificarea de mai sus, la
+    // PRIMA pornire, ramane neconditionata (tocmai asta s-a cerut sa
+    // ramana) — dar aceasta verificare REPETATA, la fiecare revenire din
+    // fundal, se opreste complet cat exista macar un client in traseul
+    // de azi. Raman atunci doar acea verificare initiala si butonul
+    // manual din Impostazioni (mai-opt-refresh).
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'visible') checkVersionAndReload(false);
+      if (document.visibilityState === 'visible' && !dpHasAnyClientToday()) checkVersionAndReload(false);
     });
   } catch (e) { /* never let this early check itself break the page */ }
 
@@ -133,7 +155,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v677"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v678"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -15800,10 +15822,14 @@
           function checkForUpdate() { registration.update().catch(function () { /* offline, ignore */ }); }
 
           checkForUpdate();
+          // Cerut direct — vezi dpHasAnyClientToday: verificarea initiala
+          // de mai sus ramane neconditionata, dar cele repetate (la
+          // revenirea din fundal, si periodic) se opresc complet cat
+          // exista macar un client in traseul de azi.
           document.addEventListener('visibilitychange', function () {
-            if (document.visibilityState === 'visible') checkForUpdate();
+            if (document.visibilityState === 'visible' && !dpHasAnyClientToday()) checkForUpdate();
           });
-          setInterval(checkForUpdate, 60000);
+          setInterval(function () { if (!dpHasAnyClientToday()) checkForUpdate(); }, 60000);
         }).catch(function () { /* offline install may fail on first run without https */ });
       });
 
@@ -15830,10 +15856,12 @@
         .catch(function () { /* offline or blocked — silently skip, try again later */ });
     }
     checkVersionDirectly();
+    // Acelasi motiv ca mai sus pentru checkForUpdate — doar verificarea
+    // initiala ramane neconditionata.
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'visible') checkVersionDirectly();
+      if (document.visibilityState === 'visible' && !dpHasAnyClientToday()) checkVersionDirectly();
     });
-    setInterval(checkVersionDirectly, 60000);
+    setInterval(function () { if (!dpHasAnyClientToday()) checkVersionDirectly(); }, 60000);
 
     // Live status — a real presence channel, joined once the profile is
     // ready. Marked explicitly gone the moment the app is hidden/closed
