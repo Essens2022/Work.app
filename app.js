@@ -160,7 +160,7 @@
   /* ---------------------------------------------------------------- */
   /* Constants                                                         */
   /* ---------------------------------------------------------------- */
-  var APP_VERSION = "pt-foglio-v679"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
+  var APP_VERSION = "pt-foglio-v680"; // bumped alongside sw.js CACHE_VERSION and version.json, every release
   var LS_PROFILE = "pt_profile_v1";
   // Requested directly: a small, discreet way to see how much of the
   // shared ORS daily quota remains — no label, just a bare
@@ -5726,14 +5726,38 @@
     }
     var nameLineHeight = Math.round(nameFontSize * 1.3);
 
+    // REAL BUG, raportat direct cu o poza reala ("nu sa rezolvat
+    // problema cu lungimea"): acelasi tipar ca la nume (mai sus) lipsea
+    // complet la adresa — era desenata pe UN SINGUR rand, fara nicio
+    // impachetare sau micsorare, deci o adresa lunga (strada + numar +
+    // CAP + oras + provincia) iesea pur si simplu in afara pozei pe
+    // dreapta, taiata de marginea cadrului. Acelasi tipar de mai sus
+    // (impacheteaza, micsoreaza pana la 2 randuri, accepta oricate
+    // randuri mai sunt nevoie daca tot nu incape) aplicat acum si aici.
     var addrFontSize = Math.round(vScale * 0.05);
+    var addrMinFontSize = Math.round(vScale * 0.034);
+    ctx.font = '600 ' + addrFontSize + 'px sans-serif';
+    var addrLines = dpWrapCanvasText(ctx, client.indirizzo || '', maxTextWidth);
+    while (addrLines.length > 2 && addrFontSize > addrMinFontSize) {
+      addrFontSize -= Math.max(1, Math.round(addrFontSize * 0.08));
+      ctx.font = '600 ' + addrFontSize + 'px sans-serif';
+      addrLines = dpWrapCanvasText(ctx, client.indirizzo || '', maxTextWidth);
+    }
+    var addrLineHeight = Math.round(addrFontSize * 1.3);
+    // addrY ramane ancora randului de JOS (ultimul) al adresei — restul
+    // randurilor (daca sunt mai multe) se aseaza deasupra lui, acelasi
+    // tipar ca la nume mai jos.
+    var addrTopY = addrY - (addrLines.length - 1) * addrLineHeight;
+
     var topFontSize = Math.round(vScale * 0.044);
 
     // Spatiul intre fiecare pereche de randuri e calculat din marimea
     // reala a fontului implicat (nu un procent fix independent de
     // font) — garanteaza ca randurile nu se mai pot suprapune, oricare
-    // ar fi combinatia de marimi.
-    var nameBottomY = addrY - Math.max(nameFontSize, addrFontSize) * 1.05;
+    // ar fi combinatia de marimi. Ancorat de randul de SUS al adresei
+    // (addrTopY), nu de addrY direct — altfel o adresa pe mai multe
+    // randuri ar fi impins numele sa se suprapuna peste adresa.
+    var nameBottomY = addrTopY - Math.max(nameFontSize, addrFontSize) * 1.05;
     var nameTopY = nameBottomY - (nameLines.length - 1) * nameLineHeight;
 
     // Cerut direct ("am vazut ca arata doar ora cand a fost livrat,
@@ -5812,7 +5836,10 @@
     ctx.font = '700 ' + topFontSize + 'px sans-serif';
     ctx.fillText('✓ Consegnato' + (timeText ? ('   ·   ' + timeText) : ''), centerX, topRowY);
     ctx.font = '600 ' + addrFontSize + 'px sans-serif';
-    ctx.fillText(client.indirizzo || '', centerX, addrY);
+    for (var aLi = 0; aLi < addrLines.length; aLi++) {
+      var aLineY = addrY - (addrLines.length - 1 - aLi) * addrLineHeight;
+      ctx.fillText(addrLines[aLi], centerX, aLineY);
+    }
 
     if (dpWatermarkLogoImg) {
       var logoRatio = dpWatermarkLogoImg.naturalWidth / dpWatermarkLogoImg.naturalHeight;
